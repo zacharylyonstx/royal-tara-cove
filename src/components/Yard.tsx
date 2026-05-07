@@ -1,8 +1,6 @@
 import type { HouseConfig } from '../types';
 import {
-  houseYawForAngle,
-  radialToXZ,
-  HOUSE_FRONT_RADIUS,
+  houseTransform,
   FRONT_YARD_DEPTH,
   BACKYARD_DEPTH,
 } from '../world/streetLayout';
@@ -21,8 +19,7 @@ export function Yard({ config }: YardProps) {
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
 
-  const [worldX, worldZ] = radialToXZ(config.angleDeg, HOUSE_FRONT_RADIUS + halfD);
-  const yaw = houseYawForAngle(config.angleDeg);
+  const { worldX, worldZ, yaw } = houseTransform(config.position, config.depth);
 
   // Local lot space (after rotation): house front faces -Z.
   // sidewalk inner edge at z = -(halfD + FRONT_YARD_DEPTH).

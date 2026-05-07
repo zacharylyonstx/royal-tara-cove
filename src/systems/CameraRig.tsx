@@ -27,7 +27,7 @@ export function CameraRig() {
       ref={controlsRef}
       enablePan={false}
       minDistance={4}
-      maxDistance={22}
+      maxDistance={60}
       minPolarAngle={0.2}
       maxPolarAngle={Math.PI / 2 - 0.08}
       enableDamping

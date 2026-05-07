@@ -1,3 +1,5 @@
+import type { HousePosition } from './world/streetLayout';
+
 export type CharacterId = 'dad' | 'penny' | 'luke';
 
 export interface CharacterDef {
@@ -14,7 +16,7 @@ export interface CharacterDef {
 
 export interface HouseConfig {
   address: string;
-  angleDeg: number;
+  position: HousePosition;
   width: number;
   depth: number;
   stories: 1 | 2;

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
 import type { HouseConfig } from '../types';
-import { houseYawForAngle, radialToXZ, HOUSE_FRONT_RADIUS } from '../world/streetLayout';
+import { houseTransform } from '../world/streetLayout';
 import { Roof } from './Roof';
 
 const STORY_H = 3.0;
@@ -23,9 +23,7 @@ export function House({ config }: HouseProps) {
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
 
-  // World position: lot is centered on a radial line; house's front face sits at HOUSE_FRONT_RADIUS.
-  const [worldX, worldZ] = radialToXZ(config.angleDeg, HOUSE_FRONT_RADIUS + halfD);
-  const yaw = houseYawForAngle(config.angleDeg);
+  const { worldX, worldZ, yaw } = houseTransform(config.position, config.depth);
 
   const garageCenterX = config.garageOnLeft
     ? -halfW + 0.6 + GARAGE_W / 2

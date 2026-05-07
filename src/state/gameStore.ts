@@ -18,10 +18,12 @@ export const useGameStore = create<GameStore>((set) => ({
   activeCharacterId: 'dad',
   welcomeOpen: true,
   positions: {
-    // Spawn the three of you at the entry of the cul-de-sac, slightly apart.
-    dad: new Vector3(-2.5, 0, 16),
-    penny: new Vector3(0, 0, 17),
-    luke: new Vector3(2.5, 0, 16),
+    // Spawn the three of you at the entry of Royal Tara Cove (north end of
+    // the straight section, just south of the Avery Ranch Blvd intersection).
+    // World convention: -Z = north, +Z = south.
+    dad: new Vector3(-2.5, 0, -110),
+    penny: new Vector3(0, 0, -111),
+    luke: new Vector3(2.5, 0, -110),
   },
   yaws: {
     dad: 0,

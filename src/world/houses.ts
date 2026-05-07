@@ -1,9 +1,7 @@
 import type { HouseConfig } from '../types';
+import { straightZ } from './streetLayout';
 
-// Avery Ranch tract palette (built ~2004–2005). All colors are educated picks
-// inspired by typical exteriors in the subdivision; tweak any field below to
-// match what you remember of a specific house — that's the whole point of
-// this config file.
+// Avery Ranch tract palette (built ~2004–2005).
 const PALETTE = {
   walls: {
     cream: '#e8dcc4',
@@ -13,6 +11,7 @@ const PALETTE = {
     paleBeige: '#e0d4b8',
     softGray: '#cdc6b8',
     biscuit: '#dbcaa6',
+    brick: '#b07c5c',
   },
   stone: {
     cream: '#e3d8bf',
@@ -23,6 +22,7 @@ const PALETTE = {
   trim: {
     cream: '#f5ecd9',
     soft: '#e8e0cc',
+    white: '#f6f1e1',
   },
   roof: {
     brown: '#5d4a37',
@@ -39,37 +39,26 @@ const PALETTE = {
   },
 } as const;
 
-// 10 houses ringed around the cul-de-sac bulb.
+// 8 lots per side along the straight section. South-most slot (t=0) sits just
+// north of the bulb; north-most slot (t=1) sits at the entry from Avery Ranch.
+// Spacing: t = (i + 0.5) / 8 for i = 0..7 ⇒ midpoints of equal slots.
+const SLOT = (i: number) => straightZ((i + 0.5) / 8);
+
+// Houses on Royal Tara Cove. Real lat/lng was used to determine which side of
+// the street + which slot each address occupies (Nominatim geocoding May 2026).
 //
-// Angular layout: 60° gap centered on south (entry road). Houses fill 300° arc
-// at 30° per slot, midpoints at 315°, 345°, 15°, 45°, 75°, 105°, 135°, 165°,
-// 195°, 225° (math convention: 0° = east, CCW).
-//
-// Address order goes counter-clockwise from the south-east entry corner:
-// 10601, 10605, 10609, 10613, 10617, 10621, 10625, 10629, 10633, 10637.
-//
-// `source: 'verified'` = real listing data. `'partial'` = some fields confirmed.
-// `'inferred'` = reasonable Avery Ranch defaults.
+// `source` legend:
+//   'verified' = real listing data confirmed the spec
+//   'partial'  = some fields confirmed (e.g. sqft only)
+//   'inferred' = sensible Avery Ranch tract default — tweak as we remember more
 export const HOUSES: HouseConfig[] = [
-  {
-    address: '10601',
-    angleDeg: 315,
-    width: 14,
-    depth: 13,
-    stories: 2,
-    wallColor: PALETTE.walls.tan,
-    trimColor: PALETTE.trim.cream,
-    hasStone: true,
-    stoneColor: PALETTE.stone.limestone,
-    roofColor: PALETTE.roof.brown,
-    doorColor: PALETTE.doors.brown,
-    garageOnLeft: true,
-    sqft: 2297,
-    source: 'verified',
-  },
+  // ---- Cul-de-sac bulb (4 houses around the south end) ----
+  // Real bulb angles (math convention) are ~333° (10605), ~4° (10601),
+  // ~56° (10600), ~118° (10604). We've cleaned them to 0/60/120/180 for
+  // even spacing while keeping the same relative order around the bulb.
   {
     address: '10605',
-    angleDeg: 345,
+    position: { kind: 'bulb', angleDeg: 0 },
     width: 13,
     depth: 12,
     stories: 1,
@@ -85,8 +74,24 @@ export const HOUSES: HouseConfig[] = [
     source: 'verified',
   },
   {
-    address: '10609',
-    angleDeg: 15,
+    address: '10601',
+    position: { kind: 'bulb', angleDeg: 60 },
+    width: 14,
+    depth: 13,
+    stories: 2,
+    wallColor: PALETTE.walls.tan,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.limestone,
+    roofColor: PALETTE.roof.brown,
+    doorColor: PALETTE.doors.brown,
+    garageOnLeft: true,
+    sqft: 2297,
+    source: 'verified',
+  },
+  {
+    address: '10600',
+    position: { kind: 'bulb', angleDeg: 120 },
     width: 13,
     depth: 12,
     stories: 1,
@@ -96,12 +101,45 @@ export const HOUSES: HouseConfig[] = [
     stoneColor: PALETTE.stone.sand,
     roofColor: PALETTE.roof.brown,
     doorColor: PALETTE.doors.brown,
+    garageOnLeft: false,
+    source: 'inferred',
+  },
+  {
+    address: '10604',
+    position: { kind: 'bulb', angleDeg: 180 },
+    width: 13,
+    depth: 12,
+    stories: 1,
+    wallColor: PALETTE.walls.paleBeige,
+    trimColor: PALETTE.trim.soft,
+    hasStone: true,
+    stoneColor: PALETTE.stone.cream,
+    roofColor: PALETTE.roof.warmBrown,
+    doorColor: PALETTE.doors.brown,
+    garageOnLeft: true,
+    source: 'inferred',
+  },
+
+  // ---- East side of the straight section (odd numbers, 8 houses) ----
+  // Slot 0 (closest to bulb) ⇒ slot 7 (entry from Avery Ranch Blvd north).
+  {
+    address: '10609',
+    position: { kind: 'straight', side: 'east', z: SLOT(0) },
+    width: 13,
+    depth: 12,
+    stories: 1,
+    wallColor: PALETTE.walls.cream,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.limestone,
+    roofColor: PALETTE.roof.warmBrown,
+    doorColor: PALETTE.doors.brown,
     garageOnLeft: true,
     source: 'inferred',
   },
   {
     address: '10613',
-    angleDeg: 45,
+    position: { kind: 'straight', side: 'east', z: SLOT(1) },
     width: 14,
     depth: 13,
     stories: 2,
@@ -116,29 +154,29 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10617',
-    angleDeg: 75,
+    position: { kind: 'straight', side: 'east', z: SLOT(2) },
     width: 13,
     depth: 12,
     stories: 1,
-    wallColor: PALETTE.walls.paleBeige,
+    wallColor: PALETTE.walls.tan,
     trimColor: PALETTE.trim.cream,
     hasStone: true,
-    stoneColor: PALETTE.stone.limestone,
-    roofColor: PALETTE.roof.warmBrown,
+    stoneColor: PALETTE.stone.sand,
+    roofColor: PALETTE.roof.brown,
     doorColor: PALETTE.doors.burgundy,
     garageOnLeft: true,
     source: 'inferred',
   },
   {
     address: '10621',
-    angleDeg: 105,
+    position: { kind: 'straight', side: 'east', z: SLOT(3) },
     width: 14,
     depth: 13,
     stories: 2,
-    wallColor: PALETTE.walls.tan,
+    wallColor: PALETTE.walls.brick,
     trimColor: PALETTE.trim.cream,
-    hasStone: true,
-    stoneColor: PALETTE.stone.sand,
+    hasStone: false,
+    stoneColor: PALETTE.stone.cream,
     roofColor: PALETTE.roof.brown,
     doorColor: PALETTE.doors.brown,
     garageOnLeft: false,
@@ -146,7 +184,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10625',
-    angleDeg: 135,
+    position: { kind: 'straight', side: 'east', z: SLOT(4) },
     width: 13,
     depth: 12,
     stories: 1,
@@ -163,7 +201,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10629',
-    angleDeg: 165,
+    position: { kind: 'straight', side: 'east', z: SLOT(5) },
     width: 14,
     depth: 13,
     stories: 2,
@@ -178,7 +216,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10633',
-    angleDeg: 195,
+    position: { kind: 'straight', side: 'east', z: SLOT(6) },
     width: 13,
     depth: 12,
     stories: 1,
@@ -194,7 +232,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10637',
-    angleDeg: 225,
+    position: { kind: 'straight', side: 'east', z: SLOT(7) },
     width: 14,
     depth: 13,
     stories: 2,
@@ -206,5 +244,127 @@ export const HOUSES: HouseConfig[] = [
     doorColor: PALETTE.doors.burgundy,
     garageOnLeft: false,
     source: 'partial',
+  },
+
+  // ---- West side of the straight section (even numbers, 8 houses) ----
+  {
+    address: '10608',
+    position: { kind: 'straight', side: 'west', z: SLOT(0) },
+    width: 13,
+    depth: 12,
+    stories: 1,
+    wallColor: PALETTE.walls.sand,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.sand,
+    roofColor: PALETTE.roof.warmBrown,
+    doorColor: PALETTE.doors.brown,
+    garageOnLeft: false,
+    source: 'inferred',
+  },
+  {
+    address: '10612',
+    position: { kind: 'straight', side: 'west', z: SLOT(1) },
+    width: 14,
+    depth: 13,
+    stories: 2,
+    wallColor: PALETTE.walls.brick,
+    trimColor: PALETTE.trim.cream,
+    hasStone: false,
+    stoneColor: PALETTE.stone.cream,
+    roofColor: PALETTE.roof.brown,
+    doorColor: PALETTE.doors.brown,
+    garageOnLeft: true,
+    source: 'inferred',
+  },
+  {
+    address: '10616',
+    position: { kind: 'straight', side: 'west', z: SLOT(2) },
+    width: 14,
+    depth: 13,
+    stories: 2,
+    wallColor: PALETTE.walls.cream,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.limestone,
+    roofColor: PALETTE.roof.warmBrown,
+    doorColor: PALETTE.doors.brown,
+    garageOnLeft: false,
+    source: 'inferred',
+  },
+  {
+    address: '10620',
+    position: { kind: 'straight', side: 'west', z: SLOT(3) },
+    width: 13,
+    depth: 12,
+    stories: 1,
+    wallColor: PALETTE.walls.paleBeige,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.cream,
+    roofColor: PALETTE.roof.brown,
+    doorColor: PALETTE.doors.brown,
+    garageOnLeft: true,
+    source: 'inferred',
+  },
+  {
+    address: '10624',
+    position: { kind: 'straight', side: 'west', z: SLOT(4) },
+    width: 14,
+    depth: 13,
+    stories: 2,
+    wallColor: PALETTE.walls.warmGray,
+    trimColor: PALETTE.trim.soft,
+    hasStone: true,
+    stoneColor: PALETTE.stone.cream,
+    roofColor: PALETTE.roof.gray,
+    doorColor: PALETTE.doors.black,
+    garageOnLeft: false,
+    source: 'inferred',
+  },
+  {
+    address: '10628',
+    position: { kind: 'straight', side: 'west', z: SLOT(5) },
+    width: 13,
+    depth: 12,
+    stories: 1,
+    wallColor: PALETTE.walls.biscuit,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.sand,
+    roofColor: PALETTE.roof.warmBrown,
+    doorColor: PALETTE.doors.burgundy,
+    garageOnLeft: true,
+    source: 'inferred',
+  },
+  {
+    address: '10632',
+    position: { kind: 'straight', side: 'west', z: SLOT(6) },
+    width: 14,
+    depth: 13,
+    stories: 2,
+    wallColor: PALETTE.walls.softGray,
+    trimColor: PALETTE.trim.soft,
+    hasStone: true,
+    stoneColor: PALETTE.stone.cream,
+    roofColor: PALETTE.roof.charcoal,
+    doorColor: PALETTE.doors.black,
+    garageOnLeft: false,
+    source: 'inferred',
+  },
+  {
+    address: '10636',
+    position: { kind: 'straight', side: 'west', z: SLOT(7) },
+    width: 13,
+    depth: 12,
+    stories: 1,
+    wallColor: PALETTE.walls.tan,
+    trimColor: PALETTE.trim.cream,
+    hasStone: true,
+    stoneColor: PALETTE.stone.cream,
+    roofColor: PALETTE.roof.brown,
+    doorColor: PALETTE.doors.forest,
+    garageOnLeft: true,
+    source: 'inferred',
   },
 ];
