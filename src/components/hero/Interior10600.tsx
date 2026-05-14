@@ -51,14 +51,25 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
         <meshStandardMaterial color="#f5ecd9" transparent opacity={0.92} />
       </mesh>
 
-      {/* Wall meshes (visual only — colliders are separate) */}
-      <InteriorWall position={[-1.5, 1.4, -1.0]} args={[0.15, 2.8, 4.0]} />
-      <InteriorWall position={[-3.0, 1.4, 1.5]} args={[5.0, 2.8, 0.15]} />
-      <InteriorWall position={[-2.5, 1.4, 4.0]} args={[6.0, 2.8, 0.15]} />
+      {/* Wall meshes — split into two segments per doorway gap (matches buildInteriorColliders) */}
+      {/* lr-kitchen: gap at z 0..0.5 */}
+      <InteriorWall position={[-1.5, 1.4, -1.875]} args={[0.15, 2.8, 2.25]} />
+      <InteriorWall position={[-1.5, 1.4, 0.625]} args={[0.15, 2.8, 0.75]} />
+      {/* kitchen-hall: gap at x -3..-2 */}
+      <InteriorWall position={[-4.25, 1.4, 1.5]} args={[2.5, 2.8, 0.15]} />
+      <InteriorWall position={[-1.25, 1.4, 1.5]} args={[1.5, 2.8, 0.15]} />
+      {/* hall-bed-back: gap at x -2.5..-1.5 */}
+      <InteriorWall position={[-4.0, 1.4, 4.0]} args={[3.0, 2.8, 0.15]} />
+      <InteriorWall position={[-0.5, 1.4, 4.0]} args={[2.0, 2.8, 0.15]} />
+      {/* garage-house: gap at z -0.5..0.5 */}
+      <InteriorWall position={[2.0, 1.4, -halfD / 2 + 0.05]} args={[0.15, 2.8, halfD - 0.5]} />
+      <InteriorWall position={[2.0, 1.4, halfD / 2 + 0.45]} args={[0.15, 2.8, halfD - 1.1]} />
+      {/* bath-1: gap at z 4..5 */}
+      <InteriorWall position={[3.0, 1.4, 3.25]} args={[0.15, 2.8, 1.5]} />
+      <InteriorWall position={[3.0, 1.4, 5.25]} args={[0.15, 2.8, 0.5]} />
+      {/* Solid bedroom dividers + bath back */}
       <InteriorWall position={[-5.5, 1.4, 5.5]} args={[0.15, 2.8, 3.0]} />
       <InteriorWall position={[0.5, 1.4, 5.5]} args={[0.15, 2.8, 3.0]} />
-      <InteriorWall position={[2.0, 1.4, 0]} args={[0.15, 2.8, 2 * halfD - 0.4]} />
-      <InteriorWall position={[3.0, 1.4, 4.0]} args={[0.15, 2.8, 3.0]} />
       <InteriorWall position={[4.0, 1.4, 5.5]} args={[2.0, 2.8, 0.15]} />
 
       {/* Doorways framed (visual headers) */}

@@ -55,6 +55,14 @@ function Hopper({ blob }: BlobProps) {
     }
     group.current.visible = true;
 
+    // Erupt scale-in: 0 → 1.15 → 1 over 0.4s with overshoot
+    const sinceSpawn = t - blob.spawnedAt;
+    if (sinceSpawn < 0.4) {
+      const k = sinceSpawn / 0.4;
+      const overshoot = k < 0.7 ? (k / 0.7) * 1.15 : 1.15 - ((k - 0.7) / 0.3) * 0.15;
+      group.current.scale.setScalar(blob.scale * overshoot);
+    }
+
     const wob = Math.sin(t * 6 + blob.phase) * 0.12;
     if (body.current) {
       const sx = isAttacking ? 1.18 - wob * 0.3 : 1 - wob * 0.55;
@@ -189,6 +197,46 @@ function Hopper({ blob }: BlobProps) {
         </group>
       ))}
       <pointLight position={[0, 0.1, 0]} color={color.body} intensity={0.4} distance={3} decay={2} />
+      <BlobHpBar blob={blob} />
+    </group>
+  );
+}
+
+function BlobHpBar({ blob, always = false, width = 0.7 }: { blob: Blob; always?: boolean; width?: number }) {
+  const groupRef = useRef<Group>(null);
+  const fillRef = useRef<Mesh>(null);
+  useFrame(({ camera }) => {
+    const g = groupRef.current;
+    if (!g) return;
+    const visible = blob.alive && (always || blob.hp < blob.maxHp);
+    g.visible = visible;
+    if (!visible) return;
+    // Always face camera (yaw only)
+    g.lookAt(camera.position.x, g.position.y, camera.position.z);
+    if (fillRef.current) {
+      const ratio = blob.hp / blob.maxHp;
+      fillRef.current.scale.x = Math.max(0.001, ratio);
+      fillRef.current.position.x = -(width / 2) * (1 - ratio);
+      const mat = fillRef.current.material as THREE.MeshBasicMaterial;
+      if (mat) {
+        const r = ratio < 0.4 ? 1 : 0.5 - ratio * 0.5;
+        const gC = ratio < 0.4 ? ratio * 1.5 : 0.7;
+        mat.color.setRGB(r, gC, 0.2);
+      }
+    }
+  });
+  return (
+    <group ref={groupRef} position={[0, 1.2, 0]} visible={false}>
+      {/* background bar */}
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[width, 0.08]} />
+        <meshBasicMaterial color="#1a1a1c" transparent opacity={0.7} depthTest={false} />
+      </mesh>
+      {/* fill — anchored at left edge, scales toward right */}
+      <mesh ref={fillRef} position={[0, 0, 0.001]}>
+        <planeGeometry args={[width, 0.07]} />
+        <meshBasicMaterial color="#5cb85c" transparent opacity={0.95} depthTest={false} />
+      </mesh>
     </group>
   );
 }
@@ -272,6 +320,7 @@ function Sprinter({ blob }: BlobProps) {
         </mesh>
       ))}
       <pointLight position={[0, 0.1, 0]} color={color.body} intensity={0.5} distance={3.5} decay={2} />
+      <BlobHpBar blob={blob} />
     </group>
   );
 }
@@ -364,6 +413,7 @@ function Splitter({ blob }: BlobProps) {
         <meshStandardMaterial color="#1a1a1c" />
       </mesh>
       <pointLight position={[0, 0.1, 0]} color={color.glow} intensity={0.5} distance={3} decay={2} />
+      <BlobHpBar blob={blob} />
     </group>
   );
 }

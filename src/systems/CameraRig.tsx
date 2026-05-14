@@ -101,6 +101,20 @@ export function CameraRig() {
     const pos = positions[activeId];
     const playerYaw = yaws[activeId];
 
+    // --- Cinematic override ---
+    const cin = useCombatStore.getState().cinematic;
+    if (cin.active) {
+      const blendK = Math.min(1, 4 * dt);
+      const targetCam = new Vector3(cin.cameraX, cin.cameraY, cin.cameraZ);
+      const lookTarget = new Vector3(cin.targetX, cin.targetY, cin.targetZ);
+      camera.position.lerp(targetCam, blendK);
+      camera.lookAt(lookTarget);
+      // Reset target rig state so when cinematic ends we re-blend smoothly
+      // back into the follow cam without a snap.
+      lastDragInputAt.current = performance.now();
+      return;
+    }
+
     // Behind-character relax: only if user hasn't dragged in the last 1.5s.
     const sinceDrag = (performance.now() - lastDragInputAt.current) / 1000;
     if (!dragging.current && sinceDrag > 1.5) {

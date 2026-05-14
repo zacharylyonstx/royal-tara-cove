@@ -18,6 +18,13 @@ export interface Blob {
   variant: number;
   alive: boolean;
   deathAt: number;
+  /** When the blob spawned (for erupt scale-in animation). */
+  spawnedAt: number;
+  /** Detour waypoint world XZ — blob steers here before targeting player. */
+  waypointX: number;
+  waypointZ: number;
+  /** True when blob has reached its waypoint (or doesn't have one). */
+  waypointReached: boolean;
   /** Boss-specific cooldowns (ignored for non-boss). */
   slamCooldown?: number;
   summonCooldown?: number;
@@ -100,6 +107,13 @@ export interface Firework {
   x: number; y: number; z: number;
   color: string;
   spawnedAt: number;
+}
+
+export interface Cinematic {
+  active: boolean;
+  targetX: number; targetY: number; targetZ: number;
+  cameraX: number; cameraY: number; cameraZ: number;
+  endsAt: number;
 }
 
 export const POWERUP_BASE_DROP_RATE = 0.32;
@@ -237,6 +251,15 @@ interface CombatStore {
   spawnFirework: (x: number, y: number, z: number, color: string) => void;
   reapFireworks: (now: number) => void;
 
+  /** Cinematic camera control — set when wave is about to spawn */
+  cinematic: Cinematic;
+  startCinematic: (
+    target: [number, number, number],
+    camera: [number, number, number],
+    duration: number,
+  ) => void;
+  endCinematic: () => void;
+
   startGame: () => void;
   reset: () => void;
 }
@@ -297,6 +320,16 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
     const { hp, scale } = blobDefaultsFor(kind);
     const id = get().nextBlobId;
     const variant = opts?.variant ?? get().spawnedBlobsCount % 4;
+    // Compute detour waypoint: route around hero house (10600 lives at the
+    // bulb at angleDeg=90, world ~(0, +37), 18m wide). Side chosen randomly
+    // so blobs fan around both sides. Boss skips waypoint.
+    const HERO_X = 0;
+    const HERO_Z = 37;
+    const HERO_HALF_W = 11;
+    const isBoss = kind === 'boss';
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const waypointX = isBoss ? x : HERO_X + side * HERO_HALF_W;
+    const waypointZ = isBoss ? z : HERO_Z;
     set((s) => ({
       nextBlobId: id + 1,
       spawnedBlobsCount: s.spawnedBlobsCount + 1,
@@ -308,6 +341,9 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
           hopCooldown: Math.random() * 0.5,
           lastDamagedAt: -999,
           variant, alive: true, deathAt: 0,
+          spawnedAt: performance.now() / 1000,
+          waypointX, waypointZ,
+          waypointReached: isBoss,
           slamCooldown: kind === 'boss' ? 5 : undefined,
           summonCooldown: kind === 'boss' ? 6 : undefined,
           chargeCooldown: kind === 'boss' ? 8 : undefined,
@@ -530,6 +566,22 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
     const next = cur.filter((f) => now - f.spawnedAt < 2.4);
     if (next.length !== cur.length) set({ fireworks: next });
   },
+
+  cinematic: {
+    active: false,
+    targetX: 0, targetY: 0, targetZ: 0,
+    cameraX: 0, cameraY: 8, cameraZ: 0,
+    endsAt: 0,
+  },
+  startCinematic: (target, camera, duration) => set({
+    cinematic: {
+      active: true,
+      targetX: target[0], targetY: target[1], targetZ: target[2],
+      cameraX: camera[0], cameraY: camera[1], cameraZ: camera[2],
+      endsAt: performance.now() / 1000 + duration,
+    },
+  }),
+  endCinematic: () => set((s) => ({ cinematic: { ...s.cinematic, active: false } })),
 
   startGame: () => set({
     gameStartedAt: performance.now() / 1000,

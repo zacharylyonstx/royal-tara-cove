@@ -796,24 +796,32 @@ export function buildInteriorColliders(config: HouseConfig, lot: Lot): RectColli
 
   const localWalls: { cx: number; cz: number; sx: number; sz: number; tag: string }[] = [];
 
-  // Wall between living room and kitchen (north-south wall through middle, leaving doorway)
-  localWalls.push({ cx: -1.5, cz: -1.0, sx: 0.15, sz: 4.0, tag: 'lr-kitchen' });
+  // ---- Walls with doorway gaps split into two segments ----
+  // lr-kitchen (north-south, x=-1.5, original z spans -3..1, gap at z≈-0.25 to 0.25)
+  localWalls.push({ cx: -1.5, cz: -1.875, sx: 0.15, sz: 2.25, tag: 'lr-kitchen-a' });
+  localWalls.push({ cx: -1.5, cz: 0.625, sx: 0.15, sz: 0.75, tag: 'lr-kitchen-b' });
 
-  // Wall between kitchen and hallway (east-west)
-  localWalls.push({ cx: -3.0, cz: 1.5, sx: 5.0, sz: 0.15, tag: 'kitchen-hall' });
+  // kitchen-hall (east-west, z=1.5, original x spans -5.5..-0.5, gap at x≈-3 to -2)
+  localWalls.push({ cx: -4.25, cz: 1.5, sx: 2.5, sz: 0.15, tag: 'kitchen-hall-a' });
+  localWalls.push({ cx: -1.25, cz: 1.5, sx: 1.5, sz: 0.15, tag: 'kitchen-hall-b' });
 
-  // Wall separating bedrooms from hallway
-  localWalls.push({ cx: -2.5, cz: 4.0, sx: 6.0, sz: 0.15, tag: 'hall-bed-back' });
+  // hall-bed-back (east-west, z=4, original x spans -5.5..0.5, gap at x≈-2.5 to -1.5)
+  localWalls.push({ cx: -4.0, cz: 4.0, sx: 3.0, sz: 0.15, tag: 'hall-bed-back-a' });
+  localWalls.push({ cx: -0.5, cz: 4.0, sx: 2.0, sz: 0.15, tag: 'hall-bed-back-b' });
 
-  // Bedroom dividers
+  // garage-house (north-south, x=2, original z spans full house depth, gap at z≈-0.5..0.5)
+  localWalls.push({ cx: 2.0, cz: -halfD / 2 + 0.05, sx: 0.15, sz: halfD - 0.5, tag: 'garage-house-a' });
+  localWalls.push({ cx: 2.0, cz: halfD / 2 + 0.45, sx: 0.15, sz: halfD - 1.1, tag: 'garage-house-b' });
+
+  // bath-1 (north-south, x=3, original z spans 2.5..5.5, gap at z≈4..5)
+  localWalls.push({ cx: 3.0, cz: 3.25, sx: 0.15, sz: 1.5, tag: 'bath-1-a' });
+  localWalls.push({ cx: 3.0, cz: 5.25, sx: 0.15, sz: 0.5, tag: 'bath-1-b' });
+
+  // ---- Solid walls (no doorways) ----
+  // Bedroom dividers stay solid
   localWalls.push({ cx: -5.5, cz: 5.5, sx: 0.15, sz: 3.0, tag: 'penny-luke' });
   localWalls.push({ cx: 0.5, cz: 5.5, sx: 0.15, sz: 3.0, tag: 'master-luke' });
-
-  // Garage interior wall (separates garage from house interior)
-  localWalls.push({ cx: 2.0, cz: 0, sx: 0.15, sz: 2 * halfD - 0.4, tag: 'garage-house' });
-
-  // Bathroom walls
-  localWalls.push({ cx: 3.0, cz: 4.0, sx: 0.15, sz: 3.0, tag: 'bath-1' });
+  // Bathroom back wall (short) stays solid
   localWalls.push({ cx: 4.0, cz: 5.5, sx: 2.0, sz: 0.15, tag: 'bath-2' });
 
   // Transform to world.

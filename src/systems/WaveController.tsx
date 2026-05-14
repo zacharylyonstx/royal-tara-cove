@@ -8,6 +8,7 @@ import { victoryFanfare, stopCrackleLoop, waveAlarm, bossRoar } from '../audio';
 
 const SPAWN_INTERVAL = 0.55;
 const INTERMISSION_LEN = 5.0;
+const CINEMATIC_DURATION = 2.0;
 
 export const WAVES: { kind: BlobKind; count: number }[][] = [
   // Wave 1 — easier intro
@@ -45,9 +46,13 @@ export function WaveController() {
   const consumeBlobToSpawn = useCombatStore((s) => s.consumeBlobToSpawn);
   const pushDialogue = useCombatStore((s) => s.pushDialogue);
   const startGame = useCombatStore((s) => s.startGame);
+  const startCinematic = useCombatStore((s) => s.startCinematic);
+  const endCinematic = useCombatStore((s) => s.endCinematic);
+  const cinematic = useCombatStore((s) => s.cinematic);
 
   const spawnAccum = useRef(0);
   const enteredCombatRef = useRef(false);
+  const cinematicTriggeredFor = useRef<number>(-1);
 
   // When combat begins for the first time, kick off Wave 1.
   useEffect(() => {
@@ -66,6 +71,21 @@ export function WaveController() {
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);
     const now = state.clock.elapsedTime;
+
+    // Trigger spawn cinematic the first time we enter spawning for this wave
+    if (waveState === 'spawning' && cinematicTriggeredFor.current !== waveIndex) {
+      cinematicTriggeredFor.current = waveIndex;
+      startCinematic(
+        [BLOB_SPAWN[0], BLOB_SPAWN[1] + 1, BLOB_SPAWN[2]],
+        [BLOB_SPAWN[0], 18, BLOB_SPAWN[2] - 16], // pulled toward player side, looking back
+        CINEMATIC_DURATION,
+      );
+    }
+    // While cinematic is active, pause spawning. End cinematic after duration.
+    if (cinematic.active) {
+      if (now > cinematic.endsAt) endCinematic();
+      return;
+    }
 
     // Spawn blobs from the current wave's queue.
     if (waveState === 'spawning') {

@@ -155,14 +155,27 @@ export function BlobController() {
         continue;
       }
 
-      const dx = player.x - b.x;
-      const dz = player.z - b.z;
+      // Detour pathing: aim for waypoint until reached, then chase player.
+      if (!b.waypointReached) {
+        const wdx = b.waypointX - b.x;
+        const wdz = b.waypointZ - b.z;
+        if (Math.hypot(wdx, wdz) < 1.0) {
+          b.waypointReached = true;
+        }
+      }
+      const targetX = b.waypointReached ? player.x : b.waypointX;
+      const targetZ = b.waypointReached ? player.z : b.waypointZ;
+      const dx = targetX - b.x;
+      const dz = targetZ - b.z;
       const dist = Math.hypot(dx, dz);
+      const playerDist = b.waypointReached ? dist : Math.hypot(player.x - b.x, player.z - b.z);
+      // Don't attempt melee attacks while still routing around the house.
+      const canAttack = b.waypointReached;
 
       // --- Sprinter: continuous slide toward player ---
       if (b.kind === 'sprinter') {
         if (dist > APPROACH_RANGE) continue;
-        if (dist < ATTACK_DIST) {
+        if (canAttack && playerDist < ATTACK_DIST) {
           rt.attackCooldown -= dt;
           if (rt.attackCooldown <= 0) {
             rt.attackCooldown = ATTACK_COOLDOWN * 0.8;
@@ -270,11 +283,11 @@ export function BlobController() {
         continue;
       }
       if (dist > APPROACH_RANGE) continue;
-      if (dist < ATTACK_DIST) {
+      if (canAttack && playerDist < ATTACK_DIST) {
         rt.attackCooldown -= dt;
         if (rt.attackCooldown <= 0) {
           rt.attackCooldown = ATTACK_COOLDOWN;
-          damagePlayer(1);
+          if (!hasPowerUp('shield')) damagePlayer(1);
           blobAttack();
           damageHit();
           triggerDamageFlash();

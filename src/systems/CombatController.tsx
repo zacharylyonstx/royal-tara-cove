@@ -8,9 +8,10 @@ const FIRE_COOLDOWN_BASE = 0.18;
 const RAPID_FIRE_COOLDOWN = 0.06;
 const RANGE = 30;
 const BLOB_RADIUS = 0.55;
-const AIM_CONE_DEG = 50;
-const PASSIVE_AIM_RANGE = 22;
-const PASSIVE_AIM_LERP = 4;
+const AIM_CONE_DEG = 18;             // tighter snap (was 50)
+const PASSIVE_AIM_NEAR = 10;          // disable rotation help inside 10m
+const PASSIVE_AIM_FAR = 22;           // active range (was 22)
+const PASSIVE_AIM_LERP = 1.5;         // gentler turn (was 4)
 
 const BOMB_COOLDOWN = 0.6;
 const LEGO_COOLDOWN = 0.4;
@@ -67,10 +68,10 @@ export function CombatController() {
       const pos = positions[activeId];
       const blobsAlive = useCombatStore.getState().blobs.filter((b) => b.alive);
       let nearest: typeof blobsAlive[number] | null = null;
-      let nearestD = PASSIVE_AIM_RANGE;
+      let nearestD = PASSIVE_AIM_FAR;
       for (const b of blobsAlive) {
         const d = Math.hypot(b.x - pos.x, b.z - pos.z);
-        if (d < nearestD) { nearestD = d; nearest = b; }
+        if (d < nearestD && d >= PASSIVE_AIM_NEAR) { nearestD = d; nearest = b; }
       }
       if (nearest) {
         const dx = nearest.x - pos.x;
@@ -132,13 +133,8 @@ export function CombatController() {
       candidates.push({ blob: b, dist });
     }
     if (candidates.length === 0) return null;
-    candidates.sort((a, b) => {
-      if (a.blob.hp !== b.blob.hp) return a.blob.hp - b.blob.hp;
-      return a.dist - b.dist;
-    });
-    if (candidates[0].blob.id === lastTargetId.current && candidates.length > 1) {
-      return candidates[1].blob;
-    }
+    // Distance only — no lowest-HP preference, no last-target alternation.
+    candidates.sort((a, b) => a.dist - b.dist);
     return candidates[0].blob;
   }
 

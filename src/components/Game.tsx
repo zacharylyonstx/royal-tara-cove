@@ -50,6 +50,7 @@ import { Confetti } from './celebration/Confetti';
 import { DiscoLights } from './celebration/DiscoLights';
 import { DancingBlobs } from './celebration/DancingBlobs';
 import { Fireflies } from './celebration/Fireflies';
+import { BackyardPortal } from './celebration/BackyardPortal';
 import { useCombatStore } from '../state/combatStore';
 import { CameraExposer } from '../ui/Dialogue';
 
@@ -157,6 +158,9 @@ export function Game() {
       {/* Pickups + projectiles */}
       <PickupsLive />
       <Projectiles />
+
+      {/* Spawn portal (visible whenever blobs are queued) */}
+      <BackyardPortal />
 
       {/* Celebration / ambience */}
       <Fireworks />
