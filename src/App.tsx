@@ -13,6 +13,9 @@ import { Dialogue } from './ui/Dialogue';
 import { MiniMap } from './ui/MiniMap';
 import { WaveBanner } from './ui/WaveBanner';
 import { EnemyArrow } from './ui/EnemyArrow';
+import { ComboHud } from './ui/ComboHud';
+import { PowerUpHud } from './ui/PowerUpHud';
+import { FloatingNumbers } from './ui/FloatingNumbers';
 
 export default function App() {
   return (
@@ -34,6 +37,9 @@ export default function App() {
       <MiniMap />
       <WaveBanner />
       <EnemyArrow />
+      <ComboHud />
+      <PowerUpHud />
+      <FloatingNumbers />
       <WelcomeScreen />
       <VictoryScreen />
       <DefeatScreen />

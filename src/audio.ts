@@ -388,6 +388,234 @@ export function waveAlarm() {
   }
 }
 
+// --- Procedural music subsystem ---
+// Three concurrent layers cross-faded by combat phase. All notes are
+// scheduled by an interval that runs at ~4 Hz and queues the next bar.
+
+interface MusicLayer {
+  gain: GainNode;
+  // Steady references so we can quickly retune
+  voices: OscillatorNode[];
+  noiseSrc?: AudioBufferSourceNode;
+}
+
+let musicMaster: GainNode | null = null;
+let peacefulLayer: MusicLayer | null = null;
+let combatLayer: MusicLayer | null = null;
+let victoryLayer: MusicLayer | null = null;
+let musicScheduler: number | null = null;
+let nextNoteTime = 0;
+let beatCounter = 0;
+
+const PEACEFUL_CHORDS: number[][] = [
+  [261.63, 329.63, 392.0],   // C major
+  [220.0, 277.18, 329.63],   // A minor
+  [293.66, 369.99, 440.0],   // D minor
+  [196.0, 246.94, 293.66],   // G major
+];
+
+const COMBAT_BASS: number[] = [
+  82.41, 82.41, 110.0, 82.41, 73.42, 73.42, 98.0, 110.0,
+];
+
+// Major triad cascading ladder for victory layer
+const VICTORY_NOTES: number[] = [
+  261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5, 1318.51,
+];
+
+function ensureMusicMaster(): GainNode | null {
+  const c = ensureCtx();
+  if (!c) return null;
+  if (!musicMaster) {
+    musicMaster = c.createGain();
+    musicMaster.gain.value = 0.0;
+    musicMaster.connect(c.destination);
+  }
+  return musicMaster;
+}
+
+function makeLayer(): MusicLayer | null {
+  const c = ensureCtx();
+  const master = ensureMusicMaster();
+  if (!c || !master) return null;
+  const g = c.createGain();
+  g.gain.value = 0;
+  g.connect(master);
+  return { gain: g, voices: [] };
+}
+
+function ensureLayers() {
+  if (!peacefulLayer) peacefulLayer = makeLayer();
+  if (!combatLayer) combatLayer = makeLayer();
+  if (!victoryLayer) victoryLayer = makeLayer();
+}
+
+export function startMusic() {
+  const c = ensureCtx();
+  if (!c) return;
+  ensureMusicMaster();
+  ensureLayers();
+  if (musicScheduler !== null) return;
+  if (musicMaster) musicMaster.gain.linearRampToValueAtTime(0.45, c.currentTime + 0.5);
+  nextNoteTime = c.currentTime + 0.05;
+  beatCounter = 0;
+  musicScheduler = window.setInterval(() => scheduleAhead(), 200);
+}
+
+export function stopMusic() {
+  const c = ensureCtx();
+  if (!c) return;
+  if (musicScheduler !== null) {
+    clearInterval(musicScheduler);
+    musicScheduler = null;
+  }
+  if (musicMaster) {
+    musicMaster.gain.cancelScheduledValues(c.currentTime);
+    musicMaster.gain.linearRampToValueAtTime(0.0001, c.currentTime + 0.3);
+  }
+}
+
+/**
+ * Set the relative gain of each layer (0..1). Call this on phase changes.
+ */
+export function setMusicMix(p: { peaceful?: number; combat?: number; victory?: number }) {
+  const c = ensureCtx();
+  if (!c) return;
+  ensureLayers();
+  const t = c.currentTime;
+  const ramp = 0.6;
+  if (peacefulLayer && p.peaceful !== undefined) {
+    peacefulLayer.gain.gain.cancelScheduledValues(t);
+    peacefulLayer.gain.gain.linearRampToValueAtTime(p.peaceful, t + ramp);
+  }
+  if (combatLayer && p.combat !== undefined) {
+    combatLayer.gain.gain.cancelScheduledValues(t);
+    combatLayer.gain.gain.linearRampToValueAtTime(p.combat, t + ramp);
+  }
+  if (victoryLayer && p.victory !== undefined) {
+    victoryLayer.gain.gain.cancelScheduledValues(t);
+    victoryLayer.gain.gain.linearRampToValueAtTime(p.victory, t + ramp);
+  }
+}
+
+function scheduleAhead() {
+  const c = ensureCtx();
+  if (!c) return;
+  const lookahead = 0.3; // schedule 300ms ahead
+  while (nextNoteTime < c.currentTime + lookahead) {
+    schedulePeacefulPad(nextNoteTime);
+    if (beatCounter % 1 === 0) scheduleCombatBeat(nextNoteTime);
+    if (beatCounter % 2 === 0) scheduleVictoryNote(nextNoteTime);
+    nextNoteTime += 0.5; // 120bpm eighth-note
+    beatCounter++;
+  }
+}
+
+function schedulePeacefulPad(t: number) {
+  const c = ensureCtx();
+  if (!c || !peacefulLayer) return;
+  // Change chord every 8 beats
+  const chordIdx = Math.floor(beatCounter / 8) % PEACEFUL_CHORDS.length;
+  const chord = PEACEFUL_CHORDS[chordIdx];
+  // Fire each note as a soft sine pad with slow attack
+  for (const f of chord) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0, t);
+    g.gain.linearRampToValueAtTime(0.05, t + 0.4);
+    g.gain.linearRampToValueAtTime(0.0001, t + 0.7);
+    osc.connect(g).connect(peacefulLayer.gain);
+    osc.start(t);
+    osc.stop(t + 0.75);
+  }
+}
+
+function scheduleCombatBeat(t: number) {
+  const c = ensureCtx();
+  if (!c || !combatLayer) return;
+  // Bass line
+  const f = COMBAT_BASS[beatCounter % COMBAT_BASS.length];
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(f, t);
+  osc.frequency.exponentialRampToValueAtTime(f * 0.6, t + 0.4);
+  g.gain.setValueAtTime(0.0, t);
+  g.gain.linearRampToValueAtTime(0.16, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+  osc.connect(g).connect(combatLayer.gain);
+  osc.start(t);
+  osc.stop(t + 0.5);
+
+  // Snare-like noise hit on 2 and 4 (every other beat)
+  if (beatCounter % 2 === 1) {
+    const bufSize = Math.floor(c.sampleRate * 0.16);
+    const buf = c.createBuffer(1, bufSize, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const filt = c.createBiquadFilter();
+    filt.type = 'highpass';
+    filt.frequency.value = 1800;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.18, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    src.connect(filt).connect(ng).connect(combatLayer.gain);
+    src.start(t);
+  }
+
+  // Arpeggio (square wave)
+  const arpNotes = [261.63, 329.63, 392.0, 523.25];
+  const arp = arpNotes[beatCounter % arpNotes.length];
+  const arpOsc = c.createOscillator();
+  const arpG = c.createGain();
+  arpOsc.type = 'square';
+  arpOsc.frequency.setValueAtTime(arp, t);
+  arpG.gain.setValueAtTime(0.0, t);
+  arpG.gain.linearRampToValueAtTime(0.05, t + 0.02);
+  arpG.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  arpOsc.connect(arpG).connect(combatLayer.gain);
+  arpOsc.start(t);
+  arpOsc.stop(t + 0.3);
+}
+
+function scheduleVictoryNote(t: number) {
+  const c = ensureCtx();
+  if (!c || !victoryLayer) return;
+  const f = VICTORY_NOTES[beatCounter % VICTORY_NOTES.length];
+  // Triangle "bell"
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(f, t);
+  g.gain.setValueAtTime(0.0, t);
+  g.gain.linearRampToValueAtTime(0.10, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.85);
+  osc.connect(g).connect(victoryLayer.gain);
+  osc.start(t);
+  osc.stop(t + 0.9);
+
+  // Faux brass: detuned saw an octave below, on every 4th beat
+  if (beatCounter % 4 === 0) {
+    const o2 = c.createOscillator();
+    const g2 = c.createGain();
+    o2.type = 'sawtooth';
+    o2.frequency.setValueAtTime(f * 0.5, t);
+    g2.gain.setValueAtTime(0.0, t);
+    g2.gain.linearRampToValueAtTime(0.08, t + 0.03);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 1.4);
+    const filt = c.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = 1200;
+    o2.connect(filt).connect(g2).connect(victoryLayer.gain);
+    o2.start(t);
+    o2.stop(t + 1.5);
+  }
+}
+
 export function defeatSting() {
   const c = ensureCtx();
   if (!c) return;

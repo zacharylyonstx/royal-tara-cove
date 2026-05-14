@@ -7,6 +7,7 @@ export function VictoryScreen() {
   const shotsFired = useCombatStore((s) => s.shotsFired);
   const shotsHit = useCombatStore((s) => s.shotsHit);
   const startedAt = useCombatStore((s) => s.gameStartedAt);
+  const score = useCombatStore((s) => s.score);
   if (phase !== 'victory') return null;
   const elapsed = (performance.now() / 1000) - startedAt;
   const accuracy = shotsFired > 0 ? (shotsHit / shotsFired) * 100 : 0;
@@ -20,18 +21,21 @@ export function VictoryScreen() {
     <div
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(20, 30, 40, 0.6)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 1000, backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        paddingBottom: 24,
+        zIndex: 1000,
+        pointerEvents: 'none',
       }}
     >
       <div
         style={{
-          background: 'linear-gradient(135deg, #fff7e6, #ffe3a3)',
+          background: 'linear-gradient(135deg, rgba(255,247,230,0.92), rgba(255,227,163,0.92))',
           border: '4px solid #5a8a3e', borderRadius: 24,
-          padding: '32px 56px', textAlign: 'center', maxWidth: 560,
+          padding: '20px 44px', textAlign: 'center', maxWidth: 560,
           boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          backdropFilter: 'blur(8px)',
+          pointerEvents: 'auto',
         }}
       >
         <div style={{ fontSize: 64 }}>🛸 💥</div>
@@ -39,11 +43,13 @@ export function VictoryScreen() {
         <p style={{ fontSize: 16, color: '#3a4030', marginBottom: 24 }}>
           You scrubbed the schmorgesblobs off Royal Tara Cove.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 18, maxWidth: 380, margin: '0 auto 18px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18, maxWidth: 480, margin: '0 auto 18px' }}>
+          <Stat label="Score" value={score.toLocaleString()} />
           <Stat label="Time" value={fmtTime(elapsed)} />
           <Stat label="Kills" value={`${kills} / ${totalEnemies}`} />
           <Stat label="Accuracy" value={`${accuracy.toFixed(1)}%`} />
           <Stat label="Shots" value={`${shotsHit} / ${shotsFired}`} />
+          <Stat label="Status" value="🎉 PARTY!" />
         </div>
         <div
           style={{

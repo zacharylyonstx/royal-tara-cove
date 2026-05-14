@@ -4,12 +4,16 @@ import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { laserZap, blobSquish } from '../audio';
 
-const FIRE_COOLDOWN = 0.18;
+const FIRE_COOLDOWN_BASE = 0.18;
+const RAPID_FIRE_COOLDOWN = 0.06;
 const RANGE = 30;
 const BLOB_RADIUS = 0.55;
-const AIM_CONE_DEG = 50; // half-angle for auto-aim assist (wider = more forgiving)
-const PASSIVE_AIM_RANGE = 22; // auto-face nearest blob within this range
-const PASSIVE_AIM_LERP = 4; // rad/s rotation speed when auto-tracking
+const AIM_CONE_DEG = 50;
+const PASSIVE_AIM_RANGE = 22;
+const PASSIVE_AIM_LERP = 4;
+
+const BOMB_COOLDOWN = 0.6;
+const LEGO_COOLDOWN = 0.4;
 
 export function CombatController() {
   const { gl } = useThree();
@@ -23,10 +27,19 @@ export function CombatController() {
   const recordShotFired = useCombatStore((s) => s.recordShotFired);
   const recordShotHit = useCombatStore((s) => s.recordShotHit);
   const slowMo = useCombatStore((s) => s.slowMo);
+  const spawnProjectile = useCombatStore((s) => s.spawnProjectile);
+  const hasPowerUp = useCombatStore((s) => s.hasPowerUp);
 
   const cooldown = useRef(0);
   const wantsFire = useRef(false);
   const lastTargetId = useRef<number | null>(null);
+  const lastActiveId = useRef(activeId);
+
+  // Reset cooldown on character switch (no exploit)
+  if (lastActiveId.current !== activeId) {
+    lastActiveId.current = activeId;
+    cooldown.current = 0.15;
+  }
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -49,14 +62,11 @@ export function CombatController() {
     const dt = Math.min(dtRaw, 0.1) * slowMo;
     cooldown.current = Math.max(0, cooldown.current - dt);
 
-    // --- Passive aim assist: slowly rotate player to face nearest blob ---
-    // Only when not actively moving (no WASD pressed). Detected indirectly
-    // by checking whether the keyboard last moved us — easier: always track,
-    // but at a slow lerp so movement input still wins.
+    // --- Passive aim assist ---
     {
       const pos = positions[activeId];
       const blobsAlive = useCombatStore.getState().blobs.filter((b) => b.alive);
-      let nearest = null as null | typeof blobsAlive[number];
+      let nearest: typeof blobsAlive[number] | null = null;
       let nearestD = PASSIVE_AIM_RANGE;
       for (const b of blobsAlive) {
         const d = Math.hypot(b.x - pos.x, b.z - pos.z);
@@ -75,23 +85,44 @@ export function CombatController() {
 
     if (!wantsFire.current || cooldown.current > 0) return;
 
-    cooldown.current = FIRE_COOLDOWN;
-    recordShotFired();
-    const pos = positions[activeId];
-    let yaw = yaws[activeId];
+    // Dispatch by active character
+    if (activeId === 'penny') {
+      cooldown.current = BOMB_COOLDOWN;
+      fireBomb();
+    } else if (activeId === 'luke') {
+      cooldown.current = LEGO_COOLDOWN;
+      fireLegoSpread();
+    } else {
+      // Dad — ray gun (with powerup modifiers)
+      cooldown.current = hasPowerUp('rapidFire') ? RAPID_FIRE_COOLDOWN : FIRE_COOLDOWN_BASE;
+      fireRayGun();
+    }
+  });
 
-    // --- Auto-aim assist: cone-snap with target rotation ---
-    // Priority: (1) prefer NOT the last target (spread damage), (2) lowest HP
-    // (finish kills), (3) nearest. This avoids wasting shots on one blob
-    // while others swarm.
+  function getAimVectors() {
+    const pos = positions[activeId];
+    const yaw = yaws[activeId];
+    const HAND_X = 0.35;
+    const MUZZLE_Z_LOCAL = -0.8;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z_LOCAL * sy;
+    const muzzleY = 1.1;
+    const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z_LOCAL * cy;
+    const dirX = -Math.sin(yaw);
+    const dirZ = -Math.cos(yaw);
+    return { pos, yaw, muzzleX, muzzleY, muzzleZ, dirX, dirZ };
+  }
+
+  function snapTargetForYaw(yaw: number, posX: number, posZ: number) {
     const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
     const facingX = -Math.sin(yaw);
     const facingZ = -Math.cos(yaw);
     const coneCos = Math.cos((AIM_CONE_DEG * Math.PI) / 180);
     const candidates: { blob: typeof blobs[number]; dist: number }[] = [];
     for (const b of blobs) {
-      const dx = b.x - pos.x;
-      const dz = b.z - pos.z;
+      const dx = b.x - posX;
+      const dz = b.z - posZ;
       const dist = Math.hypot(dx, dz);
       if (dist > RANGE || dist < 0.001) continue;
       const ux = dx / dist;
@@ -100,29 +131,19 @@ export function CombatController() {
       if (dot < coneCos) continue;
       candidates.push({ blob: b, dist });
     }
-    let snapTarget: typeof blobs[number] | null = null;
-    if (candidates.length > 0) {
-      // Sort by score: lower hp first, then nearer; demote the last target.
-      candidates.sort((a, b) => {
-        if (a.blob.hp !== b.blob.hp) return a.blob.hp - b.blob.hp;
-        return a.dist - b.dist;
-      });
-      // If the top candidate is the same as last shot AND there's another, pick the alternate.
-      if (candidates[0].blob.id === lastTargetId.current && candidates.length > 1) {
-        snapTarget = candidates[1].blob;
-      } else {
-        snapTarget = candidates[0].blob;
-      }
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => {
+      if (a.blob.hp !== b.blob.hp) return a.blob.hp - b.blob.hp;
+      return a.dist - b.dist;
+    });
+    if (candidates[0].blob.id === lastTargetId.current && candidates.length > 1) {
+      return candidates[1].blob;
     }
-    lastTargetId.current = snapTarget?.id ?? null;
-    if (snapTarget) {
-      // Snap player yaw and aim direction toward this blob
-      const dx = snapTarget.x - pos.x;
-      const dz = snapTarget.z - pos.z;
-      yaw = Math.atan2(-dx, -dz);
-      yaws[activeId] = yaw;
-    }
+    return candidates[0].blob;
+  }
 
+  function castBeamForYaw(yaw: number) {
+    const pos = positions[activeId];
     const HAND_X = 0.35;
     const MUZZLE_Z_LOCAL = -0.8;
     const cy = Math.cos(yaw);
@@ -133,20 +154,21 @@ export function CombatController() {
     const dirX = -Math.sin(yaw);
     const dirZ = -Math.cos(yaw);
 
-    let bestT = Infinity;
+    const big = hasPowerUp('bigLaser');
+    const dmg = big ? 3 : 1;
+
+    const snapTarget = snapTargetForYaw(yaw, pos.x, pos.z);
     let bestId: number | null = null;
     let bestPoint: [number, number, number] = [muzzleX + dirX * RANGE, muzzleY, muzzleZ + dirZ * RANGE];
     let bestVariant = 0;
 
     if (snapTarget) {
-      // We've already chosen the target — compute hit point exactly on it
-      const t = Math.hypot(snapTarget.x - muzzleX, snapTarget.z - muzzleZ);
-      bestT = t;
       bestId = snapTarget.id;
       bestPoint = [snapTarget.x, snapTarget.y + 0.3 * snapTarget.scale, snapTarget.z];
       bestVariant = snapTarget.variant;
     } else {
-      // No snap — fall back to raycast
+      const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
+      let bestT = Infinity;
       for (const b of blobs) {
         const r = BLOB_RADIUS * b.scale;
         const fx = muzzleX - b.x;
@@ -167,17 +189,96 @@ export function CombatController() {
         }
       }
     }
-
     spawnBeam([muzzleX, muzzleY, muzzleZ], bestPoint, 'cyan');
-    laserZap();
     if (bestId !== null) {
+      const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
       const target = blobs.find((b) => b.id === bestId);
-      damageBlob(bestId);
+      damageBlob(bestId, dmg);
       recordShotHit();
       spawnHitParticle(bestPoint[0], bestPoint[1], bestPoint[2], bestVariant);
-      if (target && target.hp <= 1) blobSquish();
+      if (target && target.hp <= dmg) blobSquish();
     }
-  });
+    lastTargetId.current = bestId;
+  }
+
+  function fireRayGun() {
+    const { yaw, pos } = getAimVectors();
+    recordShotFired();
+    const snap = snapTargetForYaw(yaw, pos.x, pos.z);
+    let aimYaw = yaw;
+    if (snap) {
+      aimYaw = Math.atan2(-(snap.x - pos.x), -(snap.z - pos.z));
+      yaws[activeId] = aimYaw;
+    }
+    laserZap();
+    if (hasPowerUp('tripleShot')) {
+      const spreadDeg = 8;
+      castBeamForYaw(aimYaw - (spreadDeg * Math.PI) / 180);
+      castBeamForYaw(aimYaw);
+      castBeamForYaw(aimYaw + (spreadDeg * Math.PI) / 180);
+    } else {
+      castBeamForYaw(aimYaw);
+    }
+  }
+
+  function fireBomb() {
+    const { muzzleX, muzzleY, muzzleZ, dirX, dirZ, pos, yaw } = getAimVectors();
+    recordShotFired();
+    laserZap();
+    // Auto-aim toward nearest target
+    const snap = snapTargetForYaw(yaw, pos.x, pos.z);
+    let tx = pos.x + dirX * 12;
+    let tz = pos.z + dirZ * 12;
+    if (snap) { tx = snap.x; tz = snap.z; }
+    // Solve parabolic arc: launch with vy chosen so the bomb peaks halfway
+    const dx = tx - muzzleX;
+    const dz = tz - muzzleZ;
+    const dist = Math.max(2, Math.hypot(dx, dz));
+    const flightTime = Math.min(1.5, 0.15 + dist / 18);
+    const vx = dx / flightTime;
+    const vz = dz / flightTime;
+    const vy = 0.5 * 22 * flightTime + 0.4; // up enough to clear an arc
+    spawnProjectile({
+      kind: 'bomb',
+      x: muzzleX, y: muzzleY + 0.1, z: muzzleZ,
+      vx, vy, vz,
+      spawnedAt: performance.now() / 1000,
+      bouncesLeft: 2,
+      rotPhase: Math.random() * Math.PI * 2,
+      damage: hasPowerUp('bigLaser') ? 4 : 2,
+    });
+  }
+
+  function fireLegoSpread() {
+    const { muzzleX, muzzleY, muzzleZ, pos, yaw } = getAimVectors();
+    recordShotFired();
+    laserZap();
+    const snap = snapTargetForYaw(yaw, pos.x, pos.z);
+    let aimYaw = yaw;
+    if (snap) {
+      aimYaw = Math.atan2(-(snap.x - pos.x), -(snap.z - pos.z));
+      yaws[activeId] = aimYaw;
+    }
+    const triple: number = hasPowerUp('tripleShot') ? 5 : 3;
+    const totalSpreadDeg = triple === 5 ? 28 : 18;
+    const speed = 22;
+    const dmg = hasPowerUp('bigLaser') ? 3 : 1;
+    for (let i = 0; i < triple; i++) {
+      const t = triple === 1 ? 0 : (i / (triple - 1)) - 0.5;
+      const off = t * (totalSpreadDeg * Math.PI / 180);
+      const a = aimYaw + off;
+      const vx = -Math.sin(a) * speed;
+      const vz = -Math.cos(a) * speed;
+      spawnProjectile({
+        kind: 'lego',
+        x: muzzleX, y: muzzleY, z: muzzleZ,
+        vx, vy: 1.2, vz,
+        spawnedAt: performance.now() / 1000,
+        rotPhase: Math.random() * Math.PI * 2,
+        damage: dmg,
+      });
+    }
+  }
 
   return null;
 }

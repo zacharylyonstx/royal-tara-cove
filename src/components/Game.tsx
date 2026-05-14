@@ -32,12 +32,24 @@ import { HitParticles } from './aliens/HitParticles';
 import { Stars } from './aliens/Stars';
 import { RayGun } from './weapons/RayGun';
 import { KidBlaster } from './weapons/KidBlaster';
+import { PennyBomber } from './weapons/PennyBomber';
+import { LukeLegoLauncher } from './weapons/LukeLegoLauncher';
 import { Beams } from './weapons/Beams';
 import { BlobController } from '../systems/BlobController';
 import { CombatController } from '../systems/CombatController';
 import { WaveController } from '../systems/WaveController';
 import { SidekickController } from '../systems/SidekickController';
 import { SkyController } from '../systems/SkyController';
+import { PowerUpController } from '../systems/PowerUpController';
+import { ProjectileController } from '../systems/ProjectileController';
+import { MusicController } from '../systems/MusicController';
+import { PickupRenderer } from './pickups/Pickup';
+import { Projectiles } from './projectiles/Projectiles';
+import { Fireworks } from './celebration/Fireworks';
+import { Confetti } from './celebration/Confetti';
+import { DiscoLights } from './celebration/DiscoLights';
+import { DancingBlobs } from './celebration/DancingBlobs';
+import { Fireflies } from './celebration/Fireflies';
 import { useCombatStore } from '../state/combatStore';
 import { CameraExposer } from '../ui/Dialogue';
 
@@ -137,16 +149,32 @@ export function Game() {
       <HitParticles />
       <Beams />
       <RayGun />
+      <PennyBomber />
+      <LukeLegoLauncher />
       <KidBlaster who="penny" color="#e26aa1" />
       <KidBlaster who="luke" color="#5cb85c" />
+
+      {/* Pickups + projectiles */}
+      <PickupsLive />
+      <Projectiles />
+
+      {/* Celebration / ambience */}
+      <Fireworks />
+      <Confetti />
+      <DiscoLights />
+      <DancingBlobs />
+      <Fireflies />
 
       <PlayerController />
       <NPCController />
       <BlobController />
       <CombatController />
+      <ProjectileController />
+      <PowerUpController />
       <SidekickController />
       <WaveController />
       <SkyController />
+      <MusicController />
       <CameraRig />
       <CameraExposer />
     </>
@@ -227,6 +255,11 @@ function DynamicLights() {
       <ambientLight ref={ambRef} intensity={0.18} color="#9ad0e0" />
     </>
   );
+}
+
+function PickupsLive() {
+  const drops = useCombatStore((s) => s.powerUpDrops);
+  return <PickupRenderer drops={drops} />;
 }
 
 function BlobRenderer() {

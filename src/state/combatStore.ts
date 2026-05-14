@@ -60,6 +60,78 @@ export interface DialogueLine {
 
 export type WaveState = 'pre-waves' | 'spawning' | 'fighting' | 'cleared' | 'intermission' | 'won';
 
+export type PowerUpKind = 'rapidFire' | 'bigLaser' | 'freezeRay' | 'shield' | 'tripleShot';
+
+export interface PowerUpDrop {
+  id: number;
+  x: number; z: number;
+  kind: PowerUpKind;
+  spawnedAt: number;
+}
+
+export interface ActivePowerUp {
+  kind: PowerUpKind;
+  expiresAt: number;
+}
+
+export interface FloatingText {
+  id: number;
+  x: number; y: number; z: number;
+  text: string;
+  color: string;
+  spawnedAt: number;
+  big?: boolean;
+}
+
+export interface Projectile {
+  id: number;
+  kind: 'bomb' | 'lego';
+  x: number; y: number; z: number;
+  vx: number; vy: number; vz: number;
+  spawnedAt: number;
+  bouncesLeft?: number;
+  rotPhase: number;
+  /** Damage on impact. */
+  damage: number;
+}
+
+export interface Firework {
+  id: number;
+  x: number; y: number; z: number;
+  color: string;
+  spawnedAt: number;
+}
+
+export const POWERUP_BASE_DROP_RATE = 0.32;
+export const POWERUP_KINDS: PowerUpKind[] = ['rapidFire', 'bigLaser', 'freezeRay', 'shield', 'tripleShot'];
+export const POWERUP_DURATION: Record<PowerUpKind, number> = {
+  rapidFire: 8,
+  bigLaser: 6,
+  freezeRay: 8,
+  shield: 6,
+  tripleShot: 6,
+};
+export const POWERUP_LABEL: Record<PowerUpKind, string> = {
+  rapidFire: '⚡ Rapid Fire',
+  bigLaser: '🔫 Big Laser',
+  freezeRay: '❄️ Freeze Ray',
+  shield: '🛡️ Shield',
+  tripleShot: '⭐ Triple Shot',
+};
+export const POWERUP_COLOR: Record<PowerUpKind, string> = {
+  rapidFire: '#fff15a',
+  bigLaser: '#ff5a3a',
+  freezeRay: '#5acdff',
+  shield: '#a0e84a',
+  tripleShot: '#e26aa1',
+};
+export const BLOB_BASE_SCORE: Record<BlobKind, number> = {
+  hopper: 10,
+  sprinter: 15,
+  splitter: 20,
+  boss: 200,
+};
+
 interface CombatStore {
   blobs: Blob[];
   splats: GooSplat[];
@@ -134,6 +206,36 @@ interface CombatStore {
 
   recordShotFired: () => void;
   recordShotHit: () => void;
+
+  /** Power-up drops + active effects */
+  powerUpDrops: PowerUpDrop[];
+  activePowerUps: ActivePowerUp[];
+  spawnPowerUp: (x: number, z: number, kind: PowerUpKind) => void;
+  pickupPowerUp: (id: number) => void;
+  reapPowerUps: (now: number) => void;
+  hasPowerUp: (kind: PowerUpKind) => boolean;
+
+  /** Combo + score */
+  comboCount: number;
+  lastKillAt: number;
+  score: number;
+  registerKill: (kind: BlobKind, x: number, y: number, z: number) => void;
+  decayCombo: (now: number) => void;
+
+  /** Floating screen text (damage numbers, COMBO!, etc.) */
+  floatingTexts: FloatingText[];
+  spawnFloatingText: (x: number, y: number, z: number, text: string, color?: string, big?: boolean) => void;
+  reapFloatingTexts: (now: number) => void;
+
+  /** Projectiles (Penny bombs, Luke legos) */
+  projectiles: Projectile[];
+  spawnProjectile: (p: Omit<Projectile, 'id'>) => void;
+  removeProjectile: (id: number) => void;
+
+  /** Fireworks for victory party */
+  fireworks: Firework[];
+  spawnFirework: (x: number, y: number, z: number, color: string) => void;
+  reapFireworks: (now: number) => void;
 
   startGame: () => void;
   reset: () => void;
@@ -335,7 +437,106 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
   recordShotFired: () => set((s) => ({ shotsFired: s.shotsFired + 1 })),
   recordShotHit: () => set((s) => ({ shotsHit: s.shotsHit + 1 })),
 
-  startGame: () => set({ gameStartedAt: performance.now() / 1000, shotsFired: 0, shotsHit: 0, kills: 0 }),
+  powerUpDrops: [],
+  activePowerUps: [],
+  spawnPowerUp: (x, z, kind) => {
+    const id = get().nextParticleId;
+    set((s) => ({
+      nextParticleId: id + 1,
+      powerUpDrops: [...s.powerUpDrops, { id, x, z, kind, spawnedAt: performance.now() / 1000 }],
+    }));
+  },
+  pickupPowerUp: (id) => {
+    const drop = get().powerUpDrops.find((p) => p.id === id);
+    if (!drop) return;
+    const dur = POWERUP_DURATION[drop.kind];
+    const now = performance.now() / 1000;
+    set((s) => ({
+      powerUpDrops: s.powerUpDrops.filter((p) => p.id !== id),
+      activePowerUps: [
+        ...s.activePowerUps.filter((a) => a.kind !== drop.kind),
+        { kind: drop.kind, expiresAt: now + dur },
+      ],
+    }));
+  },
+  reapPowerUps: (now) => {
+    const sCur = get();
+    const newDrops = sCur.powerUpDrops.filter((p) => now - p.spawnedAt < 18);
+    const newActive = sCur.activePowerUps.filter((a) => a.expiresAt > now);
+    if (newDrops.length !== sCur.powerUpDrops.length || newActive.length !== sCur.activePowerUps.length) {
+      set({ powerUpDrops: newDrops, activePowerUps: newActive });
+    }
+  },
+  hasPowerUp: (kind) => get().activePowerUps.some((a) => a.kind === kind),
+
+  comboCount: 0,
+  lastKillAt: -999,
+  score: 0,
+  registerKill: (kind, x, y, z) => {
+    const now = performance.now() / 1000;
+    const cur = get();
+    const newCombo = (now - cur.lastKillAt < 2.0 ? cur.comboCount + 1 : 1);
+    const base = BLOB_BASE_SCORE[kind];
+    const points = base * newCombo;
+    set({ comboCount: newCombo, lastKillAt: now, score: cur.score + points });
+    // Floating "+points!" text
+    cur.spawnFloatingText(x, y + 1.0, z, `+${points}`, '#fff0a8');
+    if (newCombo === 3) cur.spawnFloatingText(x, y + 2.0, z, 'TRIPLE!', '#3afff0', true);
+    if (newCombo === 5) cur.spawnFloatingText(x, y + 2.0, z, 'MEGA!', '#ff3a3a', true);
+    if (newCombo === 8) cur.spawnFloatingText(x, y + 2.0, z, 'ULTRA!', '#e26aa1', true);
+    if (newCombo >= 10 && newCombo % 2 === 0) cur.spawnFloatingText(x, y + 2.0, z, `${newCombo}× COMBO!`, '#fff15a', true);
+  },
+  decayCombo: (now) => {
+    const cur = get();
+    if (cur.comboCount > 0 && now - cur.lastKillAt > 2.0) {
+      set({ comboCount: 0 });
+    }
+  },
+
+  floatingTexts: [],
+  spawnFloatingText: (x, y, z, text, color = '#ffffff', big) => {
+    const id = get().nextParticleId;
+    set((s) => ({
+      nextParticleId: id + 1,
+      floatingTexts: [...s.floatingTexts, { id, x, y, z, text, color, spawnedAt: performance.now() / 1000, big }],
+    }));
+  },
+  reapFloatingTexts: (now) => {
+    const cur = get().floatingTexts;
+    const next = cur.filter((t) => now - t.spawnedAt < 1.4);
+    if (next.length !== cur.length) set({ floatingTexts: next });
+  },
+
+  projectiles: [],
+  spawnProjectile: (p) => {
+    const id = get().nextParticleId;
+    set((s) => ({
+      nextParticleId: id + 1,
+      projectiles: [...s.projectiles, { id, ...p }],
+    }));
+  },
+  removeProjectile: (id) => set((s) => ({ projectiles: s.projectiles.filter((p) => p.id !== id) })),
+
+  fireworks: [],
+  spawnFirework: (x, y, z, color) => {
+    const id = get().nextParticleId;
+    set((s) => ({
+      nextParticleId: id + 1,
+      fireworks: [...s.fireworks, { id, x, y, z, color, spawnedAt: performance.now() / 1000 }],
+    }));
+  },
+  reapFireworks: (now) => {
+    const cur = get().fireworks;
+    const next = cur.filter((f) => now - f.spawnedAt < 2.4);
+    if (next.length !== cur.length) set({ fireworks: next });
+  },
+
+  startGame: () => set({
+    gameStartedAt: performance.now() / 1000,
+    shotsFired: 0, shotsHit: 0, kills: 0,
+    score: 0, comboCount: 0, lastKillAt: -999,
+    powerUpDrops: [], activePowerUps: [],
+  }),
 
   reset: () => set({
     blobs: [], splats: [], beams: [], hitParticles: [],

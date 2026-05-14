@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useCombatStore } from '../state/combatStore';
+import { useCombatStore, POWERUP_BASE_DROP_RATE, POWERUP_KINDS } from '../state/combatStore';
 import type { Blob } from '../state/combatStore';
 import { useGameStore } from '../state/gameStore';
 import { blobAttack, damageHit, bossSlam } from '../audio';
@@ -64,6 +64,13 @@ export function BlobController() {
   const addShake = useCombatStore((s) => s.addShake);
   const triggerSlowMo = useCombatStore((s) => s.triggerSlowMo);
   const pushDialogue = useCombatStore((s) => s.pushDialogue);
+  const registerKill = useCombatStore((s) => s.registerKill);
+  const decayCombo = useCombatStore((s) => s.decayCombo);
+  const reapPowerUps = useCombatStore((s) => s.reapPowerUps);
+  const reapFloatingTexts = useCombatStore((s) => s.reapFloatingTexts);
+  const reapFireworks = useCombatStore((s) => s.reapFireworks);
+  const spawnPowerUp = useCombatStore((s) => s.spawnPowerUp);
+  const hasPowerUp = useCombatStore((s) => s.hasPowerUp);
 
   const runtimes = useRef<Map<number, BlobRuntime>>(new Map());
   const splatsSpawned = useRef<Set<number>>(new Set());
@@ -90,6 +97,10 @@ export function BlobController() {
     reapBeams(now);
     reapHitParticles(now);
     reapDialogue(now);
+    reapPowerUps(now);
+    reapFloatingTexts(now);
+    reapFireworks(now);
+    decayCombo(now);
 
     if (phase !== 'combat') return;
 
@@ -102,6 +113,13 @@ export function BlobController() {
           splatsSpawned.current.add(b.id);
           const splatScale = b.kind === 'boss' ? 3.5 : 1;
           spawnSplat(b.x, b.z, b.variant, splatScale);
+          registerKill(b.kind, b.x, b.y, b.z);
+          // Power-up drop chance (boss always drops)
+          const dropRate = b.kind === 'boss' ? 1 : POWERUP_BASE_DROP_RATE;
+          if (Math.random() < dropRate) {
+            const kind = POWERUP_KINDS[Math.floor(Math.random() * POWERUP_KINDS.length)];
+            spawnPowerUp(b.x, b.z, kind);
+          }
           // Splitter spawns babies
           if (b.kind === 'splitter' && !splittersHandled.current.has(b.id)) {
             splittersHandled.current.add(b.id);
@@ -120,6 +138,11 @@ export function BlobController() {
           }
           runtimes.current.delete(b.id);
         }
+        continue;
+      }
+      // Freeze ray: skip movement while frozen
+      if (hasPowerUp('freezeRay')) {
+        // Pause all blob behavior - no movement, no attacks
         continue;
       }
       let rt = runtimes.current.get(b.id);
@@ -143,7 +166,7 @@ export function BlobController() {
           rt.attackCooldown -= dt;
           if (rt.attackCooldown <= 0) {
             rt.attackCooldown = ATTACK_COOLDOWN * 0.8;
-            damagePlayer(1);
+            if (!hasPowerUp('shield')) damagePlayer(1);
             blobAttack();
             damageHit();
             triggerDamageFlash();
@@ -176,7 +199,7 @@ export function BlobController() {
               bossSlam();
               addShake(0.6);
               if (dist < BOSS_SLAM_RADIUS) {
-                damagePlayer(BOSS_SLAM_DAMAGE);
+                if (!hasPowerUp('shield')) damagePlayer(BOSS_SLAM_DAMAGE);
                 damageHit();
                 triggerDamageFlash();
               }
@@ -224,7 +247,7 @@ export function BlobController() {
           rt.attackCooldown -= dt;
           if (rt.attackCooldown <= 0) {
             rt.attackCooldown = 1.2;
-            damagePlayer(1);
+            if (!hasPowerUp('shield')) damagePlayer(1);
             damageHit();
             triggerDamageFlash();
             addShake(0.2);

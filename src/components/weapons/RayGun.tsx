@@ -42,7 +42,7 @@ export function RayGun() {
     const g = groupRef.current;
     if (!g) return;
     const dt = Math.min(dtRaw, 0.1);
-    if (phase !== 'combat') {
+    if (phase !== 'combat' || activeId !== 'dad') {
       g.visible = false;
       return;
     }
