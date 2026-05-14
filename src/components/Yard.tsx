@@ -62,6 +62,7 @@ export function Yard({ config, lot }: YardProps) {
             0,
             sidewalkZ - 0.6,
           ]}
+          name={config.isHero ? 'LYONS' : undefined}
         />
       </group>
 

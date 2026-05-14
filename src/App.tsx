@@ -4,6 +4,9 @@ import { WelcomeScreen } from './ui/WelcomeScreen';
 import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
+import { CombatHud } from './ui/CombatHud';
+import { VictoryScreen } from './ui/VictoryScreen';
+import { DefeatScreen } from './ui/DefeatScreen';
 
 export default function App() {
   return (
@@ -18,7 +21,10 @@ export default function App() {
       <CharacterIndicator />
       <ControlsHud />
       <InteractPrompt />
+      <CombatHud />
       <WelcomeScreen />
+      <VictoryScreen />
+      <DefeatScreen />
     </>
   );
 }

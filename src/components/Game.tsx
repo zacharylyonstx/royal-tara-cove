@@ -23,6 +23,14 @@ import {
 import { LiveOak } from './vegetation/LiveOak';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
 import { Hedge } from './vegetation/Hedge';
+import { UFOCrash } from './aliens/UFOCrash';
+import { Schmorgesblob, GooSplat as GooSplatMesh } from './aliens/Schmorgesblob';
+import { HitParticles } from './aliens/HitParticles';
+import { RayGun } from './weapons/RayGun';
+import { Beams } from './weapons/Beams';
+import { BlobController } from '../systems/BlobController';
+import { CombatController } from '../systems/CombatController';
+import { useCombatStore } from '../state/combatStore';
 
 export function Game() {
   const activeId = useGameStore((s) => s.activeCharacterId);
@@ -135,9 +143,37 @@ export function Game() {
         />
       ))}
 
+      {/* Aliens + combat */}
+      <UFOCrash />
+      <BlobRenderer />
+      <SplatRenderer />
+      <HitParticles />
+      <Beams />
+      <RayGun />
+
       <PlayerController />
       <NPCController />
+      <BlobController />
+      <CombatController />
       <CameraRig />
+    </>
+  );
+}
+
+function BlobRenderer() {
+  const blobs = useCombatStore((s) => s.blobs);
+  return (
+    <>
+      {blobs.filter((b) => b.alive).map((b) => <Schmorgesblob key={b.id} blob={b} />)}
+    </>
+  );
+}
+
+function SplatRenderer() {
+  const splats = useCombatStore((s) => s.splats);
+  return (
+    <>
+      {splats.map((s) => <GooSplatMesh key={s.id} x={s.x} z={s.z} variant={s.variant} spawnedAt={s.spawnedAt} />)}
     </>
   );
 }

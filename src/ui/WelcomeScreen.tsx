@@ -1,9 +1,14 @@
 import { useGameStore } from '../state/gameStore';
 import { CHARACTERS } from '../world/characters';
+import { unlockAudio } from '../audio';
 
 export function WelcomeScreen() {
   const open = useGameStore((s) => s.welcomeOpen);
   const close = useGameStore((s) => s.closeWelcome);
+  const handleClose = () => {
+    unlockAudio();
+    close();
+  };
 
   if (!open) return null;
 
@@ -90,7 +95,7 @@ export function WelcomeScreen() {
           opening the door and looking inside!
         </p>
         <button
-          onClick={close}
+          onClick={handleClose}
           style={{
             padding: '14px 36px',
             fontSize: 20,

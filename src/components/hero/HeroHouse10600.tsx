@@ -138,6 +138,53 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* Address plaque */}
       <AddressPlaque x={config.garageOnLeft ? halfW - 0.6 : -halfW + 0.6} y={2.7} z={-halfD - 0.07} />
 
+      {/* Big "10600" copper numbers on the stone wainscot */}
+      <BigAddressNumbers x={config.garageOnLeft ? halfW - 1.2 : -halfW + 0.8} y={1.0} z={-halfD - 0.12} />
+
+      {/* Shutters flanking front windows */}
+      <Shutter x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5) - 1.4} y={1.55} z={-halfD - 0.08} />
+      <Shutter x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5) + 1.4} y={1.55} z={-halfD - 0.08} />
+
+      {/* Coach lights flanking the garage door */}
+      <CoachLight position={[garageCenterX - GARAGE_W / 2 - 0.25, 1.9, -halfD - 0.12]} />
+      <CoachLight position={[garageCenterX + GARAGE_W / 2 + 0.25, 1.9, -halfD - 0.12]} />
+
+      {/* Gutter along the front eaves */}
+      <Gutter width={config.width + 0.6} z={-halfD - 0.4} y={wallH + 0.05} />
+      {/* Downspouts at corners */}
+      <Downspout x={-halfW - 0.18} z={-halfD - 0.3} h={wallH + 0.1} />
+      <Downspout x={halfW + 0.18} z={-halfD - 0.3} h={wallH + 0.1} />
+
+      {/* Wreath on the front door */}
+      <Wreath x={doorCenterX} y={DOOR_H * 0.55 + 0.1} z={-halfD - 0.05} />
+
+      {/* Doormat */}
+      <mesh position={[doorCenterX, 0.13, -halfD - 0.55]} receiveShadow>
+        <boxGeometry args={[1.4, 0.04, 0.7]} />
+        <meshStandardMaterial color="#5a3a2a" roughness={0.95} />
+      </mesh>
+      {/* HOWDY text on doormat is a stretch — use a simple light center stripe */}
+      <mesh position={[doorCenterX, 0.151, -halfD - 0.55]}>
+        <boxGeometry args={[1.0, 0.005, 0.45]} />
+        <meshStandardMaterial color="#b08458" roughness={0.95} />
+      </mesh>
+
+      {/* Porch railing between the columns */}
+      <PorchRailing
+        x={doorCenterX}
+        z={-halfD - PORCH_DEPTH + 0.2}
+        width={PORCH_WIDTH - 1}
+      />
+
+      {/* Back deck off the patio slider */}
+      <BackDeck z={halfD + 0.4} width={config.width - 2} depth={3.5} />
+
+      {/* String lights criss-crossing back deck */}
+      <StringLights z={halfD + 2.0} width={config.width - 2.5} />
+
+      {/* Pool in the backyard */}
+      <Pool x={2} z={halfD + 9} width={5} depth={3.5} />
+
       {/* Interior — only rendered when player is within 30m to keep perf tidy */}
       <Interior10600 width={config.width} depth={config.depth} doorCenterX={doorCenterX} garageCenterX={garageCenterX} />
     </group>
@@ -453,6 +500,227 @@ function AddressPlaque({ x, y, z }: { x: number; y: number; z: number }) {
         <boxGeometry args={[1.0, 0.36, 0.06]} />
         <meshStandardMaterial color="#1a1a1c" roughness={0.5} />
       </mesh>
+    </group>
+  );
+}
+
+function BigAddressNumbers({ x, y, z }: { x: number; y: number; z: number }) {
+  // Just stylized boxes per digit; readable from a distance even without
+  // full text geometry.
+  const digits = '10600'.split('');
+  return (
+    <group position={[x, y, z]}>
+      {digits.map((_d, i) => (
+        <mesh key={i} position={[i * 0.28 - (digits.length - 1) * 0.14, 0, 0]} castShadow>
+          <boxGeometry args={[0.22, 0.34, 0.04]} />
+          <meshStandardMaterial color="#c8a32a" metalness={0.85} roughness={0.25} />
+        </mesh>
+      ))}
+      {/* subtle "10600" backplate so the numbers read */}
+      <mesh position={[0, 0, -0.025]}>
+        <boxGeometry args={[digits.length * 0.28 + 0.16, 0.5, 0.02]} />
+        <meshStandardMaterial color="#2a2a2c" roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+function Shutter({ x, y, z }: { x: number; y: number; z: number }) {
+  return (
+    <group position={[x, y, z]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.34, 1.4, 0.04]} />
+        <meshStandardMaterial color="#2d4a2d" roughness={0.8} />
+      </mesh>
+      {/* slats */}
+      {Array.from({ length: 8 }, (_, i) => (
+        <mesh key={i} position={[0, 0.65 - i * 0.18, 0.025]}>
+          <boxGeometry args={[0.3, 0.14, 0.01]} />
+          <meshStandardMaterial color="#3a5a3a" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function CoachLight({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* mounting plate */}
+      <mesh castShadow>
+        <boxGeometry args={[0.18, 0.1, 0.04]} />
+        <meshStandardMaterial color="#1a1a1c" />
+      </mesh>
+      {/* lantern body */}
+      <mesh position={[0, -0.18, 0.08]} castShadow>
+        <boxGeometry args={[0.18, 0.32, 0.18]} />
+        <meshStandardMaterial color="#1a1a1c" />
+      </mesh>
+      {/* glass insert */}
+      <mesh position={[0, -0.18, 0.18]}>
+        <boxGeometry args={[0.14, 0.26, 0.02]} />
+        <meshStandardMaterial color="#fff0a8" emissive="#ffd866" emissiveIntensity={0.85} />
+      </mesh>
+      <pointLight position={[0, -0.18, 0.25]} intensity={0.5} color="#ffd866" distance={4} decay={2} />
+    </group>
+  );
+}
+
+function Gutter({ width, z, y }: { width: number; z: number; y: number }) {
+  return (
+    <mesh position={[0, y, z]} castShadow>
+      <boxGeometry args={[width, 0.12, 0.18]} />
+      <meshStandardMaterial color="#dcd6c8" roughness={0.6} metalness={0.2} />
+    </mesh>
+  );
+}
+
+function Downspout({ x, z, h }: { x: number; z: number; h: number }) {
+  return (
+    <mesh position={[x, h / 2, z]} castShadow>
+      <boxGeometry args={[0.1, h, 0.1]} />
+      <meshStandardMaterial color="#dcd6c8" roughness={0.6} metalness={0.2} />
+    </mesh>
+  );
+}
+
+function Wreath({ x, y, z }: { x: number; y: number; z: number }) {
+  return (
+    <group position={[x, y, z]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.22, 0.06, 8, 18]} />
+        <meshStandardMaterial color="#3a6e34" roughness={0.95} />
+      </mesh>
+      {/* berries */}
+      {[0, Math.PI / 3, (2 * Math.PI) / 3, Math.PI, (4 * Math.PI) / 3, (5 * Math.PI) / 3].map((a, i) => (
+        <mesh key={i} position={[Math.cos(a) * 0.22, Math.sin(a) * 0.22, 0.05]} castShadow>
+          <sphereGeometry args={[0.025, 6, 6]} />
+          <meshStandardMaterial color="#c8392a" />
+        </mesh>
+      ))}
+      {/* bow */}
+      <mesh position={[0, -0.22, 0.06]} castShadow>
+        <boxGeometry args={[0.14, 0.07, 0.02]} />
+        <meshStandardMaterial color="#a8392a" />
+      </mesh>
+    </group>
+  );
+}
+
+function PorchRailing({ x, z, width }: { x: number; z: number; width: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      {/* top rail */}
+      <mesh position={[0, 1.0, 0]} castShadow>
+        <boxGeometry args={[width, 0.06, 0.06]} />
+        <meshStandardMaterial color="#f5ecd9" />
+      </mesh>
+      {/* bottom rail */}
+      <mesh position={[0, 0.25, 0]} castShadow>
+        <boxGeometry args={[width, 0.06, 0.06]} />
+        <meshStandardMaterial color="#f5ecd9" />
+      </mesh>
+      {/* balusters */}
+      {Array.from({ length: 12 }, (_, i) => {
+        const bx = -width / 2 + (width / 12) * (i + 0.5);
+        return (
+          <mesh key={i} position={[bx, 0.62, 0]} castShadow>
+            <boxGeometry args={[0.03, 0.7, 0.03]} />
+            <meshStandardMaterial color="#f5ecd9" />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+function BackDeck({ z, width, depth }: { z: number; width: number; depth: number }) {
+  return (
+    <group position={[0, 0, z + depth / 2]}>
+      {/* deck slab */}
+      <mesh position={[0, 0.16, 0]} receiveShadow castShadow>
+        <boxGeometry args={[width, 0.06, depth]} />
+        <meshStandardMaterial color="#a07a52" roughness={0.95} />
+      </mesh>
+      {/* plank lines */}
+      {Array.from({ length: 8 }, (_, i) => (
+        <mesh key={i} position={[0, 0.193, -depth / 2 + (depth / 8) * (i + 0.5)]}>
+          <boxGeometry args={[width - 0.05, 0.005, 0.02]} />
+          <meshStandardMaterial color="#5a3a22" />
+        </mesh>
+      ))}
+      {/* rail posts at the corners */}
+      {[-width / 2, width / 2].map((x, i) => (
+        <mesh key={i} position={[x, 0.6, depth / 2]} castShadow>
+          <boxGeometry args={[0.12, 1.2, 0.12]} />
+          <meshStandardMaterial color="#7a5a32" />
+        </mesh>
+      ))}
+      {/* back rail */}
+      <mesh position={[0, 1.1, depth / 2]} castShadow>
+        <boxGeometry args={[width, 0.06, 0.06]} />
+        <meshStandardMaterial color="#7a5a32" />
+      </mesh>
+      <mesh position={[0, 0.4, depth / 2]} castShadow>
+        <boxGeometry args={[width, 0.06, 0.06]} />
+        <meshStandardMaterial color="#7a5a32" />
+      </mesh>
+    </group>
+  );
+}
+
+function StringLights({ z, width }: { z: number; width: number }) {
+  // Two zig-zags of warm bulbs
+  const bulbs: { pos: [number, number, number] }[] = [];
+  const N = 14;
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const x = -width / 2 + width * t;
+    const y = 2.6 + Math.sin(t * Math.PI) * 0.7; // sag
+    bulbs.push({ pos: [x, y, z] });
+  }
+  return (
+    <group>
+      {bulbs.map((b, i) => (
+        <group key={i} position={b.pos}>
+          <mesh castShadow>
+            <sphereGeometry args={[0.06, 8, 8]} />
+            <meshStandardMaterial color="#fff0a8" emissive="#ffd866" emissiveIntensity={0.7} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function Pool({ x, z, width, depth }: { x: number; z: number; width: number; depth: number }) {
+  return (
+    <group position={[x, 0, z]}>
+      {/* coping (brick rim) */}
+      <mesh position={[0, 0.06, 0]} receiveShadow>
+        <boxGeometry args={[width + 0.4, 0.12, depth + 0.4]} />
+        <meshStandardMaterial color="#a07050" roughness={0.85} />
+      </mesh>
+      {/* water */}
+      <mesh position={[0, 0.13, 0]} receiveShadow>
+        <boxGeometry args={[width, 0.02, depth]} />
+        <meshStandardMaterial color="#2aa6e6" roughness={0.15} metalness={0.4} emissive="#0a3a5a" emissiveIntensity={0.2} transparent opacity={0.85} />
+      </mesh>
+      {/* lounge chairs */}
+      {[-width / 2 - 0.6, width / 2 + 0.6].map((lx, i) => (
+        <group key={i} position={[lx, 0, 0]}>
+          <mesh position={[0, 0.22, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.06, 1.6]} />
+            <meshStandardMaterial color="#dcd6c8" />
+          </mesh>
+          {[-0.18, 0.18].flatMap((bx) => [-0.7, 0.7].map((bz) => [bx, 0.11, bz] as const)).map(([bx, by, bz], j) => (
+            <mesh key={j} position={[bx, by, bz]} castShadow>
+              <boxGeometry args={[0.04, 0.22, 0.04]} />
+              <meshStandardMaterial color="#3a3a3c" />
+            </mesh>
+          ))}
+        </group>
+      ))}
     </group>
   );
 }

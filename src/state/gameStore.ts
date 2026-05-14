@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { Vector3 } from 'three';
 import type { CharacterId, RectCollider } from '../types';
 
+export type GamePhase = 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat';
+
 interface GameStore {
   activeCharacterId: CharacterId;
   welcomeOpen: boolean;
@@ -11,16 +13,23 @@ interface GameStore {
   closeWelcome: () => void;
   openWelcome: () => void;
 
-  /** Static + dynamic colliders. `dynamic` is updated when doors open/close. */
+  /** Game phase machine. Welcome closes → intro → combat → victory|defeat. */
+  phase: GamePhase;
+  setPhase: (p: GamePhase) => void;
+
+  /** Shared family HP across all characters. */
+  playerHp: number;
+  maxHp: number;
+  damagePlayer: (n: number) => void;
+  resetHp: () => void;
+
   staticColliders: RectCollider[];
   setStaticColliders: (cs: RectCollider[]) => void;
 
-  /** Doors keyed by id. Each door publishes its current passable AABB to dynamicColliders. */
   doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: RectCollider }>;
   registerDoor: (id: string, aabb: RectCollider, centerX: number, centerZ: number) => void;
   toggleDoor: (id: string) => void;
 
-  /** Currently focused interactable (for "Press E" prompt). null if none in range. */
   hoverDoorId: string | null;
   setHoverDoor: (id: string | null) => void;
 }
@@ -43,8 +52,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // Yaw π = facing +Z (south, toward the cul-de-sac).
   yaws: { dad: Math.PI, penny: Math.PI, luke: Math.PI },
   setActiveCharacter: (id) => set({ activeCharacterId: id }),
-  closeWelcome: () => set({ welcomeOpen: false }),
+  closeWelcome: () => set({ welcomeOpen: false, phase: 'intro' }),
   openWelcome: () => set({ welcomeOpen: true }),
+
+  phase: 'pre-intro',
+  setPhase: (p) => set({ phase: p }),
+  playerHp: 10,
+  maxHp: 10,
+  damagePlayer: (n) =>
+    set((s) => {
+      const next = Math.max(0, s.playerHp - n);
+      if (next === 0 && s.phase === 'combat') {
+        return { playerHp: 0, phase: 'defeat' as const };
+      }
+      return { playerHp: next };
+    }),
+  resetHp: () => set({ playerHp: 10 }),
 
   staticColliders: [],
   setStaticColliders: (cs) => set({ staticColliders: cs }),
