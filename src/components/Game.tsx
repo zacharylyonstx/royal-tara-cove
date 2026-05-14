@@ -1,5 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Sky, Environment } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
+import type { DirectionalLight, HemisphereLight, AmbientLight } from 'three';
 import { Street } from './Street';
 import { House } from './House';
 import { Yard } from './Yard';
@@ -25,12 +27,19 @@ import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
 import { Hedge } from './vegetation/Hedge';
 import { UFOCrash } from './aliens/UFOCrash';
 import { Schmorgesblob, GooSplat as GooSplatMesh } from './aliens/Schmorgesblob';
+import { BossBlob } from './aliens/BossBlob';
 import { HitParticles } from './aliens/HitParticles';
+import { Stars } from './aliens/Stars';
 import { RayGun } from './weapons/RayGun';
+import { KidBlaster } from './weapons/KidBlaster';
 import { Beams } from './weapons/Beams';
 import { BlobController } from '../systems/BlobController';
 import { CombatController } from '../systems/CombatController';
+import { WaveController } from '../systems/WaveController';
+import { SidekickController } from '../systems/SidekickController';
+import { SkyController } from '../systems/SkyController';
 import { useCombatStore } from '../state/combatStore';
+import { CameraExposer } from '../ui/Dialogue';
 
 export function Game() {
   const activeId = useGameStore((s) => s.activeCharacterId);
@@ -64,34 +73,12 @@ export function Game() {
 
   return (
     <>
-      {/* Texas-summer sky */}
-      <Sky
-        sunPosition={[80, 90, 30]}
-        turbidity={4}
-        rayleigh={1.6}
-        mieCoefficient={0.005}
-        mieDirectionalG={0.7}
-      />
+      <DynamicSky />
+      <Stars />
       {/* Cheap reflections via env preset */}
-      <Environment preset="park" background={false} environmentIntensity={0.45} />
+      <Environment preset="park" background={false} environmentIntensity={0.35} />
 
-      <hemisphereLight color="#fff5d8" groundColor="#5a8a3e" intensity={0.55} />
-      <directionalLight
-        position={[60, 80, 35]}
-        intensity={1.5}
-        color="#fff0d0"
-        castShadow
-        shadow-mapSize-width={4096}
-        shadow-mapSize-height={4096}
-        shadow-bias={-0.0008}
-        shadow-camera-near={1}
-        shadow-camera-far={300}
-        shadow-camera-left={-110}
-        shadow-camera-right={110}
-        shadow-camera-top={110}
-        shadow-camera-bottom={-110}
-      />
-      <ambientLight intensity={0.18} color="#9ad0e0" />
+      <DynamicLights />
 
       {/* Ground plane (textured grass) */}
       <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -150,12 +137,94 @@ export function Game() {
       <HitParticles />
       <Beams />
       <RayGun />
+      <KidBlaster who="penny" color="#e26aa1" />
+      <KidBlaster who="luke" color="#5cb85c" />
 
       <PlayerController />
       <NPCController />
       <BlobController />
       <CombatController />
+      <SidekickController />
+      <WaveController />
+      <SkyController />
       <CameraRig />
+      <CameraExposer />
+    </>
+  );
+}
+
+function DynamicSky() {
+  const timeOfDay = useCombatStore((s) => s.timeOfDay);
+  // 0..1 → angle around horizon. We compute a sun position via timeOfDay.
+  // tod 0..0.5 = day, 0.5..1 = night (sun below).
+  const elev = Math.max(0.05, Math.cos(timeOfDay * Math.PI)); // 1 at noon, -1 at midnight
+  const azimuth = (timeOfDay - 0.25) * Math.PI; // sweeps E->W
+  const sunY = 100 * elev;
+  const sunX = 100 * Math.sin(azimuth);
+  const sunZ = 100 * Math.cos(azimuth);
+  const turbidity = 4 + timeOfDay * 7;
+  const rayleigh = 1.5 + timeOfDay * 1.8;
+  return (
+    <Sky
+      sunPosition={[sunX, sunY, sunZ]}
+      turbidity={turbidity}
+      rayleigh={rayleigh}
+      mieCoefficient={0.005}
+      mieDirectionalG={0.7}
+    />
+  );
+}
+
+function DynamicLights() {
+  const dirRef = useRef<DirectionalLight>(null);
+  const hemiRef = useRef<HemisphereLight>(null);
+  const ambRef = useRef<AmbientLight>(null);
+  useFrame(() => {
+    const t = useCombatStore.getState().timeOfDay;
+    const sunIntensity = Math.max(0.05, 1.5 * (1 - t * 1.6));
+    if (dirRef.current) {
+      dirRef.current.intensity = sunIntensity;
+      // Color shifts cooler as night approaches
+      const r = 1.0 - t * 0.4;
+      const g = 0.95 - t * 0.55;
+      const b = 0.82 - t * 0.4;
+      dirRef.current.color.setRGB(Math.max(0.2, r), Math.max(0.2, g), Math.max(0.4, b));
+      // Sun position
+      const elev = Math.max(0.05, Math.cos(t * Math.PI));
+      const azimuth = (t - 0.25) * Math.PI;
+      dirRef.current.position.set(60 * Math.sin(azimuth), 80 * elev, 35 * Math.cos(azimuth));
+    }
+    if (hemiRef.current) {
+      hemiRef.current.intensity = 0.55 * (1 - t * 0.6);
+    }
+    if (ambRef.current) {
+      ambRef.current.intensity = 0.18 + t * 0.18;
+      const r = 0.6 + t * 0.2;
+      const g = 0.7 + t * 0.15;
+      const b = 0.9;
+      ambRef.current.color.setRGB(r, g, b);
+    }
+  });
+  return (
+    <>
+      <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#5a8a3e" intensity={0.55} />
+      <directionalLight
+        ref={dirRef}
+        position={[60, 80, 35]}
+        intensity={1.5}
+        color="#fff0d0"
+        castShadow
+        shadow-mapSize-width={4096}
+        shadow-mapSize-height={4096}
+        shadow-bias={-0.0008}
+        shadow-camera-near={1}
+        shadow-camera-far={300}
+        shadow-camera-left={-110}
+        shadow-camera-right={110}
+        shadow-camera-top={110}
+        shadow-camera-bottom={-110}
+      />
+      <ambientLight ref={ambRef} intensity={0.18} color="#9ad0e0" />
     </>
   );
 }
@@ -164,7 +233,10 @@ function BlobRenderer() {
   const blobs = useCombatStore((s) => s.blobs);
   return (
     <>
-      {blobs.filter((b) => b.alive).map((b) => <Schmorgesblob key={b.id} blob={b} />)}
+      {blobs.map((b) => {
+        if (b.kind === 'boss') return <BossBlob key={b.id} blob={b} />;
+        return <Schmorgesblob key={b.id} blob={b} />;
+      })}
     </>
   );
 }
@@ -173,7 +245,7 @@ function SplatRenderer() {
   const splats = useCombatStore((s) => s.splats);
   return (
     <>
-      {splats.map((s) => <GooSplatMesh key={s.id} x={s.x} z={s.z} variant={s.variant} spawnedAt={s.spawnedAt} />)}
+      {splats.map((s) => <GooSplatMesh key={s.id} x={s.x} z={s.z} variant={s.variant} spawnedAt={s.spawnedAt} scale={s.scale} />)}
     </>
   );
 }

@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { resolveMotion } from './collision';
+import { useCombatStore } from '../state/combatStore';
 
 const SPEED = 4.5;
 const RUN_SPEED = 8.0;
@@ -54,7 +55,8 @@ export function PlayerController() {
 
   useFrame((_, dtRaw) => {
     if (welcomeOpen) return;
-    const dt = Math.min(dtRaw, 0.1);
+    const slowFactor = useCombatStore.getState().slowMo;
+    const dt = Math.min(dtRaw, 0.1) * slowFactor;
 
     const k = keys.current;
     let dx = 0;

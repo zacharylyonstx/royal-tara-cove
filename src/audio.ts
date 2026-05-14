@@ -304,6 +304,90 @@ export function victoryFanfare() {
   });
 }
 
+export function bossRoar() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Two-octave detuned sawtooth + sub bass + filter sweep
+  const osc1 = c.createOscillator();
+  const osc2 = c.createOscillator();
+  const sub = c.createOscillator();
+  const filter = c.createBiquadFilter();
+  const gain = c.createGain();
+  osc1.type = 'sawtooth';
+  osc1.frequency.setValueAtTime(110, t0);
+  osc1.frequency.exponentialRampToValueAtTime(60, t0 + 1.2);
+  osc2.type = 'sawtooth';
+  osc2.frequency.setValueAtTime(115, t0); // slight detune
+  osc2.frequency.exponentialRampToValueAtTime(58, t0 + 1.2);
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(45, t0);
+  sub.frequency.exponentialRampToValueAtTime(30, t0 + 1.2);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(900, t0);
+  filter.frequency.exponentialRampToValueAtTime(220, t0 + 1.2);
+  gain.gain.setValueAtTime(0.0, t0);
+  gain.gain.linearRampToValueAtTime(0.32, t0 + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 1.3);
+  osc1.connect(filter);
+  osc2.connect(filter);
+  sub.connect(filter);
+  filter.connect(gain).connect(c.destination);
+  osc1.start(t0); osc2.start(t0); sub.start(t0);
+  osc1.stop(t0 + 1.4); osc2.stop(t0 + 1.4); sub.stop(t0 + 1.4);
+}
+
+export function bossSlam() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Sub thump + noise impact
+  const osc = c.createOscillator();
+  const og = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(90, t0);
+  osc.frequency.exponentialRampToValueAtTime(35, t0 + 0.5);
+  og.gain.setValueAtTime(0.6, t0);
+  og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
+  osc.connect(og).connect(c.destination);
+  osc.start(t0); osc.stop(t0 + 0.6);
+  // noise burst
+  const bufSize = Math.floor(c.sampleRate * 0.4);
+  const buf = c.createBuffer(1, bufSize, c.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const filter = c.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(500, t0);
+  filter.frequency.exponentialRampToValueAtTime(60, t0 + 0.4);
+  const ng = c.createGain();
+  ng.gain.setValueAtTime(0.45, t0);
+  ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
+  src.connect(filter).connect(ng).connect(c.destination);
+  src.start(t0);
+}
+
+export function waveAlarm() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Two short blips ascending — incoming wave alert
+  for (let i = 0; i < 2; i++) {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    const t = t0 + i * 0.18;
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(660 + i * 220, t);
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    osc.connect(gain).connect(c.destination);
+    osc.start(t);
+    osc.stop(t + 0.16);
+  }
+}
+
 export function defeatSting() {
   const c = ensureCtx();
   if (!c) return;

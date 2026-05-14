@@ -33,6 +33,7 @@ export function CameraRig() {
   const doors = useGameStore((s) => s.doors);
   const shake = useCombatStore((s) => s.shake);
   const decayShake = useCombatStore((s) => s.decayShake);
+  const slowMo = useCombatStore((s) => s.slowMo);
 
   // Persistent rig state lives in refs to avoid re-renders.
   // Initial cam yaw=π puts the camera at -Z (north of player). Player spawns
@@ -96,7 +97,7 @@ export function CameraRig() {
   }, [gl]);
 
   useFrame((_, dtRaw) => {
-    const dt = Math.min(dtRaw, 0.1);
+    const dt = Math.min(dtRaw, 0.1) * slowMo;
     const pos = positions[activeId];
     const playerYaw = yaws[activeId];
 

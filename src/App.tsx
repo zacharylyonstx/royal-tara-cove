@@ -9,6 +9,9 @@ import { Crosshair } from './ui/Crosshair';
 import { DamageFlash } from './ui/DamageFlash';
 import { VictoryScreen } from './ui/VictoryScreen';
 import { DefeatScreen } from './ui/DefeatScreen';
+import { Dialogue } from './ui/Dialogue';
+import { MiniMap } from './ui/MiniMap';
+import { WaveBanner } from './ui/WaveBanner';
 
 export default function App() {
   return (
@@ -26,6 +29,9 @@ export default function App() {
       <CombatHud />
       <Crosshair />
       <DamageFlash />
+      <Dialogue />
+      <MiniMap />
+      <WaveBanner />
       <WelcomeScreen />
       <VictoryScreen />
       <DefeatScreen />

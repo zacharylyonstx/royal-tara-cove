@@ -23,7 +23,6 @@ const COMBAT_HANDOFF_AT = 6.2;
 export function UFOCrash() {
   const phase = useGameStore((s) => s.phase);
   const setPhase = useGameStore((s) => s.setPhase);
-  const setBlobsToSpawn = useCombatStore((s) => s.setBlobsToSpawn);
   const reset = useCombatStore((s) => s.reset);
   const triggerCrashFlash = useCombatStore((s) => s.triggerCrashFlash);
   const spawnDebris = useCombatStore((s) => s.spawnDebris);
@@ -94,7 +93,6 @@ export function UFOCrash() {
           triggerCrashFlash();
           spawnDebris(CRASH_X, GROUND_Y, CRASH_Z);
           addShake(0.6);
-          setBlobsToSpawn(8);
         }
         g.position.set(CRASH_X, GROUND_Y, CRASH_Z);
         g.rotation.set(0.2, t * 0.1, -0.4);

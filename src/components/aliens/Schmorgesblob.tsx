@@ -2,29 +2,21 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Group, Mesh } from 'three';
-import { BLOB_COLORS, type Blob } from '../../state/combatStore';
+import { BLOB_COLOR_FOR_KIND, type Blob } from '../../state/combatStore';
 import { useGameStore } from '../../state/gameStore';
 
 interface BlobProps {
   blob: Blob;
 }
 
-/**
- * A schmorgesblob is a multi-part rig:
- *   - body (translucent gel)
- *   - inner glow core (pulses; the "weak spot")
- *   - 2 spike antennae (for menace + glow)
- *   - 2 googly eyes that track the active player
- *   - downturned mouth that opens when telegraphing an attack
- *   - 3 wiggly tentacles dropping from the underside
- *
- * Animation states are computed each frame from the blob's runtime data:
- *   - idle (default): bob + wobble
- *   - hop (driven externally by BlobController setting blob.y arc)
- *   - damaged (red flash): blob.lastDamagedAt within 0.15s of now
- *   - dying (after kill, until cleanup): scale collapses to zero
- */
 export function Schmorgesblob({ blob }: BlobProps) {
+  if (blob.kind === 'sprinter') return <Sprinter blob={blob} />;
+  if (blob.kind === 'splitter') return <Splitter blob={blob} />;
+  // hopper (default)
+  return <Hopper blob={blob} />;
+}
+
+function Hopper({ blob }: BlobProps) {
   const group = useRef<Group>(null);
   const body = useRef<Mesh>(null);
   const core = useRef<Mesh>(null);
@@ -34,7 +26,7 @@ export function Schmorgesblob({ blob }: BlobProps) {
   const tentacles = useRef<Group[]>([]);
   const positions = useGameStore((s) => s.positions);
   const activeId = useGameStore((s) => s.activeCharacterId);
-  const color = BLOB_COLORS[blob.variant];
+  const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
   const baseColor = new THREE.Color(color.body);
   const damageColor = new THREE.Color('#ff3a3a');
 
@@ -42,6 +34,7 @@ export function Schmorgesblob({ blob }: BlobProps) {
     const t = state.clock.elapsedTime;
     if (!group.current) return;
     group.current.position.set(blob.x, blob.y, blob.z);
+    group.current.scale.setScalar(blob.scale);
 
     const player = positions[activeId];
     const dx = player.x - blob.x;
@@ -50,22 +43,18 @@ export function Schmorgesblob({ blob }: BlobProps) {
     const ux = dist > 0 ? dx / dist : 0;
     const uz = dist > 0 ? dz / dist : 1;
 
-    // Attack telegraph: when very close to player and about to hit
     const isAttacking = dist < 1.5;
 
-    // Dying: collapse over 0.4s
     if (!blob.alive) {
       const age = t - blob.deathAt;
       const k = Math.max(0, Math.min(1, age / 0.4));
-      const s = 1 - k;
+      const s = blob.scale * (1 - k);
       group.current.scale.set(s, s * 0.5, s);
       group.current.visible = age < 0.45;
       return;
     }
     group.current.visible = true;
-    group.current.scale.set(1, 1, 1);
 
-    // Body wobble + bob
     const wob = Math.sin(t * 6 + blob.phase) * 0.12;
     if (body.current) {
       const sx = isAttacking ? 1.18 - wob * 0.3 : 1 - wob * 0.55;
@@ -74,12 +63,8 @@ export function Schmorgesblob({ blob }: BlobProps) {
       const sinceDamage = t - blob.lastDamagedAt;
       const flash = sinceDamage < 0.15 ? Math.max(0, 1 - sinceDamage / 0.15) : 0;
       const mat = body.current.material as THREE.MeshPhysicalMaterial;
-      if (mat?.color) {
-        mat.color.copy(baseColor).lerp(damageColor, flash);
-      }
+      if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
     }
-
-    // Core pulse — faster when attacking
     if (core.current) {
       const pulseFreq = isAttacking ? 8 : 3;
       const pulse = 0.7 + Math.abs(Math.sin(t * pulseFreq + blob.phase)) * 0.6;
@@ -87,8 +72,6 @@ export function Schmorgesblob({ blob }: BlobProps) {
       if (mat) mat.emissiveIntensity = pulse * (isAttacking ? 1.6 : 1.0);
       core.current.scale.setScalar(0.18 + Math.sin(t * pulseFreq) * 0.02);
     }
-
-    // Eyes track player (offset pupils)
     const pupilOffset = 0.06;
     if (leftEye.current && rightEye.current) {
       leftEye.current.children.forEach((child, idx) => {
@@ -104,15 +87,11 @@ export function Schmorgesblob({ blob }: BlobProps) {
         }
       });
     }
-
-    // Mouth opens when attacking
     if (mouth.current) {
       const open = isAttacking ? 1 : 0;
       mouth.current.rotation.x = -0.4 - open * 0.6;
       mouth.current.scale.y = 1 + open * 1.2;
     }
-
-    // Tentacles wiggle
     tentacles.current.forEach((tg, i) => {
       if (!tg) return;
       const phase = blob.phase + i * 1.7;
@@ -124,8 +103,7 @@ export function Schmorgesblob({ blob }: BlobProps) {
   if (!blob.alive && performance.now() / 1000 - blob.deathAt > 0.5) return null;
 
   return (
-    <group ref={group} position={[blob.x, blob.y, blob.z]}>
-      {/* Body */}
+    <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
         <sphereGeometry args={[0.5, 22, 16]} />
         <meshPhysicalMaterial
@@ -138,12 +116,10 @@ export function Schmorgesblob({ blob }: BlobProps) {
           emissiveIntensity={0.18}
         />
       </mesh>
-      {/* Inner glow core (weak spot) */}
-      <mesh ref={core} position={[0, 0, 0]}>
+      <mesh ref={core}>
         <sphereGeometry args={[0.18, 14, 14]} />
         <meshStandardMaterial color={color.glow} emissive={color.glow} emissiveIntensity={1.0} />
       </mesh>
-      {/* Antennae (two angled spikes) */}
       <group position={[0, 0.5, 0]}>
         <mesh position={[-0.1, 0.18, 0]} rotation={[0, 0, -0.4]} castShadow>
           <coneGeometry args={[0.04, 0.36, 6]} />
@@ -162,7 +138,6 @@ export function Schmorgesblob({ blob }: BlobProps) {
           <meshStandardMaterial color={color.glow} emissive={color.glow} emissiveIntensity={0.9} />
         </mesh>
       </group>
-      {/* Eyes — bigger sclera, tracking pupils */}
       <group ref={leftEye} position={[-0.2, 0.18, 0.36]}>
         <mesh castShadow>
           <sphereGeometry args={[0.16, 12, 12]} />
@@ -183,19 +158,16 @@ export function Schmorgesblob({ blob }: BlobProps) {
           <meshStandardMaterial color="#1a1a1c" />
         </mesh>
       </group>
-      {/* Mouth (downturned arc that opens during attack) */}
       <mesh ref={mouth} position={[0, -0.08, 0.46]} rotation={[-0.4, 0, 0]}>
         <torusGeometry args={[0.15, 0.04, 6, 14, Math.PI]} />
         <meshStandardMaterial color="#1a1a1c" roughness={0.7} />
       </mesh>
-      {/* Teeth */}
       {[-0.08, 0, 0.08].map((x, i) => (
         <mesh key={i} position={[x, -0.14, 0.5]} rotation={[Math.PI, 0, 0]}>
           <coneGeometry args={[0.02, 0.05, 4]} />
           <meshStandardMaterial color="#f5ecd9" />
         </mesh>
       ))}
-      {/* Tentacles (3) */}
       {[
         { x: -0.25, z: -0.15, refIdx: 0 },
         { x: 0.0, z: 0.25, refIdx: 1 },
@@ -216,19 +188,192 @@ export function Schmorgesblob({ blob }: BlobProps) {
           </mesh>
         </group>
       ))}
-      {/* Ground glow */}
       <pointLight position={[0, 0.1, 0]} color={color.body} intensity={0.4} distance={3} decay={2} />
     </group>
   );
 }
 
-export function GooSplat({ x, z, variant, spawnedAt }: { x: number; z: number; variant: number; spawnedAt: number }) {
-  const c = BLOB_COLORS[variant];
+function Sprinter({ blob }: BlobProps) {
+  // Single big cyclops eye; stretched body; no antennae.
+  const group = useRef<Group>(null);
+  const body = useRef<Mesh>(null);
+  const eye = useRef<Group>(null);
+  const positions = useGameStore((s) => s.positions);
+  const activeId = useGameStore((s) => s.activeCharacterId);
+  const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
+  const baseColor = new THREE.Color(color.body);
+  const damageColor = new THREE.Color('#ffd83a');
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (!group.current) return;
+    group.current.position.set(blob.x, blob.y, blob.z);
+    group.current.scale.setScalar(blob.scale);
+    const player = positions[activeId];
+    const dx = player.x - blob.x;
+    const dz = player.z - blob.z;
+    const dist = Math.hypot(dx, dz);
+    const ux = dist > 0 ? dx / dist : 0;
+    const uz = dist > 0 ? dz / dist : 1;
+    if (!blob.alive) {
+      const age = t - blob.deathAt;
+      const k = Math.max(0, Math.min(1, age / 0.3));
+      const s = blob.scale * (1 - k);
+      group.current.scale.set(s, s * 0.4, s);
+      group.current.visible = age < 0.35;
+      return;
+    }
+    group.current.visible = true;
+    if (body.current) {
+      // Lean forward in direction of travel
+      const yaw = Math.atan2(ux, uz);
+      group.current.rotation.y = yaw;
+      // Stretch
+      const stretch = 1 + Math.sin(t * 16 + blob.phase) * 0.06;
+      body.current.scale.set(0.85, 0.7, stretch);
+      const flash = Math.max(0, 1 - (t - blob.lastDamagedAt) / 0.15);
+      const mat = body.current.material as THREE.MeshPhysicalMaterial;
+      if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
+    }
+    if (eye.current) {
+      eye.current.children.forEach((child, idx) => {
+        if (idx === 1) {
+          child.position.x = ux * 0.04;
+          child.position.z = 0.12 + uz * 0.04;
+        }
+      });
+    }
+  });
+
+  if (!blob.alive && performance.now() / 1000 - blob.deathAt > 0.4) return null;
+
+  return (
+    <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
+      <mesh ref={body} castShadow>
+        <sphereGeometry args={[0.55, 18, 14]} />
+        <meshPhysicalMaterial color={color.body} roughness={0.3} transmission={0.25} thickness={0.4} ior={1.4} emissive={color.body} emissiveIntensity={0.3} />
+      </mesh>
+      {/* big single eye */}
+      <group ref={eye} position={[0, 0.05, 0.4]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.22, 14, 14]} />
+          <meshStandardMaterial color="#f5ecd9" />
+        </mesh>
+        <mesh position={[0, 0, 0.12]}>
+          <sphereGeometry args={[0.1, 10, 10]} />
+          <meshStandardMaterial color="#1a1a1c" />
+        </mesh>
+      </group>
+      {/* extra tentacles trailing behind */}
+      {[-0.2, 0, 0.2].map((x, i) => (
+        <mesh key={i} position={[x, -0.2, -0.3]} rotation={[0.3, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.04, 0.02, 0.5, 6]} />
+          <meshStandardMaterial color={color.body} emissive={color.body} emissiveIntensity={0.2} />
+        </mesh>
+      ))}
+      <pointLight position={[0, 0.1, 0]} color={color.body} intensity={0.5} distance={3.5} decay={2} />
+    </group>
+  );
+}
+
+function Splitter({ blob }: BlobProps) {
+  // Bulgier body with three glowing pustules on top
+  const group = useRef<Group>(null);
+  const body = useRef<Mesh>(null);
+  const pustules = useRef<Mesh[]>([]);
+  const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
+  const baseColor = new THREE.Color(color.body);
+  const damageColor = new THREE.Color('#ff4040');
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    if (!group.current) return;
+    group.current.position.set(blob.x, blob.y, blob.z);
+    group.current.scale.setScalar(blob.scale);
+    if (!blob.alive) {
+      const age = t - blob.deathAt;
+      const k = Math.max(0, Math.min(1, age / 0.3));
+      const s = blob.scale * (1 - k);
+      group.current.scale.set(s, s, s);
+      // Pustules pop outward
+      pustules.current.forEach((p) => {
+        if (!p) return;
+        p.position.y = 0.4 + age * 6;
+        p.scale.setScalar(1 + age * 3);
+        const mat = p.material as THREE.MeshStandardMaterial;
+        if (mat) mat.opacity = Math.max(0, 1 - age * 3);
+      });
+      group.current.visible = age < 0.35;
+      return;
+    }
+    group.current.visible = true;
+    if (body.current) {
+      // Bulgy bob
+      const wob = Math.sin(t * 4 + blob.phase) * 0.15;
+      body.current.scale.set(1.15 - wob * 0.5, 0.85 + wob, 1.15 - wob * 0.5);
+      const flash = Math.max(0, 1 - (t - blob.lastDamagedAt) / 0.15);
+      const mat = body.current.material as THREE.MeshPhysicalMaterial;
+      if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
+    }
+    pustules.current.forEach((p, i) => {
+      if (!p) return;
+      const mat = p.material as THREE.MeshStandardMaterial;
+      if (mat) mat.emissiveIntensity = 0.8 + Math.sin(t * 5 + i) * 0.4;
+    });
+  });
+
+  if (!blob.alive && performance.now() / 1000 - blob.deathAt > 0.4) return null;
+
+  return (
+    <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
+      <mesh ref={body} castShadow>
+        <sphereGeometry args={[0.55, 18, 14]} />
+        <meshPhysicalMaterial color={color.body} roughness={0.4} transmission={0.2} thickness={0.45} ior={1.4} emissive={color.body} emissiveIntensity={0.2} />
+      </mesh>
+      {/* three pustules */}
+      {[
+        { x: -0.18, z: 0.1 },
+        { x: 0.0, z: -0.2 },
+        { x: 0.2, z: 0.05 },
+      ].map((p, i) => (
+        <mesh
+          key={i}
+          ref={(el) => { if (el) pustules.current[i] = el; }}
+          position={[p.x, 0.4, p.z]}
+          castShadow
+        >
+          <sphereGeometry args={[0.14, 10, 10]} />
+          <meshStandardMaterial color={color.glow} emissive={color.glow} emissiveIntensity={0.9} transparent opacity={1} />
+        </mesh>
+      ))}
+      {/* eyes */}
+      <mesh position={[-0.2, 0.05, 0.4]}>
+        <sphereGeometry args={[0.14, 10, 10]} />
+        <meshStandardMaterial color="#f5ecd9" />
+      </mesh>
+      <mesh position={[-0.2, 0.05, 0.5]}>
+        <sphereGeometry args={[0.07, 8, 8]} />
+        <meshStandardMaterial color="#1a1a1c" />
+      </mesh>
+      <mesh position={[0.2, 0.05, 0.4]}>
+        <sphereGeometry args={[0.14, 10, 10]} />
+        <meshStandardMaterial color="#f5ecd9" />
+      </mesh>
+      <mesh position={[0.2, 0.05, 0.5]}>
+        <sphereGeometry args={[0.07, 8, 8]} />
+        <meshStandardMaterial color="#1a1a1c" />
+      </mesh>
+      <pointLight position={[0, 0.1, 0]} color={color.glow} intensity={0.5} distance={3} decay={2} />
+    </group>
+  );
+}
+
+export function GooSplat({ x, z, variant, spawnedAt, scale = 1 }: { x: number; z: number; variant: number; spawnedAt: number; scale?: number }) {
+  const c = BLOB_COLOR_FOR_KIND('hopper', variant); // splats tinted by variant idx
   const ref = useRef<Mesh>(null);
-  // Render satellite drips around the main splat for a more dramatic look
   const dropsRefs = useRef<(Mesh | null)[]>([]);
   useFrame(() => {
-    const ageRel = (performance.now() / 1000 - spawnedAt) / 12;
+    const ageRel = (performance.now() / 1000 - spawnedAt) / 14;
     const opacity = Math.max(0, 1 - ageRel);
     if (ref.current) {
       const mat = ref.current.material as THREE.MeshStandardMaterial;
@@ -241,12 +386,11 @@ export function GooSplat({ x, z, variant, spawnedAt }: { x: number; z: number; v
     });
   });
   return (
-    <group position={[x, 0.03, z]}>
+    <group position={[x, 0.03, z]} scale={scale}>
       <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.7, 18]} />
         <meshStandardMaterial color={c.body} roughness={0.7} transparent opacity={1} emissive={c.body} emissiveIntensity={0.1} />
       </mesh>
-      {/* satellite drips */}
       {[
         { ang: 0.2, r: 0.85 },
         { ang: 1.4, r: 0.9 },
