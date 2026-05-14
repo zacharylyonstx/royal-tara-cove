@@ -100,12 +100,12 @@ export function PlayerController() {
       pos.x = resolved.x;
       pos.z = resolved.z;
 
-      // Rotate character to face movement direction (lerp).
+      // Rotate character to face movement direction (smoother lerp = finer turning).
       const targetYaw = Math.atan2(-moveDir.x, -moveDir.z);
       let diff = targetYaw - yaws[activeId];
       while (diff > Math.PI) diff -= 2 * Math.PI;
       while (diff < -Math.PI) diff += 2 * Math.PI;
-      yaws[activeId] = yaws[activeId] + diff * Math.min(1, 14 * dt);
+      yaws[activeId] = yaws[activeId] + diff * Math.min(1, 8 * dt);
     }
 
     // Jump

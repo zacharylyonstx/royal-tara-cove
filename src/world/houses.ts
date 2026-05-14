@@ -52,10 +52,11 @@ const SLOT = (i: number) => straightZ((i + 0.5) / 8);
 //   'partial'  = some fields confirmed (e.g. sqft only)
 //   'inferred' = sensible Avery Ranch tract default — tweak as we remember more
 export const HOUSES: HouseConfig[] = [
-  // ---- Cul-de-sac bulb (4 houses around the south end) ----
+  // ---- Cul-de-sac bulb (4 houses around the south arc) ----
   // Real bulb angles (math convention) are ~333° (10605), ~4° (10601),
-  // ~56° (10600), ~118° (10604). We've cleaned them to 0/60/120/180 for
-  // even spacing while keeping the same relative order around the bulb.
+  // ~56° (10600), ~118° (10604). Layout in v4: 10600 anchors the south
+  // (90°) at the very end of the cul-de-sac, with the others arranged
+  // around it. Lots use neighbor-midpoint wedges, so unequal spacing is fine.
   {
     address: '10605',
     position: { kind: 'bulb', angleDeg: 0 },
@@ -75,7 +76,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10601',
-    position: { kind: 'bulb', angleDeg: 60 },
+    position: { kind: 'bulb', angleDeg: 50 },
     width: 14,
     depth: 13,
     stories: 2,
@@ -90,13 +91,13 @@ export const HOUSES: HouseConfig[] = [
     source: 'verified',
   },
   {
-    // The hero house — Zak's family home. Modeled with a real footprint, a
-    // walkable interior, covered porch, bay window and flagpole.
+    // The hero house — Zak's family home. Two-story Avery Ranch tract at
+    // the very end of the cul-de-sac with the deepest backyard on the street.
     address: '10600',
-    position: { kind: 'bulb', angleDeg: 120 },
-    width: 16,
-    depth: 14,
-    stories: 1,
+    position: { kind: 'bulb', angleDeg: 90 },
+    width: 18,
+    depth: 16,
+    stories: 2,
     wallColor: PALETTE.walls.sand,
     trimColor: PALETTE.trim.cream,
     hasStone: true,
@@ -106,13 +107,13 @@ export const HOUSES: HouseConfig[] = [
     garageOnLeft: false,
     isHero: true,
     hipped: true,
-    sqft: 1750,
+    sqft: 2400,
     yearBuilt: 2004,
     source: 'partial',
   },
   {
     address: '10604',
-    position: { kind: 'bulb', angleDeg: 180 },
+    position: { kind: 'bulb', angleDeg: 135 },
     width: 13,
     depth: 12,
     stories: 1,

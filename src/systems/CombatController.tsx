@@ -7,6 +7,7 @@ import { laserZap, blobSquish } from '../audio';
 const FIRE_COOLDOWN = 0.18;
 const RANGE = 30;
 const BLOB_RADIUS = 0.55;
+const AIM_CONE_DEG = 25; // half-angle for auto-aim assist
 
 export function CombatController() {
   const { gl } = useThree();
@@ -49,7 +50,37 @@ export function CombatController() {
     cooldown.current = FIRE_COOLDOWN;
     recordShotFired();
     const pos = positions[activeId];
-    const yaw = yaws[activeId];
+    let yaw = yaws[activeId];
+
+    // --- Auto-aim assist: cone-snap to nearest blob in front ---
+    const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
+    const facingX = -Math.sin(yaw);
+    const facingZ = -Math.cos(yaw);
+    const coneCos = Math.cos((AIM_CONE_DEG * Math.PI) / 180);
+    let snapTarget: typeof blobs[number] | null = null;
+    let snapBestDist = Infinity;
+    for (const b of blobs) {
+      const dx = b.x - pos.x;
+      const dz = b.z - pos.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > RANGE || dist < 0.001) continue;
+      const ux = dx / dist;
+      const uz = dz / dist;
+      const dot = ux * facingX + uz * facingZ;
+      if (dot < coneCos) continue; // outside cone
+      if (dist < snapBestDist) {
+        snapBestDist = dist;
+        snapTarget = b;
+      }
+    }
+    if (snapTarget) {
+      // Snap player yaw and aim direction toward this blob
+      const dx = snapTarget.x - pos.x;
+      const dz = snapTarget.z - pos.z;
+      yaw = Math.atan2(-dx, -dz);
+      yaws[activeId] = yaw;
+    }
+
     const HAND_X = 0.35;
     const MUZZLE_Z_LOCAL = -0.8;
     const cy = Math.cos(yaw);
@@ -60,31 +91,38 @@ export function CombatController() {
     const dirX = -Math.sin(yaw);
     const dirZ = -Math.cos(yaw);
 
-    const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
     let bestT = Infinity;
     let bestId: number | null = null;
     let bestPoint: [number, number, number] = [muzzleX + dirX * RANGE, muzzleY, muzzleZ + dirZ * RANGE];
     let bestVariant = 0;
-    let bestKind: typeof blobs[number]['kind'] = 'hopper';
-    for (const b of blobs) {
-      // Use scale-adjusted radius
-      const r = BLOB_RADIUS * b.scale;
-      const fx = muzzleX - b.x;
-      const fy = muzzleY - (b.y + 0.3 * b.scale);
-      const fz = muzzleZ - b.z;
-      const a = 1;
-      const bb = 2 * (fx * dirX + fz * dirZ);
-      const cc = fx * fx + fy * fy + fz * fz - r * r;
-      const disc = bb * bb - 4 * a * cc;
-      if (disc < 0) continue;
-      const t = (-bb - Math.sqrt(disc)) / (2 * a);
-      if (t < 0 || t > RANGE) continue;
-      if (t < bestT) {
-        bestT = t;
-        bestId = b.id;
-        bestPoint = [muzzleX + dirX * t, b.y + 0.3 * b.scale, muzzleZ + dirZ * t];
-        bestVariant = b.variant;
-        bestKind = b.kind;
+
+    if (snapTarget) {
+      // We've already chosen the target — compute hit point exactly on it
+      const t = Math.hypot(snapTarget.x - muzzleX, snapTarget.z - muzzleZ);
+      bestT = t;
+      bestId = snapTarget.id;
+      bestPoint = [snapTarget.x, snapTarget.y + 0.3 * snapTarget.scale, snapTarget.z];
+      bestVariant = snapTarget.variant;
+    } else {
+      // No snap — fall back to raycast
+      for (const b of blobs) {
+        const r = BLOB_RADIUS * b.scale;
+        const fx = muzzleX - b.x;
+        const fy = muzzleY - (b.y + 0.3 * b.scale);
+        const fz = muzzleZ - b.z;
+        const a = 1;
+        const bb = 2 * (fx * dirX + fz * dirZ);
+        const cc = fx * fx + fy * fy + fz * fz - r * r;
+        const disc = bb * bb - 4 * a * cc;
+        if (disc < 0) continue;
+        const t = (-bb - Math.sqrt(disc)) / (2 * a);
+        if (t < 0 || t > RANGE) continue;
+        if (t < bestT) {
+          bestT = t;
+          bestId = b.id;
+          bestPoint = [muzzleX + dirX * t, b.y + 0.3 * b.scale, muzzleZ + dirZ * t];
+          bestVariant = b.variant;
+        }
       }
     }
 
@@ -96,7 +134,6 @@ export function CombatController() {
       recordShotHit();
       spawnHitParticle(bestPoint[0], bestPoint[1], bestPoint[2], bestVariant);
       if (target && target.hp <= 1) blobSquish();
-      void bestKind;
     }
   });
 

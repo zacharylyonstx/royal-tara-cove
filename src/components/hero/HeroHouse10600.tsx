@@ -24,7 +24,7 @@ interface HeroHouseProps {
 }
 
 export function HeroHouse10600({ config, lot }: HeroHouseProps) {
-  const wallH = STORY_H;
+  const wallH = STORY_H * config.stories; // 6m for 2-story
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
 
@@ -60,6 +60,21 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         garageCenterX={garageCenterX}
         doorCenterX={doorCenterX}
       />
+
+      {/* Upper-floor windows on front (visible because we're 2 stories) */}
+      {config.stories === 2 && (
+        <>
+          <UpperWindow x={doorCenterX} y={STORY_H + 1.4} z={-halfD - 0.06} />
+          <UpperWindow x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5)} y={STORY_H + 1.4} z={-halfD - 0.06} />
+          <UpperWindow x={garageCenterX - 1.4} y={STORY_H + 1.4} z={-halfD - 0.06} />
+          <UpperWindow x={garageCenterX + 1.4} y={STORY_H + 1.4} z={-halfD - 0.06} />
+          {/* Side windows upstairs */}
+          <UpperWindow x={-halfW - 0.06} y={STORY_H + 1.4} z={-halfD * 0.4} sideWall />
+          <UpperWindow x={-halfW - 0.06} y={STORY_H + 1.4} z={halfD * 0.4} sideWall />
+          <UpperWindow x={halfW + 0.06} y={STORY_H + 1.4} z={-halfD * 0.4} sideWall right />
+          <UpperWindow x={halfW + 0.06} y={STORY_H + 1.4} z={halfD * 0.4} sideWall right />
+        </>
+      )}
 
       {/* Stone wainscot */}
       <StoneWainscot
@@ -488,6 +503,48 @@ function GarageDoor({ x, z }: { x: number; z: number }) {
       <mesh position={[0, 0.1 + (GARAGE_H - 0.05) * 0.875, 0.0]}>
         <boxGeometry args={[GARAGE_W - 0.6, 0.34, 0.02]} />
         <meshStandardMaterial color="#3a4a5a" metalness={0.5} roughness={0.2} emissive="#0d1620" emissiveIntensity={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+function UpperWindow({ x, y, z, sideWall = false, right = false }: { x: number; y: number; z: number; sideWall?: boolean; right?: boolean }) {
+  const w = 1.0;
+  const h = 1.0;
+  if (sideWall) {
+    // Window faces +X (right side) or -X (left side)
+    const yRot = right ? Math.PI / 2 : -Math.PI / 2;
+    return (
+      <group position={[x, y, z]} rotation={[0, yRot, 0]}>
+        <mesh castShadow>
+          <boxGeometry args={[w, h, 0.06]} />
+          <meshStandardMaterial color="#f5ecd9" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0, 0.04]}>
+          <boxGeometry args={[w - 0.16, h - 0.16, 0.02]} />
+          <primitive object={mat.glass()} attach="material" />
+        </mesh>
+      </group>
+    );
+  }
+  return (
+    <group position={[x, y, z]}>
+      <mesh castShadow>
+        <boxGeometry args={[w, h, 0.06]} />
+        <meshStandardMaterial color="#f5ecd9" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 0, 0.04]}>
+        <boxGeometry args={[w - 0.16, h - 0.16, 0.02]} />
+        <primitive object={mat.glass()} attach="material" />
+      </mesh>
+      {/* mullions */}
+      <mesh position={[0, 0, 0.07]}>
+        <boxGeometry args={[w + 0.04, 0.05, 0.02]} />
+        <meshStandardMaterial color="#f5ecd9" />
+      </mesh>
+      <mesh position={[0, 0, 0.07]}>
+        <boxGeometry args={[0.05, h + 0.04, 0.02]} />
+        <meshStandardMaterial color="#f5ecd9" />
       </mesh>
     </group>
   );

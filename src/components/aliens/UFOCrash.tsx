@@ -8,9 +8,12 @@ import { ufoCrash, ufoDescend, startCrackleLoop, gunWind } from '../../audio';
 import { CrashFX, Debris } from './CrashFX';
 import { SmokeColumn } from './SmokeColumn';
 
-// Crash target — backyard of 10600
-const CRASH_X = -16;
-const CRASH_Z = 50;
+// Crash target — middle of 10600's expanded backyard. House pivot is at
+// (cos(90°)*38.4, sin(90°)*38.4) = (0, 38.4); back-fence radius is
+// HOUSE_FRONT_RADIUS + depth + HERO_BACKYARD_DEPTH = 30.4 + 16 + 24 = 70.4.
+// Land midway in the backyard at radius ~52.
+const CRASH_X = 0;
+const CRASH_Z = 56;
 const SKY_START_Y = 80;
 const HOVER_Y = 14;
 const GROUND_Y = 1.2;

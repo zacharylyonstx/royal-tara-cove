@@ -19,9 +19,9 @@ const MIN_DIST = 3.5;
 const MAX_DIST = 18;
 const MIN_PITCH = 0.18;          // can't look straight up
 const MAX_PITCH = Math.PI / 2 - 0.12;
-const DRAG_SENSITIVITY = 0.0055;
+const DRAG_SENSITIVITY = 0.0028; // halved for finer turning
 const WHEEL_SENSITIVITY = 0.005;
-const RELAX_SPEED = 1.6;         // rad/s when drifting back behind
+const RELAX_SPEED = 1.0;         // slower auto-relax-behind
 const LERP_SPEED = 8;            // higher = snappier follow
 
 export function CameraRig() {

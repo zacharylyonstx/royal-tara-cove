@@ -3,6 +3,7 @@ import {
   HOUSE_FRONT_RADIUS,
   LOT_FRONT_RADIUS,
   BACKYARD_DEPTH,
+  HERO_BACKYARD_DEPTH,
   STRAIGHT_LOT_FRONT_X,
   STRAIGHT_HOUSE_FRONT_X,
   STRAIGHT_START_Z,
@@ -10,27 +11,37 @@ import {
   houseTransform,
 } from './streetLayout';
 
-const N_BULB = 4; // four houses around the cul-de-sac
-
 /**
- * Build the lot polygon for every house. Bulb houses get pie-slice wedges so
- * their yards never overlap; straight-section houses get rectangles bounded
- * by the midpoints of their neighbors' z-coordinates so adjacent yards share
- * a single fence line.
+ * Build the lot polygon for every house. Bulb houses get pie-slice wedges
+ * bounded by the midpoints between adjacent neighbors' angles, so unequal
+ * spacing works without overlap. Straight-section houses get rectangles
+ * bounded by neighbor z-midpoints. The hero house (10600) gets an enlarged
+ * back radius so the UFO has room to crash.
  */
 export function buildLots(houses: HouseConfig[]): Lot[] {
   const result: Lot[] = [];
 
-  // ---- Bulb wedges ----
-  const bulbHouses = houses.filter((h) => h.position.kind === 'bulb');
-  for (const h of bulbHouses) {
-    if (h.position.kind !== 'bulb') continue;
-    const angleDeg = h.position.angleDeg;
-    const halfWedgeDeg = 360 / N_BULB / 2; // 45°
-    const a0 = ((angleDeg - halfWedgeDeg) * Math.PI) / 180;
-    const a1 = ((angleDeg + halfWedgeDeg) * Math.PI) / 180;
+  // ---- Bulb wedges (with dynamic neighbor-midpoint bounds) ----
+  const bulbHouses = houses
+    .filter((h) => h.position.kind === 'bulb')
+    .map((h) => ({ h, ang: h.position.kind === 'bulb' ? h.position.angleDeg : 0 }))
+    .sort((a, b) => a.ang - b.ang);
+
+  for (let i = 0; i < bulbHouses.length; i++) {
+    const { h, ang } = bulbHouses[i];
+    // Find prev and next neighbors. Without wraparound (houses sit on the
+    // southern arc — north is the road). We use virtual neighbors at
+    // ang - 60 and ang + 60 if there's no real neighbor, but cap so the
+    // wedge stays under 50° on either side.
+    const prevAng = i > 0 ? bulbHouses[i - 1].ang : ang - 50;
+    const nextAng = i < bulbHouses.length - 1 ? bulbHouses[i + 1].ang : ang + 50;
+    const lowerBoundDeg = (ang + prevAng) / 2;
+    const upperBoundDeg = (ang + nextAng) / 2;
+    const a0 = (lowerBoundDeg * Math.PI) / 180;
+    const a1 = (upperBoundDeg * Math.PI) / 180;
     const innerR = LOT_FRONT_RADIUS;
-    const outerR = HOUSE_FRONT_RADIUS + h.depth + BACKYARD_DEPTH;
+    const backyard = h.isHero ? HERO_BACKYARD_DEPTH : BACKYARD_DEPTH;
+    const outerR = HOUSE_FRONT_RADIUS + h.depth + backyard;
 
     // CCW polygon starting at inner edge near a0:
     //   inner-arc samples a0..a1, then outer-arc samples a1..a0

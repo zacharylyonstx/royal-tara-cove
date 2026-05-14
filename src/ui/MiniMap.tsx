@@ -33,10 +33,11 @@ export function MiniMap() {
   // Player faces -Z + rotated by yaw. We want the mini-map to be top-down with
   // up = player facing direction.
   function toMap(wx: number, wz: number): { x: number; y: number } | null {
-    let dx = wx - player.x;
-    let dz = wz - player.z;
-    // Rotate by -playerYaw + π so player facing direction is "up"
-    const ang = -playerYaw;
+    const dx = wx - player.x;
+    const dz = wz - player.z;
+    // Rotate world delta by +playerYaw so the player's facing direction maps
+    // to "up" on the SVG (where y grows downward, so up = -y).
+    const ang = playerYaw;
     const rx = dx * Math.cos(ang) - dz * Math.sin(ang);
     const rz = dx * Math.sin(ang) + dz * Math.cos(ang);
     const dist = Math.hypot(rx, rz);

@@ -18,6 +18,8 @@ export const LOT_FRONT_RADIUS = STREET_RADIUS + SIDEWALK_WIDTH;
 export const FRONT_YARD_DEPTH = 7;
 export const HOUSE_FRONT_RADIUS = LOT_FRONT_RADIUS + FRONT_YARD_DEPTH;
 export const BACKYARD_DEPTH = 12;
+/** Extra-deep backyard for the hero house (10600) — UFO needs landing room. */
+export const HERO_BACKYARD_DEPTH = 24;
 
 // --- Straight section (running north from bulb to Avery Ranch Blvd) ---
 // The section starts where it meets the top of the bulb and extends 95m north.

@@ -6,7 +6,7 @@ import type { BlobKind } from '../state/combatStore';
 import { BLOB_SPAWN } from '../components/aliens/UFOCrash';
 import { victoryFanfare, stopCrackleLoop, waveAlarm, bossRoar } from '../audio';
 
-const SPAWN_INTERVAL = 0.4;
+const SPAWN_INTERVAL = 0.55;
 const INTERMISSION_LEN = 5.0;
 
 export const WAVES: { kind: BlobKind; count: number }[][] = [
@@ -74,8 +74,11 @@ export function WaveController() {
         spawnAccum.current = 0;
         const next = blobsToSpawn.find((b) => b.count > 0);
         if (next) {
-          const jx = (Math.random() - 0.5) * 3;
-          const jz = (Math.random() - 0.5) * 3;
+          // Wider scatter so blobs don't stack on top of each other.
+          const ang = Math.random() * Math.PI * 2;
+          const r = 2 + Math.random() * 4;
+          const jx = Math.cos(ang) * r;
+          const jz = Math.sin(ang) * r;
           spawnBlob(next.kind, BLOB_SPAWN[0] + jx, BLOB_SPAWN[1], BLOB_SPAWN[2] + jz);
           consumeBlobToSpawn(next.kind);
           if (next.kind === 'boss') {
