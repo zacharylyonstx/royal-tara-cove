@@ -7,6 +7,7 @@ import { HousePropsRenderer } from './HouseProps';
 import { Character } from './Character';
 import { CameraRig } from '../systems/CameraRig';
 import { PlayerController } from '../systems/PlayerController';
+import { NPCController } from '../systems/NPCController';
 import { HOUSES } from '../world/houses';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { useGameStore } from '../state/gameStore';
@@ -135,6 +136,7 @@ export function Game() {
       ))}
 
       <PlayerController />
+      <NPCController />
       <CameraRig />
     </>
   );
