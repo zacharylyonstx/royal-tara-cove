@@ -71,6 +71,24 @@ interface CombatStore {
   spawnSplat: (x: number, z: number, variant: number) => void;
   reapSplats: (now: number) => void;
 
+  /** Camera shake amount (0..1). Decays naturally each frame. */
+  shake: number;
+  addShake: (amount: number) => void;
+  decayShake: (dt: number) => void;
+
+  /** Timestamp of last player damage (for screen flash). */
+  damageFlashAt: number;
+  triggerDamageFlash: () => void;
+
+  /** Crash debris — spawned at impact, flies radially. */
+  debris: { id: number; x: number; y: number; z: number; vx: number; vy: number; vz: number; spawnedAt: number; rot: number; rotSpeed: number }[];
+  spawnDebris: (x: number, y: number, z: number) => void;
+  reapDebris: (now: number) => void;
+
+  /** Crash flash + shock ring trigger time. */
+  crashFlashAt: number;
+  triggerCrashFlash: () => void;
+
   reset: () => void;
 }
 
@@ -152,9 +170,48 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
   },
   reapSplats: (now) => set((s) => ({ splats: s.splats.filter((p) => now - p.spawnedAt < 12) })),
 
+  shake: 0,
+  addShake: (n) => set((s) => ({ shake: Math.min(1, s.shake + n) })),
+  decayShake: (dt) => {
+    const cur = get().shake;
+    if (cur <= 0) return;
+    const next = Math.max(0, cur - dt * 2.5);
+    set({ shake: next });
+  },
+
+  damageFlashAt: -999,
+  triggerDamageFlash: () => set({ damageFlashAt: performance.now() / 1000 }),
+
+  debris: [],
+  spawnDebris: (x, y, z) => {
+    const now = performance.now() / 1000;
+    set((s) => {
+      const fresh = Array.from({ length: 8 }, (_, i) => {
+        const ang = (i / 8) * Math.PI * 2 + Math.random() * 0.5;
+        const speed = 4 + Math.random() * 5;
+        return {
+          id: s.nextParticleId + i + 100000,
+          x, y, z,
+          vx: Math.cos(ang) * speed,
+          vy: 6 + Math.random() * 4,
+          vz: Math.sin(ang) * speed,
+          spawnedAt: now,
+          rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 12,
+        };
+      });
+      return { debris: [...s.debris, ...fresh], nextParticleId: s.nextParticleId + 8 };
+    });
+  },
+  reapDebris: (now) => set((s) => ({ debris: s.debris.filter((d) => now - d.spawnedAt < 2.5) })),
+
+  crashFlashAt: -999,
+  triggerCrashFlash: () => set({ crashFlashAt: performance.now() / 1000 }),
+
   reset: () => set({
     blobs: [], splats: [], beams: [], hitParticles: [],
     blobsToSpawn: 0, spawnedBlobsCount: 0, kills: 0,
+    shake: 0, damageFlashAt: -999, debris: [], crashFlashAt: -999,
   }),
 }));
 

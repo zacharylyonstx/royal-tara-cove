@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
+import { useCombatStore } from '../state/combatStore';
 import { unclipCamera } from './collision';
 
 // Spherical 3rd-person follow cam.
@@ -30,6 +31,8 @@ export function CameraRig() {
   const yaws = useGameStore((s) => s.yaws);
   const staticColliders = useGameStore((s) => s.staticColliders);
   const doors = useGameStore((s) => s.doors);
+  const shake = useCombatStore((s) => s.shake);
+  const decayShake = useCombatStore((s) => s.decayShake);
 
   // Persistent rig state lives in refs to avoid re-renders.
   // Initial cam yaw=π puts the camera at -Z (north of player). Player spawns
@@ -139,7 +142,14 @@ export function CameraRig() {
       allColliders,
     );
 
-    camera.position.set(safe.x, safe.y, safe.z);
+    // Camera shake offset
+    decayShake(dt);
+    const sk = shake;
+    const shakeX = sk > 0 ? (Math.random() - 0.5) * sk * 0.6 : 0;
+    const shakeY = sk > 0 ? (Math.random() - 0.5) * sk * 0.6 : 0;
+    const shakeZ = sk > 0 ? (Math.random() - 0.5) * sk * 0.6 : 0;
+
+    camera.position.set(safe.x + shakeX, safe.y + shakeY, safe.z + shakeZ);
     camera.lookAt(tgt);
   });
 

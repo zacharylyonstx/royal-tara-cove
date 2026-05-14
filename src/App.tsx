@@ -5,6 +5,8 @@ import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
 import { CombatHud } from './ui/CombatHud';
+import { Crosshair } from './ui/Crosshair';
+import { DamageFlash } from './ui/DamageFlash';
 import { VictoryScreen } from './ui/VictoryScreen';
 import { DefeatScreen } from './ui/DefeatScreen';
 
@@ -22,6 +24,8 @@ export default function App() {
       <ControlsHud />
       <InteractPrompt />
       <CombatHud />
+      <Crosshair />
+      <DamageFlash />
       <WelcomeScreen />
       <VictoryScreen />
       <DefeatScreen />

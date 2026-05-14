@@ -50,14 +50,14 @@ export function CombatController() {
     cooldown.current = FIRE_COOLDOWN;
     const pos = positions[activeId];
     const yaw = yaws[activeId];
-    // Gun tip world pos — mirror RayGun.tsx layout
-    const handLocalX = 0.35;
-    const handLocalZ = -0.7; // muzzle further forward
+    // Match RayGun.tsx: HAND_X = 0.35 right, HAND_Z = -0.25 base + -0.55 muzzle offset
+    const HAND_X = 0.35;
+    const MUZZLE_Z_LOCAL = -0.8; // base + muzzle Z in gun-local
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
-    const muzzleX = pos.x + handLocalX * cy + handLocalZ * sy;
+    const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z_LOCAL * sy;
     const muzzleY = 1.1;
-    const muzzleZ = pos.z - handLocalX * sy + handLocalZ * cy;
+    const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z_LOCAL * cy;
 
     // Direction = player's facing (along -Z local rotated by yaw)
     const dirX = -Math.sin(yaw);

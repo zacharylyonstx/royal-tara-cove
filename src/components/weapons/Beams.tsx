@@ -42,9 +42,17 @@ function BeamMesh({ beam }: { beam: ReturnType<typeof useCombatStore.getState>['
   });
 
   return (
-    <mesh ref={meshRef} position={mid.toArray()} quaternion={quat.toArray() as unknown as THREE.Quaternion}>
-      <cylinderGeometry args={[0.05, 0.05, len, 6, 1, true]} />
-      <meshStandardMaterial color="#3afff0" emissive="#3afff0" emissiveIntensity={1.4} transparent opacity={0.95} />
-    </mesh>
+    <group position={mid.toArray()} quaternion={quat.toArray() as unknown as THREE.Quaternion}>
+      {/* Inner core beam */}
+      <mesh ref={meshRef}>
+        <cylinderGeometry args={[0.05, 0.05, len, 6, 1, true]} />
+        <meshStandardMaterial color="#3afff0" emissive="#3afff0" emissiveIntensity={1.6} transparent opacity={0.95} />
+      </mesh>
+      {/* Outer halo glow */}
+      <mesh>
+        <cylinderGeometry args={[0.14, 0.14, len, 6, 1, true]} />
+        <meshStandardMaterial color="#aeffff" emissive="#aeffff" emissiveIntensity={0.6} transparent opacity={0.18} depthWrite={false} />
+      </mesh>
+    </group>
   );
 }

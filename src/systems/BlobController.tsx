@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useCombatStore } from '../state/combatStore';
 import { useGameStore } from '../state/gameStore';
 import { BLOB_SPAWN } from '../components/aliens/UFOCrash';
-import { blobAttack, victoryFanfare } from '../audio';
+import { blobAttack, damageHit, victoryFanfare, stopCrackleLoop } from '../audio';
 
 const HOP_DIST = 1.3;
 const HOP_TIME = 0.45;
@@ -35,6 +35,8 @@ export function BlobController() {
   const reapSplats = useCombatStore((s) => s.reapSplats);
   const reapBeams = useCombatStore((s) => s.reapBeams);
   const reapHitParticles = useCombatStore((s) => s.reapHitParticles);
+  const triggerDamageFlash = useCombatStore((s) => s.triggerDamageFlash);
+  const addShake = useCombatStore((s) => s.addShake);
 
   // Per-blob runtime state (refs to avoid React churn).
   const runtimes = useRef<Map<number, BlobRuntime>>(new Map());
@@ -130,6 +132,9 @@ export function BlobController() {
           rt.attackCooldown = ATTACK_COOLDOWN;
           damagePlayer(1);
           blobAttack();
+          damageHit();
+          triggerDamageFlash();
+          addShake(0.18);
           // Recoil hop away
           const ux = -dx / Math.max(dist, 0.001);
           const uz = -dz / Math.max(dist, 0.001);
@@ -161,6 +166,7 @@ export function BlobController() {
       if (totalSpawned >= 8) {
         victoryFired.current = true;
         victoryFanfare();
+        stopCrackleLoop();
         setPhase('victory');
       }
     }
