@@ -24,6 +24,9 @@ export function ControlsHud() {
         <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
       </div>
       <div>
+        <kbd>E</kbd> open / close door &nbsp; <kbd>R</kbd> reset
+      </div>
+      <div>
         <kbd>drag</kbd> look around &nbsp; <kbd>scroll</kbd> zoom
       </div>
     </div>

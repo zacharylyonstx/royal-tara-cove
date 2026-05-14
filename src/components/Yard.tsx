@@ -1,113 +1,161 @@
-import type { HouseConfig } from '../types';
+import { useMemo } from 'react';
+import * as THREE from 'three';
+import type { HouseConfig, Lot, Vec2 } from '../types';
 import {
-  houseTransform,
   FRONT_YARD_DEPTH,
-  BACKYARD_DEPTH,
 } from '../world/streetLayout';
+import { mat } from '../world/materials';
 import { Fence } from './Fence';
 import { Gate } from './Gate';
-import { Tree } from './Tree';
 import { Mailbox } from './Mailbox';
+import { shouldFenceEdge } from '../world/lots';
 
 const GARAGE_W = 5.6;
 
 interface YardProps {
   config: HouseConfig;
+  lot: Lot;
 }
 
-export function Yard({ config }: YardProps) {
+/** Rendered lot lawn + fences + driveway + walkway + mailbox. */
+export function Yard({ config, lot }: YardProps) {
+  const lawnGeom = useMemo(() => buildLawnGeometry(lot.polygon), [lot]);
+
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
-
-  const { worldX, worldZ, yaw } = houseTransform(config.position, config.depth);
-
-  // Local lot space (after rotation): house front faces -Z.
-  // sidewalk inner edge at z = -(halfD + FRONT_YARD_DEPTH).
-  // backyard far end at z = +halfD + BACKYARD_DEPTH.
   const sidewalkZ = -halfD - FRONT_YARD_DEPTH;
-  const backZ = halfD + BACKYARD_DEPTH;
-  const sideX = halfW + 1.8;       // lot half-width (incl. 1.8m side yard)
-  const gateZ = -halfD;            // gates sit at the front-of-house line on each side
-  const gateW = 1.6;
-  const fenceFrontZ = gateZ + gateW / 2;
 
   const garageCenterX = config.garageOnLeft
     ? -halfW + 0.6 + GARAGE_W / 2
     : halfW - 0.6 - GARAGE_W / 2;
   const doorCenterX = config.garageOnLeft ? halfW - 1.6 : -halfW + 1.6;
 
-  const driveZCenter = (sidewalkZ + -halfD) / 2;
   const driveLen = -halfD - sidewalkZ;
+  const driveZCenter = (sidewalkZ + -halfD) / 2;
   const walkLen = -halfD - sidewalkZ;
 
   return (
-    <group position={[worldX, 0, worldZ]} rotation={[0, yaw, 0]}>
-      {/* Lot lawn — front, back, side strips, slightly elevated above world ground */}
-      <mesh position={[0, 0.005, driveZCenter]} receiveShadow>
-        <boxGeometry args={[sideX * 2, 0.01, driveLen]} />
-        <meshStandardMaterial color="#5a8a3e" />
-      </mesh>
-      <mesh position={[0, 0.005, (halfD + backZ) / 2]} receiveShadow>
-        <boxGeometry args={[sideX * 2, 0.01, BACKYARD_DEPTH]} />
-        <meshStandardMaterial color="#5a8a3e" />
-      </mesh>
-      <mesh position={[-sideX + 0.5, 0.005, 0]} receiveShadow>
-        <boxGeometry args={[1.0, 0.01, halfD * 2]} />
-        <meshStandardMaterial color="#5a8a3e" />
-      </mesh>
-      <mesh position={[sideX - 0.5, 0.005, 0]} receiveShadow>
-        <boxGeometry args={[1.0, 0.01, halfD * 2]} />
-        <meshStandardMaterial color="#5a8a3e" />
+    <group>
+      {/* Lawn polygon — placed at world origin (geometry IS world XZ) */}
+      <mesh geometry={lawnGeom} position={[0, 0.01, 0]} receiveShadow>
+        <primitive object={mat.grass()} attach="material" />
       </mesh>
 
-      {/* Driveway */}
-      <mesh position={[garageCenterX, 0.012, driveZCenter]} receiveShadow>
-        <boxGeometry args={[GARAGE_W - 0.2, 0.02, driveLen]} />
-        <meshStandardMaterial color="#a8a39a" />
-      </mesh>
+      {/* House-local props (driveway, walkway, mailbox) — these stay relative to the house */}
+      <group position={[lot.housePivot[0], 0, lot.housePivot[1]]} rotation={[0, lot.houseYaw, 0]}>
+        {/* Driveway */}
+        <mesh position={[garageCenterX, 0.022, driveZCenter]} receiveShadow>
+          <boxGeometry args={[GARAGE_W - 0.2, 0.04, driveLen]} />
+          <primitive object={mat.concrete()} attach="material" />
+        </mesh>
 
-      {/* Front walkway from sidewalk to porch */}
-      <mesh position={[doorCenterX, 0.012, (sidewalkZ + -halfD) / 2]} receiveShadow>
-        <boxGeometry args={[1.2, 0.02, walkLen]} />
-        <meshStandardMaterial color="#bcb5a8" />
-      </mesh>
+        {/* Front walkway */}
+        <mesh position={[doorCenterX, 0.024, (sidewalkZ + -halfD) / 2]} receiveShadow>
+          <boxGeometry args={[1.2, 0.04, walkLen]} />
+          <primitive object={mat.sidewalk()} attach="material" />
+        </mesh>
 
-      {/* Mailbox at curb (street side of sidewalk) */}
-      <Mailbox
-        position={[
-          config.garageOnLeft ? halfW - 1.0 : -halfW + 1.0,
-          0,
-          sidewalkZ - 0.6,
-        ]}
-      />
+        {/* Mailbox at curb (street side of sidewalk) */}
+        <Mailbox
+          position={[
+            config.garageOnLeft ? halfW - 1.0 : -halfW + 1.0,
+            0,
+            sidewalkZ - 0.6,
+          ]}
+        />
+      </group>
 
-      {/* Backyard fence + gates */}
-      <Fence start={[-sideX, fenceFrontZ]} end={[-sideX, backZ]} />
-      <Fence start={[sideX, fenceFrontZ]} end={[sideX, backZ]} />
-      <Fence start={[-sideX, backZ]} end={[sideX, backZ]} />
-      <Gate position={[-sideX, 0, gateZ]} rotation={Math.PI / 2} width={gateW} />
-      <Gate position={[sideX, 0, gateZ]} rotation={-Math.PI / 2} width={gateW} />
-
-      {/* A couple of trees per lot */}
-      <Tree
-        position={[
-          config.garageOnLeft ? halfW - 0.5 : -halfW + 0.5,
-          0,
-          -halfD - 4.5,
-        ]}
-        scale={0.85}
-        variant="oak"
-      />
-      <Tree
-        position={[-halfW - 0.6, 0, halfD + 4.5]}
-        scale={1.0}
-        variant="cedar"
-      />
-      <Tree
-        position={[halfW + 0.6, 0, halfD + 7]}
-        scale={0.9}
-        variant={config.address.endsWith('5') ? 'crepe' : 'oak'}
-      />
+      {/* Fences along non-front edges of the lot */}
+      {lot.polygon.map((a, i) => {
+        if (!shouldFenceEdge(lot, i)) return null;
+        const b = lot.polygon[(i + 1) % lot.polygon.length];
+        // Skip if this edge is near a gate slot (we'll render the gate instead)
+        const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const nearGate = lot.gateSlots.some(
+          (g) => Math.hypot(g[0] - mid[0], g[1] - mid[1]) < 1.0,
+        );
+        if (nearGate) {
+          // Render two short fence pieces flanking the gate slot
+          return (
+            <FenceWithGate
+              key={`fg-${i}`}
+              a={a}
+              b={b}
+              gateAt={lot.gateSlots.find(
+                (g) => Math.hypot(g[0] - mid[0], g[1] - mid[1]) < 1.0,
+              )!}
+            />
+          );
+        }
+        return <Fence key={`f-${i}`} start={[a[0], a[1]]} end={[b[0], b[1]]} />;
+      })}
     </group>
   );
+}
+
+interface FenceWithGateProps {
+  a: Vec2;
+  b: Vec2;
+  gateAt: Vec2;
+}
+
+function FenceWithGate({ a, b, gateAt }: FenceWithGateProps) {
+  // Split the edge into two fence pieces, leaving a gap of 1.6m at gateAt.
+  const dx = b[0] - a[0];
+  const dz = b[1] - a[1];
+  const len = Math.hypot(dx, dz);
+  if (len < 0.1) return null;
+  const ux = dx / len;
+  const uz = dz / len;
+  const dot = (gateAt[0] - a[0]) * ux + (gateAt[1] - a[1]) * uz;
+  const t = Math.max(0.6, Math.min(len - 0.6, dot));
+  const gateW = 1.4;
+  const halfGate = gateW / 2;
+  const aSplitX = a[0] + ux * (t - halfGate);
+  const aSplitZ = a[1] + uz * (t - halfGate);
+  const bSplitX = a[0] + ux * (t + halfGate);
+  const bSplitZ = a[1] + uz * (t + halfGate);
+  const gateCenter: Vec2 = [a[0] + ux * t, a[1] + uz * t];
+  const gateRot = Math.atan2(uz, ux);
+  return (
+    <>
+      <Fence start={[a[0], a[1]]} end={[aSplitX, aSplitZ]} />
+      <Fence start={[bSplitX, bSplitZ]} end={[b[0], b[1]]} />
+      <Gate
+        position={[gateCenter[0], 0, gateCenter[1]]}
+        rotation={gateRot}
+        width={gateW}
+      />
+    </>
+  );
+}
+
+function buildLawnGeometry(polygon: Vec2[]): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(polygon[0][0], polygon[0][1]);
+  for (let i = 1; i < polygon.length; i++) {
+    shape.lineTo(polygon[i][0], polygon[i][1]);
+  }
+  shape.closePath();
+  const geom = new THREE.ShapeGeometry(shape);
+  // ShapeGeometry produces XY plane; rotate so it lies on XZ.
+  geom.rotateX(-Math.PI / 2);
+  // Now Y is up. The original X stays X; the original Y maps to Z but negated.
+  // Actually rotateX(-PI/2) sends (x, y, 0) → (x, 0, -y). So our polygon Z became -Z.
+  // Compensate by flipping Z in vertex array.
+  const pos = geom.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    pos.setZ(i, -pos.getZ(i));
+  }
+  pos.needsUpdate = true;
+  geom.computeVertexNormals();
+  // UVs: scale so 1 unit world = 1 unit UV (texture repeat handled in material).
+  const uv = geom.getAttribute('uv');
+  if (uv) {
+    for (let i = 0; i < pos.count; i++) {
+      uv.setXY(i, pos.getX(i) * 0.1, pos.getZ(i) * 0.1);
+    }
+    uv.needsUpdate = true;
+  }
+  return geom;
 }

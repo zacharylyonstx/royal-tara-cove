@@ -90,10 +90,12 @@ export const HOUSES: HouseConfig[] = [
     source: 'verified',
   },
   {
+    // The hero house — Zak's family home. Modeled with a real footprint, a
+    // walkable interior, covered porch, bay window and flagpole.
     address: '10600',
     position: { kind: 'bulb', angleDeg: 120 },
-    width: 13,
-    depth: 12,
+    width: 16,
+    depth: 14,
     stories: 1,
     wallColor: PALETTE.walls.sand,
     trimColor: PALETTE.trim.cream,
@@ -102,7 +104,11 @@ export const HOUSES: HouseConfig[] = [
     roofColor: PALETTE.roof.brown,
     doorColor: PALETTE.doors.brown,
     garageOnLeft: false,
-    source: 'inferred',
+    isHero: true,
+    hipped: true,
+    sqft: 1750,
+    yearBuilt: 2004,
+    source: 'partial',
   },
   {
     address: '10604',

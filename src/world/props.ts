@@ -1,0 +1,99 @@
+import type { HouseConfig } from '../types';
+
+// Deterministic per-address prop placement. Hash the address and roll for
+// each prop type; placements are stable across runs.
+
+export type PropTag =
+  | 'truck'
+  | 'sedan'
+  | 'hoop'
+  | 'bins'
+  | 'patio'      // BBQ + chairs in backyard
+  | 'gardenBed'
+  | 'hose'
+  | 'bike'
+  | 'flagpole'   // hero house only
+  | 'bayWindow'  // hero house only
+  | 'kidsBikes'; // hero house only
+
+export interface HouseProps {
+  address: string;
+  /** Color string for the truck/sedan if present. */
+  vehicleColor?: string;
+  tags: Set<PropTag>;
+}
+
+function hash(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+class Prng {
+  private state: number;
+  constructor(seed: number) { this.state = seed || 1; }
+  next(): number {
+    // Mulberry32
+    let t = (this.state += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  pick<T>(arr: readonly T[]): T { return arr[Math.floor(this.next() * arr.length)]; }
+  chance(p: number): boolean { return this.next() < p; }
+}
+
+const VEHICLE_COLORS = [
+  '#1a3a5e', // navy
+  '#5a1a1a', // dark red
+  '#b08a4a', // tan
+  '#2a2a2a', // black
+  '#a8a8a8', // silver
+  '#3a5a3a', // dark green
+  '#d8d4c8', // off-white
+] as const;
+
+export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
+  const out = new Map<string, HouseProps>();
+  for (const h of houses) {
+    const seed = hash(h.address);
+    const prng = new Prng(seed);
+    const tags = new Set<PropTag>();
+
+    if (h.isHero) {
+      tags.add('truck');
+      tags.add('hoop');
+      tags.add('patio');
+      tags.add('flagpole');
+      tags.add('bayWindow');
+      tags.add('kidsBikes');
+      tags.add('bins');
+      tags.add('gardenBed');
+      out.set(h.address, {
+        address: h.address,
+        vehicleColor: '#2a3f5a', // navy F-150 for Zak
+        tags,
+      });
+      continue;
+    }
+
+    // Vehicle: 80% chance overall, 55/45 truck/sedan
+    let vehicleColor: string | undefined;
+    if (prng.chance(0.8)) {
+      tags.add(prng.chance(0.55) ? 'truck' : 'sedan');
+      vehicleColor = prng.pick(VEHICLE_COLORS);
+    }
+    if (prng.chance(0.30)) tags.add('hoop');
+    if (prng.chance(0.55)) tags.add('bins');
+    if (prng.chance(0.70)) tags.add('patio');
+    if (prng.chance(0.40)) tags.add('gardenBed');
+    if (prng.chance(0.40)) tags.add('hose');
+    if (prng.chance(0.25)) tags.add('bike');
+
+    out.set(h.address, { address: h.address, vehicleColor, tags });
+  }
+  return out;
+}

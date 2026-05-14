@@ -81,9 +81,13 @@ export function WelcomeScreen() {
           ))}
         </div>
         <p style={{ fontSize: 13, color: '#5a5040', marginBottom: 20 }}>
-          Move with <strong>WASD</strong> or <strong>arrow keys</strong> · Hold{' '}
-          <strong>Shift</strong> to run · <strong>Space</strong> to jump · Drag with
-          mouse to look around
+          Move with <strong>WASD</strong> · <strong>Shift</strong> to run ·{' '}
+          <strong>Space</strong> jump · <strong>E</strong> open doors ·{' '}
+          <strong>R</strong> reset · drag the mouse to look · scroll to zoom
+        </p>
+        <p style={{ fontSize: 13, color: '#5a5040', marginBottom: 20, fontStyle: 'italic' }}>
+          The big house at the end of the street (10600) — that's home. Try
+          opening the door and looking inside!
         </p>
         <button
           onClick={close}

@@ -2,15 +2,14 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
+import { resolveMotion } from './collision';
 
 const SPEED = 4.5;
 const RUN_SPEED = 8.0;
 const JUMP_VELOCITY = 7.5;
 const GRAVITY = 22;
+const INTERACT_RADIUS = 2.5;
 
-// World-space movement controller. Reads keyboard, mutates the active
-// character's Vector3 position and yaw in the store. Movement direction is
-// always computed relative to the camera's horizontal heading.
 export function PlayerController() {
   const { camera } = useThree();
   const keys = useRef<Record<string, boolean>>({});
@@ -21,6 +20,12 @@ export function PlayerController() {
   const yaws = useGameStore((s) => s.yaws);
   const setActive = useGameStore((s) => s.setActiveCharacter);
   const welcomeOpen = useGameStore((s) => s.welcomeOpen);
+  const staticColliders = useGameStore((s) => s.staticColliders);
+  const doors = useGameStore((s) => s.doors);
+  const toggleDoor = useGameStore((s) => s.toggleDoor);
+  const setHoverDoor = useGameStore((s) => s.setHoverDoor);
+
+  const interactPressedRef = useRef(false);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -29,6 +34,12 @@ export function PlayerController() {
       if (k === '1') setActive('dad');
       if (k === '2') setActive('penny');
       if (k === '3') setActive('luke');
+      if (k === 'r') {
+        // reset to spawn
+        const pos = positions[activeId];
+        pos.set(0, 0, -90);
+      }
+      if (k === 'e') interactPressedRef.current = true;
     };
     const up = (e: KeyboardEvent) => {
       keys.current[e.key.toLowerCase()] = false;
@@ -39,11 +50,11 @@ export function PlayerController() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [setActive]);
+  }, [setActive, activeId, positions]);
 
   useFrame((_, dtRaw) => {
     if (welcomeOpen) return;
-    const dt = Math.min(dtRaw, 0.1); // clamp on tab-switch resume
+    const dt = Math.min(dtRaw, 0.1);
 
     const k = keys.current;
     let dx = 0;
@@ -74,8 +85,18 @@ export function PlayerController() {
         .addScaledVector(camRight, dx)
         .normalize();
 
-      pos.x += moveDir.x * speed * dt;
-      pos.z += moveDir.z * speed * dt;
+      const desiredX = pos.x + moveDir.x * speed * dt;
+      const desiredZ = pos.z + moveDir.z * speed * dt;
+
+      // Combine static colliders with door AABBs (closed doors block, open ones don't).
+      const allColliders = [...staticColliders];
+      for (const door of Object.values(doors)) {
+        if (door.open) continue;
+        allColliders.push(door.aabbWhenClosed);
+      }
+      const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
+      pos.x = resolved.x;
+      pos.z = resolved.z;
 
       // Rotate character to face movement direction (lerp).
       const targetYaw = Math.atan2(-moveDir.x, -moveDir.z);
@@ -94,6 +115,23 @@ export function PlayerController() {
     if (pos.y < 0) {
       pos.y = 0;
       yVel.current = 0;
+    }
+
+    // Door interaction: find nearest door within INTERACT_RADIUS.
+    let nearestId: string | null = null;
+    let nearestDist = INTERACT_RADIUS;
+    for (const [id, door] of Object.entries(doors)) {
+      const d = Math.hypot(door.centerX - pos.x, door.centerZ - pos.z);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestId = id;
+      }
+    }
+    setHoverDoor(nearestId);
+
+    if (interactPressedRef.current) {
+      interactPressedRef.current = false;
+      if (nearestId) toggleDoor(nearestId);
     }
   });
 
