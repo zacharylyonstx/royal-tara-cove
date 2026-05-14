@@ -328,8 +328,12 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
     const HERO_HALF_W = 11;
     const isBoss = kind === 'boss';
     const side = Math.random() < 0.5 ? -1 : 1;
-    const waypointX = isBoss ? x : HERO_X + side * HERO_HALF_W;
-    const waypointZ = isBoss ? z : HERO_Z;
+    // Non-boss: corner of hero house. Boss: wider arc — uses x = ±(half + 5)
+    // and z slightly past house, so it visibly walks the long way around.
+    const waypointX = isBoss
+      ? HERO_X + side * (HERO_HALF_W + 5)
+      : HERO_X + side * HERO_HALF_W;
+    const waypointZ = isBoss ? HERO_Z + 4 : HERO_Z;
     set((s) => ({
       nextBlobId: id + 1,
       spawnedBlobsCount: s.spawnedBlobsCount + 1,
@@ -343,7 +347,7 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
           variant, alive: true, deathAt: 0,
           spawnedAt: performance.now() / 1000,
           waypointX, waypointZ,
-          waypointReached: isBoss,
+          waypointReached: false,
           slamCooldown: kind === 'boss' ? 5 : undefined,
           summonCooldown: kind === 'boss' ? 6 : undefined,
           chargeCooldown: kind === 'boss' ? 8 : undefined,

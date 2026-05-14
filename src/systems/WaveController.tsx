@@ -49,6 +49,8 @@ export function WaveController() {
   const startCinematic = useCombatStore((s) => s.startCinematic);
   const endCinematic = useCombatStore((s) => s.endCinematic);
   const cinematic = useCombatStore((s) => s.cinematic);
+  const spawnDebris = useCombatStore((s) => s.spawnDebris);
+  const addShake = useCombatStore((s) => s.addShake);
 
   const spawnAccum = useRef(0);
   const enteredCombatRef = useRef(false);
@@ -72,12 +74,15 @@ export function WaveController() {
     const dt = Math.min(dtRaw, 0.1);
     const now = state.clock.elapsedTime;
 
-    // Trigger spawn cinematic the first time we enter spawning for this wave
+    // Trigger spawn cinematic the first time we enter spawning for this wave.
+    // Camera high above & slightly south of the portal looking down at the
+    // backyard — sees the portal beam, the back of the hero house, and the
+    // path the blobs will take toward the cul-de-sac.
     if (waveState === 'spawning' && cinematicTriggeredFor.current !== waveIndex) {
       cinematicTriggeredFor.current = waveIndex;
       startCinematic(
-        [BLOB_SPAWN[0], BLOB_SPAWN[1] + 1, BLOB_SPAWN[2]],
-        [BLOB_SPAWN[0], 18, BLOB_SPAWN[2] - 16], // pulled toward player side, looking back
+        [BLOB_SPAWN[0], BLOB_SPAWN[1] + 2, BLOB_SPAWN[2]],
+        [BLOB_SPAWN[0] + 8, 32, BLOB_SPAWN[2] - 12], // up high, slightly south & east
         CINEMATIC_DURATION,
       );
     }
@@ -104,6 +109,9 @@ export function WaveController() {
           if (next.kind === 'boss') {
             bossRoar();
             pushDialogue('dad', 'That one\'s HUGE.');
+            // Boss "smashes through the back fence" — spawn debris burst + shake
+            spawnDebris(BLOB_SPAWN[0], 0.5, BLOB_SPAWN[2] + 4, 18);
+            addShake(0.6);
           }
         } else {
           // Done spawning

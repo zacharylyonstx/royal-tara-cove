@@ -196,6 +196,15 @@ export function BlobController() {
 
       // --- Boss: special AI ---
       if (b.kind === 'boss') {
+        // Before reaching waypoint, just drift toward it; skip combat AI.
+        if (!b.waypointReached) {
+          const ux = dx / Math.max(dist, 0.001);
+          const uz = dz / Math.max(dist, 0.001);
+          b.x += ux * 1.6 * dt;
+          b.z += uz * 1.6 * dt;
+          continue;
+        }
+        // From here, dist/dx/dz are to player (waypointReached is true).
         // Slam attack
         if (rt.bossSlamProgress >= 0) {
           rt.bossSlamProgress += dt / 1.0; // 1.0s slam total
