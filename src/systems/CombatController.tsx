@@ -7,7 +7,9 @@ import { laserZap, blobSquish } from '../audio';
 const FIRE_COOLDOWN = 0.18;
 const RANGE = 30;
 const BLOB_RADIUS = 0.55;
-const AIM_CONE_DEG = 25; // half-angle for auto-aim assist
+const AIM_CONE_DEG = 50; // half-angle for auto-aim assist (wider = more forgiving)
+const PASSIVE_AIM_RANGE = 22; // auto-face nearest blob within this range
+const PASSIVE_AIM_LERP = 4; // rad/s rotation speed when auto-tracking
 
 export function CombatController() {
   const { gl } = useThree();
@@ -24,6 +26,7 @@ export function CombatController() {
 
   const cooldown = useRef(0);
   const wantsFire = useRef(false);
+  const lastTargetId = useRef<number | null>(null);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -45,6 +48,31 @@ export function CombatController() {
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
     cooldown.current = Math.max(0, cooldown.current - dt);
+
+    // --- Passive aim assist: slowly rotate player to face nearest blob ---
+    // Only when not actively moving (no WASD pressed). Detected indirectly
+    // by checking whether the keyboard last moved us — easier: always track,
+    // but at a slow lerp so movement input still wins.
+    {
+      const pos = positions[activeId];
+      const blobsAlive = useCombatStore.getState().blobs.filter((b) => b.alive);
+      let nearest = null as null | typeof blobsAlive[number];
+      let nearestD = PASSIVE_AIM_RANGE;
+      for (const b of blobsAlive) {
+        const d = Math.hypot(b.x - pos.x, b.z - pos.z);
+        if (d < nearestD) { nearestD = d; nearest = b; }
+      }
+      if (nearest) {
+        const dx = nearest.x - pos.x;
+        const dz = nearest.z - pos.z;
+        const targetYaw = Math.atan2(-dx, -dz);
+        let diff = targetYaw - yaws[activeId];
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        yaws[activeId] = yaws[activeId] + diff * Math.min(1, PASSIVE_AIM_LERP * dt);
+      }
+    }
+
     if (!wantsFire.current || cooldown.current > 0) return;
 
     cooldown.current = FIRE_COOLDOWN;
@@ -52,13 +80,15 @@ export function CombatController() {
     const pos = positions[activeId];
     let yaw = yaws[activeId];
 
-    // --- Auto-aim assist: cone-snap to nearest blob in front ---
+    // --- Auto-aim assist: cone-snap with target rotation ---
+    // Priority: (1) prefer NOT the last target (spread damage), (2) lowest HP
+    // (finish kills), (3) nearest. This avoids wasting shots on one blob
+    // while others swarm.
     const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
     const facingX = -Math.sin(yaw);
     const facingZ = -Math.cos(yaw);
     const coneCos = Math.cos((AIM_CONE_DEG * Math.PI) / 180);
-    let snapTarget: typeof blobs[number] | null = null;
-    let snapBestDist = Infinity;
+    const candidates: { blob: typeof blobs[number]; dist: number }[] = [];
     for (const b of blobs) {
       const dx = b.x - pos.x;
       const dz = b.z - pos.z;
@@ -67,12 +97,24 @@ export function CombatController() {
       const ux = dx / dist;
       const uz = dz / dist;
       const dot = ux * facingX + uz * facingZ;
-      if (dot < coneCos) continue; // outside cone
-      if (dist < snapBestDist) {
-        snapBestDist = dist;
-        snapTarget = b;
+      if (dot < coneCos) continue;
+      candidates.push({ blob: b, dist });
+    }
+    let snapTarget: typeof blobs[number] | null = null;
+    if (candidates.length > 0) {
+      // Sort by score: lower hp first, then nearer; demote the last target.
+      candidates.sort((a, b) => {
+        if (a.blob.hp !== b.blob.hp) return a.blob.hp - b.blob.hp;
+        return a.dist - b.dist;
+      });
+      // If the top candidate is the same as last shot AND there's another, pick the alternate.
+      if (candidates[0].blob.id === lastTargetId.current && candidates.length > 1) {
+        snapTarget = candidates[1].blob;
+      } else {
+        snapTarget = candidates[0].blob;
       }
     }
+    lastTargetId.current = snapTarget?.id ?? null;
     if (snapTarget) {
       // Snap player yaw and aim direction toward this blob
       const dx = snapTarget.x - pos.x;

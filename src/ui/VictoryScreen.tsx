@@ -14,7 +14,7 @@ export function VictoryScreen() {
   if (accuracy >= 80 && elapsed < 90) rating = 'S';
   else if (accuracy >= 60 && elapsed < 120) rating = 'A';
   else if (accuracy >= 40) rating = 'B';
-  const totalEnemies = 6 + 12 + 7;
+  const totalEnemies = 4 + 6 + 5;
 
   return (
     <div

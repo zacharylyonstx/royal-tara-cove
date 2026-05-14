@@ -185,7 +185,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
       ],
     }));
   },
-  reapDialogue: (now) => set((s) => ({ dialogue: s.dialogue.filter((d) => now - d.spawnedAt < d.duration) })),
+  reapDialogue: (now) => {
+    const cur = get().dialogue;
+    const next = cur.filter((d) => now - d.spawnedAt < d.duration);
+    if (next.length !== cur.length) set({ dialogue: next });
+  },
 
   spawnBlob: (kind, x, y, z, opts) => {
     const { hp, scale } = blobDefaultsFor(kind);
@@ -226,9 +230,9 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
     });
   },
   reapDeadBlobs: (now) => {
-    set((s) => ({
-      blobs: s.blobs.filter((b) => b.alive || now - b.deathAt < 4),
-    }));
+    const cur = get().blobs;
+    const next = cur.filter((b) => b.alive || now - b.deathAt < 4);
+    if (next.length !== cur.length) set({ blobs: next });
   },
   setWave: (index, composition) =>
     set({ waveIndex: index, blobsToSpawn: composition.map((c) => ({ ...c })), spawnedBlobsCount: 0, waveState: 'spawning' }),
@@ -249,7 +253,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
       beams: [...s.beams, { id, fromX: from[0], fromY: from[1], fromZ: from[2], toX: to[0], toY: to[1], toZ: to[2], spawnedAt: performance.now() / 1000, tint }],
     }));
   },
-  reapBeams: (now) => set((s) => ({ beams: s.beams.filter((b) => now - b.spawnedAt < 0.14) })),
+  reapBeams: (now) => {
+    const cur = get().beams;
+    const next = cur.filter((b) => now - b.spawnedAt < 0.14);
+    if (next.length !== cur.length) set({ beams: next });
+  },
 
   spawnHitParticle: (x, y, z, variant) => {
     const id = get().nextParticleId;
@@ -258,7 +266,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
       hitParticles: [...s.hitParticles, { id, x, y, z, variant, spawnedAt: performance.now() / 1000 }],
     }));
   },
-  reapHitParticles: (now) => set((s) => ({ hitParticles: s.hitParticles.filter((p) => now - p.spawnedAt < 0.5) })),
+  reapHitParticles: (now) => {
+    const cur = get().hitParticles;
+    const next = cur.filter((p) => now - p.spawnedAt < 0.5);
+    if (next.length !== cur.length) set({ hitParticles: next });
+  },
 
   spawnSplat: (x, z, variant, scale = 1) => {
     const id = get().nextSplatId;
@@ -267,7 +279,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
       splats: [...s.splats, { id, x, z, variant, spawnedAt: performance.now() / 1000, scale }],
     }));
   },
-  reapSplats: (now) => set((s) => ({ splats: s.splats.filter((p) => now - p.spawnedAt < 14) })),
+  reapSplats: (now) => {
+    const cur = get().splats;
+    const next = cur.filter((p) => now - p.spawnedAt < 14);
+    if (next.length !== cur.length) set({ splats: next });
+  },
 
   shake: 0,
   addShake: (n) => set((s) => ({ shake: Math.min(1, s.shake + n) })),
@@ -301,7 +317,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
       return { debris: [...s.debris, ...fresh], nextParticleId: s.nextParticleId + count };
     });
   },
-  reapDebris: (now) => set((s) => ({ debris: s.debris.filter((d) => now - d.spawnedAt < 2.5) })),
+  reapDebris: (now) => {
+    const cur = get().debris;
+    const next = cur.filter((d) => now - d.spawnedAt < 2.5);
+    if (next.length !== cur.length) set({ debris: next });
+  },
 
   crashFlashAt: -999,
   triggerCrashFlash: () => set({ crashFlashAt: performance.now() / 1000 }),

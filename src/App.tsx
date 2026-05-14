@@ -12,6 +12,7 @@ import { DefeatScreen } from './ui/DefeatScreen';
 import { Dialogue } from './ui/Dialogue';
 import { MiniMap } from './ui/MiniMap';
 import { WaveBanner } from './ui/WaveBanner';
+import { EnemyArrow } from './ui/EnemyArrow';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
       <Dialogue />
       <MiniMap />
       <WaveBanner />
+      <EnemyArrow />
       <WelcomeScreen />
       <VictoryScreen />
       <DefeatScreen />

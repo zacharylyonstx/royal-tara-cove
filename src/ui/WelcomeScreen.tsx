@@ -90,9 +90,12 @@ export function WelcomeScreen() {
           <strong>Space</strong> jump · <strong>E</strong> open doors ·{' '}
           <strong>R</strong> reset · drag the mouse to look · scroll to zoom
         </p>
+        <p style={{ fontSize: 14, color: '#5a3a25', marginBottom: 16, fontWeight: 600 }}>
+          ⚠️ A UFO is about to crash in your backyard. Schmorgesblobs will
+          attack — <strong>click to fire your ray gun!</strong>
+        </p>
         <p style={{ fontSize: 13, color: '#5a5040', marginBottom: 20, fontStyle: 'italic' }}>
-          The big house at the end of the street (10600) — that's home. Try
-          opening the door and looking inside!
+          The big two-story at the end of the street (10600) — that's home.
         </p>
         <button
           onClick={handleClose}

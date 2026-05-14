@@ -6,15 +6,15 @@ import { useGameStore } from '../state/gameStore';
 import { blobAttack, damageHit, bossSlam } from '../audio';
 
 const HOP_DIST = 1.3;
-const HOP_TIME = 0.45;
+const HOP_TIME = 0.5;
 const HOP_PEAK = 0.7;
 const ATTACK_DIST = 1.1;
-const ATTACK_COOLDOWN = 1.0;
+const ATTACK_COOLDOWN = 3.0;     // slower attacks → fightable
 const APPROACH_RANGE = 60;
-const SPRINTER_SPEED = 4.0;
-const BOSS_CHARGE_SPEED = 6.0;
+const SPRINTER_SPEED = 2.6;       // was 4.0 — easier to kite
+const BOSS_CHARGE_SPEED = 5.5;
 const BOSS_SLAM_RADIUS = 4.0;
-const BOSS_SLAM_DAMAGE = 2;
+const BOSS_SLAM_DAMAGE = 3;
 const SPLITTER_SPLIT_COUNT = 2;
 
 interface BlobRuntime {

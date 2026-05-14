@@ -12,16 +12,11 @@ export function MiniMap() {
   const activeId = useGameStore((s) => s.activeCharacterId);
   const blobs = useCombatStore((s) => s.blobs);
 
-  // Force re-render every frame via state trick
+  // Throttled re-render so React doesn't get hit at 60fps from a setState loop.
   const [, setTick] = useState(0);
   useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      setTick((n) => n + 1);
-      raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(raf);
+    const id = setInterval(() => setTick((n) => n + 1), 100); // 10 Hz refresh
+    return () => clearInterval(id);
   }, []);
 
   if (phase !== 'combat' && phase !== 'victory') return null;

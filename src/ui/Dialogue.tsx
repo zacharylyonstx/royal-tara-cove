@@ -28,22 +28,18 @@ function Bubble({ line }: { line: ReturnType<typeof useCombatStore.getState>['di
   const [screen, setScreen] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    let raf = 0;
-    const tick = () => {
+    const id = setInterval(() => {
       const cam = (window as unknown as { __camera?: THREE.Camera }).__camera;
-      if (cam) {
-        const pos = positions[line.speaker];
-        const v = new THREE.Vector3(pos.x, pos.y + ch.height + 0.4, pos.z);
-        v.project(cam);
-        const x = (v.x * 0.5 + 0.5) * window.innerWidth;
-        const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
-        if (v.z < 1) setScreen({ x, y });
-        else setScreen(null);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(raf);
+      if (!cam) return;
+      const pos = positions[line.speaker];
+      const v = new THREE.Vector3(pos.x, pos.y + ch.height + 0.4, pos.z);
+      v.project(cam);
+      const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+      if (v.z < 1) setScreen({ x, y });
+      else setScreen(null);
+    }, 80); // 12 Hz — smooth enough for a bubble
+    return () => clearInterval(id);
   }, [line, positions, ch.height]);
 
   if (!screen) return null;

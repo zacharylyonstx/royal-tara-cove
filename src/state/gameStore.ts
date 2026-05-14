@@ -22,6 +22,7 @@ interface GameStore {
   maxHp: number;
   damagePlayer: (n: number) => void;
   resetHp: () => void;
+  healPlayer: (n: number) => void;
 
   staticColliders: RectCollider[];
   setStaticColliders: (cs: RectCollider[]) => void;
@@ -43,13 +44,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeCharacterId: 'dad',
   welcomeOpen: true,
   positions: {
-    // Spawn the family on the road just inside the entry, facing south toward
-    // the cul-de-sac (10600 is at the end).
-    dad: new Vector3(-2.5, 0, -108),
-    penny: new Vector3(0, 0, -109),
-    luke: new Vector3(2.5, 0, -108),
+    // Spawn the family in the cul-de-sac in front of 10600, facing the
+    // backyard (where the UFO is about to crash). The crash + combat happen
+    // right in front of you.
+    dad: new Vector3(-2.5, 0, 10),
+    penny: new Vector3(0, 0, 11),
+    luke: new Vector3(2.5, 0, 10),
   },
-  // Yaw π = facing +Z (south, toward the cul-de-sac).
+  // Yaw π = facing +Z (south, toward 10600's backyard / crash site).
   yaws: { dad: Math.PI, penny: Math.PI, luke: Math.PI },
   setActiveCharacter: (id) => set({ activeCharacterId: id }),
   closeWelcome: () => set({ welcomeOpen: false, phase: 'intro' }),
@@ -57,8 +59,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   phase: 'pre-intro',
   setPhase: (p) => set({ phase: p }),
-  playerHp: 10,
-  maxHp: 10,
+  playerHp: 20,
+  maxHp: 20,
   damagePlayer: (n) =>
     set((s) => {
       const next = Math.max(0, s.playerHp - n);
@@ -67,7 +69,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { playerHp: next };
     }),
-  resetHp: () => set({ playerHp: 10 }),
+  resetHp: () => set({ playerHp: 20 }),
+  healPlayer: (n) =>
+    set((s) => ({ playerHp: Math.min(s.maxHp, s.playerHp + n) })),
 
   staticColliders: [],
   setStaticColliders: (cs) => set({ staticColliders: cs }),

@@ -26,15 +26,15 @@ export function CombatHud() {
           zIndex: 90, minWidth: 220,
         }}
       >
-        <div style={{ marginBottom: 4 }}>FAMILY HP</div>
-        <div style={{ display: 'flex', gap: 3 }}>
+        <div style={{ marginBottom: 4 }}>FAMILY HP <span style={{ fontWeight: 400, opacity: 0.7 }}>{hp}/{maxHp}</span></div>
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', maxWidth: 240 }}>
           {Array.from({ length: maxHp }, (_, i) => (
             <div
               key={i}
               style={{
-                width: 18, height: 18, borderRadius: 3,
+                width: 10, height: 18, borderRadius: 2,
                 background: i < hp ? 'linear-gradient(135deg, #ff7474, #c83a3a)' : 'rgba(100,100,110,0.4)',
-                boxShadow: i < hp ? '0 0 6px rgba(255,80,80,0.5)' : 'none',
+                boxShadow: i < hp ? '0 0 4px rgba(255,80,80,0.5)' : 'none',
               }}
             />
           ))}

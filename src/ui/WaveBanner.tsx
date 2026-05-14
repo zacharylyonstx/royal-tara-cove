@@ -8,13 +8,8 @@ export function WaveBanner() {
   const [now, setNow] = useState(performance.now() / 1000);
 
   useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      setNow(performance.now() / 1000);
-      raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(raf);
+    const id = setInterval(() => setNow(performance.now() / 1000), 100);
+    return () => clearInterval(id);
   }, []);
 
   // Show during intermission with countdown

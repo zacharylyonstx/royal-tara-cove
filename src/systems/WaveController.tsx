@@ -10,18 +10,18 @@ const SPAWN_INTERVAL = 0.55;
 const INTERMISSION_LEN = 5.0;
 
 export const WAVES: { kind: BlobKind; count: number }[][] = [
-  // Wave 1
-  [{ kind: 'hopper', count: 6 }],
-  // Wave 2
+  // Wave 1 — easier intro
+  [{ kind: 'hopper', count: 4 }],
+  // Wave 2 — variety, slightly harder
   [
-    { kind: 'hopper', count: 4 },
-    { kind: 'sprinter', count: 4 },
-    { kind: 'splitter', count: 4 },
+    { kind: 'hopper', count: 2 },
+    { kind: 'sprinter', count: 2 },
+    { kind: 'splitter', count: 2 },
   ],
-  // Wave 3 (boss + minions)
+  // Wave 3 — boss + minions
   [
     { kind: 'boss', count: 1 },
-    { kind: 'hopper', count: 6 },
+    { kind: 'hopper', count: 4 },
   ],
 ];
 

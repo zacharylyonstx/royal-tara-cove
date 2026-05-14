@@ -5,8 +5,8 @@ import { useGameStore } from '../state/gameStore';
 import { resolveMotion } from './collision';
 import { useCombatStore } from '../state/combatStore';
 
-const SPEED = 4.5;
-const RUN_SPEED = 8.0;
+const SPEED = 5.5;
+const RUN_SPEED = 10.0;
 const JUMP_VELOCITY = 7.5;
 const GRAVITY = 22;
 const INTERACT_RADIUS = 2.5;
