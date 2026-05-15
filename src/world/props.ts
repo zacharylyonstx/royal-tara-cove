@@ -71,7 +71,8 @@ export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
       tags.add('bayWindow');
       tags.add('kidsBikes');
       tags.add('bins');
-      tags.add('gardenBed');
+      // gardenBed intentionally omitted: its placement (-halfW + 2.5) lands
+      // directly on top of the front door (-halfW + 2.4), blocking entry.
       out.set(h.address, {
         address: h.address,
         vehicleColor: '#2a3f5a', // navy F-150 for Zak
