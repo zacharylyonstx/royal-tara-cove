@@ -4,7 +4,7 @@ import { Kitchen } from './Kitchen';
 import { Bedroom } from './Bedroom';
 import { Bathroom } from './Bathroom';
 import { Stairs, Loft } from './StairsAndLoft';
-import { ROOMS } from './floorPlan';
+import { ROOMS, INTERIOR_WALLS, WALL_HEIGHT, WALL_THICK, WALL_Y } from './floorPlan';
 
 interface InteriorProps {
   width: number;
@@ -67,32 +67,53 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
         );
       })}
 
-      {/* Wall meshes — split into two segments per doorway gap (matches buildInteriorColliders) */}
-      {/* lr-kitchen: gap at z 0..0.5 */}
-      <InteriorWall position={[-1.5, 1.4, -1.875]} args={[0.15, 2.8, 2.25]} />
-      <InteriorWall position={[-1.5, 1.4, 0.625]} args={[0.15, 2.8, 0.75]} />
-      {/* kitchen-hall: gap at x -3..-2 */}
-      <InteriorWall position={[-4.25, 1.4, 1.5]} args={[2.5, 2.8, 0.15]} />
-      <InteriorWall position={[-1.25, 1.4, 1.5]} args={[1.5, 2.8, 0.15]} />
-      {/* hall-bed-back: gap at x -2.5..-1.5 */}
-      <InteriorWall position={[-4.0, 1.4, 4.0]} args={[3.0, 2.8, 0.15]} />
-      <InteriorWall position={[-0.5, 1.4, 4.0]} args={[2.0, 2.8, 0.15]} />
-      {/* garage-house: gap at z -0.5..0.5 */}
-      <InteriorWall position={[2.0, 1.4, -halfD / 2 + 0.05]} args={[0.15, 2.8, halfD - 0.5]} />
-      <InteriorWall position={[2.0, 1.4, halfD / 2 + 0.45]} args={[0.15, 2.8, halfD - 1.1]} />
-      {/* bath-1: gap at z 4..5 */}
-      <InteriorWall position={[3.0, 1.4, 3.25]} args={[0.15, 2.8, 1.5]} />
-      <InteriorWall position={[3.0, 1.4, 5.25]} args={[0.15, 2.8, 0.5]} />
-      {/* Solid bedroom dividers + bath back */}
-      <InteriorWall position={[-5.5, 1.4, 5.5]} args={[0.15, 2.8, 3.0]} />
-      <InteriorWall position={[0.5, 1.4, 5.5]} args={[0.15, 2.8, 3.0]} />
-      <InteriorWall position={[4.0, 1.4, 5.5]} args={[2.0, 2.8, 0.15]} />
+      {/* Interior wall meshes driven by floorPlan.ts. Each wall splits into 1+
+          segments around its door openings, with a header over each opening. */}
+      {INTERIOR_WALLS.flatMap((w) => {
+        // Sorted opening list; segments fill the gaps between them.
+        const ops = [...w.openings].sort((a, b) => a.from - b.from);
+        const segments: { from: number; to: number }[] = [];
+        let cursor = w.from;
+        for (const op of ops) {
+          if (op.from - cursor > 0.001) segments.push({ from: cursor, to: op.from });
+          cursor = op.to;
+        }
+        if (w.to - cursor > 0.001) segments.push({ from: cursor, to: w.to });
 
-      {/* Doorways framed (visual headers) */}
-      <DoorwayHeader position={[-1.5, 2.5, 1.0]} args={[0.16, 0.5, 1.0]} />
-      <DoorwayHeader position={[-2.0, 2.5, 4.0]} args={[1.0, 0.5, 0.16]} />
-      <DoorwayHeader position={[-4.0, 2.5, 4.0]} args={[1.0, 0.5, 0.16]} />
-      <DoorwayHeader position={[1.0, 2.5, 4.0]} args={[1.0, 0.5, 0.16]} />
+        // Render solid segments + header above each opening.
+        const meshes: React.ReactElement[] = [];
+        for (let i = 0; i < segments.length; i++) {
+          const s = segments[i];
+          const center = (s.from + s.to) / 2;
+          const span = s.to - s.from;
+          if (w.axis === 'x') {
+            // Wall runs along X; thin in Z.
+            meshes.push(
+              <InteriorWall key={`${w.tag}-seg-${i}`} position={[center, WALL_Y, w.at]} args={[span, WALL_HEIGHT, WALL_THICK]} />
+            );
+          } else {
+            // Wall runs along Z; thin in X.
+            meshes.push(
+              <InteriorWall key={`${w.tag}-seg-${i}`} position={[w.at, WALL_Y, center]} args={[WALL_THICK, WALL_HEIGHT, span]} />
+            );
+          }
+        }
+        for (let i = 0; i < ops.length; i++) {
+          const op = ops[i];
+          const center = (op.from + op.to) / 2;
+          const span = op.to - op.from;
+          if (w.axis === 'x') {
+            meshes.push(
+              <DoorwayHeader key={`${w.tag}-hdr-${i}`} position={[center, 2.5, w.at]} args={[span, 0.5, WALL_THICK + 0.01]} />
+            );
+          } else {
+            meshes.push(
+              <DoorwayHeader key={`${w.tag}-hdr-${i}`} position={[w.at, 2.5, center]} args={[WALL_THICK + 0.01, 0.5, span]} />
+            );
+          }
+        }
+        return meshes;
+      })}
 
       {/* Rooms */}
       <LivingRoom origin={[-3.5, 0.13, -2.0]} doorCenterX={doorCenterX} />
