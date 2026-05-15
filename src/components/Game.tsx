@@ -13,6 +13,7 @@ import { NPCController } from '../systems/NPCController';
 import { HOUSES } from '../world/houses';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { useGameStore } from '../state/gameStore';
+import { FRONT_YARD_DEPTH } from '../world/streetLayout';
 import { buildLots } from '../world/lots';
 import { buildColliders, buildPropColliders } from '../world/colliders';
 import { buildPropsFor } from '../world/props';
@@ -117,7 +118,7 @@ export function Game() {
             )}
             <HousePropsRenderer config={h} lot={lot} data={propsByAddress.get(h.address)!} />
             {/* Per-lot vegetation: 1 live oak in back, 1 crepe myrtle in front */}
-            <LotVegetation address={h.address} lot={lot} />
+            <LotVegetation address={h.address} lot={lot} depth={h.depth} />
           </group>
         );
       })}
@@ -300,7 +301,7 @@ function SplatRenderer() {
   );
 }
 
-function LotVegetation({ address, lot }: { address: string; lot: ReturnType<typeof buildLots>[number] }) {
+function LotVegetation({ address, lot, depth }: { address: string; lot: ReturnType<typeof buildLots>[number]; depth: number }) {
   // Place 1-2 live oaks in the backyard region (centroid + offset toward back)
   // and a crepe myrtle near the front sidewalk.
   const seed = address.charCodeAt(0) * 131 + address.charCodeAt(2) * 7;
@@ -309,21 +310,22 @@ function LotVegetation({ address, lot }: { address: string; lot: ReturnType<type
   const yawCos = Math.cos(lot.houseYaw);
   const yawSin = Math.sin(lot.houseYaw);
 
-  // backyard offset: house-local (0, +6) maps to world via the house yaw
+  const halfD = depth / 2;
+  // backyard offset: well behind the back wall + any back deck/pool
   const backLocalX = (((seed % 7) - 3) * 0.7);
-  const backLocalZ = 6 + (seed % 3);
+  const backLocalZ = halfD + 4 + (seed % 3);
   const backWX = cx + backLocalX * yawCos + backLocalZ * yawSin;
   const backWZ = cz - backLocalX * yawSin + backLocalZ * yawCos;
 
-  // crepe near the curb on the door side
+  // crepe in front yard between house and sidewalk
   const sideLocalX = (seed % 11) > 5 ? -3 : 3;
-  const sideLocalZ = -7;
+  const sideLocalZ = -halfD - FRONT_YARD_DEPTH * 0.55;
   const sideWX = cx + sideLocalX * yawCos + sideLocalZ * yawSin;
   const sideWZ = cz - sideLocalX * yawSin + sideLocalZ * yawCos;
 
-  // Hedge against the front foundation (some lots only)
+  // Hedge against the front foundation (outside, hugging the front wall)
   const showHedge = (seed % 3) === 0;
-  const hedgeLocalZ = -(7); // along front of house
+  const hedgeLocalZ = -halfD - 0.7;
   const hedgeWX = cx + 0 * yawCos + hedgeLocalZ * yawSin;
   const hedgeWZ = cz - 0 * yawSin + hedgeLocalZ * yawCos;
 
