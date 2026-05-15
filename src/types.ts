@@ -78,3 +78,21 @@ export interface DoorState {
   /** Radius for "press E" prompt. */
   promptRadius: number;
 }
+
+/**
+ * A floor surface the player can stand on. Either a flat platform (baseY ===
+ * topY) or a ramp (baseY at one end, topY at the other along `axis`). PlayerY
+ * is snapped to floorAt(x, z) when not jumping.
+ */
+export interface Floor {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  baseY: number;
+  topY: number;
+  /** Direction the ramp climbs ('x' = climbs as x increases; 'z' similar). undefined for flat. */
+  axis?: 'x' | 'z';
+  /** When true, climbing direction is reversed (e.g. ramp climbs as x DECREASES). */
+  invert?: boolean;
+}

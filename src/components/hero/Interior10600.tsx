@@ -3,6 +3,7 @@ import { LivingRoom } from './LivingRoom';
 import { Kitchen } from './Kitchen';
 import { Bedroom } from './Bedroom';
 import { Bathroom } from './Bathroom';
+import { Stairs, Loft } from './StairsAndLoft';
 
 interface InteriorProps {
   width: number;
@@ -97,6 +98,10 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
         kid="luke"
       />
       <Bathroom origin={[halfW - 1.5, 0.13, 5.5]} />
+
+      {/* Staircase up to the loft (back-left corner of great room) */}
+      <Stairs />
+      <Loft />
 
       {/* Garage interior — concrete floor + a workbench against the back */}
       <mesh position={[garageCenterX, 0.12, 0]} receiveShadow>

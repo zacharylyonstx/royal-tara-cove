@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
-import { resolveMotion } from './collision';
+import { floorAt, resolveMotion } from './collision';
 import { useCombatStore } from '../state/combatStore';
 
 const SPEED = 5.5;
@@ -22,6 +22,7 @@ export function PlayerController() {
   const setActive = useGameStore((s) => s.setActiveCharacter);
   const welcomeOpen = useGameStore((s) => s.welcomeOpen);
   const staticColliders = useGameStore((s) => s.staticColliders);
+  const floors = useGameStore((s) => s.floors);
   const doors = useGameStore((s) => s.doors);
   const toggleDoor = useGameStore((s) => s.toggleDoor);
   const setHoverDoor = useGameStore((s) => s.setHoverDoor);
@@ -108,14 +109,17 @@ export function PlayerController() {
       yaws[activeId] = yaws[activeId] + diff * Math.min(1, 8 * dt);
     }
 
-    // Jump
-    if ((k[' '] || k['space']) && pos.y < 0.05) {
+    // Floor under player (stairs / upper-story platforms; 0 elsewhere).
+    const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
+
+    // Jump (only when on the floor under us)
+    if ((k[' '] || k['space']) && pos.y - standingFloorY < 0.05) {
       yVel.current = JUMP_VELOCITY;
     }
     yVel.current -= GRAVITY * dt;
     pos.y += yVel.current * dt;
-    if (pos.y < 0) {
-      pos.y = 0;
+    if (pos.y < standingFloorY) {
+      pos.y = standingFloorY;
       yVel.current = 0;
     }
 

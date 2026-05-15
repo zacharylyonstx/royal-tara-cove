@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Vector3 } from 'three';
-import type { CharacterId, RectCollider } from '../types';
+import type { CharacterId, Floor, RectCollider } from '../types';
 
 export type GamePhase = 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat';
 
@@ -26,6 +26,9 @@ interface GameStore {
 
   staticColliders: RectCollider[];
   setStaticColliders: (cs: RectCollider[]) => void;
+
+  floors: Floor[];
+  setFloors: (fs: Floor[]) => void;
 
   doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: RectCollider }>;
   registerDoor: (id: string, aabb: RectCollider, centerX: number, centerZ: number) => void;
@@ -75,6 +78,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   staticColliders: [],
   setStaticColliders: (cs) => set({ staticColliders: cs }),
+
+  floors: [],
+  setFloors: (fs) => set({ floors: fs }),
 
   doors: {},
   registerDoor: (id, aabb, centerX, centerZ) =>

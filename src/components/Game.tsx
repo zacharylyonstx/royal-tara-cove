@@ -21,6 +21,7 @@ import {
   HeroHouse10600,
   buildInteriorColliders,
   buildPorchColliders,
+  buildHeroFloors,
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
@@ -59,6 +60,7 @@ export function Game() {
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
   const setStaticColliders = useGameStore((s) => s.setStaticColliders);
+  const setFloors = useGameStore((s) => s.setFloors);
 
   // Compute lots, props, and colliders once.
   const lots = useMemo(() => buildLots(HOUSES), []);
@@ -80,9 +82,10 @@ export function Game() {
         ...buildInteriorColliders(hero, heroLot),
         ...buildPorchColliders(hero, heroLot),
       ];
+      setFloors(buildHeroFloors(hero, heroLot));
     }
     setStaticColliders([...base, ...extra]);
-  }, [lots, lotsByAddress, setStaticColliders]);
+  }, [lots, lotsByAddress, setStaticColliders, setFloors]);
 
   return (
     <>

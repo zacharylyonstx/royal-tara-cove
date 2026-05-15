@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { HouseConfig, Lot, RectCollider } from '../../types';
+import type { Floor, HouseConfig, Lot, RectCollider } from '../../types';
 import { Roof } from '../Roof';
 import { Door } from '../Door';
 import { Interior10600 } from './Interior10600';
@@ -851,6 +851,50 @@ export function buildInteriorColliders(config: HouseConfig, lot: Lot): RectColli
   });
   // suppress unused
   void halfW; void halfD;
+}
+
+/**
+ * Floors that the player can stand on inside the hero house. Two pieces:
+ *   1. A staircase ramp running west-to-east (climbs as x increases) along
+ *      the back-left wall of the great room.
+ *   2. A second-floor loft platform spanning the back-half of the upstairs.
+ *
+ * Local coords (rotated to world via lot.houseYaw):
+ *   stairs base: (x=-8.4..-5.0, z=-2.5..-1.4) climbs 0 → STORY_H
+ *   loft floor: (x=-9..-2, z=-3..3.5) at y = STORY_H
+ */
+export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
+  const cy = Math.cos(lot.houseYaw);
+  const sy = Math.sin(lot.houseYaw);
+  // Convert each axis-aligned LOCAL rect to a WORLD-aligned bounding rect.
+  // (For yaws that are multiples of π/2 this is exact. The hero house at
+  // angleDeg=90 has yaw=0, so local==world here.)
+  const toWorldRect = (lx0: number, lz0: number, lx1: number, lz1: number) => {
+    const corners: [number, number][] = [
+      [lx0, lz0], [lx1, lz0], [lx1, lz1], [lx0, lz1],
+    ];
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [lx, lz] of corners) {
+      const wx = lot.housePivot[0] + lx * cy + lz * sy;
+      const wz = lot.housePivot[1] - lx * sy + lz * cy;
+      if (wx < minX) minX = wx;
+      if (wx > maxX) maxX = wx;
+      if (wz < minZ) minZ = wz;
+      if (wz > maxZ) maxZ = wz;
+    }
+    return { minX, maxX, minZ, maxZ };
+  };
+
+  const stairs = toWorldRect(-8.4, -2.5, -5.0, -1.4);
+  const loft = toWorldRect(-9.0, -3.0, -2.0, 3.5);
+
+  return [
+    // Staircase: climbs as x INCREASES (since we go from -8.4 east up to -5.0).
+    // baseY at the west end (x=minX), topY at the east end (x=maxX).
+    { ...stairs, baseY: 0, topY: STORY_H, axis: 'x' as const },
+    // Flat upper-floor loft.
+    { ...loft, baseY: STORY_H, topY: STORY_H },
+  ];
 }
 
 export function buildPorchColliders(config: HouseConfig, lot: Lot): RectCollider[] {

@@ -6,12 +6,13 @@ import { laserZap, blobSquish } from '../audio';
 
 const FIRE_COOLDOWN_BASE = 0.18;
 const RAPID_FIRE_COOLDOWN = 0.06;
-const RANGE = 30;
+const RANGE = 55;                     // long enough to snipe blobs detouring around the house
 const BLOB_RADIUS = 0.55;
-const AIM_CONE_DEG = 18;             // tighter snap (was 50)
-const PASSIVE_AIM_NEAR = 10;          // disable rotation help inside 10m
-const PASSIVE_AIM_FAR = 22;           // active range (was 22)
-const PASSIVE_AIM_LERP = 1.5;         // gentler turn (was 4)
+const AIM_CONE_DEG = 40;             // forgiving snap so kids hit but not 50° free-shots
+const PASSIVE_AIM_NEAR = 6;           // melee range still requires aiming
+const PASSIVE_AIM_FAR = 24;           // active out to 24m (slightly farther)
+const PASSIVE_AIM_LERP = 4.0;         // brisk tracking so kids find threats
+const PREFER_LOW_HP_DELTA = 4;        // prefer finishing if within 4m of nearest
 
 const BOMB_COOLDOWN = 0.6;
 const LEGO_COOLDOWN = 0.4;
@@ -133,9 +134,16 @@ export function CombatController() {
       candidates.push({ blob: b, dist });
     }
     if (candidates.length === 0) return null;
-    // Distance only — no lowest-HP preference, no last-target alternation.
+    // Sort nearest-first, then promote any within PREFER_LOW_HP_DELTA of the
+    // nearest that has lower HP (kid-friendly: finish kills when convenient).
     candidates.sort((a, b) => a.dist - b.dist);
-    return candidates[0].blob;
+    const nearest = candidates[0];
+    let pick = nearest;
+    for (const c of candidates) {
+      if (c.dist - nearest.dist > PREFER_LOW_HP_DELTA) break;
+      if (c.blob.hp < pick.blob.hp) pick = c;
+    }
+    return pick.blob;
   }
 
   function castBeamForYaw(yaw: number) {

@@ -1,6 +1,37 @@
-import type { RectCollider } from '../types';
+import type { Floor, RectCollider } from '../types';
 
 const PLAYER_RADIUS = 0.32;
+
+/**
+ * The floor surface the player is standing on at (x, z). Returns the highest
+ * floor whose surface is REACHABLE from the player's current Y — i.e. a step
+ * up no greater than STEP_UP_TOLERANCE. This way the player only snaps up
+ * onto a ramp/loft if they're already at its level (or stepping onto it),
+ * never if it's a ceiling above them.
+ */
+const STEP_UP_TOLERANCE = 0.6;
+
+export function floorAt(x: number, z: number, currentY: number, floors: Floor[]): number {
+  let best = 0;
+  for (const f of floors) {
+    if (x < f.minX || x > f.maxX || z < f.minZ || z > f.maxZ) continue;
+    let y: number;
+    if (f.axis === 'x') {
+      const t = (x - f.minX) / Math.max(0.001, f.maxX - f.minX);
+      const k = f.invert ? 1 - t : t;
+      y = f.baseY + (f.topY - f.baseY) * k;
+    } else if (f.axis === 'z') {
+      const t = (z - f.minZ) / Math.max(0.001, f.maxZ - f.minZ);
+      const k = f.invert ? 1 - t : t;
+      y = f.baseY + (f.topY - f.baseY) * k;
+    } else {
+      y = f.baseY;
+    }
+    // Only count floors we can reach: at or below current Y + step tolerance.
+    if (y <= currentY + STEP_UP_TOLERANCE && y > best) best = y;
+  }
+  return best;
+}
 
 /**
  * Resolve a desired horizontal motion against the static collider list.
