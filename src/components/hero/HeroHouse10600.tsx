@@ -49,7 +49,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       <Wall position={[halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
 
       {/* Back wall (with patio sliding door cutout in middle) */}
-      <BackWallWithSlider width={config.width} height={wallH} z={halfD} material={wallMaterial} />
+      <BackWallWithSlider width={config.width} height={wallH} z={halfD} centerX={0.5} material={wallMaterial} />
 
       {/* Front wall with garage cutout + front door cutout + bay window cutout */}
       <FrontWall
@@ -128,7 +128,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* Sliding patio door */}
       <Door
         id={`hero-patio-${config.address}`}
-        x={0}
+        x={0.5}
         z={halfD}
         width={1.4}
         height={DOOR_H}
@@ -228,27 +228,35 @@ function BackWallWithSlider({
   width,
   height,
   z,
+  centerX,
   material,
 }: {
   width: number;
   height: number;
   z: number;
+  centerX: number;
   material: THREE.Material;
 }) {
   const sliderW = 1.6;
-  const sideW = (width - sliderW) / 2;
+  const halfSlider = sliderW / 2;
+  const leftEnd = -width / 2;
+  const rightEnd = width / 2;
+  const sliderLeft = centerX - halfSlider;
+  const sliderRight = centerX + halfSlider;
+  const leftW = sliderLeft - leftEnd;
+  const rightW = rightEnd - sliderRight;
   return (
     <>
-      <mesh position={[-(sliderW / 2 + sideW / 2), height / 2 + 0.1, z]} castShadow receiveShadow>
-        <boxGeometry args={[sideW, height, WALL_T]} />
+      <mesh position={[leftEnd + leftW / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
+        <boxGeometry args={[leftW, height, WALL_T]} />
         <primitive object={material} attach="material" />
       </mesh>
-      <mesh position={[sliderW / 2 + sideW / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
-        <boxGeometry args={[sideW, height, WALL_T]} />
+      <mesh position={[sliderRight + rightW / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
+        <boxGeometry args={[rightW, height, WALL_T]} />
         <primitive object={material} attach="material" />
       </mesh>
       {/* header above slider */}
-      <mesh position={[0, height - 0.15, z]} castShadow receiveShadow>
+      <mesh position={[centerX, height - 0.15, z]} castShadow receiveShadow>
         <boxGeometry args={[sliderW + 0.2, 0.3, WALL_T]} />
         <primitive object={material} attach="material" />
       </mesh>
@@ -853,9 +861,9 @@ export function buildHeroExteriorColliders(config: HouseConfig, lot: Lot): RectC
     // Front wall: split around front door
     { cx: (-halfW + (doorCenterX - doorHalf)) / 2, cz: -halfD, sx: (doorCenterX - doorHalf) - (-halfW), sz: WALL_T, tag: 'front-l' },
     { cx: ((doorCenterX + doorHalf) + halfW) / 2, cz: -halfD, sx: halfW - (doorCenterX + doorHalf), sz: WALL_T, tag: 'front-r' },
-    // Back wall: split around centered patio slider
-    { cx: (-halfW + (-sliderHalf)) / 2, cz: halfD, sx: (-sliderHalf) - (-halfW), sz: WALL_T, tag: 'back-l' },
-    { cx: ((sliderHalf) + halfW) / 2, cz: halfD, sx: halfW - sliderHalf, sz: WALL_T, tag: 'back-r' },
+    // Back wall: split around patio slider relocated to x = +0.5 (inside Luke's room)
+    { cx: (-halfW + (0.5 - sliderHalf)) / 2, cz: halfD, sx: (0.5 - sliderHalf) - (-halfW), sz: WALL_T, tag: 'back-l' },
+    { cx: ((0.5 + sliderHalf) + halfW) / 2, cz: halfD, sx: halfW - (0.5 + sliderHalf), sz: WALL_T, tag: 'back-r' },
     // Left side wall: solid
     { cx: -halfW, cz: 0, sx: WALL_T, sz: 2 * halfD, tag: 'side-l' },
     // Right side wall: solid
