@@ -4,6 +4,7 @@ import { Kitchen } from './Kitchen';
 import { Bedroom } from './Bedroom';
 import { Bathroom } from './Bathroom';
 import { Stairs, Loft } from './StairsAndLoft';
+import { ROOMS } from './floorPlan';
 
 interface InteriorProps {
   width: number;
@@ -34,23 +35,37 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
 
   return (
     <group>
-      {/* Wood floor (great room + hallway + master) */}
-      <mesh position={[-2, 0.12, 0]} receiveShadow>
-        <boxGeometry args={[width - 4, 0.02, depth - 0.4]} />
-        <primitive object={mat.woodFloor()} attach="material" />
-      </mesh>
+      {/* Per-room floors driven by floorPlan.ts — no overlap by construction */}
+      {ROOMS.map((r) => {
+        const cx = (r.minX + r.maxX) / 2;
+        const cz = (r.minZ + r.maxZ) / 2;
+        const sx = r.maxX - r.minX;
+        const sz = r.maxZ - r.minZ;
+        const material =
+          r.floor === 'wood' ? mat.woodFloor() :
+          r.floor === 'tile' ? mat.tileFloor() :
+          mat.concrete();
+        return (
+          <mesh key={`floor-${r.id}`} position={[cx, 0.12, cz]} receiveShadow>
+            <boxGeometry args={[sx, 0.02, sz]} />
+            <primitive object={material} attach="material" />
+          </mesh>
+        );
+      })}
 
-      {/* Tile floor (kitchen + bath area) */}
-      <mesh position={[halfW - 3, 0.13, 0]} receiveShadow>
-        <boxGeometry args={[4, 0.02, depth - 0.4]} />
-        <primitive object={mat.tileFloor()} attach="material" />
-      </mesh>
-
-      {/* Ceiling (just enough to read indoor — partial, semi-transparent so light gets in) */}
-      <mesh position={[0, 2.95, 0]}>
-        <boxGeometry args={[width - 0.4, 0.02, depth - 0.4]} />
-        <meshStandardMaterial color="#f5ecd9" transparent opacity={0.92} />
-      </mesh>
+      {/* Per-room ceilings (drywall, semi-transparent so light still reads inside) */}
+      {ROOMS.filter((r) => r.ceiling).map((r) => {
+        const cx = (r.minX + r.maxX) / 2;
+        const cz = (r.minZ + r.maxZ) / 2;
+        const sx = r.maxX - r.minX;
+        const sz = r.maxZ - r.minZ;
+        return (
+          <mesh key={`ceil-${r.id}`} position={[cx, 2.95, cz]}>
+            <boxGeometry args={[sx, 0.02, sz]} />
+            <meshStandardMaterial color="#f5ecd9" transparent opacity={0.92} />
+          </mesh>
+        );
+      })}
 
       {/* Wall meshes — split into two segments per doorway gap (matches buildInteriorColliders) */}
       {/* lr-kitchen: gap at z 0..0.5 */}
@@ -103,11 +118,7 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
       <Stairs />
       <Loft />
 
-      {/* Garage interior — concrete floor + a workbench against the back */}
-      <mesh position={[garageCenterX, 0.12, 0]} receiveShadow>
-        <boxGeometry args={[6.4, 0.02, depth - 0.4]} />
-        <primitive object={mat.concrete()} attach="material" />
-      </mesh>
+      {/* Garage interior — workbench against the back (concrete floor is part of the per-room loop above) */}
       {/* Workbench */}
       <group position={[garageCenterX, 0, halfD - 0.8]}>
         <mesh position={[0, 0.85, 0]} castShadow>
