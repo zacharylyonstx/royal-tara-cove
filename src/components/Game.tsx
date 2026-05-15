@@ -164,11 +164,8 @@ export function Game() {
       {/* Spawn portal (visible whenever blobs are queued) */}
       <BackyardPortal />
 
-      {/* Celebration / ambience */}
-      <Fireworks />
-      <Confetti />
-      <DiscoLights />
-      <DancingBlobs />
+      {/* Celebration — only mount during victory phase so they don't tick when irrelevant */}
+      <VictoryOnly />
       <Fireflies />
 
       <PlayerController />
@@ -266,6 +263,19 @@ function DynamicLights() {
 function PickupsLive() {
   const drops = useCombatStore((s) => s.powerUpDrops);
   return <PickupRenderer drops={drops} />;
+}
+
+function VictoryOnly() {
+  const phase = useGameStore((s) => s.phase);
+  if (phase !== 'victory') return null;
+  return (
+    <>
+      <Fireworks />
+      <Confetti />
+      <DiscoLights />
+      <DancingBlobs />
+    </>
+  );
 }
 
 function BlobRenderer() {

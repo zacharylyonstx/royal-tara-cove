@@ -114,14 +114,13 @@ function Hopper({ blob }: BlobProps) {
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
         <sphereGeometry args={[0.5, 14, 10]} />
-        <meshPhysicalMaterial
+        <meshStandardMaterial
           color={color.body}
-          roughness={0.25}
-          transmission={0.32}
-          thickness={0.45}
-          ior={1.4}
+          roughness={0.35}
           emissive={color.body}
-          emissiveIntensity={0.18}
+          emissiveIntensity={0.5}
+          transparent
+          opacity={0.92}
         />
       </mesh>
       <mesh ref={core}>
@@ -298,7 +297,7 @@ function Sprinter({ blob }: BlobProps) {
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
         <sphereGeometry args={[0.55, 12, 10]} />
-        <meshPhysicalMaterial color={color.body} roughness={0.3} transmission={0.25} thickness={0.4} ior={1.4} emissive={color.body} emissiveIntensity={0.3} />
+        <meshStandardMaterial color={color.body} roughness={0.4} emissive={color.body} emissiveIntensity={0.55} transparent opacity={0.92} />
       </mesh>
       {/* big single eye */}
       <group ref={eye} position={[0, 0.05, 0.4]}>
@@ -375,7 +374,7 @@ function Splitter({ blob }: BlobProps) {
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
         <sphereGeometry args={[0.55, 12, 10]} />
-        <meshPhysicalMaterial color={color.body} roughness={0.4} transmission={0.2} thickness={0.45} ior={1.4} emissive={color.body} emissiveIntensity={0.2} />
+        <meshStandardMaterial color={color.body} roughness={0.5} emissive={color.body} emissiveIntensity={0.45} transparent opacity={0.92} />
       </mesh>
       {/* three pustules */}
       {[

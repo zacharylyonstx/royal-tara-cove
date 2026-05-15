@@ -85,14 +85,13 @@ export function BossBlob({ blob }: Props) {
       {/* Giant body — dome */}
       <mesh ref={body} position={[0, 0.2, 0]} castShadow>
         <sphereGeometry args={[0.8, 18, 14]} />
-        <meshPhysicalMaterial
+        <meshStandardMaterial
           color={color.body}
-          roughness={0.18}
-          transmission={0.4}
-          thickness={0.6}
-          ior={1.4}
+          roughness={0.3}
           emissive={color.body}
-          emissiveIntensity={0.22}
+          emissiveIntensity={0.6}
+          transparent
+          opacity={0.92}
         />
       </mesh>
       {/* Crown of spikes */}
