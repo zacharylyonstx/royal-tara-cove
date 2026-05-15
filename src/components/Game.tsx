@@ -22,6 +22,7 @@ import {
   buildInteriorColliders,
   buildPorchColliders,
   buildHeroFloors,
+  buildHeroExteriorColliders,
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
@@ -81,6 +82,7 @@ export function Game() {
       extra = [
         ...buildInteriorColliders(hero, heroLot),
         ...buildPorchColliders(hero, heroLot),
+        ...buildHeroExteriorColliders(hero, heroLot),
       ];
       setFloors(buildHeroFloors(hero, heroLot));
     }

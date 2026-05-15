@@ -13,6 +13,9 @@ export function buildColliders(houses: HouseConfig[], lots: Lot[]): RectCollider
 
   // ---- House bodies (axis-aligned only when yaw is 0/90/180/270; otherwise we approximate with the body's bounding box) ----
   for (const h of houses) {
+    // Hero house emits piecewise wall colliders (with door gaps) via
+    // buildHeroExteriorColliders, so skip the solid body AABB here.
+    if (h.isHero) continue;
     const tx = houseTransform(h.position, h.depth);
     // Compute the AABB of the rotated rectangle of size (width × depth).
     const cosY = Math.cos(tx.yaw);

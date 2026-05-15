@@ -854,6 +854,66 @@ export function buildInteriorColliders(config: HouseConfig, lot: Lot): RectColli
 }
 
 /**
+ * Exterior wall colliders for 10600 — replaces the solid house-body AABB
+ * that would otherwise block the front door entirely. Walls are split
+ * around the front door (1.1m gap) and back patio slider (1.6m gap) so
+ * those Door entries can actually be passed through when open. Garage
+ * door + bay window stay as solid walls (no expectation of walking
+ * through a closed garage door). A thin ceiling collider keeps the
+ * player off the roof.
+ */
+export function buildHeroExteriorColliders(config: HouseConfig, lot: Lot): RectCollider[] {
+  const halfW = config.width / 2;
+  const halfD = config.depth / 2;
+  const wallH = STORY_H * config.stories;
+  const doorCenterX = config.garageOnLeft ? halfW - 2.0 : -halfW + 2.4;
+  const doorHalf = DOOR_W / 2;
+  const sliderHalf = 1.6 / 2;
+
+  // Each entry is an axis-aligned rectangle in HOUSE-LOCAL (x, z) space.
+  const localWalls = [
+    // Front wall: split around front door
+    { cx: (-halfW + (doorCenterX - doorHalf)) / 2, cz: -halfD, sx: (doorCenterX - doorHalf) - (-halfW), sz: WALL_T, tag: 'front-l' },
+    { cx: ((doorCenterX + doorHalf) + halfW) / 2, cz: -halfD, sx: halfW - (doorCenterX + doorHalf), sz: WALL_T, tag: 'front-r' },
+    // Back wall: split around centered patio slider
+    { cx: (-halfW + (-sliderHalf)) / 2, cz: halfD, sx: (-sliderHalf) - (-halfW), sz: WALL_T, tag: 'back-l' },
+    { cx: ((sliderHalf) + halfW) / 2, cz: halfD, sx: halfW - sliderHalf, sz: WALL_T, tag: 'back-r' },
+    // Left side wall: solid
+    { cx: -halfW, cz: 0, sx: WALL_T, sz: 2 * halfD, tag: 'side-l' },
+    // Right side wall: solid
+    { cx: halfW, cz: 0, sx: WALL_T, sz: 2 * halfD, tag: 'side-r' },
+  ];
+
+  const cy = Math.cos(lot.houseYaw);
+  const sy = Math.sin(lot.houseYaw);
+  const out: RectCollider[] = localWalls.map((w) => {
+    const halfSx = w.sx / 2;
+    const halfSz = w.sz / 2;
+    const corners: [number, number][] = [
+      [w.cx - halfSx, w.cz - halfSz],
+      [w.cx + halfSx, w.cz - halfSz],
+      [w.cx + halfSx, w.cz + halfSz],
+      [w.cx - halfSx, w.cz + halfSz],
+    ];
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [lx, lz] of corners) {
+      const wx = lot.housePivot[0] + lx * cy + lz * sy;
+      const wz = lot.housePivot[1] - lx * sy + lz * cy;
+      if (wx < minX) minX = wx;
+      if (wx > maxX) maxX = wx;
+      if (wz < minZ) minZ = wz;
+      if (wz > maxZ) maxZ = wz;
+    }
+    return { minX, maxX, minZ, maxZ, minY: 0, maxY: wallH, tag: `hero-ext-${w.tag}` };
+  });
+
+  // (Ceiling collider intentionally omitted: resolveMotion is purely 2D in
+  // XZ and would treat a roof-height AABB as a wall, blocking entry through
+  // the front door. Player can't jump 6m anyway — gravity caps it.)
+  return out;
+}
+
+/**
  * Floors that the player can stand on inside the hero house. Two pieces:
  *   1. A staircase ramp running west-to-east (climbs as x increases) along
  *      the back-left wall of the great room.
