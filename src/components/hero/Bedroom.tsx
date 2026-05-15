@@ -123,12 +123,11 @@ function Dresser({ position }: { position: [number, number, number] }) {
           <meshStandardMaterial color="#7a4a32" />
         </mesh>
       ))}
-      {/* lamp on top */}
+      {/* lamp on top — emissive replaces removed pointlight */}
       <mesh position={[0.2, 1.1, 0]}>
         <coneGeometry args={[0.12, 0.18, 12, 1, true]} />
-        <meshStandardMaterial color="#f5ecd9" emissive="#fff0a8" emissiveIntensity={0.4} side={2} />
+        <meshStandardMaterial color="#f5ecd9" emissive="#fff0a8" emissiveIntensity={1.4} side={2} />
       </mesh>
-      <pointLight position={[0.2, 1.05, 0]} intensity={0.35} color="#fff0c8" distance={3} />
     </group>
   );
 }

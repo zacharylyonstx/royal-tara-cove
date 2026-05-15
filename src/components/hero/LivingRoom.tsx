@@ -123,7 +123,6 @@ function FloorLamp({ position }: { position: [number, number, number] }) {
         <coneGeometry args={[0.22, 0.4, 12, 1, true]} />
         <meshStandardMaterial color="#f5ecd9" emissive="#fff0a8" emissiveIntensity={0.3} side={2} />
       </mesh>
-      <pointLight position={[0, 1.75, 0]} intensity={0.6} color="#fff0c8" distance={5} decay={2} />
     </group>
   );
 }

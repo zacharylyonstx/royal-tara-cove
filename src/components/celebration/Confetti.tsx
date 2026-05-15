@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../state/gameStore';
 
-const COUNT = 200;
+const COUNT = 80;
 const COLORS = ['#ff5a3a', '#fff15a', '#5cb85c', '#3afff0', '#e26aa1', '#fff', '#ff80b8', '#5acdff'];
 
 interface Particle {

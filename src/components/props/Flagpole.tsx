@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Mesh } from 'three';
+import { isNearPlayer } from '../../systems/distance';
 
 interface FlagpoleProps {
   position: [number, number, number];
@@ -14,6 +15,7 @@ export function Flagpole({ position, height = 6, flag = 'tx' }: FlagpoleProps) {
   const flagRef = useRef<Mesh>(null);
 
   useFrame((state) => {
+    if (!isNearPlayer(position[0], position[2], 40)) return;
     const t = state.clock.elapsedTime;
     const m = flagRef.current;
     if (!m) return;

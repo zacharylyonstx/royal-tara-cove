@@ -477,8 +477,6 @@ function CoveredPorch({
         <boxGeometry args={[width + 0.2, 0.18, depth + 0.1]} />
         <meshStandardMaterial color="#5d4a37" />
       </mesh>
-      {/* porch ceiling soft underglow */}
-      <pointLight position={[0, height - 0.2, 0]} intensity={0.3} color="#fff5d8" distance={5} decay={2} />
     </group>
   );
 }
@@ -618,7 +616,6 @@ function CoachLight({ position }: { position: [number, number, number] }) {
         <boxGeometry args={[0.14, 0.26, 0.02]} />
         <meshStandardMaterial color="#fff0a8" emissive="#ffd866" emissiveIntensity={0.85} />
       </mesh>
-      <pointLight position={[0, -0.18, 0.25]} intensity={0.5} color="#ffd866" distance={4} decay={2} />
     </group>
   );
 }

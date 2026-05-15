@@ -40,7 +40,6 @@ export function Fireworks() {
 }
 
 function Burst({ firework }: { firework: ReturnType<typeof useCombatStore.getState>['fireworks'][number] }) {
-  const lightRef = useRef<THREE.PointLight>(null);
   const groupRef = useRef<THREE.Group>(null);
   const PARTICLES = 24;
 
@@ -72,14 +71,10 @@ function Burst({ firework }: { firework: ReturnType<typeof useCombatStore.getSta
         if (m) m.opacity = 1 - k;
       }
     }
-    if (lightRef.current) {
-      lightRef.current.intensity = Math.max(0, 8 * (1 - k * 1.5));
-    }
   });
 
   return (
     <group position={[firework.x, firework.y, firework.z]}>
-      <pointLight ref={lightRef} color={firework.color} intensity={6} distance={20} decay={2} />
       <group ref={groupRef}>
         {Array.from({ length: PARTICLES }, (_, i) => (
           <mesh key={i}>

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
 import { useGameStore } from '../../state/gameStore';
+import { isNearPlayer } from '../../systems/distance';
 
 interface BasketballProps {
   position: [number, number, number];
@@ -21,6 +22,7 @@ export function Basketball({ position }: BasketballProps) {
   const activeId = useGameStore((s) => s.activeCharacterId);
 
   useFrame((_, dtRaw) => {
+    if (!isNearPlayer(pos.current.x, pos.current.z, 40)) return;
     const dt = Math.min(dtRaw, 0.1);
     const m = meshRef.current;
     if (!m) return;

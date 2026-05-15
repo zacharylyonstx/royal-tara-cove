@@ -162,7 +162,6 @@ function Pendant({ position }: { position: [number, number, number] }) {
         <coneGeometry args={[0.18, 0.3, 12, 1, true]} />
         <meshStandardMaterial color="#e6b94a" emissive="#fff0a8" emissiveIntensity={0.7} side={2} />
       </mesh>
-      <pointLight intensity={0.55} color="#fff0c8" distance={4} decay={2} />
     </group>
   );
 }

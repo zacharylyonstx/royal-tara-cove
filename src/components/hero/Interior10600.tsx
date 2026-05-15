@@ -132,10 +132,7 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
         </mesh>
       </group>
 
-      {/* Indoor warm point light to make interior glow */}
-      <pointLight position={[-1, 2.6, 0]} intensity={0.7} color="#ffd896" distance={12} decay={2} />
-      <pointLight position={[halfW - 2, 2.6, 0]} intensity={0.5} color="#ffe7a8" distance={8} decay={2} />
-      <pointLight position={[-2, 2.6, 5.5]} intensity={0.4} color="#fff0c8" distance={7} decay={2} />
+      {/* Indoor lighting comes from hemisphere + ambient + emissive lamp shades */}
     </group>
   );
 }

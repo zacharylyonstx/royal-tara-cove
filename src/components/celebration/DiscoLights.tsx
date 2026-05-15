@@ -8,13 +8,9 @@ const LIGHT_COLORS = ['#ff5a3a', '#5cb85c', '#3a6db0', '#3afff0', '#fff15a', '#e
 interface Spot { x: number; z: number; phase: number }
 
 const SPOTS: Spot[] = [
-  { x: -22, z: -12, phase: 0 },
-  { x: 22, z: -12, phase: 1.0 },
-  { x: -22, z: -55, phase: 2.0 },
-  { x: 22, z: -55, phase: 3.0 },
-  { x: 0, z: -90, phase: 4.0 },
-  { x: -22, z: -90, phase: 5.0 },
-  { x: 22, z: -90, phase: 0.5 },
+  { x: -18, z: -12, phase: 0 },
+  { x: 18, z: -12, phase: 1.5 },
+  { x: 0, z: -55, phase: 3.0 },
 ];
 
 export function DiscoLights() {

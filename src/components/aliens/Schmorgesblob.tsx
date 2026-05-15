@@ -113,7 +113,7 @@ function Hopper({ blob }: BlobProps) {
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
-        <sphereGeometry args={[0.5, 22, 16]} />
+        <sphereGeometry args={[0.5, 14, 10]} />
         <meshPhysicalMaterial
           color={color.body}
           roughness={0.25}
@@ -196,7 +196,6 @@ function Hopper({ blob }: BlobProps) {
           </mesh>
         </group>
       ))}
-      <pointLight position={[0, 0.1, 0]} color={color.body} intensity={0.4} distance={3} decay={2} />
       <BlobHpBar blob={blob} />
     </group>
   );
@@ -298,7 +297,7 @@ function Sprinter({ blob }: BlobProps) {
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
-        <sphereGeometry args={[0.55, 18, 14]} />
+        <sphereGeometry args={[0.55, 12, 10]} />
         <meshPhysicalMaterial color={color.body} roughness={0.3} transmission={0.25} thickness={0.4} ior={1.4} emissive={color.body} emissiveIntensity={0.3} />
       </mesh>
       {/* big single eye */}
@@ -319,7 +318,6 @@ function Sprinter({ blob }: BlobProps) {
           <meshStandardMaterial color={color.body} emissive={color.body} emissiveIntensity={0.2} />
         </mesh>
       ))}
-      <pointLight position={[0, 0.1, 0]} color={color.body} intensity={0.5} distance={3.5} decay={2} />
       <BlobHpBar blob={blob} />
     </group>
   );
@@ -376,7 +374,7 @@ function Splitter({ blob }: BlobProps) {
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       <mesh ref={body} castShadow>
-        <sphereGeometry args={[0.55, 18, 14]} />
+        <sphereGeometry args={[0.55, 12, 10]} />
         <meshPhysicalMaterial color={color.body} roughness={0.4} transmission={0.2} thickness={0.45} ior={1.4} emissive={color.body} emissiveIntensity={0.2} />
       </mesh>
       {/* three pustules */}
@@ -412,7 +410,6 @@ function Splitter({ blob }: BlobProps) {
         <sphereGeometry args={[0.07, 8, 8]} />
         <meshStandardMaterial color="#1a1a1c" />
       </mesh>
-      <pointLight position={[0, 0.1, 0]} color={color.glow} intensity={0.5} distance={3} decay={2} />
       <BlobHpBar blob={blob} />
     </group>
   );

@@ -9,7 +9,6 @@ interface Props { drop: PowerUpDrop }
 export function Pickup({ drop }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
   const color = POWERUP_COLOR[drop.kind];
 
   useFrame(({ clock }) => {
@@ -26,21 +25,17 @@ export function Pickup({ drop }: Props) {
       ringRef.current.rotation.x = Math.PI / 2;
       ringRef.current.rotation.z = -t * 2;
     }
-    if (lightRef.current) {
-      lightRef.current.intensity = 1.5 + Math.sin(t * 6 + drop.id) * 0.5;
-    }
   });
 
   return (
     <group ref={groupRef} position={[drop.x, 0.85, drop.z]}>
-      <pointLight ref={lightRef} color={color} intensity={2} distance={6} />
-      {/* Inner spinning octahedron (gem) */}
+      {/* Inner spinning octahedron (gem) — emissive replaces removed pointlight */}
       <mesh castShadow>
         <octahedronGeometry args={[0.35, 0]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={1.3}
+          emissiveIntensity={2.4}
           metalness={0.7}
           roughness={0.2}
         />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Sky, Environment } from '@react-three/drei';
+import { Sky } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import type { DirectionalLight, HemisphereLight, AmbientLight } from 'three';
 import { Street } from './Street';
@@ -93,9 +93,6 @@ export function Game() {
     <>
       <DynamicSky />
       <Stars />
-      {/* Cheap reflections via env preset */}
-      <Environment preset="park" background={false} environmentIntensity={0.35} />
-
       <DynamicLights />
 
       {/* Ground plane (textured grass) */}
@@ -251,15 +248,15 @@ function DynamicLights() {
         intensity={1.5}
         color="#fff0d0"
         castShadow
-        shadow-mapSize-width={4096}
-        shadow-mapSize-height={4096}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-bias={-0.0008}
         shadow-camera-near={1}
         shadow-camera-far={300}
-        shadow-camera-left={-110}
-        shadow-camera-right={110}
-        shadow-camera-top={110}
-        shadow-camera-bottom={-110}
+        shadow-camera-left={-50}
+        shadow-camera-right={50}
+        shadow-camera-top={50}
+        shadow-camera-bottom={-50}
       />
       <ambientLight ref={ambRef} intensity={0.18} color="#9ad0e0" />
     </>

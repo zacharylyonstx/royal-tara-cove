@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { Group, PointLight } from 'three';
+import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import { useCombatStore } from '../../state/combatStore';
 
 const COUNT = 18;
@@ -23,7 +23,7 @@ interface FireflyData {
  */
 export function Fireflies() {
   const groupRef = useRef<Group>(null);
-  const lightRefs = useRef<(PointLight | null)[]>([]);
+  const meshRefs = useRef<(Mesh | null)[]>([]);
 
   const data = useMemo<FireflyData[]>(() => {
     return Array.from({ length: COUNT }, (_, i) => {
@@ -59,30 +59,22 @@ export function Fireflies() {
         child.position.set(d.baseX + driftX, d.baseY + driftY, d.baseZ + driftZ);
       });
     }
-    lightRefs.current.forEach((light, i) => {
-      if (!light) return;
+    meshRefs.current.forEach((mesh, i) => {
+      if (!mesh) return;
       const d = data[i];
       const pulse = 0.5 + 0.5 * Math.sin(t * d.pulseSpeed + d.pulsePhase);
-      light.intensity = pulse * 1.5 * intensityMul;
+      const mat = mesh.material as MeshBasicMaterial;
+      if (mat) mat.opacity = 0.4 + pulse * 0.55 * intensityMul;
     });
   });
 
   return (
     <group ref={groupRef} visible={false}>
       {data.map((_, i) => (
-        <group key={i}>
-          <pointLight
-            ref={(l) => { lightRefs.current[i] = l; }}
-            color="#fff15a"
-            intensity={1.0}
-            distance={2.5}
-            decay={2}
-          />
-          <mesh>
-            <sphereGeometry args={[0.06, 6, 6]} />
-            <meshBasicMaterial color="#fff8a0" transparent opacity={0.95} />
-          </mesh>
-        </group>
+        <mesh key={i} ref={(m) => { meshRefs.current[i] = m; }}>
+          <sphereGeometry args={[0.10, 6, 6]} />
+          <meshBasicMaterial color="#fff8a0" transparent opacity={0.95} />
+        </mesh>
       ))}
     </group>
   );

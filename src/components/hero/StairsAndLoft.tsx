@@ -120,8 +120,6 @@ export function Loft() {
           </mesh>
         ))}
       </group>
-      {/* Wall-light to brighten loft */}
-      <pointLight position={[cx, STORY_H + 1.6, cz]} intensity={0.6} color="#fff0c8" distance={9} decay={2} />
 
       {/* "PLAY LOFT" sign (small colored plaque on the back wall) */}
       <mesh position={[cx, STORY_H + 1.8, LOFT_Z1 - 0.06]}>

@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Group } from 'three';
+import { isNearPlayer } from '../../systems/distance';
 
 interface LiveOakProps {
   position: [number, number, number];
@@ -66,6 +67,7 @@ export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
   }, [seed]);
 
   useFrame((state) => {
+    if (!isNearPlayer(position[0], position[2], 40)) return;
     const g = group.current;
     if (!g) return;
     const t = state.clock.elapsedTime;

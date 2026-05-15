@@ -84,7 +84,7 @@ export function BossBlob({ blob }: Props) {
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
       {/* Giant body — dome */}
       <mesh ref={body} position={[0, 0.2, 0]} castShadow>
-        <sphereGeometry args={[0.8, 32, 24]} />
+        <sphereGeometry args={[0.8, 18, 14]} />
         <meshPhysicalMaterial
           color={color.body}
           roughness={0.18}
