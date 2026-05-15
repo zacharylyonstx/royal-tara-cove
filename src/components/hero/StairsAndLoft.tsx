@@ -18,7 +18,7 @@ const STAIR_STEPS = 12;
 const LOFT_X0 = -9.0;
 const LOFT_X1 = -2.0;
 const LOFT_Z0 = -3.0;
-const LOFT_Z1 = 3.5;
+const LOFT_Z1 = -0.5;
 
 /** Stepped staircase with handrail. Visual only — collision uses the ramp Floor. */
 export function Stairs() {

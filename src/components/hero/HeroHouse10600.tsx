@@ -935,7 +935,9 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
   };
 
   const stairs = toWorldRect(-8.4, -2.5, -5.0, -1.4);
-  const loft = toWorldRect(-9.0, -3.0, -2.0, 3.5);
+  // Loft trimmed to the great-room footprint (z stops at -0.5 so it doesn't
+  // overhang the hallway/master); matches LOFT_Z1 in StairsAndLoft.tsx.
+  const loft = toWorldRect(-9.0, -3.0, -2.0, -0.5);
 
   return [
     // Staircase: climbs as x INCREASES (since we go from -8.4 east up to -5.0).
