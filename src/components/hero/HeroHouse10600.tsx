@@ -18,6 +18,9 @@ const WALL_T = 0.2;
 // Porch dimensions
 const PORCH_DEPTH = 2.8;
 const PORCH_WIDTH = 5.5;
+// Patio slider sits in Luke's bedroom (x = -1..+2 in the floorPlan manifest).
+// Shared by the back-wall mesh, the Door, and the exterior collider gap.
+const PATIO_SLIDER_X = 0.5;
 
 interface HeroHouseProps {
   config: HouseConfig;
@@ -49,7 +52,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       <Wall position={[halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
 
       {/* Back wall (with patio sliding door cutout in middle) */}
-      <BackWallWithSlider width={config.width} height={wallH} z={halfD} centerX={0.5} material={wallMaterial} />
+      <BackWallWithSlider width={config.width} height={wallH} z={halfD} centerX={PATIO_SLIDER_X} material={wallMaterial} />
 
       {/* Front wall with garage cutout + front door cutout + bay window cutout */}
       <FrontWall
@@ -128,7 +131,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* Sliding patio door */}
       <Door
         id={`hero-patio-${config.address}`}
-        x={0.5}
+        x={PATIO_SLIDER_X}
         z={halfD}
         width={1.4}
         height={DOOR_H}
@@ -862,8 +865,8 @@ export function buildHeroExteriorColliders(config: HouseConfig, lot: Lot): RectC
     { cx: (-halfW + (doorCenterX - doorHalf)) / 2, cz: -halfD, sx: (doorCenterX - doorHalf) - (-halfW), sz: WALL_T, tag: 'front-l' },
     { cx: ((doorCenterX + doorHalf) + halfW) / 2, cz: -halfD, sx: halfW - (doorCenterX + doorHalf), sz: WALL_T, tag: 'front-r' },
     // Back wall: split around patio slider relocated to x = +0.5 (inside Luke's room)
-    { cx: (-halfW + (0.5 - sliderHalf)) / 2, cz: halfD, sx: (0.5 - sliderHalf) - (-halfW), sz: WALL_T, tag: 'back-l' },
-    { cx: ((0.5 + sliderHalf) + halfW) / 2, cz: halfD, sx: halfW - (0.5 + sliderHalf), sz: WALL_T, tag: 'back-r' },
+    { cx: (-halfW + (PATIO_SLIDER_X - sliderHalf)) / 2, cz: halfD, sx: (PATIO_SLIDER_X - sliderHalf) - (-halfW), sz: WALL_T, tag: 'back-l' },
+    { cx: ((PATIO_SLIDER_X + sliderHalf) + halfW) / 2, cz: halfD, sx: halfW - (PATIO_SLIDER_X + sliderHalf), sz: WALL_T, tag: 'back-r' },
     // Left side wall: solid
     { cx: -halfW, cz: 0, sx: WALL_T, sz: 2 * halfD, tag: 'side-l' },
     // Right side wall: solid
