@@ -4,10 +4,9 @@ import { Kitchen } from './Kitchen';
 import { Bedroom } from './Bedroom';
 import { Bathroom } from './Bathroom';
 import { Stairs, Loft } from './StairsAndLoft';
-import { ROOMS, INTERIOR_WALLS, WALL_HEIGHT, WALL_THICK, WALL_Y } from './floorPlan';
+import { ROOMS, INTERIOR_WALLS, WALL_HEIGHT, WALL_THICK, WALL_Y, roomCenter } from './floorPlan';
 
 interface InteriorProps {
-  width: number;
   depth: number;
   doorCenterX: number;
   garageCenterX: number;
@@ -29,8 +28,7 @@ interface InteriorProps {
  *
  * The interior walls are colliders built in HeroHouse10600.tsx (buildInteriorColliders).
  */
-export function Interior10600({ width, depth, doorCenterX, garageCenterX }: InteriorProps) {
-  const halfW = width / 2;
+export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorProps) {
   const halfD = depth / 2;
 
   return (
@@ -115,25 +113,44 @@ export function Interior10600({ width, depth, doorCenterX, garageCenterX }: Inte
         return meshes;
       })}
 
-      {/* Rooms */}
-      <LivingRoom origin={[-3.5, 0.13, -2.0]} doorCenterX={doorCenterX} />
-      <Kitchen origin={[halfW - 3, 0.13, -1]} />
-      <Bedroom
-        origin={[-3.5, 0.13, 5.5]}
-        size={[3.5, 2.5]}
-        kid="dad"
-      />
-      <Bedroom
-        origin={[-3.0, 0.13, 5.5]}
-        size={[2.5, 2.5]}
-        kid="penny"
-      />
-      <Bedroom
-        origin={[1.0, 0.13, 5.5]}
-        size={[2.5, 2.5]}
-        kid="luke"
-      />
-      <Bathroom origin={[halfW - 1.5, 0.13, 5.5]} />
+      {/* Rooms — origins derived from the manifest so they can't drift. */}
+      {(() => {
+        const greatC = roomCenter('great');
+        const kitchenR = ROOMS.find((r) => r.id === 'kitchen')!;
+        const masterC = roomCenter('master');
+        const pennyC = roomCenter('penny');
+        const lukeC = roomCenter('luke');
+        const bathC = roomCenter('bath');
+        const masterR = ROOMS.find((r) => r.id === 'master')!;
+        const pennyR = ROOMS.find((r) => r.id === 'penny')!;
+        const lukeR = ROOMS.find((r) => r.id === 'luke')!;
+        // Kitchen origin offset south of room center so cabinets/fridge/stove/sink
+        // (which the component places at origin.z + 1..1.4) land against the back wall.
+        const kitchenOriginZ = kitchenR.maxZ - 1.7;
+        const kitchenOriginX = (kitchenR.minX + kitchenR.maxX) / 2;
+        return (
+          <>
+            <LivingRoom origin={[greatC[0], 0.13, greatC[1]]} doorCenterX={doorCenterX} />
+            <Kitchen origin={[kitchenOriginX, 0.13, kitchenOriginZ]} />
+            <Bedroom
+              origin={[masterC[0], 0.13, masterC[1]]}
+              size={[masterR.maxX - masterR.minX, masterR.maxZ - masterR.minZ]}
+              kid="dad"
+            />
+            <Bedroom
+              origin={[pennyC[0], 0.13, pennyC[1]]}
+              size={[pennyR.maxX - pennyR.minX, pennyR.maxZ - pennyR.minZ]}
+              kid="penny"
+            />
+            <Bedroom
+              origin={[lukeC[0], 0.13, lukeC[1]]}
+              size={[lukeR.maxX - lukeR.minX, lukeR.maxZ - lukeR.minZ]}
+              kid="luke"
+            />
+            <Bathroom origin={[bathC[0], 0.13, bathC[1]]} />
+          </>
+        );
+      })()}
 
       {/* Staircase up to the loft (back-left corner of great room) */}
       <Stairs />

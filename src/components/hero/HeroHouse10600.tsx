@@ -201,7 +201,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       <Pool x={2} z={halfD + 9} width={5} depth={3.5} />
 
       {/* Interior — only rendered when player is within 30m to keep perf tidy */}
-      <Interior10600 width={config.width} depth={config.depth} doorCenterX={doorCenterX} garageCenterX={garageCenterX} />
+      <Interior10600 depth={config.depth} doorCenterX={doorCenterX} garageCenterX={garageCenterX} />
     </group>
   );
 }
