@@ -14,7 +14,7 @@ import { HOUSES } from '../world/houses';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { useGameStore } from '../state/gameStore';
 import { buildLots } from '../world/lots';
-import { buildColliders } from '../world/colliders';
+import { buildColliders, buildPropColliders } from '../world/colliders';
 import { buildPropsFor } from '../world/props';
 import { mat } from '../world/materials';
 import {
@@ -86,8 +86,9 @@ export function Game() {
       ];
       setFloors(buildHeroFloors(hero, heroLot));
     }
-    setStaticColliders([...base, ...extra]);
-  }, [lots, lotsByAddress, setStaticColliders, setFloors]);
+    const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
+    setStaticColliders([...base, ...extra, ...propColliders]);
+  }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors]);
 
   return (
     <>

@@ -55,7 +55,11 @@ export interface Lot {
   isWedge: boolean;
 }
 
-/** A simple axis-aligned-in-XZ blocker. minY/maxY default to (0, 6). */
+/**
+ * A blocker. Default is axis-aligned in XZ; if `yaw` is set, it's an oriented
+ * bounding box (rect rotated by `yaw` radians around its center).
+ * minY/maxY default to (0, 6).
+ */
 export interface RectCollider {
   minX: number;
   maxX: number;
@@ -67,6 +71,8 @@ export interface RectCollider {
   passable?: boolean;
   /** Tag for debugging or selective interaction. */
   tag?: string;
+  /** Yaw in radians. When nonzero, this is an OBB rotated around its center. */
+  yaw?: number;
 }
 
 /** Tags for the door interaction system. */

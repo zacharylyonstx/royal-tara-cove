@@ -34,8 +34,64 @@ export function floorAt(x: number, z: number, currentY: number, floors: Floor[])
 }
 
 /**
+ * Push a circle (player) out of an OBB collider (rect rotated by `c.yaw`).
+ * Returns the new (x, z) so the circle is just touching the OBB edge, plus
+ * a `hit` flag. Math: transform the circle into the box's local frame
+ * (axis-aligned there), compute the closest point on the box, push along
+ * the outward normal, transform back.
+ */
+function pushOutOfOBB(c: RectCollider, px: number, pz: number): { x: number; z: number; hit: boolean } {
+  const cx = (c.minX + c.maxX) / 2;
+  const cz = (c.minZ + c.maxZ) / 2;
+  const halfX = (c.maxX - c.minX) / 2;
+  const halfZ = (c.maxZ - c.minZ) / 2;
+  const yaw = c.yaw ?? 0;
+  // World → box-local: translate by -center, rotate by -yaw
+  const cosNeg = Math.cos(-yaw);
+  const sinNeg = Math.sin(-yaw);
+  const lx = (px - cx) * cosNeg - (pz - cz) * sinNeg;
+  const lz = (px - cx) * sinNeg + (pz - cz) * cosNeg;
+  // Closest point on the centered box [-halfX..halfX, -halfZ..halfZ]
+  const closestX = Math.max(-halfX, Math.min(halfX, lx));
+  const closestZ = Math.max(-halfZ, Math.min(halfZ, lz));
+  const dx = lx - closestX;
+  const dz = lz - closestZ;
+  const distSq = dx * dx + dz * dz;
+  if (distSq > PLAYER_RADIUS * PLAYER_RADIUS) return { x: px, z: pz, hit: false };
+  const dist = Math.sqrt(distSq);
+  let nx: number, nz: number;
+  if (dist > 0.001) {
+    nx = dx / dist;
+    nz = dz / dist;
+  } else {
+    // Player center is inside the box — push out along the nearest face normal.
+    const dRight = halfX - lx;
+    const dLeft = lx + halfX;
+    const dFar = halfZ - lz;
+    const dNear = lz + halfZ;
+    const m = Math.min(dRight, dLeft, dFar, dNear);
+    if (m === dRight) { nx = 1; nz = 0; }
+    else if (m === dLeft) { nx = -1; nz = 0; }
+    else if (m === dFar) { nx = 0; nz = 1; }
+    else { nx = 0; nz = -1; }
+  }
+  const newLx = closestX + nx * (PLAYER_RADIUS + 0.001);
+  const newLz = closestZ + nz * (PLAYER_RADIUS + 0.001);
+  // Box-local → world: rotate by +yaw, translate by +center
+  const cosY = Math.cos(yaw);
+  const sinY = Math.sin(yaw);
+  return {
+    x: cx + newLx * cosY - newLz * sinY,
+    z: cz + newLx * sinY + newLz * cosY,
+    hit: true,
+  };
+}
+
+/**
  * Resolve a desired horizontal motion against the static collider list.
- * Two-axis decomposition: try X first, then Z, sliding along walls.
+ * Axis-aligned colliders use the existing two-axis slide (snap along world X
+ * then Z, sliding along walls). Oriented colliders (yaw != 0) are handled
+ * after with a few iterations of "push circle out of box."
  */
 export function resolveMotion(
   startX: number,
@@ -49,27 +105,23 @@ export function resolveMotion(
   let collidedX = false;
   let collidedZ = false;
 
-  // X first
+  // X first (axis-aligned colliders only)
   if (endX !== startX) {
     const tryX = endX;
     let allowed = tryX;
     for (const c of colliders) {
       if (c.passable) continue;
-      // Player circle at (allowed, z) overlaps rectangle?
+      if (c.yaw) continue;
       if (
         allowed + PLAYER_RADIUS > c.minX &&
         allowed - PLAYER_RADIUS < c.maxX &&
         z + PLAYER_RADIUS > c.minZ &&
         z - PLAYER_RADIUS < c.maxZ
       ) {
-        // Snap to nearer edge
         if (tryX > startX) {
-          // moving +X, snap to c.minX - radius
           if (c.minX - PLAYER_RADIUS < allowed && c.minX - PLAYER_RADIUS >= startX - 0.001) {
             allowed = Math.min(allowed, c.minX - PLAYER_RADIUS);
             collidedX = true;
-          } else if (startX - PLAYER_RADIUS < c.maxX) {
-            // already inside? leave as is
           }
         } else {
           if (c.maxX + PLAYER_RADIUS > allowed && c.maxX + PLAYER_RADIUS <= startX + 0.001) {
@@ -82,12 +134,13 @@ export function resolveMotion(
     x = allowed;
   }
 
-  // Z second, using new x
+  // Z second (axis-aligned colliders only), using new x
   if (endZ !== startZ) {
     const tryZ = endZ;
     let allowed = tryZ;
     for (const c of colliders) {
       if (c.passable) continue;
+      if (c.yaw) continue;
       if (
         x + PLAYER_RADIUS > c.minX &&
         x - PLAYER_RADIUS < c.maxX &&
@@ -108,6 +161,26 @@ export function resolveMotion(
       }
     }
     z = allowed;
+  }
+
+  // OBB pass: iterate a few times because pushing out of one box can put
+  // the player into another. Three iterations is enough for non-pathological
+  // layouts (a corner of two OBBs).
+  for (let iter = 0; iter < 3; iter++) {
+    let pushed = false;
+    for (const c of colliders) {
+      if (c.passable || !c.yaw) continue;
+      const result = pushOutOfOBB(c, x, z);
+      if (result.hit) {
+        x = result.x;
+        z = result.z;
+        pushed = true;
+        // Treat the OBB push as a collision on whichever axis moved more.
+        if (Math.abs(result.x - x) >= Math.abs(result.z - z)) collidedX = true;
+        else collidedZ = true;
+      }
+    }
+    if (!pushed) break;
   }
 
   return { x, z, collidedX, collidedZ };
@@ -144,11 +217,22 @@ export function unclipCamera(
       if (c.passable) continue;
       const minY = c.minY ?? 0;
       const maxY = c.maxY ?? 6;
-      if (
-        px > c.minX - 0.05 && px < c.maxX + 0.05 &&
-        pz > c.minZ - 0.05 && pz < c.maxZ + 0.05 &&
-        py > minY && py < maxY
-      ) {
+      if (py < minY || py > maxY) continue;
+      let inside: boolean;
+      if (c.yaw) {
+        const cx = (c.minX + c.maxX) / 2;
+        const cz = (c.minZ + c.maxZ) / 2;
+        const halfX = (c.maxX - c.minX) / 2;
+        const halfZ = (c.maxZ - c.minZ) / 2;
+        const cosNeg = Math.cos(-c.yaw);
+        const sinNeg = Math.sin(-c.yaw);
+        const lx = (px - cx) * cosNeg - (pz - cz) * sinNeg;
+        const lz = (px - cx) * sinNeg + (pz - cz) * cosNeg;
+        inside = lx > -halfX - 0.05 && lx < halfX + 0.05 && lz > -halfZ - 0.05 && lz < halfZ + 0.05;
+      } else {
+        inside = px > c.minX - 0.05 && px < c.maxX + 0.05 && pz > c.minZ - 0.05 && pz < c.maxZ + 0.05;
+      }
+      if (inside) {
         blockT = Math.min(blockT, t);
         break;
       }
