@@ -4,6 +4,7 @@ import { Roof } from '../Roof';
 import { Door } from '../Door';
 import { Interior10600 } from './Interior10600';
 import { mat } from '../../world/materials';
+import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
 
 const STORY_H = 3.0;
 const ROOF_H = 2.4;
@@ -782,72 +783,52 @@ function Pool({ x, z, width, depth }: { x: number; z: number; width: number; dep
 // --- Collider builders for the interior — exported so Game.tsx can include them in staticColliders ---
 
 export function buildInteriorColliders(config: HouseConfig, lot: Lot): RectCollider[] {
-  // Interior wall layout (HOUSE-LOCAL coords; +X right, -Z front, +Z back).
-  // Then transform to world.
-  const halfW = config.width / 2;
-  const halfD = config.depth / 2;
-
-  // Hallway runs east-west across the middle. Bedrooms in the back half.
-  // Garage is on the right (config.garageOnLeft = false).
-  // Living/great room: front-left half. Kitchen: middle. Bedrooms: back.
-
-  const localWalls: { cx: number; cz: number; sx: number; sz: number; tag: string }[] = [];
-
-  // ---- Walls with doorway gaps split into two segments ----
-  // lr-kitchen (north-south, x=-1.5, original z spans -3..1, gap at z≈-0.25 to 0.25)
-  localWalls.push({ cx: -1.5, cz: -1.875, sx: 0.15, sz: 2.25, tag: 'lr-kitchen-a' });
-  localWalls.push({ cx: -1.5, cz: 0.625, sx: 0.15, sz: 0.75, tag: 'lr-kitchen-b' });
-
-  // kitchen-hall (east-west, z=1.5, original x spans -5.5..-0.5, gap at x≈-3 to -2)
-  localWalls.push({ cx: -4.25, cz: 1.5, sx: 2.5, sz: 0.15, tag: 'kitchen-hall-a' });
-  localWalls.push({ cx: -1.25, cz: 1.5, sx: 1.5, sz: 0.15, tag: 'kitchen-hall-b' });
-
-  // hall-bed-back (east-west, z=4, original x spans -5.5..0.5, gap at x≈-2.5 to -1.5)
-  localWalls.push({ cx: -4.0, cz: 4.0, sx: 3.0, sz: 0.15, tag: 'hall-bed-back-a' });
-  localWalls.push({ cx: -0.5, cz: 4.0, sx: 2.0, sz: 0.15, tag: 'hall-bed-back-b' });
-
-  // garage-house (north-south, x=2, original z spans full house depth, gap at z≈-0.5..0.5)
-  localWalls.push({ cx: 2.0, cz: -halfD / 2 + 0.05, sx: 0.15, sz: halfD - 0.5, tag: 'garage-house-a' });
-  localWalls.push({ cx: 2.0, cz: halfD / 2 + 0.45, sx: 0.15, sz: halfD - 1.1, tag: 'garage-house-b' });
-
-  // bath-1 (north-south, x=3, original z spans 2.5..5.5, gap at z≈4..5)
-  localWalls.push({ cx: 3.0, cz: 3.25, sx: 0.15, sz: 1.5, tag: 'bath-1-a' });
-  localWalls.push({ cx: 3.0, cz: 5.25, sx: 0.15, sz: 0.5, tag: 'bath-1-b' });
-
-  // ---- Solid walls (no doorways) ----
-  // Bedroom dividers stay solid
-  localWalls.push({ cx: -5.5, cz: 5.5, sx: 0.15, sz: 3.0, tag: 'penny-luke' });
-  localWalls.push({ cx: 0.5, cz: 5.5, sx: 0.15, sz: 3.0, tag: 'master-luke' });
-  // Bathroom back wall (short) stays solid
-  localWalls.push({ cx: 4.0, cz: 5.5, sx: 2.0, sz: 0.15, tag: 'bath-2' });
-
-  // Transform to world.
+  void config; // accepted for symmetry with sibling builders, not currently used
   const cy = Math.cos(lot.houseYaw);
   const sy = Math.sin(lot.houseYaw);
-  return localWalls.map((w) => {
-    // Each wall is an axis-aligned box in local coords. After yaw rotation,
-    // the bounding box may grow. We approximate by rotating the four corners.
-    const halfSx = w.sx / 2;
-    const halfSz = w.sz / 2;
-    const corners: [number, number][] = [
-      [w.cx - halfSx, w.cz - halfSz],
-      [w.cx + halfSx, w.cz - halfSz],
-      [w.cx + halfSx, w.cz + halfSz],
-      [w.cx - halfSx, w.cz + halfSz],
-    ];
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const [lx, lz] of corners) {
-      const wx = lot.housePivot[0] + lx * cy + lz * sy;
-      const wz = lot.housePivot[1] - lx * sy + lz * cy;
-      if (wx < minX) minX = wx;
-      if (wx > maxX) maxX = wx;
-      if (wz < minZ) minZ = wz;
-      if (wz > maxZ) maxZ = wz;
+
+  const out: RectCollider[] = [];
+  for (const w of INTERIOR_WALLS) {
+    // Split the wall into solid segments around its openings.
+    const ops = [...w.openings].sort((a, b) => a.from - b.from);
+    const segments: { from: number; to: number }[] = [];
+    let cursor = w.from;
+    for (const op of ops) {
+      if (op.from - cursor > 0.001) segments.push({ from: cursor, to: op.from });
+      cursor = op.to;
     }
-    return { minX, maxX, minZ, maxZ, minY: 0, maxY: 3, tag: `interior-${w.tag}` };
-  });
-  // suppress unused
-  void halfW; void halfD;
+    if (w.to - cursor > 0.001) segments.push({ from: cursor, to: w.to });
+
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i];
+      const center = (s.from + s.to) / 2;
+      const span = s.to - s.from;
+      // House-local axis-aligned box; corners rotated to world via houseYaw.
+      const halfA = span / 2;
+      const halfB = WALL_THICK / 2;
+      let cx: number, cz: number, halfX: number, halfZ: number;
+      if (w.axis === 'x') {
+        cx = center; cz = w.at; halfX = halfA; halfZ = halfB;
+      } else {
+        cx = w.at; cz = center; halfX = halfB; halfZ = halfA;
+      }
+      const corners: [number, number][] = [
+        [cx - halfX, cz - halfZ], [cx + halfX, cz - halfZ],
+        [cx + halfX, cz + halfZ], [cx - halfX, cz + halfZ],
+      ];
+      let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (const [lx, lz] of corners) {
+        const wx = lot.housePivot[0] + lx * cy + lz * sy;
+        const wz = lot.housePivot[1] - lx * sy + lz * cy;
+        if (wx < minX) minX = wx;
+        if (wx > maxX) maxX = wx;
+        if (wz < minZ) minZ = wz;
+        if (wz > maxZ) maxZ = wz;
+      }
+      out.push({ minX, maxX, minZ, maxZ, minY: 0, maxY: 3, tag: `interior-${w.tag}-${i}` });
+    }
+  }
+  return out;
 }
 
 /**
