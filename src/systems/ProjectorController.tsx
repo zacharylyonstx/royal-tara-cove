@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { HOUSES } from '../world/houses';
@@ -21,35 +21,53 @@ const INSIDE_SILENT_RADIUS = 16;
 const BLEED_SILENT_RADIUS = 8;
 const FADE_RATE = 4; // per second
 
+// Hero house geometry is static, so the setup is computed once at module load
+// (avoids the React Compiler complaining about manual useMemo).
+type Setup = {
+  pivotX: number;
+  pivotZ: number;
+  cosYaw: number;
+  sinYaw: number;
+  cosNegYaw: number;
+  sinNegYaw: number;
+  screenWorldX: number;
+  screenWorldY: number;
+  screenWorldZ: number;
+  halfW: number;
+  halfD: number;
+};
+
+const SETUP: Setup | null = (() => {
+  const hero = HOUSES.find((h) => h.isHero);
+  if (!hero) return null;
+  const lots = buildLots(HOUSES);
+  const lot = lots.find((l) => l.address === hero.address);
+  if (!lot) return null;
+  // Screen plane center in HOUSE-LOCAL space (matches ProjectorScreen.tsx).
+  const localX = -1.58;
+  const localY = 1.8;
+  const localZ = -4;
+  const cosYaw = Math.cos(lot.houseYaw);
+  const sinYaw = Math.sin(lot.houseYaw);
+  return {
+    pivotX: lot.housePivot[0],
+    pivotZ: lot.housePivot[1],
+    cosYaw,
+    sinYaw,
+    cosNegYaw: Math.cos(-lot.houseYaw),
+    sinNegYaw: Math.sin(-lot.houseYaw),
+    screenWorldX: lot.housePivot[0] + localX * cosYaw + localZ * sinYaw,
+    screenWorldY: localY,
+    screenWorldZ: lot.housePivot[1] - localX * sinYaw + localZ * cosYaw,
+    halfW: hero.width / 2,
+    halfD: hero.depth / 2,
+  };
+})();
+
 export function ProjectorController() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const activeId = useGameStore((s) => s.activeCharacterId);
   const positions = useGameStore((s) => s.positions);
-
-  // Resolve the hero house lot and the screen's world position once.
-  const setup = useMemo(() => {
-    const hero = HOUSES.find((h) => h.isHero);
-    if (!hero) return null;
-    const lots = buildLots(HOUSES);
-    const lot = lots.find((l) => l.address === hero.address);
-    if (!lot) return null;
-
-    // Screen plane center in house-local space (matches ProjectorScreen.tsx)
-    const localScreen = new THREE.Vector3(-1.58, 1.8, -4);
-    // Transform to world: rotate by houseYaw around Y, then translate by housePivot.
-    const cy = Math.cos(lot.houseYaw);
-    const sy = Math.sin(lot.houseYaw);
-    const screenWorld = new THREE.Vector3(
-      lot.housePivot[0] + localScreen.x * cy + localScreen.z * sy,
-      localScreen.y,
-      lot.housePivot[1] - localScreen.x * sy + localScreen.z * cy,
-    );
-
-    // House AABB in HOUSE-LOCAL space: x = -halfW..+halfW, z = -halfD..+halfD
-    const halfW = hero.width / 2;
-    const halfD = hero.depth / 2;
-    return { lot, screenWorld, halfW, halfD };
-  }, []);
 
   // Resolve the video element once on mount.
   useEffect(() => {
@@ -58,26 +76,22 @@ export function ProjectorController() {
 
   useFrame((_state, dt) => {
     const video = videoRef.current;
-    if (!video || !setup) return;
+    if (!video || !SETUP) return;
     const pos = positions[activeId];
     if (!pos) return;
 
-    const { lot, screenWorld, halfW, halfD } = setup;
-
     // World-space distance from player ear (head height) to screen center.
-    const dx = pos.x - screenWorld.x;
-    const dy = pos.y + 1.5 - screenWorld.y;
-    const dz = pos.z - screenWorld.z;
+    const dx = pos.x - SETUP.screenWorldX;
+    const dy = pos.y + 1.5 - SETUP.screenWorldY;
+    const dz = pos.z - SETUP.screenWorldZ;
     const dist = Math.hypot(dx, dy, dz);
 
     // Player position transformed to HOUSE-LOCAL coords for AABB check.
-    const cosNeg = Math.cos(-lot.houseYaw);
-    const sinNeg = Math.sin(-lot.houseYaw);
-    const relX = pos.x - lot.housePivot[0];
-    const relZ = pos.z - lot.housePivot[1];
-    const lx = relX * cosNeg - relZ * sinNeg;
-    const lz = relX * sinNeg + relZ * cosNeg;
-    const inside = lx > -halfW && lx < halfW && lz > -halfD && lz < halfD;
+    const relX = pos.x - SETUP.pivotX;
+    const relZ = pos.z - SETUP.pivotZ;
+    const lx = relX * SETUP.cosNegYaw - relZ * SETUP.sinNegYaw;
+    const lz = relX * SETUP.sinNegYaw + relZ * SETUP.cosNegYaw;
+    const inside = lx > -SETUP.halfW && lx < SETUP.halfW && lz > -SETUP.halfD && lz < SETUP.halfD;
 
     let target: number;
     if (inside && dist < INSIDE_SILENT_RADIUS) {
