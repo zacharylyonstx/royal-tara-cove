@@ -18,7 +18,8 @@ export function LukeLegoLauncher() {
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
-    if (phase !== 'combat' || activeId !== 'luke') {
+    // FPS: hide own weapon; show Luke's launcher only when he's an NPC.
+    if (phase !== 'combat' || activeId === 'luke') {
       g.visible = false;
       return;
     }

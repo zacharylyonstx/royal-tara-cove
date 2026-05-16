@@ -109,7 +109,7 @@ export function CombatController() {
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
     const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z_LOCAL * sy;
-    const muzzleY = 1.1;
+    const muzzleY = 1.55;
     const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z_LOCAL * cy;
     const dirX = -Math.sin(yaw);
     const dirZ = -Math.cos(yaw);
@@ -153,7 +153,7 @@ export function CombatController() {
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
     const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z_LOCAL * sy;
-    const muzzleY = 1.1;
+    const muzzleY = 1.55;
     const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z_LOCAL * cy;
     const dirX = -Math.sin(yaw);
     const dirZ = -Math.cos(yaw);

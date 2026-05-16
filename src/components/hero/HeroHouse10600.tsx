@@ -174,9 +174,6 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       <Downspout x={-halfW - 0.18} z={-halfD - 0.3} h={wallH + 0.1} />
       <Downspout x={halfW + 0.18} z={-halfD - 0.3} h={wallH + 0.1} />
 
-      {/* Wreath on the front door */}
-      <Wreath x={doorCenterX} y={DOOR_H * 0.55 + 0.1} z={-halfD - 0.05} />
-
       {/* Doormat */}
       <mesh position={[doorCenterX, 0.13, -halfD - 0.55]} receiveShadow>
         <boxGeometry args={[1.4, 0.04, 0.7]} />
@@ -647,29 +644,6 @@ function Downspout({ x, z, h }: { x: number; z: number; h: number }) {
       <boxGeometry args={[0.1, h, 0.1]} />
       <meshStandardMaterial color="#dcd6c8" roughness={0.6} metalness={0.2} />
     </mesh>
-  );
-}
-
-function Wreath({ x, y, z }: { x: number; y: number; z: number }) {
-  return (
-    <group position={[x, y, z]}>
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <torusGeometry args={[0.22, 0.06, 8, 18]} />
-        <meshStandardMaterial color="#3a6e34" roughness={0.95} />
-      </mesh>
-      {/* berries */}
-      {[0, Math.PI / 3, (2 * Math.PI) / 3, Math.PI, (4 * Math.PI) / 3, (5 * Math.PI) / 3].map((a, i) => (
-        <mesh key={i} position={[Math.cos(a) * 0.22, Math.sin(a) * 0.22, 0.05]} castShadow>
-          <sphereGeometry args={[0.025, 6, 6]} />
-          <meshStandardMaterial color="#c8392a" />
-        </mesh>
-      ))}
-      {/* bow */}
-      <mesh position={[0, -0.22, 0.06]} castShadow>
-        <boxGeometry args={[0.14, 0.07, 0.02]} />
-        <meshStandardMaterial color="#a8392a" />
-      </mesh>
-    </group>
   );
 }
 

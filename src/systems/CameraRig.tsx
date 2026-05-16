@@ -94,6 +94,10 @@ export function CameraRig() {
     const baseY = pos.y + EYE_HEIGHT;
     const baseZ = pos.z;
 
+    // Sync the active character's body yaw with the camera so combat aiming
+    // (which reads yaws[activeId]) fires where the player is looking.
+    yaws[activeId] = yaw.current;
+
     // Look quaternion from yaw + pitch. Euler order 'YXZ' is the standard
     // for FPS cams (yaw around Y first, then pitch around X, no roll).
     camera.quaternion.setFromEuler(new Euler(pitch.current, yaw.current, 0, 'YXZ'));
@@ -106,11 +110,6 @@ export function CameraRig() {
     const shakeZ = sk > 0 ? (Math.random() - 0.5) * sk * SHAKE_AMP : 0;
 
     camera.position.set(baseX + shakeX, baseY + shakeY, baseZ + shakeZ);
-
-    // Reference yaws so the lint rule about unused store subscriptions
-    // doesn't trip — the subscription itself is needed so a yaw change
-    // wakes a re-render and keeps the camera fresh after character switch.
-    void yaws;
   });
 
   return null;

@@ -42,7 +42,9 @@ export function RayGun() {
     const g = groupRef.current;
     if (!g) return;
     const dt = Math.min(dtRaw, 0.1);
-    if (phase !== 'combat' || activeId !== 'dad') {
+    // FPS: hide own weapon (you're holding it but can't see your hands).
+    // Show Dad's gun to other characters when Dad is an NPC.
+    if (phase !== 'combat' || activeId === 'dad') {
       g.visible = false;
       return;
     }
