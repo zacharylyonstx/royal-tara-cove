@@ -1,5 +1,7 @@
 // Procedural one-shot SFX via Web Audio. No audio files needed.
 
+import { unmuteProjector } from './world/projectorMedia';
+
 let ctx: AudioContext | null = null;
 
 function ensureCtx(): AudioContext | null {
@@ -17,6 +19,7 @@ export function unlockAudio() {
   const c = ensureCtx();
   if (!c) return;
   if (c.state === 'suspended') void c.resume();
+  unmuteProjector();
 }
 
 // --- Combat one-shots ---

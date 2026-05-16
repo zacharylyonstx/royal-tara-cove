@@ -46,6 +46,7 @@ import { SkyController } from '../systems/SkyController';
 import { PowerUpController } from '../systems/PowerUpController';
 import { ProjectileController } from '../systems/ProjectileController';
 import { MusicController } from '../systems/MusicController';
+import { ProjectorController } from '../systems/ProjectorController';
 import { PickupRenderer } from './pickups/Pickup';
 import { Projectiles } from './projectiles/Projectiles';
 import { Fireworks } from './celebration/Fireworks';
@@ -180,6 +181,7 @@ export function Game() {
       <WaveController />
       <SkyController />
       <MusicController />
+      <ProjectorController />
       <CameraRig />
       <CameraExposer />
     </>

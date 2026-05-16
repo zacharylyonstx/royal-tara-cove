@@ -4,6 +4,7 @@ import { Kitchen } from './Kitchen';
 import { Bedroom } from './Bedroom';
 import { Bathroom } from './Bathroom';
 import { Stairs, Loft } from './StairsAndLoft';
+import { ProjectorScreen } from './ProjectorScreen';
 import { ROOMS, INTERIOR_WALLS, WALL_HEIGHT, WALL_THICK, WALL_Y, roomCenter } from './floorPlan';
 
 interface InteriorProps {
@@ -131,6 +132,7 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         return (
           <>
             <LivingRoom origin={[greatC[0], 0.13, greatC[1]]} doorCenterX={doorCenterX} />
+            <ProjectorScreen />
             <Kitchen origin={[kitchenOriginX, 0.13, kitchenOriginZ]} />
             <Bedroom
               origin={[masterC[0], 0.13, masterC[1]]}

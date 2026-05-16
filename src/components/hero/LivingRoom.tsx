@@ -10,8 +10,6 @@ export function LivingRoom({ origin }: LivingRoomProps) {
       <Couch position={[0, 0, 0]} rotation={Math.PI / 2} />
       {/* Coffee table */}
       <CoffeeTable position={[1.4, 0, 0]} />
-      {/* TV stand + TV */}
-      <TVStand position={[3.0, 0, 0]} rotation={-Math.PI / 2} />
       {/* Floor lamp */}
       <FloorLamp position={[0.2, 0, -1.2]} />
       {/* Bookshelf */}
@@ -82,27 +80,6 @@ function CoffeeTable({ position }: { position: [number, number, number] }) {
       <mesh position={[0.2, 0.45, 0]} castShadow>
         <boxGeometry args={[0.18, 0.04, 0.26]} />
         <meshStandardMaterial color="#3a5aa6" />
-      </mesh>
-    </group>
-  );
-}
-
-function TVStand({ position, rotation = 0 }: { position: [number, number, number]; rotation?: number }) {
-  return (
-    <group position={position} rotation={[0, rotation, 0]}>
-      <mesh position={[0, 0.4, 0]} castShadow>
-        <boxGeometry args={[1.6, 0.5, 0.4]} />
-        <meshStandardMaterial color="#3a2a1c" roughness={0.7} />
-      </mesh>
-      {/* TV */}
-      <mesh position={[0, 1.0, 0.0]} castShadow>
-        <boxGeometry args={[1.4, 0.85, 0.06]} />
-        <meshStandardMaterial color="#0a0a0c" />
-      </mesh>
-      {/* Screen glow */}
-      <mesh position={[0, 1.0, 0.03]}>
-        <boxGeometry args={[1.34, 0.78, 0.01]} />
-        <meshStandardMaterial color="#3a8aa6" emissive="#3a8aa6" emissiveIntensity={0.6} />
       </mesh>
     </group>
   );
