@@ -64,6 +64,10 @@ export function EnemyArrow() {
         const t = Math.min(tx, ty);
         const x = window.innerWidth / 2 + cosA * t;
         const y = window.innerHeight / 2 - sinA * t;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          setArrow(null);
+          return;
+        }
         const angleDeg = (Math.atan2(-sinA, cosA) * 180) / Math.PI; // CSS rotation
         setArrow({ x, y, angleDeg, dist: bestDist });
       }

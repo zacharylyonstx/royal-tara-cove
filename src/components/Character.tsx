@@ -60,7 +60,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   const headY = legsH + torsoH + headR;
 
   return (
-    <group ref={groupRef}>
+    <group ref={groupRef} visible={!isActive}>
       {/* Legs (pivot from hip) */}
       <group position={[-h * 0.06, legsH, 0]}>
         <mesh ref={leftLegRef} position={[0, -legsH / 2, 0]} castShadow>

@@ -21,7 +21,7 @@ export default function App() {
   return (
     <>
       <Canvas
-        camera={{ position: [0, 8, -100], fov: 55, near: 0.1, far: 600 }}
+        camera={{ position: [0, 8, -100], fov: 80, near: 0.1, far: 600 }}
         shadows
         style={{ width: '100vw', height: '100vh', display: 'block' }}
       >
