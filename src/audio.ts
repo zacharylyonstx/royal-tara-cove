@@ -860,45 +860,69 @@ export function houseCollapse(distance: number = 0.5) {
   if (!c || !grp) return;
   const t0 = c.currentTime;
   const volScale = 1 - Math.min(0.7, distance);
-  // Wood-snap cracks: 4 quick oscillator clicks
-  for (let i = 0; i < 4; i++) {
-    const t = t0 + i * 0.04 + Math.random() * 0.02;
+  // Wood-snap cracks: 6 quick oscillator clicks (was 4 — more chaotic)
+  for (let i = 0; i < 6; i++) {
+    const t = t0 + i * 0.05 + Math.random() * 0.03;
     const osc = c.createOscillator();
     osc.type = 'square';
     osc.frequency.setValueAtTime(800 + Math.random() * 600, t);
     osc.frequency.exponentialRampToValueAtTime(140, t + 0.05);
     const g = c.createGain();
-    g.gain.setValueAtTime(0.18 * volScale, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    g.gain.setValueAtTime(0.22 * volScale, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
     osc.connect(g).connect(grp);
     osc.start(t);
-    osc.stop(t + 0.08);
+    osc.stop(t + 0.09);
   }
-  // Low boom
+  // GLASS SHATTER layer — 3 high-freq oscillator bursts
+  for (let i = 0; i < 3; i++) {
+    const t = t0 + 0.05 + i * 0.07 + Math.random() * 0.04;
+    const osc = c.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(3500 + Math.random() * 1500, t);
+    osc.frequency.exponentialRampToValueAtTime(800, t + 0.18);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.08 * volScale, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(g).connect(grp);
+    osc.start(t);
+    osc.stop(t + 0.21);
+  }
+  // Low boom — bigger, longer decay
   const boom = c.createOscillator();
   boom.type = 'sine';
-  boom.frequency.setValueAtTime(80, t0);
-  boom.frequency.exponentialRampToValueAtTime(40, t0 + 0.4);
+  boom.frequency.setValueAtTime(70, t0);
+  boom.frequency.exponentialRampToValueAtTime(35, t0 + 0.6);
   const bG = c.createGain();
-  bG.gain.setValueAtTime(0.5 * volScale, t0 + 0.05);
-  bG.gain.exponentialRampToValueAtTime(0.001, t0 + 0.7);
+  bG.gain.setValueAtTime(0.7 * volScale, t0 + 0.05);
+  bG.gain.exponentialRampToValueAtTime(0.001, t0 + 1.1);
   boom.connect(bG).connect(grp);
   boom.start(t0 + 0.05);
-  boom.stop(t0 + 0.75);
-  // Dust whoosh (filtered noise)
+  boom.stop(t0 + 1.15);
+  // Extra sub-bass thump
+  const sub = c.createOscillator();
+  sub.type = 'sine';
+  sub.frequency.value = 40;
+  const sG = c.createGain();
+  sG.gain.setValueAtTime(0.5 * volScale, t0 + 0.1);
+  sG.gain.exponentialRampToValueAtTime(0.001, t0 + 0.6);
+  sub.connect(sG).connect(grp);
+  sub.start(t0 + 0.1);
+  sub.stop(t0 + 0.65);
+  // Dust whoosh (filtered noise) — longer
   const noise = c.createBufferSource();
-  noise.buffer = makeNoiseBuffer(c, 1.2, 'pink');
+  noise.buffer = makeNoiseBuffer(c, 2, 'pink');
   const nf = c.createBiquadFilter();
   nf.type = 'bandpass';
-  nf.frequency.value = 1200;
-  nf.Q.value = 0.6;
+  nf.frequency.value = 1100;
+  nf.Q.value = 0.5;
   const nG = c.createGain();
   nG.gain.setValueAtTime(0, t0);
-  nG.gain.linearRampToValueAtTime(0.25 * volScale, t0 + 0.1);
-  nG.gain.exponentialRampToValueAtTime(0.001, t0 + 1.2);
+  nG.gain.linearRampToValueAtTime(0.35 * volScale, t0 + 0.1);
+  nG.gain.exponentialRampToValueAtTime(0.001, t0 + 1.8);
   noise.connect(nf).connect(nG).connect(grp);
   noise.start(t0);
-  noise.stop(t0 + 1.3);
+  noise.stop(t0 + 1.85);
 }
 
 export function startRagdollWhoosh() {

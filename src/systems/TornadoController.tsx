@@ -240,16 +240,28 @@ export function TornadoController() {
       }
     }
 
-    // Drive audio volumes from current state
-    setRainVolume(useTornadoStore.getState().stormIntensity);
-    setWindVolume(useTornadoStore.getState().windStrength);
+    // Drive audio volumes from current state. When the player is INSIDE the
+    // hero house during approach, halve roar + wind for the audible "safe"
+    // cue ("you made it").
+    const playerAudio = g.positions[g.activeCharacterId];
+    let insideHeroAudio = false;
+    if (playerAudio && heroBox) {
+      const relX = playerAudio.x - heroBox.pivotX;
+      const relZ = playerAudio.z - heroBox.pivotZ;
+      const lx = relX * heroBox.cosNeg - relZ * heroBox.sinNeg;
+      const lz = relX * heroBox.sinNeg + relZ * heroBox.cosNeg;
+      insideHeroAudio = lx > -heroBox.halfW && lx < heroBox.halfW && lz > -heroBox.halfD && lz < heroBox.halfD;
+    }
+    const safeAtten = insideHeroAudio ? 0.45 : 1;
+    setRainVolume(useTornadoStore.getState().stormIntensity * safeAtten);
+    setWindVolume(useTornadoStore.getState().windStrength * safeAtten);
     setSirenVolume(phase === 'hail' || phase === 'tornado-approach' ? 1 : 0);
-    // Roar grows as the tornado nears the player
-    const player = g.positions[g.activeCharacterId];
-    if (player && useTornadoStore.getState().tornadoOpacity > 0) {
-      const dist = Math.hypot(player.x, player.z - useTornadoStore.getState().tornadoZ);
+    if (playerAudio && useTornadoStore.getState().tornadoOpacity > 0) {
+      const tx = useTornadoStore.getState().tornadoX;
+      const tz = useTornadoStore.getState().tornadoZ;
+      const dist = Math.hypot(playerAudio.x - tx, playerAudio.z - tz);
       const roar = Math.max(0, Math.min(1, 1 - dist / 60));
-      setRoarVolume(roar * useTornadoStore.getState().tornadoOpacity);
+      setRoarVolume(roar * useTornadoStore.getState().tornadoOpacity * safeAtten);
     } else {
       setRoarVolume(0);
     }
