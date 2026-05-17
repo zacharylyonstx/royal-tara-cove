@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../state/tornadoStore';
+import { buildDebrisArchetypes, type DebrisArchetype } from './weather/tornado/debrisShapes';
 
 // Tornado funnel — three concentric vapor layers + 3 satellite vortices,
 // each built from a custom variable-radius "tube" geometry with a vapor-noise
@@ -254,17 +255,18 @@ const SATELLITES: SatelliteInfo[] = [
 const SATELLITE_SCALE = 0.35;
 const SATELLITE_ORBIT_SPEED = 0.4; // rad/s
 
-// Debris colors for the orbital cloud
-const DEBRIS_COLORS = ['#7a5a32', '#5a3a22', '#dcd6c8', '#8a8a92', '#3a3a3c', '#a07050'];
-
 interface DebrisItem {
   height: number;
-  baseRadius: number;
+  radiusOffset: number;     // per-instance constant added to tapered radius
   angle: number;
   angularSpeed: number;
-  scaleX: number; scaleY: number; scaleZ: number;
+  scale: number;            // single uniform scale multiplier
   spinX: number; spinY: number; spinZ: number;
-  colorIdx: number;
+  archetypeIdx: number;
+  // Spiral-up motion (Task 3 will use these)
+  climbRate: number;
+  pulsePhase: number;
+  tangentPhase: number;
 }
 
 interface DustItem {
@@ -275,7 +277,7 @@ interface DustItem {
   spin: number;
 }
 
-const ORBITAL_DEBRIS_COUNT = 160;
+const ORBITAL_DEBRIS_COUNT = 240;
 const BASE_DUST_COUNT = 260;
 
 function buildLayerMaterial(layer: FunnelLayer): THREE.ShaderMaterial {
@@ -332,30 +334,34 @@ export function Tornado() {
     return arr;
   }, []);
 
-  // ---- Orbital debris cloud ----
+  // ---- Debris archetypes (planks, shingles, sheet metal, branches, lumber) ----
+  const debrisArchetypes = useMemo<DebrisArchetype[]>(() => buildDebrisArchetypes(), []);
+
+  // Debris items grouped by archetype, distributed round-robin.
   const debrisGroups = useMemo(() => {
-    const groups: { color: string; items: DebrisItem[] }[] = DEBRIS_COLORS.map((c) => ({ color: c, items: [] }));
+    const groups: { archetype: DebrisArchetype; items: DebrisItem[] }[] =
+      debrisArchetypes.map((a) => ({ archetype: a, items: [] }));
     for (let i = 0; i < ORBITAL_DEBRIS_COUNT; i++) {
+      const archetypeIdx = i % debrisArchetypes.length;
       const h = Math.random() * FUNNEL_HEIGHT;
       const tNorm = h / FUNNEL_HEIGHT;
-      const baseRadius = LAYERS[1].baseR + tNorm * (LAYERS[1].topR - LAYERS[1].baseR) + 1.0 + Math.random() * 3.5;
-      const colorIdx = Math.floor(Math.random() * DEBRIS_COLORS.length);
-      groups[colorIdx].items.push({
+      groups[archetypeIdx].items.push({
         height: h,
-        baseRadius,
+        radiusOffset: 1.0 + Math.random() * 3.5,
         angle: Math.random() * Math.PI * 2,
         angularSpeed: 0.8 + Math.random() * 2.5 + tNorm * 2.5,
-        scaleX: 0.25 + Math.random() * 0.55,
-        scaleY: 0.06 + Math.random() * 0.2,
-        scaleZ: 0.15 + Math.random() * 0.45,
+        scale: 0.8 + Math.random() * 0.7,
         spinX: (Math.random() - 0.5) * 8,
         spinY: (Math.random() - 0.5) * 6,
         spinZ: (Math.random() - 0.5) * 8,
-        colorIdx,
+        archetypeIdx,
+        climbRate: 0.3 + Math.random() * 0.7,
+        pulsePhase: Math.random() * Math.PI * 2,
+        tangentPhase: Math.random() * Math.PI * 2,
       });
     }
     return groups;
-  }, []);
+  }, [debrisArchetypes]);
 
   // ---- Base dust ring ----
   const dustItems = useMemo<DustItem[]>(() => {
@@ -422,7 +428,7 @@ export function Tornado() {
       }
     }
 
-    // Orbital debris
+    // Orbital debris (archetype-based; chaotic motion lands in Task 3)
     for (let gi = 0; gi < debrisGroups.length; gi++) {
       const grp = debrisGroups[gi];
       const mesh = debrisMeshRefs.current[gi];
@@ -430,14 +436,16 @@ export function Tornado() {
       for (let i = 0; i < grp.items.length; i++) {
         const d = grp.items[i];
         d.angle += d.angularSpeed * dt;
-        const r = d.baseRadius + Math.sin(d.angle * 0.7 + d.height) * 0.6;
+        const tNorm = d.height / FUNNEL_HEIGHT;
+        const taperedRadius = LAYERS[1].baseR + tNorm * (LAYERS[1].topR - LAYERS[1].baseR) + d.radiusOffset;
+        const r = taperedRadius + Math.sin(d.angle * 0.7 + d.height) * 0.6;
         tmp.position.set(
           Math.cos(d.angle) * r,
           d.height + Math.sin(now * 0.7 + d.height) * 0.3,
           Math.sin(d.angle) * r,
         );
         tmp.rotation.set(d.spinX * now * 0.1, d.spinY * now * 0.1, d.spinZ * now * 0.1);
-        tmp.scale.set(d.scaleX, d.scaleY, d.scaleZ);
+        tmp.scale.setScalar(d.scale);
         tmp.updateMatrix();
         mesh.setMatrixAt(i, tmp.matrix);
       }
@@ -511,18 +519,15 @@ export function Tornado() {
         />
       </instancedMesh>
 
-      {/* Orbital debris */}
+      {/* Orbital debris — one InstancedMesh per archetype */}
       {debrisGroups.map((g, i) => (
         <instancedMesh
-          key={i}
+          key={`deb-${i}`}
           ref={(el) => { debrisMeshRefs.current[i] = el; }}
-          args={[undefined, undefined, g.items.length]}
+          args={[g.archetype.geom, g.archetype.material, g.items.length]}
           castShadow
           renderOrder={4}
-        >
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color={g.color} transparent opacity={0} roughness={0.85} />
-        </instancedMesh>
+        />
       ))}
     </group>
   );
