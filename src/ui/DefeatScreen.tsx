@@ -4,10 +4,11 @@ import { defeatSting } from '../audio';
 
 export function DefeatScreen() {
   const phase = useGameStore((s) => s.phase);
+  const gameMode = useGameStore((s) => s.gameMode);
   useEffect(() => {
-    if (phase === 'defeat') defeatSting();
-  }, [phase]);
-  if (phase !== 'defeat') return null;
+    if (phase === 'defeat' && gameMode === 'aliens') defeatSting();
+  }, [phase, gameMode]);
+  if (phase !== 'defeat' || gameMode !== 'aliens') return null;
   return (
     <div
       style={{

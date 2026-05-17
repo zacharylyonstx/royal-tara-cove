@@ -3,12 +3,13 @@ import { useCombatStore } from '../state/combatStore';
 
 export function VictoryScreen() {
   const phase = useGameStore((s) => s.phase);
+  const gameMode = useGameStore((s) => s.gameMode);
   const kills = useCombatStore((s) => s.kills);
   const shotsFired = useCombatStore((s) => s.shotsFired);
   const shotsHit = useCombatStore((s) => s.shotsHit);
   const startedAt = useCombatStore((s) => s.gameStartedAt);
   const score = useCombatStore((s) => s.score);
-  if (phase !== 'victory') return null;
+  if (phase !== 'victory' || gameMode !== 'aliens') return null;
   const elapsed = (performance.now() / 1000) - startedAt;
   const accuracy = shotsFired > 0 ? (shotsHit / shotsFired) * 100 : 0;
   let rating = 'C';
