@@ -84,11 +84,12 @@ function Bubble({ line }: { line: ReturnType<typeof useCombatStore.getState>['di
   );
 }
 
-/** Helper component placed inside Canvas — exposes camera to window. */
+/** Helper component placed inside Canvas — exposes camera + scene to window. */
 export function CameraExposer() {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   useEffect(() => {
-    (window as unknown as { __camera?: THREE.Camera }).__camera = camera;
-  }, [camera]);
+    (window as unknown as { __camera?: THREE.Camera; __scene?: THREE.Scene }).__camera = camera;
+    (window as unknown as { __camera?: THREE.Camera; __scene?: THREE.Scene }).__scene = scene;
+  }, [camera, scene]);
   return null;
 }

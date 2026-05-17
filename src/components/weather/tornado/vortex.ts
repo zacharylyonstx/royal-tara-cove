@@ -81,62 +81,27 @@ export function vortexVelocity(
   return out;
 }
 
-// Build the skeleton funnel mesh — TubeGeometry along a slightly curved
-// path, with per-vertex radius following the tornado profile.
-export function buildSkeletonFunnel(): THREE.BufferGeometry {
-  const segs = 64;
-  const radial = 24;
-
-  // Slight S-curve so the funnel doesn't read as a perfectly vertical pole
-  const points: THREE.Vector3[] = [];
-  for (let i = 0; i < 14; i++) {
-    const t = i / 13;
-    const y = t * FUNNEL_HEIGHT;
-    const x = Math.sin(t * Math.PI * 1.6) * 0.6;
-    const z = Math.cos(t * Math.PI * 1.3) * 0.45;
-    points.push(new THREE.Vector3(x, y, z));
+// Build a SOLID cone-shaped funnel mesh — LatheGeometry revolution of
+// the proper tornado profile (narrow rope at base, fat bell at top).
+// Closed top/bottom so the mesh is a watertight solid and renders as a
+// readable dark CONE, not a hollow tube.
+export function buildConeGeometry(): THREE.BufferGeometry {
+  // Profile = (radius, height) points from bottom → top.
+  // Start + end with (0, y) to cap the mesh closed.
+  const samples = 24;
+  const profile: THREE.Vector2[] = [];
+  // Bottom cap (closes the mesh underneath)
+  profile.push(new THREE.Vector2(0, 0));
+  for (let i = 0; i <= samples; i++) {
+    const y = (i / samples) * FUNNEL_HEIGHT;
+    const r = funnelRadiusAt(y);
+    profile.push(new THREE.Vector2(r, y));
   }
-  const curve = new THREE.CatmullRomCurve3(points);
-
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  const frames = curve.computeFrenetFrames(segs, false);
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs;
-    const p = curve.getPointAt(t);
-    const r = funnelRadiusAt(p.y) * 0.8; // skeleton sits slightly inside the particle cloud
-    const N = frames.normals[i];
-    const B = frames.binormals[i];
-    for (let j = 0; j <= radial; j++) {
-      const v = (j / radial) * Math.PI * 2;
-      const sin = Math.sin(v);
-      const cos = -Math.cos(v);
-      const nx = cos * N.x + sin * B.x;
-      const ny = cos * N.y + sin * B.y;
-      const nz = cos * N.z + sin * B.z;
-      positions.push(p.x + r * nx, p.y + r * ny, p.z + r * nz);
-      normals.push(nx, ny, nz);
-      uvs.push(j / radial, t);
-    }
-  }
-  for (let i = 0; i < segs; i++) {
-    for (let j = 0; j < radial; j++) {
-      const a = i * (radial + 1) + j;
-      const b = a + (radial + 1);
-      const c = a + (radial + 1) + 1;
-      const d = a + 1;
-      indices.push(a, b, d);
-      indices.push(b, c, d);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  g.setIndex(indices);
-  return g;
+  // Top cap (closes the mesh on top)
+  profile.push(new THREE.Vector2(0, FUNNEL_HEIGHT));
+  const geom = new THREE.LatheGeometry(profile, 64);
+  geom.computeVertexNormals();
+  return geom;
 }
 
 // Radial gradient texture used by every billboard particle.

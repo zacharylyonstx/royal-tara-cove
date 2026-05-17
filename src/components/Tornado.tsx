@@ -9,7 +9,7 @@ import {
   FUNNEL_HEIGHT,
   funnelRadiusAt,
   vortexVelocity,
-  buildSkeletonFunnel,
+  buildConeGeometry,
 } from './weather/tornado/vortex';
 
 // v19 — particle-driven vortex tornado.
@@ -47,11 +47,12 @@ interface YeetItem {
   alive: boolean;
 }
 
-// ---- Skeleton funnel shader ----
-// Single dark mesh giving the silhouette. Very subtle texture motion +
-// strong fresnel-based soft edges so the funnel blends into the vapor
-// particles instead of reading as a hard cylinder.
-const SKELETON_VERT = `
+// ---- Cone funnel shader ----
+// SOLID dark cone — opaque so the silhouette READS clearly from any
+// angle. depthWrite=true so it occludes properly. Subtle scrolling noise
+// suggests swirling vapor texture on the surface, but the SHAPE is
+// driven by the LatheGeometry, not the shader.
+const CONE_VERT = `
 varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
@@ -64,7 +65,7 @@ void main() {
 }
 `;
 
-const SKELETON_FRAG = `
+const CONE_FRAG = `
 precision highp float;
 uniform float time;
 uniform float opacity;
@@ -73,7 +74,6 @@ varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
-// Simple hash-based noise — cheap, just enough to break up the surface
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
@@ -89,54 +89,68 @@ float noise(vec2 p) {
 }
 
 void main() {
-  // Scroll: rotation (uv.x) + updraft (uv.y)
-  vec2 sUv = vec2(vUv.x * 5.0 + time * 0.8, vUv.y * 3.0 - time * 1.2);
-  float n = noise(sUv) * 0.5 + noise(sUv * 2.3) * 0.3 + noise(sUv * 5.1) * 0.2;
+  // Scroll: rotation (uv.x) + updraft (uv.y) — texture suggesting vapor swirl
+  vec2 sUv = vec2(vUv.x * 6.0 + time * 0.7, vUv.y * 4.0 - time * 1.3);
+  float n = noise(sUv) * 0.55 + noise(sUv * 2.4) * 0.3 + noise(sUv * 5.7) * 0.15;
 
-  // Color: nearly black core, slight warm grey shading from texture
-  vec3 dark = vec3(0.06, 0.06, 0.07);
-  vec3 mid  = vec3(0.18, 0.17, 0.17);
-  vec3 color = mix(dark, mid, n);
+  // Color palette — warm grey body so cone reads distinct from the cool
+  // grey storm sky. Body kept medium-ish so the SILHOUETTE is visible.
+  vec3 baseCol = vec3(0.55, 0.46, 0.36);   // warm mid-grey at bottom
+  vec3 midCol  = vec3(0.38, 0.33, 0.32);   // mid warm-grey
+  vec3 topCol  = vec3(0.22, 0.20, 0.20);   // dark warm-grey at bell
 
-  // Lightning flash
-  color = mix(color, vec3(0.92), flashFlare * 0.55);
+  vec3 color;
+  if (vUv.y < 0.35) {
+    color = mix(baseCol, midCol, vUv.y / 0.35);
+  } else {
+    color = mix(midCol, topCol, (vUv.y - 0.35) / 0.65);
+  }
 
-  // Fresnel — fade the edges so the skeleton bleeds into vapor particles
+  // Surface noise modulation — modest so SHAPE dominates
+  color *= (0.8 + n * 0.4);
+
+  // STRONG rim light — fresnel-based brightening at silhouette edges so
+  // the cone is unambiguously visible against any sky. This is the key
+  // trick: the SHAPE is defined by the bright outline against the dark
+  // sky behind.
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float edgeFade = smoothstep(0.0, 0.7, fres);
+  float rim = smoothstep(0.35, 1.0, fres);
+  color = mix(color, vec3(0.75, 0.70, 0.62), rim * 0.65);
 
-  // Top fades so the funnel bleeds into the wall cloud
-  float topFade = smoothstep(1.0, 0.65, vUv.y);
-  // Base also fades a touch
-  float baseFade = smoothstep(0.0, 0.08, vUv.y);
+  // Lightning flash
+  color = mix(color, vec3(0.95), flashFlare * 0.6);
 
-  float alpha = (0.7 + edgeFade * 0.3) * opacity * topFade * baseFade;
+  // Cone is essentially OPAQUE. Tiny softening only at the very tip so it
+  // bleeds into the wall cloud — everything else solid.
+  float topSoft = smoothstep(1.0, 0.94, vUv.y);
+  float alpha = opacity * topSoft;
   gl_FragColor = vec4(color, alpha);
 }
 `;
 
 export function Tornado() {
   const rootRef = useRef<THREE.Group>(null);
-  const skeletonMatRef = useRef<THREE.ShaderMaterial>(null);
+  // Mesh ref — we read the material off the mesh each frame instead of
+  // caching a ref inside useMemo (Strict Mode double-invokes useMemo,
+  // creating a 2nd material that the rendered mesh DOESN'T use).
+  const coneMeshRef = useRef<THREE.Mesh>(null);
 
-  // ---- Skeleton funnel mesh ----
-  const skeletonGeom = useMemo(() => buildSkeletonFunnel(), []);
-  const skeletonMaterial = useMemo(() => {
-    const m = new THREE.ShaderMaterial({
-      vertexShader: SKELETON_VERT,
-      fragmentShader: SKELETON_FRAG,
+  // ---- Solid cone funnel mesh ----
+  const coneGeom = useMemo(() => buildConeGeometry(), []);
+  const coneMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: CONE_VERT,
+      fragmentShader: CONE_FRAG,
       uniforms: {
         time: { value: 0 },
-        opacity: { value: 0 },
+        opacity: { value: 1 },        // visible by default; useFrame overrides per-frame
         flashFlare: { value: 0 },
       },
       transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
+      depthWrite: true,             // CONE OCCLUDES — crucial for it to read solid
+      side: THREE.FrontSide,
     });
-    skeletonMatRef.current = m;
-    return m;
   }, []);
 
   // ---- Debris archetypes (planks / shingles / sheet metal / branches / lumber) ----
@@ -199,13 +213,15 @@ export function Tornado() {
     root.visible = true;
     root.position.set(t.tornadoX, 0, t.tornadoZ);
 
-    // Skeleton material update
-    if (skeletonMatRef.current) {
-      skeletonMatRef.current.uniforms.time.value += dt;
-      skeletonMatRef.current.uniforms.opacity.value = t.tornadoOpacity * 0.85;
+    // Cone material update — read material off the mesh ref to dodge the
+    // Strict Mode "two memos, one in scene" bug.
+    const coneMat = coneMeshRef.current?.material as THREE.ShaderMaterial | undefined;
+    if (coneMat) {
+      coneMat.uniforms.time.value += dt;
+      coneMat.uniforms.opacity.value = t.tornadoOpacity;
       const flashTarget = t.flashAlpha;
-      const cur = skeletonMatRef.current.uniforms.flashFlare.value;
-      skeletonMatRef.current.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
+      const cur = coneMat.uniforms.flashFlare.value;
+      coneMat.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
     }
 
     const now = performance.now() / 1000;
@@ -331,9 +347,9 @@ export function Tornado() {
   return (
     <>
       <group ref={rootRef}>
-        {/* Skeleton funnel mesh — silhouette backbone */}
-        <mesh geometry={skeletonGeom} renderOrder={4}>
-          <primitive object={skeletonMaterial} attach="material" />
+        {/* Solid cone funnel mesh — THE TORNADO */}
+        <mesh ref={coneMeshRef} geometry={coneGeom} renderOrder={2}>
+          <primitive object={coneMaterial} attach="material" />
         </mesh>
 
         {/* Debris — instanced per archetype, riding the vortex field */}
