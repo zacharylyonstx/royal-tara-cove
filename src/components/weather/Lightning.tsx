@@ -5,6 +5,7 @@ import { useTornadoStore } from '../../state/tornadoStore';
 import { useGameStore } from '../../state/gameStore';
 import { useCombatStore } from '../../state/combatStore';
 import { lightningStrike } from '../../audio';
+import { spawnLightningBolt } from './LightningBolt';
 
 // Watches tornadoStore.lightningCue. On each tick of the cue, flashes a
 // fullscreen quad white for ~120ms (0.85 → 0.3 → 0) and adds a one-frame
@@ -53,6 +54,15 @@ export function Lightning() {
       flashUntil.current = performance.now() / 1000 + FLASH_DURATION;
       addShake(0.6);
       lightningStrike(0.1 + Math.random() * 0.6);
+      // Spawn 1-2 visible lightning bolts near the player + bump storm dome flash
+      const player = useGameStore.getState().positions[useGameStore.getState().activeCharacterId];
+      const px = player?.x ?? 0;
+      const pz = player?.z ?? 0;
+      const boltCount = 1 + (Math.random() < 0.4 ? 1 : 0);
+      for (let i = 0; i < boltCount; i++) spawnLightningBolt(px, pz);
+      useTornadoStore.getState().setFlashAlpha(0.7);
+      // Decay flashAlpha back to 0 shortly after
+      setTimeout(() => useTornadoStore.getState().setFlashAlpha(0), 160);
     }
 
     // Drive flash alpha

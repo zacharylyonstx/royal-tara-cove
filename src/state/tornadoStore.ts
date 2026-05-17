@@ -15,6 +15,14 @@ interface TornadoStore {
   tornadoZ: number;
   setTornadoZ: (z: number) => void;
 
+  /** Tornado base world X. Wobbles ±5m during approach. */
+  tornadoX: number;
+  setTornadoX: (x: number) => void;
+
+  /** 0..1, brief storm-cloud illumination after a lightning strike. */
+  flashAlpha: number;
+  setFlashAlpha: (v: number) => void;
+
   /** 0..1, drives sky darkness, fog density, rain visibility. */
   stormIntensity: number;
   setStormIntensity: (v: number) => void;
@@ -38,6 +46,8 @@ interface TornadoStore {
 const INITIAL = {
   phaseEnteredAt: 0,
   tornadoZ: -200,
+  tornadoX: 0,
+  flashAlpha: 0,
   stormIntensity: 0,
   windStrength: 0,
   tornadoOpacity: 0,
@@ -48,6 +58,8 @@ export const useTornadoStore = create<TornadoStore>((set) => ({
   ...INITIAL,
   setPhaseEnteredAt: (t) => set({ phaseEnteredAt: t }),
   setTornadoZ: (z) => set({ tornadoZ: z }),
+  setTornadoX: (x) => set({ tornadoX: x }),
+  setFlashAlpha: (v) => set({ flashAlpha: v }),
   setStormIntensity: (v) => set({ stormIntensity: v }),
   setWindStrength: (v) => set({ windStrength: v }),
   setTornadoOpacity: (v) => set({ tornadoOpacity: v }),
