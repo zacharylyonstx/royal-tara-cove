@@ -428,21 +428,34 @@ export function Tornado() {
       }
     }
 
-    // Orbital debris (archetype-based; chaotic motion lands in Task 3)
+    // Orbital debris — chaotic spiral-up motion
     for (let gi = 0; gi < debrisGroups.length; gi++) {
       const grp = debrisGroups[gi];
       const mesh = debrisMeshRefs.current[gi];
       if (!mesh) continue;
       for (let i = 0; i < grp.items.length; i++) {
         const d = grp.items[i];
+
+        // Spiral up the funnel — each piece climbs over its lifetime
         d.angle += d.angularSpeed * dt;
+        d.height += d.climbRate * dt;
+        if (d.height > FUNNEL_HEIGHT) {
+          d.height = 0;
+          d.angle = Math.random() * Math.PI * 2;
+        }
+
         const tNorm = d.height / FUNNEL_HEIGHT;
         const taperedRadius = LAYERS[1].baseR + tNorm * (LAYERS[1].topR - LAYERS[1].baseR) + d.radiusOffset;
-        const r = taperedRadius + Math.sin(d.angle * 0.7 + d.height) * 0.6;
+        // Radial pulse — breathing in/out so orbits aren't clean circles
+        const r = taperedRadius + Math.sin(now * 0.7 + d.pulsePhase) * 1.2;
+        // Tangential jitter — perpendicular wobble breaks the perfect arc
+        const tangent = Math.sin(now * 1.5 + d.tangentPhase) * 0.3;
+        const cx = Math.cos(d.angle);
+        const sx = Math.sin(d.angle);
         tmp.position.set(
-          Math.cos(d.angle) * r,
+          cx * r + (-sx) * tangent,
           d.height + Math.sin(now * 0.7 + d.height) * 0.3,
-          Math.sin(d.angle) * r,
+          sx * r + cx * tangent,
         );
         tmp.rotation.set(d.spinX * now * 0.1, d.spinY * now * 0.1, d.spinZ * now * 0.1);
         tmp.scale.setScalar(d.scale);
