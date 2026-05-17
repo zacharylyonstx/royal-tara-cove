@@ -1,5 +1,9 @@
-import { joinRoom as trysteroJoin, selfId } from 'trystero';
-import type { Room } from 'trystero';
+// Use the WebTorrent-tracker signaling strategy. The default `trystero`
+// package uses Nostr relays which were intermittently failing (see
+// payments.u4er.net WebSocket failures in console). WebTorrent trackers are
+// well-maintained public infrastructure and more reliable for our use case.
+import { joinRoom as trysteroJoin, selfId } from '@trystero-p2p/torrent';
+import type { Room } from '@trystero-p2p/torrent';
 import { useNetStore } from '../state/netStore';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
