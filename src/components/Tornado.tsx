@@ -19,14 +19,73 @@ const FUNNEL_HEIGHT = 24;
 const TUBE_SEGMENTS = 64;
 const TUBE_RADIAL = 24;
 
+// Shared GLSL helpers (used by both vert and frag shaders).
+const SNOISE_GLSL = `
+vec4 mod289_v4(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec3 mod289_v3(vec3 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 permute_v4(vec4 x){return mod289_v4(((x*34.0)+1.0)*x);}
+vec4 taylorInvSqrt_v4(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+float snoise3(vec3 v){
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289_v3(i);
+  vec4 p = permute_v4(permute_v4(permute_v4(
+              i.z + vec4(0.0, i1.z, i2.z, 1.0))
+            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+            + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt_v4(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+}
+`;
+
 // ---- Funnel shader ----
 const FUNNEL_VERT = `
+uniform float time;
+uniform float displaceAmp;
 varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
+
+${SNOISE_GLSL}
+
 void main() {
   vUv = uv;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
+  // Sample 3D noise at world position over time → push along normal.
+  vec4 wp0 = modelMatrix * vec4(position, 1.0);
+  float n = snoise3(wp0.xyz * 0.25 + vec3(time * 0.4));
+  vec3 disp = normal * n * displaceAmp;
+  vec4 wp = modelMatrix * vec4(position + disp, 1.0);
   vWorldPos = wp.xyz;
   vNormal = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * viewMatrix * wp;
@@ -51,58 +110,13 @@ varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
-vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-vec3 mod289(vec3 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
-vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
-float snoise(vec3 v){
-  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-  vec3 i = floor(v + dot(v, C.yyy));
-  vec3 x0 = v - i + dot(i, C.xxx);
-  vec3 g = step(x0.yzx, x0.xyz);
-  vec3 l = 1.0 - g;
-  vec3 i1 = min(g.xyz, l.zxy);
-  vec3 i2 = max(g.xyz, l.zxy);
-  vec3 x1 = x0 - i1 + C.xxx;
-  vec3 x2 = x0 - i2 + C.yyy;
-  vec3 x3 = x0 - D.yyy;
-  i = mod289(i);
-  vec4 p = permute(permute(permute(
-              i.z + vec4(0.0, i1.z, i2.z, 1.0))
-            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-            + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-  float n_ = 0.142857142857;
-  vec3 ns = n_ * D.wyz - D.xzx;
-  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-  vec4 x_ = floor(j * ns.z);
-  vec4 y_ = floor(j - 7.0 * x_);
-  vec4 x = x_ * ns.x + ns.yyyy;
-  vec4 y = y_ * ns.x + ns.yyyy;
-  vec4 h = 1.0 - abs(x) - abs(y);
-  vec4 b0 = vec4(x.xy, y.xy);
-  vec4 b1 = vec4(x.zw, y.zw);
-  vec4 s0 = floor(b0)*2.0 + 1.0;
-  vec4 s1 = floor(b1)*2.0 + 1.0;
-  vec4 sh = -step(h, vec4(0.0));
-  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-  vec3 p0 = vec3(a0.xy, h.x);
-  vec3 p1 = vec3(a0.zw, h.y);
-  vec3 p2 = vec3(a1.xy, h.z);
-  vec3 p3 = vec3(a1.zw, h.w);
-  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-  m = m * m;
-  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
-}
+${SNOISE_GLSL}
 
 float fbm(vec3 p) {
   float v = 0.0;
   float a = 0.5;
   for (int i = 0; i < 4; i++) {
-    v += a * snoise(p);
+    v += a * snoise3(p);
     p *= 2.0;
     a *= 0.5;
   }
@@ -209,6 +223,7 @@ interface FunnelLayer {
   opacityMult: number;
   sBend: number;
   renderOrder: number;
+  displaceAmp: number;
 }
 
 const LAYERS: FunnelLayer[] = [
@@ -220,6 +235,7 @@ const LAYERS: FunnelLayer[] = [
     midTint:  new THREE.Color('#322f30'),
     topTint:  new THREE.Color('#16161a'),
     opacityMult: 0.45, sBend: 0.55, renderOrder: 3,
+    displaceAmp: 0.9,
   },
   // Funnel mid (v16 funnel)
   {
@@ -229,6 +245,7 @@ const LAYERS: FunnelLayer[] = [
     midTint:  new THREE.Color('#32303a'),
     topTint:  new THREE.Color('#1a1a1c'),
     opacityMult: 1.0, sBend: 1.0, renderOrder: 5,
+    displaceAmp: 0.5,
   },
   // Rope core — narrow, fast spin, high opacity
   {
@@ -238,6 +255,7 @@ const LAYERS: FunnelLayer[] = [
     midTint:  new THREE.Color('#2a262e'),
     topTint:  new THREE.Color('#0a0a0c'),
     opacityMult: 1.0, sBend: 1.2, renderOrder: 6,
+    displaceAmp: 0.15,
   },
 ];
 
@@ -295,6 +313,7 @@ function buildLayerMaterial(layer: FunnelLayer): THREE.ShaderMaterial {
       baseTint: { value: layer.baseTint.clone() },
       midTint:  { value: layer.midTint.clone() },
       topTint:  { value: layer.topTint.clone() },
+      displaceAmp: { value: layer.displaceAmp },
     },
     transparent: true,
     depthWrite: false,
@@ -325,7 +344,10 @@ export function Tornado() {
   const satelliteGeom = useMemo(() => buildFunnelGeom(LAYERS[1].baseR, LAYERS[1].topR, FUNNEL_HEIGHT, LAYERS[1].sBend), []);
   const satelliteMaterials = useMemo(() => {
     const arr = SATELLITES.map(() => {
-      const m = buildLayerMaterial(LAYERS[1]);
+      // Satellites use the mid layer as a base but get a smaller displaceAmp
+      // (thinner mini-funnels read better with less wobble).
+      const baseLayer: FunnelLayer = { ...LAYERS[1], displaceAmp: 0.3 };
+      const m = buildLayerMaterial(baseLayer);
       m.uniforms.opacity.value = 0;
       m.uniforms.densityBias.value = 0.3;
       return m;
