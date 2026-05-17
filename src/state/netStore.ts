@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { CharacterId } from '../types';
 import type { GameMode } from './gameStore';
+import { useGameStore } from './gameStore';
+import { useCombatStore } from './combatStore';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -108,8 +110,19 @@ export const useNetStore = create<NetStore>((set, get) => ({
   }),
 
   upsertPeer: (peerId, peer) => {
+    const wasHost = get().isHost;
     const peers = { ...get().peers, [peerId]: { peerId, ...peer } };
-    set({ peers, isHost: computeHost(peers, get().selfId) });
+    const isHostNow = computeHost(peers, get().selfId);
+    set({ peers, isHost: isHostNow });
+    // Host lost: clear any sim state we might have set thinking we were
+    // host (cinematic camera, ragdoll). Host snapshots will fill them
+    // back in if needed.
+    if (wasHost && !isHostNow) {
+      useCombatStore.setState({
+        cinematic: { active: false, targetX: 0, targetY: 0, targetZ: 0, cameraX: 0, cameraY: 0, cameraZ: 0, endsAt: 0 },
+      });
+      useGameStore.setState({ ragdoll: null });
+    }
   },
 
   removePeer: (peerId) => {

@@ -119,10 +119,12 @@ export function CameraRig() {
     if (!pos) return;
 
     // --- Cinematic override ---
-    // Preserved verbatim from the previous CameraRig. While active, the
-    // cinematic owns the camera and we ignore mouse input.
+    // Only the host follows cinematic camera state; non-host clients can
+    // have stale cinematic state from a brief moment when they thought they
+    // were the host (before presence sync). Always first-person for non-host.
+    const isHost = useNetStore.getState().isHost;
     const cin = useCombatStore.getState().cinematic;
-    if (cin.active) {
+    if (cin.active && isHost) {
       const blendK = Math.min(1, 4 * dt);
       const targetCam = new Vector3(cin.cameraX, cin.cameraY, cin.cameraZ);
       const lookTarget = new Vector3(cin.targetX, cin.targetY, cin.targetZ);
