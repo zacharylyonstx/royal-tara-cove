@@ -47,6 +47,13 @@ import { PowerUpController } from '../systems/PowerUpController';
 import { ProjectileController } from '../systems/ProjectileController';
 import { MusicController } from '../systems/MusicController';
 import { ProjectorController } from '../systems/ProjectorController';
+import { TornadoController } from '../systems/TornadoController';
+import { RagdollController } from '../systems/RagdollController';
+import { Tornado } from './Tornado';
+import { Rain } from './weather/Rain';
+import { Hail } from './weather/Hail';
+import { Lightning } from './weather/Lightning';
+import { useTornadoStore } from '../state/tornadoStore';
 import { PickupRenderer } from './pickups/Pickup';
 import { Projectiles } from './projectiles/Projectiles';
 import { Fireworks } from './celebration/Fireworks';
@@ -182,23 +189,51 @@ export function Game() {
       <SkyController />
       <MusicController />
       <ProjectorController />
+      <TornadoModeSystems />
       <CameraRig />
       <CameraExposer />
     </>
   );
 }
 
+function TornadoModeSystems() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'tornado') return null;
+  return (
+    <>
+      <TornadoController />
+      <RagdollController />
+      <Tornado />
+      <Rain />
+      <Hail />
+      <Lightning />
+      <StormFog />
+    </>
+  );
+}
+
+function StormFog() {
+  const stormIntensity = useTornadoStore((s) => s.stormIntensity);
+  if (stormIntensity < 0.1) return null;
+  const near = 25 - stormIntensity * 8;
+  const far = 130 - stormIntensity * 75;
+  return <fog attach="fog" args={['#3a3a40', near, far]} />;
+}
+
 function DynamicSky() {
   const timeOfDay = useCombatStore((s) => s.timeOfDay);
+  const storm = useTornadoStore((s) => s.stormIntensity);
   // 0..1 → angle around horizon. We compute a sun position via timeOfDay.
   // tod 0..0.5 = day, 0.5..1 = night (sun below).
   const elev = Math.max(0.05, Math.cos(timeOfDay * Math.PI)); // 1 at noon, -1 at midnight
   const azimuth = (timeOfDay - 0.25) * Math.PI; // sweeps E->W
-  const sunY = 100 * elev;
+  // Sun gets pushed below horizon as storm builds, so the sky reads near-black.
+  const stormSunDip = storm * 1.4;
+  const sunY = 100 * (elev - stormSunDip);
   const sunX = 100 * Math.sin(azimuth);
   const sunZ = 100 * Math.cos(azimuth);
-  const turbidity = 4 + timeOfDay * 7;
-  const rayleigh = 1.5 + timeOfDay * 1.8;
+  const turbidity = 4 + timeOfDay * 7 + storm * 12;
+  const rayleigh = 1.5 + timeOfDay * 1.8 + storm * 5;
   return (
     <Sky
       sunPosition={[sunX, sunY, sunZ]}
@@ -216,27 +251,29 @@ function DynamicLights() {
   const ambRef = useRef<AmbientLight>(null);
   useFrame(() => {
     const t = useCombatStore.getState().timeOfDay;
-    const sunIntensity = Math.max(0.05, 1.5 * (1 - t * 1.6));
+    const storm = useTornadoStore.getState().stormIntensity;
+    const stormDarken = 1 - 0.88 * storm;
+    const sunIntensity = Math.max(0.05, 1.5 * (1 - t * 1.6)) * stormDarken;
     if (dirRef.current) {
       dirRef.current.intensity = sunIntensity;
-      // Color shifts cooler as night approaches
-      const r = 1.0 - t * 0.4;
-      const g = 0.95 - t * 0.55;
-      const b = 0.82 - t * 0.4;
-      dirRef.current.color.setRGB(Math.max(0.2, r), Math.max(0.2, g), Math.max(0.4, b));
+      // Color shifts cooler as night approaches; grey-shifts during storm.
+      const r = (1.0 - t * 0.4) * (1 - storm * 0.5);
+      const g = (0.95 - t * 0.55) * (1 - storm * 0.45);
+      const b = (0.82 - t * 0.4) * (1 - storm * 0.4);
+      dirRef.current.color.setRGB(Math.max(0.2, r), Math.max(0.2, g), Math.max(0.3, b));
       // Sun position
       const elev = Math.max(0.05, Math.cos(t * Math.PI));
       const azimuth = (t - 0.25) * Math.PI;
       dirRef.current.position.set(60 * Math.sin(azimuth), 80 * elev, 35 * Math.cos(azimuth));
     }
     if (hemiRef.current) {
-      hemiRef.current.intensity = 0.55 * (1 - t * 0.6);
+      hemiRef.current.intensity = 0.55 * (1 - t * 0.6) * stormDarken;
     }
     if (ambRef.current) {
-      ambRef.current.intensity = 0.18 + t * 0.18;
-      const r = 0.6 + t * 0.2;
-      const g = 0.7 + t * 0.15;
-      const b = 0.9;
+      ambRef.current.intensity = (0.18 + t * 0.18) * Math.max(0.18, 1 - storm * 0.7);
+      const r = (0.6 + t * 0.2) * (1 - storm * 0.4);
+      const g = (0.7 + t * 0.15) * (1 - storm * 0.4);
+      const b = 0.9 * (1 - storm * 0.3);
       ambRef.current.color.setRGB(r, g, b);
     }
   });

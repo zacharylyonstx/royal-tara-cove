@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import type { HouseConfig, Lot } from '../types';
 import { Roof } from './Roof';
 import { Door } from './Door';
 import { mat } from '../world/materials';
+import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 
 const STORY_H = 3.0;
 const ROOF_H = 2.0;
@@ -32,13 +34,61 @@ export function House({ config, lot }: HouseProps) {
 
   const wallMaterial = mat.stucco(config.wallColor);
 
+  // Destruction animation refs (tornado-mode). Shrinks the body group and
+  // drops the roof; rubble group fades in at the end.
+  const bodyRef = useRef<THREE.Group>(null);
+  const roofRef = useRef<THREE.Group>(null);
+  const rubbleRef = useRef<THREE.Mesh>(null);
+  const rubbleMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  useFrame(() => {
+    const body = bodyRef.current;
+    const roof = roofRef.current;
+    const rubble = rubbleRef.current;
+    const rubMat = rubbleMatRef.current;
+    if (!body) return;
+    const now = performance.now() / 1000;
+    const p = destructionProgress(config.address, now);
+    if (p <= 0) {
+      body.scale.y = 1;
+      body.visible = true;
+      if (roof) { roof.scale.y = 1; roof.position.y = 0; }
+      if (rubble) rubble.visible = false;
+      return;
+    }
+    const ph = destructionPhases(p);
+    if (roof) {
+      roof.position.y = -ph.roofDrop * 1.6;
+      roof.scale.y = 1 - ph.roofDrop * 0.6;
+    }
+    body.scale.y = 1 - ph.wallShrink * 0.92;
+    body.visible = body.scale.y > 0.01;
+    if (rubble) {
+      rubble.visible = ph.rubble > 0;
+      if (rubMat) rubMat.opacity = ph.rubble;
+    }
+  });
+
   return (
     <group position={[lot.housePivot[0], 0, lot.housePivot[1]]} rotation={[0, lot.houseYaw, 0]}>
-      {/* Foundation slab */}
+      {/* Foundation slab — always visible (even after destruction) */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
         <boxGeometry args={[config.width + 0.5, 0.1, config.depth + 0.5]} />
         <meshStandardMaterial color="#9c9890" roughness={0.85} />
       </mesh>
+
+      {/* Rubble pile (visible after destruction completes) */}
+      <mesh ref={rubbleRef} position={[0, 0.5, 0]} visible={false}>
+        <boxGeometry args={[config.width * 0.9, 1.0, config.depth * 0.9]} />
+        <meshStandardMaterial
+          ref={rubbleMatRef}
+          color="#6a5040"
+          roughness={1}
+          transparent
+          opacity={0}
+        />
+      </mesh>
+
+      <group ref={bodyRef}>
 
       {/* Side walls */}
       <SolidWall position={[-halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
@@ -74,8 +124,9 @@ export function House({ config, lot }: HouseProps) {
         />
       )}
 
-      {/* Roof + gable end fillers (only for gable roofs) */}
-      <group position={[0, wallH + 0.1, 0]}>
+      {/* Roof + gable end fillers (only for gable roofs) — separate ref so the
+          roof can independently drop/scale during the destruction animation */}
+      <group ref={roofRef} position={[0, wallH + 0.1, 0]}>
         <Roof
           width={config.width}
           depth={config.depth}
@@ -132,6 +183,7 @@ export function House({ config, lot }: HouseProps) {
         <boxGeometry args={[config.width + 0.6, 0.06, config.depth + 0.6]} />
         <meshStandardMaterial color="#6a5d48" />
       </mesh>
+      </group> {/* end bodyRef wrapper */}
     </group>
   );
 }

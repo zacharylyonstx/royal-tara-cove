@@ -638,3 +638,337 @@ export function defeatSting() {
     osc.stop(t + 0.6);
   });
 }
+
+// =====================================================================
+// Tornado-mode storm audio. All looping sources route through a single
+// `tornadoGroup` GainNode so victory/defeat can fade everything cleanly.
+// =====================================================================
+
+let tornadoGroup: GainNode | null = null;
+function ensureTornadoGroup(): GainNode | null {
+  const c = ensureCtx();
+  if (!c) return null;
+  if (!tornadoGroup) {
+    tornadoGroup = c.createGain();
+    tornadoGroup.gain.value = 1;
+    tornadoGroup.connect(c.destination);
+  }
+  return tornadoGroup;
+}
+
+function makeNoiseBuffer(c: AudioContext, seconds = 4, color: 'white' | 'pink' | 'brown' = 'white'): AudioBuffer {
+  const buf = c.createBuffer(1, c.sampleRate * seconds, c.sampleRate);
+  const data = buf.getChannelData(0);
+  if (color === 'white') {
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  } else if (color === 'pink') {
+    // Voss-McCartney lite
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < data.length; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99765 * b0 + w * 0.099046;
+      b1 = 0.96300 * b1 + w * 0.296340;
+      b2 = 0.57000 * b2 + w * 1.044800;
+      data[i] = (b0 + b1 + b2 + w * 0.1848) * 0.18;
+    }
+  } else {
+    // brown
+    let last = 0;
+    for (let i = 0; i < data.length; i++) {
+      last = (last + (Math.random() * 2 - 1) * 0.04) * 0.998;
+      data[i] = last * 4;
+    }
+  }
+  return buf;
+}
+
+interface StormLayer {
+  src: AudioBufferSourceNode;
+  filter: BiquadFilterNode;
+  gain: GainNode;
+}
+
+let rainLayer: StormLayer | null = null;
+let windLayer: StormLayer | null = null;
+let sirenOsc: { osc: OscillatorNode; lfo: OscillatorNode; lfoGain: GainNode; gain: GainNode } | null = null;
+let roarLayer: { rumble: OscillatorNode; noise: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
+let whooshLayer: { src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode; ratePhase: number } | null = null;
+
+export function startRainLoop() {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp || rainLayer) return;
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, 4, 'brown');
+  src.loop = true;
+  const filter = c.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 1800;
+  filter.Q.value = 0.5;
+  const gain = c.createGain();
+  gain.gain.value = 0;
+  src.connect(filter).connect(gain).connect(grp);
+  src.start();
+  rainLayer = { src, filter, gain };
+}
+
+export function setRainVolume(v: number) {
+  if (!rainLayer) return;
+  const c = ensureCtx();
+  if (!c) return;
+  rainLayer.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.35, c.currentTime, 0.2);
+}
+
+export function startWindLoop() {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp || windLayer) return;
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, 4, 'pink');
+  src.loop = true;
+  const filter = c.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 600;
+  filter.Q.value = 0.7;
+  const gain = c.createGain();
+  gain.gain.value = 0;
+  src.connect(filter).connect(gain).connect(grp);
+  src.start();
+  windLayer = { src, filter, gain };
+}
+
+export function setWindVolume(v: number) {
+  if (!windLayer) return;
+  const c = ensureCtx();
+  if (!c) return;
+  windLayer.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.28, c.currentTime, 0.3);
+}
+
+export function startSirenLoop() {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp || sirenOsc) return;
+  const osc = c.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = 380;
+  const lfo = c.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.18;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 90;
+  lfo.connect(lfoGain).connect(osc.frequency);
+  const gain = c.createGain();
+  gain.gain.value = 0;
+  osc.connect(gain).connect(grp);
+  osc.start();
+  lfo.start();
+  sirenOsc = { osc, lfo, lfoGain, gain };
+}
+
+export function setSirenVolume(v: number) {
+  if (!sirenOsc) return;
+  const c = ensureCtx();
+  if (!c) return;
+  sirenOsc.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.12, c.currentTime, 0.4);
+}
+
+export function startRoarLoop() {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp || roarLayer) return;
+  const rumble = c.createOscillator();
+  rumble.type = 'sawtooth';
+  rumble.frequency.value = 70;
+  const noise = c.createBufferSource();
+  noise.buffer = makeNoiseBuffer(c, 4, 'pink');
+  noise.loop = true;
+  const filter = c.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 500;
+  filter.Q.value = 1.2;
+  const gain = c.createGain();
+  gain.gain.value = 0;
+  rumble.connect(gain);
+  noise.connect(filter).connect(gain);
+  gain.connect(grp);
+  rumble.start();
+  noise.start();
+  roarLayer = { rumble, noise, filter, gain };
+}
+
+export function setRoarVolume(v: number) {
+  if (!roarLayer) return;
+  const c = ensureCtx();
+  if (!c) return;
+  roarLayer.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.5, c.currentTime, 0.25);
+}
+
+export function hailTick(panX: number = 0, pitch: number = 1) {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(2200 * pitch, t0);
+  osc.frequency.exponentialRampToValueAtTime(900 * pitch, t0 + 0.02);
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.07, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
+  const panner = c.createStereoPanner();
+  panner.pan.value = Math.max(-1, Math.min(1, panX));
+  osc.connect(gain).connect(panner).connect(grp);
+  osc.start(t0);
+  osc.stop(t0 + 0.04);
+}
+
+export function lightningStrike(distance: number = 0.3) {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  // Sharp snap
+  const snap = c.createOscillator();
+  snap.type = 'square';
+  snap.frequency.value = 4000;
+  const snapG = c.createGain();
+  snapG.gain.setValueAtTime(0.25, t0);
+  snapG.gain.exponentialRampToValueAtTime(0.001, t0 + 0.05);
+  snap.connect(snapG).connect(grp);
+  snap.start(t0);
+  snap.stop(t0 + 0.06);
+  // Rumble after delay (further = longer delay, lower volume)
+  const delay = 0.3 + distance * 1.5;
+  const t1 = t0 + delay;
+  const rumble = c.createBufferSource();
+  rumble.buffer = makeNoiseBuffer(c, 2.5, 'brown');
+  const filter = c.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 180;
+  const rumG = c.createGain();
+  rumG.gain.setValueAtTime(0, t1);
+  rumG.gain.linearRampToValueAtTime(0.4 * (1 - distance * 0.6), t1 + 0.08);
+  rumG.gain.exponentialRampToValueAtTime(0.001, t1 + 2.5);
+  rumble.connect(filter).connect(rumG).connect(grp);
+  rumble.start(t1);
+  rumble.stop(t1 + 2.6);
+}
+
+export function houseCollapse(distance: number = 0.5) {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const volScale = 1 - Math.min(0.7, distance);
+  // Wood-snap cracks: 4 quick oscillator clicks
+  for (let i = 0; i < 4; i++) {
+    const t = t0 + i * 0.04 + Math.random() * 0.02;
+    const osc = c.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(800 + Math.random() * 600, t);
+    osc.frequency.exponentialRampToValueAtTime(140, t + 0.05);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.18 * volScale, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    osc.connect(g).connect(grp);
+    osc.start(t);
+    osc.stop(t + 0.08);
+  }
+  // Low boom
+  const boom = c.createOscillator();
+  boom.type = 'sine';
+  boom.frequency.setValueAtTime(80, t0);
+  boom.frequency.exponentialRampToValueAtTime(40, t0 + 0.4);
+  const bG = c.createGain();
+  bG.gain.setValueAtTime(0.5 * volScale, t0 + 0.05);
+  bG.gain.exponentialRampToValueAtTime(0.001, t0 + 0.7);
+  boom.connect(bG).connect(grp);
+  boom.start(t0 + 0.05);
+  boom.stop(t0 + 0.75);
+  // Dust whoosh (filtered noise)
+  const noise = c.createBufferSource();
+  noise.buffer = makeNoiseBuffer(c, 1.2, 'pink');
+  const nf = c.createBiquadFilter();
+  nf.type = 'bandpass';
+  nf.frequency.value = 1200;
+  nf.Q.value = 0.6;
+  const nG = c.createGain();
+  nG.gain.setValueAtTime(0, t0);
+  nG.gain.linearRampToValueAtTime(0.25 * volScale, t0 + 0.1);
+  nG.gain.exponentialRampToValueAtTime(0.001, t0 + 1.2);
+  noise.connect(nf).connect(nG).connect(grp);
+  noise.start(t0);
+  noise.stop(t0 + 1.3);
+}
+
+export function startRagdollWhoosh() {
+  const c = ensureCtx();
+  const grp = ensureTornadoGroup();
+  if (!c || !grp || whooshLayer) return;
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, 2, 'white');
+  src.loop = true;
+  const filter = c.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 800;
+  filter.Q.value = 1.0;
+  const gain = c.createGain();
+  gain.gain.value = 0.4;
+  src.connect(filter).connect(gain).connect(grp);
+  src.start();
+  whooshLayer = { src, filter, gain, ratePhase: 800 };
+}
+
+export function tickRagdollWhoosh(t: number) {
+  if (!whooshLayer) return;
+  const c = ensureCtx();
+  if (!c) return;
+  // Rising pitch over t (0..4s)
+  const f = 600 + t * 800;
+  whooshLayer.filter.frequency.setTargetAtTime(f, c.currentTime, 0.05);
+}
+
+export function stopRagdollWhoosh() {
+  if (!whooshLayer) return;
+  try { whooshLayer.src.stop(); } catch { /* already stopped */ }
+  whooshLayer = null;
+}
+
+export function fadeAllTornadoAudio(durationSec: number = 3) {
+  const c = ensureCtx();
+  if (!c || !tornadoGroup) return;
+  tornadoGroup.gain.cancelScheduledValues(c.currentTime);
+  tornadoGroup.gain.setValueAtTime(tornadoGroup.gain.value, c.currentTime);
+  tornadoGroup.gain.linearRampToValueAtTime(0, c.currentTime + durationSec);
+}
+
+export function restoreTornadoAudio() {
+  const c = ensureCtx();
+  if (!c || !tornadoGroup) return;
+  tornadoGroup.gain.cancelScheduledValues(c.currentTime);
+  tornadoGroup.gain.setTargetAtTime(1, c.currentTime, 0.2);
+}
+
+/** Stops all tornado loops + clears state for replay. */
+export function resetTornadoAudio() {
+  const c = ensureCtx();
+  if (!c) return;
+  const stopLayer = (layer: StormLayer | null) => {
+    if (!layer) return;
+    try { layer.src.stop(); } catch { /* */ }
+  };
+  stopLayer(rainLayer); rainLayer = null;
+  stopLayer(windLayer); windLayer = null;
+  if (roarLayer) {
+    try { roarLayer.rumble.stop(); } catch { /* */ }
+    try { roarLayer.noise.stop(); } catch { /* */ }
+    roarLayer = null;
+  }
+  if (sirenOsc) {
+    try { sirenOsc.osc.stop(); } catch { /* */ }
+    try { sirenOsc.lfo.stop(); } catch { /* */ }
+    sirenOsc = null;
+  }
+  stopRagdollWhoosh();
+  restoreTornadoAudio();
+}
