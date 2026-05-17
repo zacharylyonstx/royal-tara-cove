@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../state/tornadoStore';
 import { buildDebrisArchetypes, type DebrisArchetype } from './weather/tornado/debrisShapes';
-import { VaporWisps } from './weather/tornado/VaporWisps';
 import { DustFountain } from './weather/tornado/DustFountain';
 
 // Tornado funnel — three concentric vapor layers + 3 satellite vortices,
@@ -237,27 +236,27 @@ const LAYERS: FunnelLayer[] = [
     midTint:  new THREE.Color('#322f30'),
     topTint:  new THREE.Color('#16161a'),
     opacityMult: 0.45, sBend: 0.55, renderOrder: 3,
-    displaceAmp: 0.9,
+    displaceAmp: 0.3,
   },
   // Funnel mid (v16 funnel)
   {
     baseR: 1.2, topR: 5.5,
     scroll: 0.9, updraft: 1.2, density: 0.4,
-    baseTint: new THREE.Color('#7a5a3a'),
+    baseTint: new THREE.Color('#6e6258'),
     midTint:  new THREE.Color('#32303a'),
     topTint:  new THREE.Color('#1a1a1c'),
     opacityMult: 1.0, sBend: 1.0, renderOrder: 5,
-    displaceAmp: 0.5,
+    displaceAmp: 0.15,
   },
   // Rope core — narrow, fast spin, high opacity
   {
     baseR: 0.6, topR: 2.5,
     scroll: 1.55, updraft: 1.9, density: 0.55,
-    baseTint: new THREE.Color('#8a6e48'),
+    baseTint: new THREE.Color('#807468'),
     midTint:  new THREE.Color('#2a262e'),
     topTint:  new THREE.Color('#0a0a0c'),
     opacityMult: 1.0, sBend: 1.2, renderOrder: 6,
-    displaceAmp: 0.15,
+    displaceAmp: 0.05,
   },
 ];
 
@@ -297,7 +296,7 @@ interface DustItem {
   spin: number;
 }
 
-const ORBITAL_DEBRIS_COUNT = 240;
+const ORBITAL_DEBRIS_COUNT = 160;
 const BASE_DUST_COUNT = 260;
 const YEET_POOL_PER_ARCHETYPE = 20;
 
@@ -359,7 +358,7 @@ export function Tornado() {
     const arr = SATELLITES.map(() => {
       // Satellites use the mid layer as a base but get a smaller displaceAmp
       // (thinner mini-funnels read better with less wobble).
-      const baseLayer: FunnelLayer = { ...LAYERS[1], displaceAmp: 0.3 };
+      const baseLayer: FunnelLayer = { ...LAYERS[1], displaceAmp: 0.1 };
       const m = buildLayerMaterial(baseLayer);
       m.uniforms.opacity.value = 0;
       m.uniforms.densityBias.value = 0.3;
@@ -479,9 +478,9 @@ export function Tornado() {
       }
     }
 
-    // ---- Yeet jets ----
+    // ---- Yeet jets (rare; occasional iconic shot of a board flying off the top) ----
     if (t.tornadoOpacity > 0.3 && now >= nextYeetAtRef.current) {
-      const burstCount = 3 + Math.floor(Math.random() * 3); // 3..5
+      const burstCount = 1 + Math.floor(Math.random() * 2); // 1..2
       for (let b = 0; b < burstCount; b++) {
         const archetypeIdx = Math.floor(Math.random() * debrisArchetypes.length);
         const pool = yeetItems[archetypeIdx];
@@ -514,7 +513,7 @@ export function Tornado() {
         slot.spawnedAt = now;
         slot.alive = true;
       }
-      nextYeetAtRef.current = now + 0.7 + Math.random() * 0.5;
+      nextYeetAtRef.current = now + 4 + Math.random() * 3;
     }
 
     for (let ai = 0; ai < yeetItems.length; ai++) {
@@ -684,7 +683,6 @@ export function Tornado() {
         />
       ))}
       </group>
-      <VaporWisps />
       <DustFountain />
     </>
   );

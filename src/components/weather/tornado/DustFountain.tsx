@@ -7,8 +7,8 @@ import { useTornadoStore } from '../../../state/tornadoStore';
 // gives the F5 "debris ball" silhouette. Normal-blended (additive on
 // brown goes orange).
 
-const DUST_COUNT = 150;
-const FOUNTAIN_RADIUS = 4;
+const DUST_COUNT = 60;
+const FOUNTAIN_RADIUS = 8;
 
 interface DustParticle {
   x: number; y: number; z: number;
@@ -66,16 +66,17 @@ void main() {
 
 function spawnParticle(p: DustParticle) {
   const a = Math.random() * Math.PI * 2;
-  const r = Math.random() * FOUNTAIN_RADIUS;
+  // Spawn out in a ring biased outward (debris cloud, not a tight ball)
+  const r = 2 + Math.random() * FOUNTAIN_RADIUS;
   p.x = Math.cos(a) * r;
   p.z = Math.sin(a) * r;
   p.y = 0;
-  p.vx = (Math.random() - 0.5) * 4;
-  p.vz = (Math.random() - 0.5) * 4;
-  p.vy = 2 + Math.random() * 2;
+  p.vx = (Math.random() - 0.5) * 2;
+  p.vz = (Math.random() - 0.5) * 2;
+  p.vy = 1 + Math.random() * 1.5;
   p.age = 0;
-  p.lifetime = 1.5;
-  p.size = 0.8 + Math.random() * 0.8;
+  p.lifetime = 1.8;
+  p.size = 1.2 + Math.random() * 1.6; // big + diffuse, not punchy
 }
 
 export function DustFountain() {
@@ -105,7 +106,7 @@ export function DustFountain() {
       fragmentShader: DUST_FRAG,
       uniforms: {
         gradientTex: { value: gradient },
-        tint: { value: new THREE.Color('#8a6a4a') },
+        tint: { value: new THREE.Color('#6a5848') },
         globalOpacity: { value: 0 },
       },
       transparent: true,
@@ -129,7 +130,8 @@ export function DustFountain() {
       return;
     }
     mesh.visible = true;
-    matRef.current.uniforms.globalOpacity.value = ts.tornadoOpacity;
+    // Capped so the cloud is suggestive, not a brown blob
+    matRef.current.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.4;
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
