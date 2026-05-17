@@ -109,9 +109,9 @@ void main() {
 }
 `;
 
-const WC_RADIUS = 14;
-const WC_Y_HIGH = 24;
-const WC_Y_LOW = 14;
+const WC_RADIUS = 55;
+const WC_Y_HIGH = 30;
+const WC_Y_LOW = 22;
 
 export function WallCloud() {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -175,7 +175,7 @@ export function WallCloud() {
 
   return (
     <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2}>
-      <circleGeometry args={[WC_RADIUS, 48]} />
+      <circleGeometry args={[WC_RADIUS, 96]} />
       <primitive object={material} attach="material" />
     </mesh>
   );

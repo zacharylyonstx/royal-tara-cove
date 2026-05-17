@@ -2,41 +2,25 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../../../state/tornadoStore';
+import { makeRadialGradientTexture } from './vortex';
 
-// Brown dust fountain at the tornado base. Hides ground contact and
-// gives the F5 "debris ball" silhouette. Normal-blended (additive on
-// brown goes orange).
+// Wide low brown dome at the funnel base — the F5 "debris cloud" that
+// hides the ground contact. Particles slow-tumble in a flat puff (NOT a
+// tall fountain) so the funnel reads as if its base disappears into a
+// churning cloud of dirt + debris.
 
-const DUST_COUNT = 60;
-const FOUNTAIN_RADIUS = 8;
+const DUST_COUNT = 90;
+const DOME_RADIUS = 10;
+const DOME_HEIGHT = 4;
 
-interface DustParticle {
+interface Particle {
   x: number; y: number; z: number;
   vx: number; vy: number; vz: number;
   age: number; lifetime: number;
   size: number;
 }
 
-function makeRadialGradientTexture(): THREE.DataTexture {
-  const size = 64;
-  const data = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = x - size / 2;
-      const dy = y - size / 2;
-      const d = Math.hypot(dx, dy) / (size / 2);
-      const a = Math.max(0, 1 - d) ** 1.5;
-      const i = (y * size + x) * 4;
-      data[i] = 255; data[i+1] = 255; data[i+2] = 255;
-      data[i+3] = Math.floor(a * 255);
-    }
-  }
-  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  tex.needsUpdate = true;
-  return tex;
-}
-
-const DUST_VERT = `
+const VERT = `
 attribute float instanceAlpha;
 attribute float instanceScale;
 varying vec2 vUv;
@@ -51,7 +35,7 @@ void main() {
 }
 `;
 
-const DUST_FRAG = `
+const FRAG = `
 precision highp float;
 uniform sampler2D gradientTex;
 uniform vec3 tint;
@@ -64,29 +48,33 @@ void main() {
 }
 `;
 
-function spawnParticle(p: DustParticle) {
-  const a = Math.random() * Math.PI * 2;
-  // Spawn out in a ring biased outward (debris cloud, not a tight ball)
-  const r = 2 + Math.random() * FOUNTAIN_RADIUS;
-  p.x = Math.cos(a) * r;
-  p.z = Math.sin(a) * r;
-  p.y = 0;
-  p.vx = (Math.random() - 0.5) * 2;
-  p.vz = (Math.random() - 0.5) * 2;
-  p.vy = 1 + Math.random() * 1.5;
+function spawnParticle(p: Particle) {
+  const angle = Math.random() * Math.PI * 2;
+  // Spawn weighted toward the perimeter so the dome reads as a ring/dome
+  // rather than a pile in the middle
+  const r = 2 + Math.sqrt(Math.random()) * DOME_RADIUS;
+  p.x = Math.cos(angle) * r;
+  p.z = Math.sin(angle) * r;
+  p.y = Math.random() * DOME_HEIGHT;
+  // Slow swirl + low vertical drift
+  const tx = -Math.sin(angle);
+  const tz =  Math.cos(angle);
+  p.vx = tx * (1 + Math.random()) + (Math.random() - 0.5) * 0.5;
+  p.vz = tz * (1 + Math.random()) + (Math.random() - 0.5) * 0.5;
+  p.vy = 0.3 + Math.random() * 0.8;
   p.age = 0;
-  p.lifetime = 1.8;
-  p.size = 1.2 + Math.random() * 1.6; // big + diffuse, not punchy
+  p.lifetime = 2.5 + Math.random() * 1.5;
+  p.size = 2.0 + Math.random() * 2.5;
 }
 
-export function DustFountain() {
+export function DebrisDome() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matRef = useRef<THREE.ShaderMaterial>(null);
 
-  const particles = useMemo<DustParticle[]>(() => {
-    const arr: DustParticle[] = [];
+  const particles = useMemo<Particle[]>(() => {
+    const arr: Particle[] = [];
     for (let i = 0; i < DUST_COUNT; i++) {
-      const p: DustParticle = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, lifetime: 1.5, size: 1 };
+      const p: Particle = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0, lifetime: 1, size: 1 };
       spawnParticle(p);
       p.age = Math.random() * p.lifetime; // stagger
       arr.push(p);
@@ -102,11 +90,11 @@ export function DustFountain() {
     geom.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scaleArr, 1));
     const gradient = makeRadialGradientTexture();
     const mat = new THREE.ShaderMaterial({
-      vertexShader: DUST_VERT,
-      fragmentShader: DUST_FRAG,
+      vertexShader: VERT,
+      fragmentShader: FRAG,
       uniforms: {
         gradientTex: { value: gradient },
-        tint: { value: new THREE.Color('#6a5848') },
+        tint: { value: new THREE.Color('#5a4a3a') },
         globalOpacity: { value: 0 },
       },
       transparent: true,
@@ -124,30 +112,37 @@ export function DustFountain() {
     const dt = Math.min(dtRaw, 0.05);
     const ts = useTornadoStore.getState();
     const mesh = meshRef.current;
-    if (!mesh || !matRef.current) return;
+    const mat = matRef.current;
+    if (!mesh || !mat) return;
     if (ts.tornadoOpacity < 0.05) {
       mesh.visible = false;
       return;
     }
     mesh.visible = true;
-    // Capped so the cloud is suggestive, not a brown blob
-    matRef.current.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.4;
+    mat.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.55;
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       p.age += dt;
-      p.vy -= 3 * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.z += p.vz * dt;
-      if (p.age > p.lifetime || p.y < 0) spawnParticle(p);
+      // Slight inward bias so swirling pulls particles toward the funnel
+      const r = Math.hypot(p.x, p.z);
+      if (r > 0.1) {
+        p.x -= (p.x / r) * 0.4 * dt;
+        p.z -= (p.z / r) * 0.4 * dt;
+      }
+      if (p.age > p.lifetime || p.y > DOME_HEIGHT) spawnParticle(p);
+
+      const alpha = Math.max(0, 1 - p.age / p.lifetime) * 0.85;
 
       tmp.position.set(ts.tornadoX + p.x, p.y, ts.tornadoZ + p.z);
       tmp.scale.setScalar(1);
       tmp.rotation.set(0, 0, 0);
       tmp.updateMatrix();
       mesh.setMatrixAt(i, tmp.matrix);
-      alphaArr[i] = Math.max(0, 1 - p.age / p.lifetime);
+      alphaArr[i] = alpha;
       scaleArr[i] = p.size;
     }
     mesh.instanceMatrix.needsUpdate = true;

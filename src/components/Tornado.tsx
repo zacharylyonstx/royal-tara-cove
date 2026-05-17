@@ -3,306 +3,43 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../state/tornadoStore';
 import { buildDebrisArchetypes, type DebrisArchetype } from './weather/tornado/debrisShapes';
-import { DustFountain } from './weather/tornado/DustFountain';
+import { VortexParticles } from './weather/tornado/VortexParticles';
+import { DebrisDome } from './weather/tornado/DebrisDome';
+import {
+  FUNNEL_HEIGHT,
+  funnelRadiusAt,
+  vortexVelocity,
+  buildSkeletonFunnel,
+} from './weather/tornado/vortex';
 
-// Tornado funnel — three concentric vapor layers + 3 satellite vortices,
-// each built from a custom variable-radius "tube" geometry with a vapor-noise
-// shader. v17 upgrade from the single funnel in v16.
+// v19 — particle-driven vortex tornado.
 //
-// Layers:
-//   • rope    — inner narrow column, highest opacity, fastest spin
-//   • mid     — the v16 funnel, medium opacity
-//   • halo    — wide soft mist, low opacity, slow spin
-// Satellites:
-//   • 3 mini-funnels at scale 0.35, orbiting the base at radius 7–11m
+// The funnel is built from three layers of FX:
+//   1. Skeleton mesh — a single thin funnel-shaped mesh giving silhouette
+//   2. Vortex particles — 600 dark vapor sprites swirling in a real vortex
+//      velocity field. THE FUNNEL'S APPARENT FORM emerges from here.
+//   3. Debris particles — recognizable shapes (planks, shingles, branches,
+//      sheet metal, lumber) riding the same vortex field
+//   4. Debris dome (separate component) — wide low dust cloud at base
+//   5. Yeet jets — occasional debris pieces flung tangentially out the top
+//
+// This is a complete architectural rewrite from v17/v18 which used 3 stacked
+// TubeGeometry shaders (looked like textured cylinders, not a tornado).
 
-const FUNNEL_HEIGHT = 24;
-const TUBE_SEGMENTS = 64;
-const TUBE_RADIAL = 24;
-
-// Shared GLSL helpers (used by both vert and frag shaders).
-const SNOISE_GLSL = `
-vec4 mod289_v4(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-vec3 mod289_v3(vec3 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
-vec4 permute_v4(vec4 x){return mod289_v4(((x*34.0)+1.0)*x);}
-vec4 taylorInvSqrt_v4(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
-float snoise3(vec3 v){
-  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-  vec3 i = floor(v + dot(v, C.yyy));
-  vec3 x0 = v - i + dot(i, C.xxx);
-  vec3 g = step(x0.yzx, x0.xyz);
-  vec3 l = 1.0 - g;
-  vec3 i1 = min(g.xyz, l.zxy);
-  vec3 i2 = max(g.xyz, l.zxy);
-  vec3 x1 = x0 - i1 + C.xxx;
-  vec3 x2 = x0 - i2 + C.yyy;
-  vec3 x3 = x0 - D.yyy;
-  i = mod289_v3(i);
-  vec4 p = permute_v4(permute_v4(permute_v4(
-              i.z + vec4(0.0, i1.z, i2.z, 1.0))
-            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-            + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-  float n_ = 0.142857142857;
-  vec3 ns = n_ * D.wyz - D.xzx;
-  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-  vec4 x_ = floor(j * ns.z);
-  vec4 y_ = floor(j - 7.0 * x_);
-  vec4 x = x_ * ns.x + ns.yyyy;
-  vec4 y = y_ * ns.x + ns.yyyy;
-  vec4 h = 1.0 - abs(x) - abs(y);
-  vec4 b0 = vec4(x.xy, y.xy);
-  vec4 b1 = vec4(x.zw, y.zw);
-  vec4 s0 = floor(b0)*2.0 + 1.0;
-  vec4 s1 = floor(b1)*2.0 + 1.0;
-  vec4 sh = -step(h, vec4(0.0));
-  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-  vec3 p0 = vec3(a0.xy, h.x);
-  vec3 p1 = vec3(a0.zw, h.y);
-  vec3 p2 = vec3(a1.xy, h.z);
-  vec3 p3 = vec3(a1.zw, h.w);
-  vec4 norm = taylorInvSqrt_v4(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-  m = m * m;
-  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
-}
-`;
-
-// ---- Funnel shader ----
-const FUNNEL_VERT = `
-uniform float time;
-uniform float displaceAmp;
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vNormal;
-
-${SNOISE_GLSL}
-
-void main() {
-  vUv = uv;
-  // Sample 3D noise at world position over time → push along normal.
-  vec4 wp0 = modelMatrix * vec4(position, 1.0);
-  float n = snoise3(wp0.xyz * 0.25 + vec3(time * 0.4));
-  vec3 disp = normal * n * displaceAmp;
-  vec4 wp = modelMatrix * vec4(position + disp, 1.0);
-  vWorldPos = wp.xyz;
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}
-`;
-
-const FUNNEL_FRAG = `
-precision highp float;
-
-uniform float time;
-uniform float flashFlare;
-uniform float stormIntensity;
-uniform float opacity;
-uniform float scrollRate;     // horizontal scroll multiplier (spin speed)
-uniform float updraftRate;    // vertical scroll multiplier
-uniform float densityBias;    // pushes cloud density up/down (0..1)
-uniform vec3  baseTint;       // bottom color
-uniform vec3  midTint;        // mid color
-uniform vec3  topTint;        // top color
-
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vNormal;
-
-${SNOISE_GLSL}
-
-float fbm(vec3 p) {
-  float v = 0.0;
-  float a = 0.5;
-  for (int i = 0; i < 4; i++) {
-    v += a * snoise3(p);
-    p *= 2.0;
-    a *= 0.5;
-  }
-  return v;
-}
-
-void main() {
-  vec2 sUv = vec2(
-    vUv.x * 4.0 + time * scrollRate,
-    vUv.y * 2.5 - time * updraftRate
-  );
-  vec2 sUv2 = vec2(
-    vUv.x * 7.5 - time * (scrollRate * 0.45),
-    vUv.y * 4.0 - time * (updraftRate * 1.5)
-  );
-  float n1 = fbm(vec3(sUv * 1.0, time * 0.2));
-  float n2 = fbm(vec3(sUv2 * 1.5, time * 0.5 + 11.0));
-  float cloud = clamp((n1 + n2 * 0.6) * 0.6 + densityBias, 0.0, 1.0);
-
-  vec3 color = mix(
-    mix(baseTint, midTint, smoothstep(0.0, 0.45, vUv.y)),
-    topTint,
-    smoothstep(0.45, 1.0, vUv.y)
-  );
-  color = mix(color * 0.55, color * 1.2, cloud);
-
-  vec3 viewDir = normalize(cameraPosition - vWorldPos);
-  float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float edgeFade = smoothstep(0.3, 1.0, fres);
-
-  color = mix(color, vec3(0.95), flashFlare * 0.65 * cloud);
-
-  float alpha = clamp(cloud * (0.6 + edgeFade * 0.55), 0.0, 0.95) * opacity;
-  alpha *= smoothstep(1.0, 0.6, vUv.y);
-
-  gl_FragColor = vec4(color, alpha);
-}
-`;
-
-// Build a variable-radius "tube" geometry along a slightly S-curved path.
-function buildFunnelGeom(baseR: number, topR: number, height: number, sBendAmp: number): THREE.BufferGeometry {
-  const points: THREE.Vector3[] = [];
-  for (let i = 0; i < 12; i++) {
-    const t = i / 11;
-    const y = t * height;
-    const x = (Math.sin(t * Math.PI * 1.5) * 0.6 + Math.sin(t * Math.PI * 4) * 0.2) * sBendAmp;
-    const z = Math.cos(t * Math.PI * 1.2) * 0.5 * sBendAmp;
-    points.push(new THREE.Vector3(x, y, z));
-  }
-  const curve = new THREE.CatmullRomCurve3(points);
-
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  const segs = TUBE_SEGMENTS;
-  const radial = TUBE_RADIAL;
-  const frames = curve.computeFrenetFrames(segs, false);
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs;
-    const p = curve.getPointAt(t);
-    const r = baseR + (topR - baseR) * t;
-    const N = frames.normals[i];
-    const B = frames.binormals[i];
-    for (let j = 0; j <= radial; j++) {
-      const v = (j / radial) * Math.PI * 2;
-      const sin = Math.sin(v);
-      const cos = -Math.cos(v);
-      const nx = cos * N.x + sin * B.x;
-      const ny = cos * N.y + sin * B.y;
-      const nz = cos * N.z + sin * B.z;
-      positions.push(p.x + r * nx, p.y + r * ny, p.z + r * nz);
-      normals.push(nx, ny, nz);
-      uvs.push(j / radial, t);
-    }
-  }
-  for (let i = 0; i < segs; i++) {
-    for (let j = 0; j < radial; j++) {
-      const a = i * (radial + 1) + j;
-      const b = a + (radial + 1);
-      const c = a + (radial + 1) + 1;
-      const d = a + 1;
-      indices.push(a, b, d);
-      indices.push(b, c, d);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  g.setIndex(indices);
-  return g;
-}
-
-interface FunnelLayer {
-  baseR: number;
-  topR: number;
-  scroll: number;
-  updraft: number;
-  density: number;
-  baseTint: THREE.Color;
-  midTint: THREE.Color;
-  topTint: THREE.Color;
-  opacityMult: number;
-  sBend: number;
-  renderOrder: number;
-  displaceAmp: number;
-}
-
-const LAYERS: FunnelLayer[] = [
-  // Halo — wide soft mist, slow spin
-  {
-    baseR: 3.0, topR: 9.0,
-    scroll: 0.32, updraft: 0.55, density: 0.28,
-    baseTint: new THREE.Color('#6e6864'),
-    midTint:  new THREE.Color('#322f30'),
-    topTint:  new THREE.Color('#16161a'),
-    opacityMult: 0.45, sBend: 0.55, renderOrder: 3,
-    displaceAmp: 0.3,
-  },
-  // Funnel mid (v16 funnel)
-  {
-    baseR: 1.2, topR: 5.5,
-    scroll: 0.9, updraft: 1.2, density: 0.4,
-    baseTint: new THREE.Color('#6e6258'),
-    midTint:  new THREE.Color('#32303a'),
-    topTint:  new THREE.Color('#1a1a1c'),
-    opacityMult: 1.0, sBend: 1.0, renderOrder: 5,
-    displaceAmp: 0.15,
-  },
-  // Rope core — narrow, fast spin, high opacity
-  {
-    baseR: 0.6, topR: 2.5,
-    scroll: 1.55, updraft: 1.9, density: 0.55,
-    baseTint: new THREE.Color('#807468'),
-    midTint:  new THREE.Color('#2a262e'),
-    topTint:  new THREE.Color('#0a0a0c'),
-    opacityMult: 1.0, sBend: 1.2, renderOrder: 6,
-    displaceAmp: 0.05,
-  },
-];
-
-interface SatelliteInfo {
-  baseOrbitR: number;
-  /** Static angular offset around main funnel. */
-  phase: number;
-}
-
-const SATELLITES: SatelliteInfo[] = [
-  { baseOrbitR: 7.0,  phase: 0 },
-  { baseOrbitR: 9.0,  phase: (2 * Math.PI) / 3 },
-  { baseOrbitR: 11.0, phase: (4 * Math.PI) / 3 },
-];
-const SATELLITE_SCALE = 0.35;
-const SATELLITE_ORBIT_SPEED = 0.4; // rad/s
+const DEBRIS_COUNT = 80;
+const YEET_POOL_PER_ARCHETYPE = 10;
 
 interface DebrisItem {
-  height: number;
-  radiusOffset: number;     // per-instance constant added to tapered radius
-  angle: number;
-  angularSpeed: number;
-  scale: number;            // single uniform scale multiplier
+  x: number; y: number; z: number;          // relative to tornado axis
+  vx: number; vy: number; vz: number;
+  scale: number;
   spinX: number; spinY: number; spinZ: number;
   archetypeIdx: number;
-  // Spiral-up motion (Task 3 will use these)
-  climbRate: number;
-  pulsePhase: number;
-  tangentPhase: number;
 }
-
-interface DustItem {
-  angle: number;
-  baseRadius: number;
-  drift: number;
-  height: number;
-  spin: number;
-}
-
-const ORBITAL_DEBRIS_COUNT = 160;
-const BASE_DUST_COUNT = 260;
-const YEET_POOL_PER_ARCHETYPE = 20;
 
 interface YeetItem {
   archetypeIdx: number;
-  x: number; y: number; z: number;     // relative to tornado center
+  x: number; y: number; z: number;
   vx: number; vy: number; vz: number;
   spinX: number; spinY: number; spinZ: number;
   scale: number;
@@ -310,109 +47,128 @@ interface YeetItem {
   alive: boolean;
 }
 
-function buildLayerMaterial(layer: FunnelLayer): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    vertexShader: FUNNEL_VERT,
-    fragmentShader: FUNNEL_FRAG,
-    uniforms: {
-      time: { value: 0 },
-      flashFlare: { value: 0 },
-      stormIntensity: { value: 0 },
-      opacity: { value: 0 },
-      scrollRate:  { value: layer.scroll },
-      updraftRate: { value: layer.updraft },
-      densityBias: { value: layer.density },
-      baseTint: { value: layer.baseTint.clone() },
-      midTint:  { value: layer.midTint.clone() },
-      topTint:  { value: layer.topTint.clone() },
-      displaceAmp: { value: layer.displaceAmp },
-    },
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
+// ---- Skeleton funnel shader ----
+// Single dark mesh giving the silhouette. Very subtle texture motion +
+// strong fresnel-based soft edges so the funnel blends into the vapor
+// particles instead of reading as a hard cylinder.
+const SKELETON_VERT = `
+varying vec2 vUv;
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+void main() {
+  vUv = uv;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorldPos = wp.xyz;
+  vNormal = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * viewMatrix * wp;
 }
+`;
+
+const SKELETON_FRAG = `
+precision highp float;
+uniform float time;
+uniform float opacity;
+uniform float flashFlare;
+varying vec2 vUv;
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+
+// Simple hash-based noise — cheap, just enough to break up the surface
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+void main() {
+  // Scroll: rotation (uv.x) + updraft (uv.y)
+  vec2 sUv = vec2(vUv.x * 5.0 + time * 0.8, vUv.y * 3.0 - time * 1.2);
+  float n = noise(sUv) * 0.5 + noise(sUv * 2.3) * 0.3 + noise(sUv * 5.1) * 0.2;
+
+  // Color: nearly black core, slight warm grey shading from texture
+  vec3 dark = vec3(0.06, 0.06, 0.07);
+  vec3 mid  = vec3(0.18, 0.17, 0.17);
+  vec3 color = mix(dark, mid, n);
+
+  // Lightning flash
+  color = mix(color, vec3(0.92), flashFlare * 0.55);
+
+  // Fresnel — fade the edges so the skeleton bleeds into vapor particles
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
+  float edgeFade = smoothstep(0.0, 0.7, fres);
+
+  // Top fades so the funnel bleeds into the wall cloud
+  float topFade = smoothstep(1.0, 0.65, vUv.y);
+  // Base also fades a touch
+  float baseFade = smoothstep(0.0, 0.08, vUv.y);
+
+  float alpha = (0.7 + edgeFade * 0.3) * opacity * topFade * baseFade;
+  gl_FragColor = vec4(color, alpha);
+}
+`;
 
 export function Tornado() {
   const rootRef = useRef<THREE.Group>(null);
-  const layerMatRefs = useRef<THREE.ShaderMaterial[]>([]);
-  const satelliteGroupRefs = useRef<(THREE.Group | null)[]>([]);
-  const satelliteMatRefs = useRef<THREE.ShaderMaterial[]>([]);
-  const debrisMeshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
-  const dustMeshRef = useRef<THREE.InstancedMesh>(null);
-  const dustMatRef = useRef<THREE.MeshBasicMaterial>(null);
-  const capMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  const skeletonMatRef = useRef<THREE.ShaderMaterial>(null);
 
-  // Build one geometry per layer
-  const layerGeoms = useMemo(() => LAYERS.map((L) => buildFunnelGeom(L.baseR, L.topR, FUNNEL_HEIGHT, L.sBend)), []);
-  const layerMaterials = useMemo(() => {
-    const arr = LAYERS.map((L) => buildLayerMaterial(L));
-    layerMatRefs.current = arr;
-    return arr;
-  }, []);
-
-  // Satellite vortices reuse the MID layer geometry, scaled down. Each gets
-  // its own material instance so opacity/time can be tweaked independently.
-  const satelliteGeom = useMemo(() => buildFunnelGeom(LAYERS[1].baseR, LAYERS[1].topR, FUNNEL_HEIGHT, LAYERS[1].sBend), []);
-  const satelliteMaterials = useMemo(() => {
-    const arr = SATELLITES.map(() => {
-      // Satellites use the mid layer as a base but get a smaller displaceAmp
-      // (thinner mini-funnels read better with less wobble).
-      const baseLayer: FunnelLayer = { ...LAYERS[1], displaceAmp: 0.1 };
-      const m = buildLayerMaterial(baseLayer);
-      m.uniforms.opacity.value = 0;
-      m.uniforms.densityBias.value = 0.3;
-      return m;
+  // ---- Skeleton funnel mesh ----
+  const skeletonGeom = useMemo(() => buildSkeletonFunnel(), []);
+  const skeletonMaterial = useMemo(() => {
+    const m = new THREE.ShaderMaterial({
+      vertexShader: SKELETON_VERT,
+      fragmentShader: SKELETON_FRAG,
+      uniforms: {
+        time: { value: 0 },
+        opacity: { value: 0 },
+        flashFlare: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     });
-    satelliteMatRefs.current = arr;
-    return arr;
+    skeletonMatRef.current = m;
+    return m;
   }, []);
 
-  // ---- Debris archetypes (planks, shingles, sheet metal, branches, lumber) ----
+  // ---- Debris archetypes (planks / shingles / sheet metal / branches / lumber) ----
   const debrisArchetypes = useMemo<DebrisArchetype[]>(() => buildDebrisArchetypes(), []);
 
-  // Debris items grouped by archetype, distributed round-robin.
+  // Debris items distributed round-robin across archetypes
   const debrisGroups = useMemo(() => {
     const groups: { archetype: DebrisArchetype; items: DebrisItem[] }[] =
       debrisArchetypes.map((a) => ({ archetype: a, items: [] }));
-    for (let i = 0; i < ORBITAL_DEBRIS_COUNT; i++) {
+    for (let i = 0; i < DEBRIS_COUNT; i++) {
       const archetypeIdx = i % debrisArchetypes.length;
-      const h = Math.random() * FUNNEL_HEIGHT;
-      const tNorm = h / FUNNEL_HEIGHT;
+      const y = Math.random() * FUNNEL_HEIGHT;
+      const surfaceR = funnelRadiusAt(y);
+      const r = surfaceR * (0.8 + Math.random() * 0.5);
+      const angle = Math.random() * Math.PI * 2;
       groups[archetypeIdx].items.push({
-        height: h,
-        radiusOffset: 1.0 + Math.random() * 3.5,
-        angle: Math.random() * Math.PI * 2,
-        angularSpeed: 0.8 + Math.random() * 2.5 + tNorm * 2.5,
-        scale: 0.8 + Math.random() * 0.7,
+        x: Math.cos(angle) * r,
+        y,
+        z: Math.sin(angle) * r,
+        vx: 0, vy: 0, vz: 0,
+        scale: 0.9 + Math.random() * 0.7,
         spinX: (Math.random() - 0.5) * 8,
         spinY: (Math.random() - 0.5) * 6,
         spinZ: (Math.random() - 0.5) * 8,
         archetypeIdx,
-        climbRate: 0.3 + Math.random() * 0.7,
-        pulsePhase: Math.random() * Math.PI * 2,
-        tangentPhase: Math.random() * Math.PI * 2,
       });
     }
     return groups;
   }, [debrisArchetypes]);
+  const debrisMeshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
 
-  // ---- Base dust ring ----
-  const dustItems = useMemo<DustItem[]>(() => {
-    const arr: DustItem[] = [];
-    for (let i = 0; i < BASE_DUST_COUNT; i++) {
-      arr.push({
-        angle: Math.random() * Math.PI * 2,
-        baseRadius: 2.5 + Math.random() * 7,
-        drift: 0.5 + Math.random() * 1.5,
-        height: 0.05 + Math.random() * 1.8,
-        spin: (Math.random() - 0.5) * 4,
-      });
-    }
-    return arr;
-  }, []);
-
-  // ---- Yeet jets — debris flying tangentially out the top ----
+  // ---- Yeet jets — occasional debris flying tangentially out the top ----
   const yeetMeshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const yeetItems = useMemo<YeetItem[][]>(() =>
     debrisArchetypes.map(() =>
@@ -429,6 +185,7 @@ export function Tornado() {
   const nextYeetAtRef = useRef(0);
 
   const tmp = useMemo(() => new THREE.Object3D(), []);
+  const tmpVel = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((_state, dtRaw) => {
     const dt = Math.min(dtRaw, 0.05);
@@ -442,43 +199,18 @@ export function Tornado() {
     root.visible = true;
     root.position.set(t.tornadoX, 0, t.tornadoZ);
 
-    // Update layer materials
-    const flashTarget = t.flashAlpha;
-    for (let i = 0; i < layerMatRefs.current.length; i++) {
-      const m = layerMatRefs.current[i];
-      if (!m) continue;
-      m.uniforms.time.value += dt * 1.2;
-      m.uniforms.stormIntensity.value = t.stormIntensity;
-      m.uniforms.opacity.value = t.tornadoOpacity * LAYERS[i].opacityMult;
-      const cur = m.uniforms.flashFlare.value;
-      m.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
+    // Skeleton material update
+    if (skeletonMatRef.current) {
+      skeletonMatRef.current.uniforms.time.value += dt;
+      skeletonMatRef.current.uniforms.opacity.value = t.tornadoOpacity * 0.85;
+      const flashTarget = t.flashAlpha;
+      const cur = skeletonMatRef.current.uniforms.flashFlare.value;
+      skeletonMatRef.current.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
     }
 
-    // Update satellite vortices: position + rotation + material
     const now = performance.now() / 1000;
-    for (let s = 0; s < SATELLITES.length; s++) {
-      const g = satelliteGroupRefs.current[s];
-      const m = satelliteMatRefs.current[s];
-      if (!g) continue;
-      const sat = SATELLITES[s];
-      const orbitA = sat.phase + now * SATELLITE_ORBIT_SPEED;
-      // Orbit radius wobbles slightly so satellites breathe in/out
-      const orbitR = sat.baseOrbitR + Math.sin(now * 0.7 + sat.phase) * 0.6;
-      g.position.set(Math.cos(orbitA) * orbitR, 0, Math.sin(orbitA) * orbitR);
-      // Each satellite spins around its OWN vertical axis fast
-      g.rotation.y = now * (1.8 + s * 0.4);
-      g.scale.setScalar(SATELLITE_SCALE);
-      if (m) {
-        m.uniforms.time.value += dt * 1.6;
-        m.uniforms.stormIntensity.value = t.stormIntensity;
-        // Satellites are dimmer than the main funnel
-        m.uniforms.opacity.value = t.tornadoOpacity * 0.55;
-        const cur = m.uniforms.flashFlare.value;
-        m.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
-      }
-    }
 
-    // ---- Yeet jets (rare; occasional iconic shot of a board flying off the top) ----
+    // ---- Yeet jet spawning ----
     if (t.tornadoOpacity > 0.3 && now >= nextYeetAtRef.current) {
       const burstCount = 1 + Math.floor(Math.random() * 2); // 1..2
       for (let b = 0; b < burstCount; b++) {
@@ -487,7 +219,7 @@ export function Tornado() {
         const slot = pool.find((p) => !p.alive);
         if (!slot) continue;
         const ang = Math.random() * Math.PI * 2;
-        const r = LAYERS[0].topR;
+        const r = funnelRadiusAt(FUNNEL_HEIGHT - 1);
         // Tangential direction
         const tangX = -Math.sin(ang);
         const tangZ = Math.cos(ang);
@@ -498,24 +230,25 @@ export function Tornado() {
         const tanSin = Math.sin(0.61);
         const dirX = tangX * tanCos + outX * tanSin;
         const dirZ = tangZ * tanCos + outZ * tanSin;
-        const speed = 8 + Math.random() * 7;
+        const speed = 10 + Math.random() * 8;
         slot.archetypeIdx = archetypeIdx;
         slot.x = Math.cos(ang) * r;
-        slot.y = FUNNEL_HEIGHT;
+        slot.y = FUNNEL_HEIGHT - 0.5;
         slot.z = Math.sin(ang) * r;
         slot.vx = dirX * speed;
-        slot.vy = 2 + Math.random() * 3;
+        slot.vy = 3 + Math.random() * 3;
         slot.vz = dirZ * speed;
         slot.spinX = (Math.random() - 0.5) * 12;
         slot.spinY = (Math.random() - 0.5) * 8;
         slot.spinZ = (Math.random() - 0.5) * 12;
-        slot.scale = 1.2 + Math.random() * 0.9;
+        slot.scale = 1.4 + Math.random() * 1.0;
         slot.spawnedAt = now;
         slot.alive = true;
       }
-      nextYeetAtRef.current = now + 4 + Math.random() * 3;
+      nextYeetAtRef.current = now + 3 + Math.random() * 3;
     }
 
+    // ---- Yeet integration + write matrices ----
     for (let ai = 0; ai < yeetItems.length; ai++) {
       const pool = yeetItems[ai];
       const mesh = yeetMeshRefs.current[ai];
@@ -535,7 +268,7 @@ export function Tornado() {
         p.y += p.vy * dt;
         p.z += p.vz * dt;
         const dist = Math.hypot(p.x, p.z);
-        if (p.y < 0 || dist > 30) {
+        if (p.y < 0 || dist > 40) {
           p.alive = false;
           tmp.scale.set(0, 0, 0);
           tmp.position.set(0, -1000, 0);
@@ -556,35 +289,34 @@ export function Tornado() {
       if (m) m.opacity = t.tornadoOpacity;
     }
 
-    // Orbital debris — chaotic spiral-up motion
+    // ---- Debris integration — ride the same vortex field ----
     for (let gi = 0; gi < debrisGroups.length; gi++) {
       const grp = debrisGroups[gi];
       const mesh = debrisMeshRefs.current[gi];
       if (!mesh) continue;
       for (let i = 0; i < grp.items.length; i++) {
         const d = grp.items[i];
-
-        // Spiral up the funnel — each piece climbs over its lifetime
-        d.angle += d.angularSpeed * dt;
-        d.height += d.climbRate * dt;
-        if (d.height > FUNNEL_HEIGHT) {
-          d.height = 0;
-          d.angle = Math.random() * Math.PI * 2;
+        vortexVelocity(tmpVel, d.x, d.y, d.z);
+        // Smooth toward target velocity (debris is heavier than vapor)
+        const k = Math.min(1, dt * 4);
+        d.vx += (tmpVel.x - d.vx) * k;
+        d.vy += (tmpVel.y - d.vy) * k;
+        d.vz += (tmpVel.z - d.vz) * k;
+        d.x += d.vx * dt;
+        d.y += d.vy * dt;
+        d.z += d.vz * dt;
+        // Recycle when debris exits top
+        if (d.y > FUNNEL_HEIGHT + 1) {
+          const y = Math.random() * 3;
+          const surfaceR = funnelRadiusAt(y);
+          const r = surfaceR * (0.8 + Math.random() * 0.4);
+          const angle = Math.random() * Math.PI * 2;
+          d.x = Math.cos(angle) * r;
+          d.y = y;
+          d.z = Math.sin(angle) * r;
+          d.vx = 0; d.vy = 0; d.vz = 0;
         }
-
-        const tNorm = d.height / FUNNEL_HEIGHT;
-        const taperedRadius = LAYERS[1].baseR + tNorm * (LAYERS[1].topR - LAYERS[1].baseR) + d.radiusOffset;
-        // Radial pulse — breathing in/out so orbits aren't clean circles
-        const r = taperedRadius + Math.sin(now * 0.7 + d.pulsePhase) * 1.2;
-        // Tangential jitter — perpendicular wobble breaks the perfect arc
-        const tangent = Math.sin(now * 1.5 + d.tangentPhase) * 0.3;
-        const cx = Math.cos(d.angle);
-        const sx = Math.sin(d.angle);
-        tmp.position.set(
-          cx * r + (-sx) * tangent,
-          d.height + Math.sin(now * 0.7 + d.height) * 0.3,
-          sx * r + cx * tangent,
-        );
+        tmp.position.set(d.x, d.y, d.z);
         tmp.rotation.set(d.spinX * now * 0.1, d.spinY * now * 0.1, d.spinZ * now * 0.1);
         tmp.scale.setScalar(d.scale);
         tmp.updateMatrix();
@@ -594,96 +326,44 @@ export function Tornado() {
       const dmat = mesh.material as THREE.MeshStandardMaterial;
       if (dmat) dmat.opacity = t.tornadoOpacity;
     }
-
-    // Base dust ring
-    if (dustMeshRef.current) {
-      for (let i = 0; i < dustItems.length; i++) {
-        const d = dustItems[i];
-        d.angle += d.drift * dt;
-        const r = d.baseRadius + Math.sin(now * 0.3 + d.angle) * 0.4;
-        tmp.position.set(
-          Math.cos(d.angle) * r,
-          d.height,
-          Math.sin(d.angle) * r,
-        );
-        tmp.rotation.set(-Math.PI / 2, d.spin * now * 0.2, d.angle);
-        const sc = 1.4 + Math.sin(now + d.angle) * 0.3;
-        tmp.scale.set(sc, sc, 1);
-        tmp.updateMatrix();
-        dustMeshRef.current.setMatrixAt(i, tmp.matrix);
-      }
-      dustMeshRef.current.instanceMatrix.needsUpdate = true;
-      if (dustMatRef.current) dustMatRef.current.opacity = 0.45 * t.tornadoOpacity;
-    }
-
-    if (capMatRef.current) capMatRef.current.opacity = 0.55 * t.tornadoOpacity;
   });
 
   return (
     <>
       <group ref={rootRef}>
-      {/* Three concentric funnel layers */}
-      {LAYERS.map((L, i) => (
-        <mesh key={`layer-${i}`} geometry={layerGeoms[i]} renderOrder={L.renderOrder}>
-          <primitive object={layerMaterials[i]} attach="material" />
+        {/* Skeleton funnel mesh — silhouette backbone */}
+        <mesh geometry={skeletonGeom} renderOrder={4}>
+          <primitive object={skeletonMaterial} attach="material" />
         </mesh>
-      ))}
 
-      {/* Satellite vortices — mini-funnels orbiting the base */}
-      {SATELLITES.map((_, i) => (
-        <group key={`sat-${i}`} ref={(el) => { satelliteGroupRefs.current[i] = el; }}>
-          <mesh geometry={satelliteGeom} renderOrder={4}>
-            <primitive object={satelliteMaterials[i]} attach="material" />
-          </mesh>
-        </group>
-      ))}
+        {/* Debris — instanced per archetype, riding the vortex field */}
+        {debrisGroups.map((g, i) => (
+          <instancedMesh
+            key={`deb-${i}`}
+            ref={(el) => { debrisMeshRefs.current[i] = el; }}
+            args={[g.archetype.geom, g.archetype.material, g.items.length]}
+            castShadow
+            renderOrder={4}
+          />
+        ))}
 
-      {/* Cloud cap */}
-      <mesh position={[0, FUNNEL_HEIGHT, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[14, 32]} />
-        <meshBasicMaterial ref={capMatRef} color="#1a1a1c" transparent opacity={0.55} depthWrite={false} />
-      </mesh>
-
-      {/* Base dust ring */}
-      <instancedMesh
-        ref={dustMeshRef}
-        args={[undefined, undefined, BASE_DUST_COUNT]}
-        frustumCulled={false}
-        renderOrder={3}
-      >
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial
-          ref={dustMatRef}
-          color="#8a7a6a"
-          transparent
-          opacity={0.45}
-          depthWrite={false}
-        />
-      </instancedMesh>
-
-      {/* Orbital debris — one InstancedMesh per archetype */}
-      {debrisGroups.map((g, i) => (
-        <instancedMesh
-          key={`deb-${i}`}
-          ref={(el) => { debrisMeshRefs.current[i] = el; }}
-          args={[g.archetype.geom, g.archetype.material, g.items.length]}
-          castShadow
-          renderOrder={4}
-        />
-      ))}
-
-      {/* Yeet jets — separate InstancedMesh per archetype */}
-      {debrisArchetypes.map((a, i) => (
-        <instancedMesh
-          key={`yeet-${i}`}
-          ref={(el) => { yeetMeshRefs.current[i] = el; }}
-          args={[a.geom, a.material, YEET_POOL_PER_ARCHETYPE]}
-          castShadow
-          renderOrder={4}
-        />
-      ))}
+        {/* Yeet jets — separate per archetype */}
+        {debrisArchetypes.map((a, i) => (
+          <instancedMesh
+            key={`yeet-${i}`}
+            ref={(el) => { yeetMeshRefs.current[i] = el; }}
+            args={[a.geom, a.material, YEET_POOL_PER_ARCHETYPE]}
+            castShadow
+            renderOrder={4}
+          />
+        ))}
       </group>
-      <DustFountain />
+
+      {/* Vortex vapor cloud — the THING that makes it look like a tornado */}
+      <VortexParticles />
+
+      {/* Wide low debris cloud at base */}
+      <DebrisDome />
     </>
   );
 }
