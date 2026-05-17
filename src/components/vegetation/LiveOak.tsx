@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Group } from 'three';
 import { isNearPlayer } from '../../systems/distance';
+import { useTornadoStore } from '../../state/tornadoStore';
 
 interface LiveOakProps {
   position: [number, number, number];
@@ -18,6 +19,7 @@ interface LiveOakProps {
  */
 export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
   const group = useRef<Group>(null);
+  const trunkGroup = useRef<Group>(null);
 
   const { branches, clusters } = useMemo(() => {
     const rng = mulberry32(seed * 9301 + 1);
@@ -67,10 +69,38 @@ export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
   }, [seed]);
 
   useFrame((state) => {
-    if (!isNearPlayer(position[0], position[2], 40)) return;
+    if (!isNearPlayer(position[0], position[2], 60)) return;
+    const t = state.clock.elapsedTime;
+
+    // Storm wind bend — entire tree leans AWAY from the tornado.
+    const trunk = trunkGroup.current;
+    if (trunk) {
+      const ts = useTornadoStore.getState();
+      const windStrength = ts.windStrength;
+      if (windStrength > 0.05 && ts.tornadoOpacity > 0.05) {
+        // Direction AWAY from tornado in world XZ
+        const awayX = position[0] - ts.tornadoX;
+        const awayZ = position[2] - ts.tornadoZ;
+        const dist = Math.hypot(awayX, awayZ);
+        if (dist > 0.1) {
+          const falloff = 1 / Math.max(1, dist / 15);
+          const gust = 0.85 + Math.sin(t * 2.4 + position[0] * 0.1) * 0.25;
+          const amp = windStrength * falloff * 0.4 * gust;
+          // bend around X = lean forward/back (Z component), around Z = lean side (X component)
+          trunk.rotation.x = (awayZ / dist) * amp * -1; // tilt toward +Z when wind blows player +Z
+          trunk.rotation.z = (awayX / dist) * amp;
+        } else {
+          trunk.rotation.x = 0;
+          trunk.rotation.z = 0;
+        }
+      } else if (trunk.rotation.x !== 0 || trunk.rotation.z !== 0) {
+        trunk.rotation.x *= 0.9;
+        trunk.rotation.z *= 0.9;
+      }
+    }
+
     const g = group.current;
     if (!g) return;
-    const t = state.clock.elapsedTime;
     g.children.forEach((c, i) => {
       if (c.userData.cluster) {
         const phase = c.userData.phase as number;
@@ -83,31 +113,33 @@ export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
 
   return (
     <group position={position} scale={scale}>
-      {/* trunk */}
-      <mesh position={[0, 1.6, 0]} castShadow>
-        <cylinderGeometry args={[0.32, 0.46, 3.2, 10]} />
-        <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
-      </mesh>
-      {/* base flare */}
+      {/* base flare — stays put on the ground, doesn't bend */}
       <mesh position={[0, 0.18, 0]} castShadow>
         <coneGeometry args={[0.62, 0.5, 10]} />
         <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
       </mesh>
 
-      {/* branches */}
-      {branches.map((b, i) => (
-        <group key={`b${i}`} position={b.pos} rotation={b.rot}>
-          <mesh position={[0, 0, b.len / 2]} castShadow>
-            <cylinderGeometry args={[0.07, 0.16, b.len, 8]} />
-            <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
-          </mesh>
-        </group>
-      ))}
+      {/* Trunk group — bends from base under storm wind */}
+      <group ref={trunkGroup}>
+        <mesh position={[0, 1.6, 0]} castShadow>
+          <cylinderGeometry args={[0.32, 0.46, 3.2, 10]} />
+          <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
+        </mesh>
 
-      <group ref={group}>
-        {clusters.map((c, i) => (
-          <ClusterMesh key={`c${i}`} cluster={c} />
+        {branches.map((b, i) => (
+          <group key={`b${i}`} position={b.pos} rotation={b.rot}>
+            <mesh position={[0, 0, b.len / 2]} castShadow>
+              <cylinderGeometry args={[0.07, 0.16, b.len, 8]} />
+              <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
+            </mesh>
+          </group>
         ))}
+
+        <group ref={group}>
+          {clusters.map((c, i) => (
+            <ClusterMesh key={`c${i}`} cluster={c} />
+          ))}
+        </group>
       </group>
     </group>
   );

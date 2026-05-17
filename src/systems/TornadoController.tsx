@@ -35,6 +35,12 @@ const RAIN_DURATION = 20;
 const HAIL_DURATION = 15;
 const APPROACH_DURATION = 60;
 
+// v17 cinematic intro — 8s sweep over the cul-de-sac before calm ends.
+const CINEMATIC_INTRO_DURATION = 8;
+// Slow-mo proximity thresholds
+const SLOWMO_ENTER_RADIUS = 6;
+const SLOWMO_EXIT_RADIUS = 7.5;
+
 // Tornado path
 const TORNADO_START_Z = -130;
 const TORNADO_END_Z = 15; // ~2m short of 10600's front wall
@@ -57,6 +63,8 @@ export function TornadoController() {
   void useTornadoStore((s) => s.phaseEnteredAt);
 
   const addShake = useCombatStore((s) => s.addShake);
+  const cinematicStartedRef = useRef(false);
+  const slowMoActiveRef = useRef(false);
 
   // Pre-compute non-hero house world positions (sorted by Z descending so we
   // destroy from north to south — same direction as the tornado walks).
@@ -112,6 +120,7 @@ export function TornadoController() {
     const g = useGameStore.getState();
     if (g.gameMode !== 'tornado') return;
     if (g.phase !== lastPhase.current) {
+      if (g.phase === 'calm') cinematicStartedRef.current = false;
       lastPhase.current = g.phase;
       setPhaseEnteredAt(performance.now() / 1000);
     }
@@ -132,6 +141,47 @@ export function TornadoController() {
       setWindStrength(0);
       setTornadoZ(-200);
       setTornadoOpacity(0);
+
+      // ---- v17 cinematic intro pan ----
+      // Starts on first calm-phase frame: 8s sweep from high above the
+      // cul-de-sac (south, looking down), circling 180°, descending to
+      // the player's eye level. Restores FPS control on completion.
+      const cs = useCombatStore.getState();
+      if (!cinematicStartedRef.current && elapsed < 0.1) {
+        cinematicStartedRef.current = true;
+        cs.startCinematic([0, 1.5, 0], [0, 40, -100], CINEMATIC_INTRO_DURATION);
+      }
+      if (cinematicStartedRef.current && cs.cinematic.active) {
+        const tIntro = Math.min(1, elapsed / CINEMATIC_INTRO_DURATION);
+        // Camera sweeps in an arc around the cul-de-sac, descending y=40→1.7.
+        // Sweep starts south and circles to face north (around the bulb at z≈+20).
+        const arcCenterX = 0;
+        const arcCenterZ = 0;
+        const startAngle = -Math.PI / 2;   // facing player from south (z = -R)
+        const endAngle   =  Math.PI / 2;   // facing player from north (z = +R)
+        const angle = startAngle + (endAngle - startAngle) * tIntro;
+        const radius = 90 - tIntro * 75;
+        const camX = arcCenterX + Math.cos(angle) * radius;
+        const camZ = arcCenterZ + Math.sin(angle) * radius;
+        const camY = 40 - tIntro * 38;
+        // Lookat sweeps toward the player's spawn near (0, -90)
+        const player = g.positions[g.activeCharacterId];
+        const targetX = player ? player.x : 0;
+        const targetY = 1.5;
+        const targetZ = player ? player.z : -90;
+        useCombatStore.setState({
+          cinematic: {
+            active: true,
+            cameraX: camX, cameraY: camY, cameraZ: camZ,
+            targetX, targetY, targetZ,
+            endsAt: now + CINEMATIC_INTRO_DURATION,
+          },
+        });
+        if (tIntro >= 1) {
+          cs.endCinematic();
+        }
+      }
+
       if (elapsed >= CALM_DURATION) g.setPhase('rain');
     } else if (phase === 'rain') {
       // Ramp intensity 0 → 0.55 over 5s, then hold
@@ -186,7 +236,28 @@ export function TornadoController() {
         const dx = player.x - x;
         const dz = player.z - z;
         const distToFunnel = Math.hypot(dx, dz);
+
+        // ---- v17 proximity slow-mo (hysteresis to avoid flicker) ----
+        const cs = useCombatStore.getState();
+        if (!slowMoActiveRef.current && distToFunnel < SLOWMO_ENTER_RADIUS) {
+          slowMoActiveRef.current = true;
+          // 1-second lerp via long slowMoEnd; we'll keep extending each frame.
+          cs.triggerSlowMo(0.5, 999);
+        } else if (slowMoActiveRef.current && distToFunnel > SLOWMO_EXIT_RADIUS) {
+          slowMoActiveRef.current = false;
+          // Snap back to normal speed
+          useCombatStore.setState({ slowMo: 1, slowMoEndsAt: 0 });
+        } else if (slowMoActiveRef.current) {
+          // Keep slow-mo alive
+          useCombatStore.setState({ slowMoEndsAt: now + 1 });
+        }
+
         if (distToFunnel < KILL_RADIUS) {
+          // Restore time before ragdoll cinematic takes over
+          if (slowMoActiveRef.current) {
+            slowMoActiveRef.current = false;
+            useCombatStore.setState({ slowMo: 1, slowMoEndsAt: 0 });
+          }
           g.startRagdoll(player.x, player.y, player.z, now);
           g.setPhase('defeat');
           return;

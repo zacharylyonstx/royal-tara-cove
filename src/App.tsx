@@ -17,6 +17,7 @@ import { ComboHud } from './ui/ComboHud';
 import { PowerUpHud } from './ui/PowerUpHud';
 import { FloatingNumbers } from './ui/FloatingNumbers';
 import { TornadoHud } from './ui/TornadoHud';
+import { StormVignette } from './ui/StormVignette';
 
 export default function App() {
   return (
@@ -42,6 +43,7 @@ export default function App() {
       <PowerUpHud />
       <FloatingNumbers />
       <TornadoHud />
+      <StormVignette />
       <WelcomeScreen />
       <VictoryScreen />
       <DefeatScreen />

@@ -3,14 +3,18 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../state/tornadoStore';
 
-// Tornado funnel — single TubeGeometry along a curved path with a custom
-// vapor-noise shader, surrounded by a base dust ring and orbital debris.
-// Replaces the v15 stack-of-tori look with something that reads as a
-// coherent rotating vapor column.
+// Tornado funnel — three concentric vapor layers + 3 satellite vortices,
+// each built from a custom variable-radius "tube" geometry with a vapor-noise
+// shader. v17 upgrade from the single funnel in v16.
+//
+// Layers:
+//   • rope    — inner narrow column, highest opacity, fastest spin
+//   • mid     — the v16 funnel, medium opacity
+//   • halo    — wide soft mist, low opacity, slow spin
+// Satellites:
+//   • 3 mini-funnels at scale 0.35, orbiting the base at radius 7–11m
 
 const FUNNEL_HEIGHT = 24;
-const BASE_RADIUS = 1.2;
-const TOP_RADIUS = 5.5;
 const TUBE_SEGMENTS = 64;
 const TUBE_RADIAL = 24;
 
@@ -35,12 +39,17 @@ uniform float time;
 uniform float flashFlare;
 uniform float stormIntensity;
 uniform float opacity;
+uniform float scrollRate;     // horizontal scroll multiplier (spin speed)
+uniform float updraftRate;    // vertical scroll multiplier
+uniform float densityBias;    // pushes cloud density up/down (0..1)
+uniform vec3  baseTint;       // bottom color
+uniform vec3  midTint;        // mid color
+uniform vec3  topTint;        // top color
 
 varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
-// Simplex noise 3D (Ashima)
 vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec3 mod289(vec3 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
@@ -100,52 +109,150 @@ float fbm(vec3 p) {
 }
 
 void main() {
-  // Spin via horizontal UV scroll; updraft via vertical scroll.
   vec2 sUv = vec2(
-    vUv.x * 4.0 + time * 0.9,         // rotation
-    vUv.y * 2.5 - time * 1.2          // updraft (clouds moving up)
+    vUv.x * 4.0 + time * scrollRate,
+    vUv.y * 2.5 - time * updraftRate
   );
-
-  // Add second octave at different rate for chaos
   vec2 sUv2 = vec2(
-    vUv.x * 7.5 - time * 0.4,
-    vUv.y * 4.0 - time * 1.8
+    vUv.x * 7.5 - time * (scrollRate * 0.45),
+    vUv.y * 4.0 - time * (updraftRate * 1.5)
   );
-
   float n1 = fbm(vec3(sUv * 1.0, time * 0.2));
   float n2 = fbm(vec3(sUv2 * 1.5, time * 0.5 + 11.0));
-  float cloud = clamp((n1 + n2 * 0.6) * 0.6 + 0.4, 0.0, 1.0);
+  float cloud = clamp((n1 + n2 * 0.6) * 0.6 + densityBias, 0.0, 1.0);
 
-  // Vapor color gradient by height (vUv.y, 0=ground, 1=top)
-  vec3 baseCol  = vec3(0.78, 0.74, 0.70);  // pale grey at base
-  vec3 midCol   = vec3(0.32, 0.30, 0.32);  // dark grey mid
-  vec3 topCol   = vec3(0.10, 0.10, 0.12);  // near-black top (blends into clouds)
   vec3 color = mix(
-    mix(baseCol, midCol, smoothstep(0.0, 0.45, vUv.y)),
-    topCol,
+    mix(baseTint, midTint, smoothstep(0.0, 0.45, vUv.y)),
+    topTint,
     smoothstep(0.45, 1.0, vUv.y)
   );
-
-  // Cloud density modulates color
   color = mix(color * 0.55, color * 1.2, cloud);
 
-  // Fresnel softens edges so the cylinder doesn't read as a hard shape
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
   float edgeFade = smoothstep(0.3, 1.0, fres);
 
-  // Lightning flare washes the funnel white
   color = mix(color, vec3(0.95), flashFlare * 0.65 * cloud);
 
-  // Final alpha: more transparent at the edges, denser in the middle
   float alpha = clamp(cloud * (0.6 + edgeFade * 0.55), 0.0, 0.95) * opacity;
-
-  // Fade out the very top so it bleeds into the dark clouds
   alpha *= smoothstep(1.0, 0.6, vUv.y);
 
   gl_FragColor = vec4(color, alpha);
 }
 `;
+
+// Build a variable-radius "tube" geometry along a slightly S-curved path.
+function buildFunnelGeom(baseR: number, topR: number, height: number, sBendAmp: number): THREE.BufferGeometry {
+  const points: THREE.Vector3[] = [];
+  for (let i = 0; i < 12; i++) {
+    const t = i / 11;
+    const y = t * height;
+    const x = (Math.sin(t * Math.PI * 1.5) * 0.6 + Math.sin(t * Math.PI * 4) * 0.2) * sBendAmp;
+    const z = Math.cos(t * Math.PI * 1.2) * 0.5 * sBendAmp;
+    points.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(points);
+
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const segs = TUBE_SEGMENTS;
+  const radial = TUBE_RADIAL;
+  const frames = curve.computeFrenetFrames(segs, false);
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const p = curve.getPointAt(t);
+    const r = baseR + (topR - baseR) * t;
+    const N = frames.normals[i];
+    const B = frames.binormals[i];
+    for (let j = 0; j <= radial; j++) {
+      const v = (j / radial) * Math.PI * 2;
+      const sin = Math.sin(v);
+      const cos = -Math.cos(v);
+      const nx = cos * N.x + sin * B.x;
+      const ny = cos * N.y + sin * B.y;
+      const nz = cos * N.z + sin * B.z;
+      positions.push(p.x + r * nx, p.y + r * ny, p.z + r * nz);
+      normals.push(nx, ny, nz);
+      uvs.push(j / radial, t);
+    }
+  }
+  for (let i = 0; i < segs; i++) {
+    for (let j = 0; j < radial; j++) {
+      const a = i * (radial + 1) + j;
+      const b = a + (radial + 1);
+      const c = a + (radial + 1) + 1;
+      const d = a + 1;
+      indices.push(a, b, d);
+      indices.push(b, c, d);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(indices);
+  return g;
+}
+
+interface FunnelLayer {
+  baseR: number;
+  topR: number;
+  scroll: number;
+  updraft: number;
+  density: number;
+  baseTint: THREE.Color;
+  midTint: THREE.Color;
+  topTint: THREE.Color;
+  opacityMult: number;
+  sBend: number;
+  renderOrder: number;
+}
+
+const LAYERS: FunnelLayer[] = [
+  // Halo — wide soft mist, slow spin
+  {
+    baseR: 3.0, topR: 9.0,
+    scroll: 0.32, updraft: 0.55, density: 0.28,
+    baseTint: new THREE.Color('#6e6864'),
+    midTint:  new THREE.Color('#322f30'),
+    topTint:  new THREE.Color('#16161a'),
+    opacityMult: 0.45, sBend: 0.55, renderOrder: 3,
+  },
+  // Funnel mid (v16 funnel)
+  {
+    baseR: 1.2, topR: 5.5,
+    scroll: 0.9, updraft: 1.2, density: 0.4,
+    baseTint: new THREE.Color('#78746e'),
+    midTint:  new THREE.Color('#32303a'),
+    topTint:  new THREE.Color('#1a1a1c'),
+    opacityMult: 1.0, sBend: 1.0, renderOrder: 5,
+  },
+  // Rope core — narrow, fast spin, high opacity
+  {
+    baseR: 0.6, topR: 2.5,
+    scroll: 1.55, updraft: 1.9, density: 0.55,
+    baseTint: new THREE.Color('#8c8782'),
+    midTint:  new THREE.Color('#2a262e'),
+    topTint:  new THREE.Color('#0a0a0c'),
+    opacityMult: 1.0, sBend: 1.2, renderOrder: 6,
+  },
+];
+
+interface SatelliteInfo {
+  baseOrbitR: number;
+  /** Static angular offset around main funnel. */
+  phase: number;
+}
+
+const SATELLITES: SatelliteInfo[] = [
+  { baseOrbitR: 7.0,  phase: 0 },
+  { baseOrbitR: 9.0,  phase: (2 * Math.PI) / 3 },
+  { baseOrbitR: 11.0, phase: (4 * Math.PI) / 3 },
+];
+const SATELLITE_SCALE = 0.35;
+const SATELLITE_ORBIT_SPEED = 0.4; // rad/s
 
 // Debris colors for the orbital cloud
 const DEBRIS_COLORS = ['#7a5a32', '#5a3a22', '#dcd6c8', '#8a8a92', '#3a3a3c', '#a07050'];
@@ -168,92 +275,61 @@ interface DustItem {
   spin: number;
 }
 
-const ORBITAL_DEBRIS_COUNT = 120;
-const BASE_DUST_COUNT = 200;
+const ORBITAL_DEBRIS_COUNT = 160;
+const BASE_DUST_COUNT = 260;
+
+function buildLayerMaterial(layer: FunnelLayer): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexShader: FUNNEL_VERT,
+    fragmentShader: FUNNEL_FRAG,
+    uniforms: {
+      time: { value: 0 },
+      flashFlare: { value: 0 },
+      stormIntensity: { value: 0 },
+      opacity: { value: 0 },
+      scrollRate:  { value: layer.scroll },
+      updraftRate: { value: layer.updraft },
+      densityBias: { value: layer.density },
+      baseTint: { value: layer.baseTint.clone() },
+      midTint:  { value: layer.midTint.clone() },
+      topTint:  { value: layer.topTint.clone() },
+    },
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+}
 
 export function Tornado() {
   const rootRef = useRef<THREE.Group>(null);
-  const funnelMatRef = useRef<THREE.ShaderMaterial>(null);
+  const layerMatRefs = useRef<THREE.ShaderMaterial[]>([]);
+  const satelliteGroupRefs = useRef<(THREE.Group | null)[]>([]);
+  const satelliteMatRefs = useRef<THREE.ShaderMaterial[]>([]);
   const debrisMeshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
   const dustMeshRef = useRef<THREE.InstancedMesh>(null);
   const dustMatRef = useRef<THREE.MeshBasicMaterial>(null);
   const capMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
-  // ---- Funnel: TubeGeometry along a slightly curved path ----
-  const funnelGeom = useMemo(() => {
-    // 12 control points from ground (y=0, narrow) to cloud top (y=24, wide)
-    const points: THREE.Vector3[] = [];
-    for (let i = 0; i < 12; i++) {
-      const t = i / 11;
-      const y = t * FUNNEL_HEIGHT;
-      // Slight S-bend so the funnel isn't a perfect line
-      const x = Math.sin(t * Math.PI * 1.5) * 0.6 + Math.sin(t * Math.PI * 4) * 0.2;
-      const z = Math.cos(t * Math.PI * 1.2) * 0.5;
-      points.push(new THREE.Vector3(x, y, z));
-    }
-    const curve = new THREE.CatmullRomCurve3(points);
-
-    // Custom tube with variable radius — use base TubeGeometry then scale per-segment.
-    // Three.js doesn't natively support per-vertex tube radius, so we build manually.
-    const positions: number[] = [];
-    const normals: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-    const segs = TUBE_SEGMENTS;
-    const radial = TUBE_RADIAL;
-    const frenetFrames = curve.computeFrenetFrames(segs, false);
-    for (let i = 0; i <= segs; i++) {
-      const t = i / segs;
-      const p = curve.getPointAt(t);
-      const r = BASE_RADIUS + (TOP_RADIUS - BASE_RADIUS) * t;
-      const N = frenetFrames.normals[i];
-      const B = frenetFrames.binormals[i];
-      for (let j = 0; j <= radial; j++) {
-        const v = (j / radial) * Math.PI * 2;
-        const sin = Math.sin(v);
-        const cos = -Math.cos(v);
-        const nx = cos * N.x + sin * B.x;
-        const ny = cos * N.y + sin * B.y;
-        const nz = cos * N.z + sin * B.z;
-        positions.push(p.x + r * nx, p.y + r * ny, p.z + r * nz);
-        normals.push(nx, ny, nz);
-        uvs.push(j / radial, t);
-      }
-    }
-    for (let i = 0; i < segs; i++) {
-      for (let j = 0; j < radial; j++) {
-        const a = i * (radial + 1) + j;
-        const b = a + (radial + 1);
-        const c = a + (radial + 1) + 1;
-        const d = a + 1;
-        indices.push(a, b, d);
-        indices.push(b, c, d);
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    g.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    g.setIndex(indices);
-    return g;
+  // Build one geometry per layer
+  const layerGeoms = useMemo(() => LAYERS.map((L) => buildFunnelGeom(L.baseR, L.topR, FUNNEL_HEIGHT, L.sBend)), []);
+  const layerMaterials = useMemo(() => {
+    const arr = LAYERS.map((L) => buildLayerMaterial(L));
+    layerMatRefs.current = arr;
+    return arr;
   }, []);
 
-  const funnelMaterial = useMemo(() => {
-    const m = new THREE.ShaderMaterial({
-      vertexShader: FUNNEL_VERT,
-      fragmentShader: FUNNEL_FRAG,
-      uniforms: {
-        time: { value: 0 },
-        flashFlare: { value: 0 },
-        stormIntensity: { value: 0 },
-        opacity: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
+  // Satellite vortices reuse the MID layer geometry, scaled down. Each gets
+  // its own material instance so opacity/time can be tweaked independently.
+  const satelliteGeom = useMemo(() => buildFunnelGeom(LAYERS[1].baseR, LAYERS[1].topR, FUNNEL_HEIGHT, LAYERS[1].sBend), []);
+  const satelliteMaterials = useMemo(() => {
+    const arr = SATELLITES.map(() => {
+      const m = buildLayerMaterial(LAYERS[1]);
+      m.uniforms.opacity.value = 0;
+      m.uniforms.densityBias.value = 0.3;
+      return m;
     });
-    funnelMatRef.current = m;
-    return m;
+    satelliteMatRefs.current = arr;
+    return arr;
   }, []);
 
   // ---- Orbital debris cloud ----
@@ -262,16 +338,16 @@ export function Tornado() {
     for (let i = 0; i < ORBITAL_DEBRIS_COUNT; i++) {
       const h = Math.random() * FUNNEL_HEIGHT;
       const tNorm = h / FUNNEL_HEIGHT;
-      const baseRadius = BASE_RADIUS + tNorm * (TOP_RADIUS - BASE_RADIUS) + 1.0 + Math.random() * 2.5;
+      const baseRadius = LAYERS[1].baseR + tNorm * (LAYERS[1].topR - LAYERS[1].baseR) + 1.0 + Math.random() * 3.5;
       const colorIdx = Math.floor(Math.random() * DEBRIS_COLORS.length);
       groups[colorIdx].items.push({
         height: h,
         baseRadius,
         angle: Math.random() * Math.PI * 2,
         angularSpeed: 0.8 + Math.random() * 2.5 + tNorm * 2.5,
-        scaleX: 0.25 + Math.random() * 0.5,
-        scaleY: 0.06 + Math.random() * 0.18,
-        scaleZ: 0.15 + Math.random() * 0.4,
+        scaleX: 0.25 + Math.random() * 0.55,
+        scaleY: 0.06 + Math.random() * 0.2,
+        scaleZ: 0.15 + Math.random() * 0.45,
         spinX: (Math.random() - 0.5) * 8,
         spinY: (Math.random() - 0.5) * 6,
         spinZ: (Math.random() - 0.5) * 8,
@@ -287,9 +363,9 @@ export function Tornado() {
     for (let i = 0; i < BASE_DUST_COUNT; i++) {
       arr.push({
         angle: Math.random() * Math.PI * 2,
-        baseRadius: 2.5 + Math.random() * 5,
+        baseRadius: 2.5 + Math.random() * 7,
         drift: 0.5 + Math.random() * 1.5,
-        height: 0.05 + Math.random() * 1.6,
+        height: 0.05 + Math.random() * 1.8,
         spin: (Math.random() - 0.5) * 4,
       });
     }
@@ -310,24 +386,46 @@ export function Tornado() {
     root.visible = true;
     root.position.set(t.tornadoX, 0, t.tornadoZ);
 
-    // Funnel shader update
-    if (funnelMatRef.current) {
-      funnelMatRef.current.uniforms.time.value += dt * 1.2;
-      funnelMatRef.current.uniforms.stormIntensity.value = t.stormIntensity;
-      funnelMatRef.current.uniforms.opacity.value = t.tornadoOpacity;
-      // Lightning flash flare
-      const target = t.flashAlpha;
-      const cur = funnelMatRef.current.uniforms.flashFlare.value;
-      funnelMatRef.current.uniforms.flashFlare.value = target > cur
-        ? target
-        : Math.max(0, cur - dt * 6);
+    // Update layer materials
+    const flashTarget = t.flashAlpha;
+    for (let i = 0; i < layerMatRefs.current.length; i++) {
+      const m = layerMatRefs.current[i];
+      if (!m) continue;
+      m.uniforms.time.value += dt * 1.2;
+      m.uniforms.stormIntensity.value = t.stormIntensity;
+      m.uniforms.opacity.value = t.tornadoOpacity * LAYERS[i].opacityMult;
+      const cur = m.uniforms.flashFlare.value;
+      m.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
+    }
+
+    // Update satellite vortices: position + rotation + material
+    const now = performance.now() / 1000;
+    for (let s = 0; s < SATELLITES.length; s++) {
+      const g = satelliteGroupRefs.current[s];
+      const m = satelliteMatRefs.current[s];
+      if (!g) continue;
+      const sat = SATELLITES[s];
+      const orbitA = sat.phase + now * SATELLITE_ORBIT_SPEED;
+      // Orbit radius wobbles slightly so satellites breathe in/out
+      const orbitR = sat.baseOrbitR + Math.sin(now * 0.7 + sat.phase) * 0.6;
+      g.position.set(Math.cos(orbitA) * orbitR, 0, Math.sin(orbitA) * orbitR);
+      // Each satellite spins around its OWN vertical axis fast
+      g.rotation.y = now * (1.8 + s * 0.4);
+      g.scale.setScalar(SATELLITE_SCALE);
+      if (m) {
+        m.uniforms.time.value += dt * 1.6;
+        m.uniforms.stormIntensity.value = t.stormIntensity;
+        // Satellites are dimmer than the main funnel
+        m.uniforms.opacity.value = t.tornadoOpacity * 0.55;
+        const cur = m.uniforms.flashFlare.value;
+        m.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
+      }
     }
 
     // Orbital debris
-    const now = performance.now() / 1000;
-    for (let g = 0; g < debrisGroups.length; g++) {
-      const grp = debrisGroups[g];
-      const mesh = debrisMeshRefs.current[g];
+    for (let gi = 0; gi < debrisGroups.length; gi++) {
+      const grp = debrisGroups[gi];
+      const mesh = debrisMeshRefs.current[gi];
       if (!mesh) continue;
       for (let i = 0; i < grp.items.length; i++) {
         const d = grp.items[i];
@@ -348,7 +446,7 @@ export function Tornado() {
       if (dmat) dmat.opacity = t.tornadoOpacity;
     }
 
-    // Base dust ring (instanced quads, rotated to lay flat-ish then with some spin)
+    // Base dust ring
     if (dustMeshRef.current) {
       for (let i = 0; i < dustItems.length; i++) {
         const d = dustItems[i];
@@ -360,8 +458,8 @@ export function Tornado() {
           Math.sin(d.angle) * r,
         );
         tmp.rotation.set(-Math.PI / 2, d.spin * now * 0.2, d.angle);
-        const s = 1.4 + Math.sin(now + d.angle) * 0.3;
-        tmp.scale.set(s, s, 1);
+        const sc = 1.4 + Math.sin(now + d.angle) * 0.3;
+        tmp.scale.set(sc, sc, 1);
         tmp.updateMatrix();
         dustMeshRef.current.setMatrixAt(i, tmp.matrix);
       }
@@ -374,14 +472,25 @@ export function Tornado() {
 
   return (
     <group ref={rootRef}>
-      {/* Funnel body */}
-      <mesh geometry={funnelGeom} renderOrder={5}>
-        <primitive object={funnelMaterial} attach="material" />
-      </mesh>
+      {/* Three concentric funnel layers */}
+      {LAYERS.map((L, i) => (
+        <mesh key={`layer-${i}`} geometry={layerGeoms[i]} renderOrder={L.renderOrder}>
+          <primitive object={layerMaterials[i]} attach="material" />
+        </mesh>
+      ))}
 
-      {/* Cloud cap (where the funnel bleeds into storm clouds) */}
+      {/* Satellite vortices — mini-funnels orbiting the base */}
+      {SATELLITES.map((_, i) => (
+        <group key={`sat-${i}`} ref={(el) => { satelliteGroupRefs.current[i] = el; }}>
+          <mesh geometry={satelliteGeom} renderOrder={4}>
+            <primitive object={satelliteMaterials[i]} attach="material" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Cloud cap */}
       <mesh position={[0, FUNNEL_HEIGHT, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[12, 32]} />
+        <circleGeometry args={[14, 32]} />
         <meshBasicMaterial ref={capMatRef} color="#1a1a1c" transparent opacity={0.55} depthWrite={false} />
       </mesh>
 

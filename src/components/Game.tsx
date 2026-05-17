@@ -55,6 +55,8 @@ import { Hail } from './weather/Hail';
 import { Lightning } from './weather/Lightning';
 import { LightningBoltRenderer } from './weather/LightningBolt';
 import { StormDome } from './weather/StormDome';
+import { WallCloud } from './weather/WallCloud';
+import { RagdollComedy } from './weather/RagdollComedy';
 import { useTornadoStore } from '../state/tornadoStore';
 import { PickupRenderer } from './pickups/Pickup';
 import { Projectiles } from './projectiles/Projectiles';
@@ -181,10 +183,12 @@ function TornadoModeSystems() {
       <RagdollController />
       <StormDome />
       <Tornado />
+      <WallCloud />
       <Rain />
       <Hail />
       <Lightning />
       <LightningBoltRenderer />
+      <RagdollComedy />
       <StormFog />
     </>
   );

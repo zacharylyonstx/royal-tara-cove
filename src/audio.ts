@@ -973,6 +973,98 @@ export function restoreTornadoAudio() {
   tornadoGroup.gain.setTargetAtTime(1, c.currentTime, 0.2);
 }
 
+// ---- v17 comedy SFX (Wilhelm-ish scream + cow moo) ----
+
+export function wilhelmScream() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Pitch sweep down, like the classic Wilhelm: starts high, drops, vibratos.
+  const osc = c.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(720, t0);
+  osc.frequency.exponentialRampToValueAtTime(280, t0 + 0.42);
+  osc.frequency.exponentialRampToValueAtTime(420, t0 + 0.55);
+  osc.frequency.exponentialRampToValueAtTime(180, t0 + 0.85);
+
+  // Formant-ish bandpass to sound vaguely human
+  const filter = c.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(900, t0);
+  filter.frequency.linearRampToValueAtTime(600, t0 + 0.85);
+  filter.Q.value = 6;
+
+  // Vibrato LFO
+  const lfo = c.createOscillator();
+  const lfoGain = c.createGain();
+  lfo.frequency.value = 7;
+  lfoGain.gain.value = 25;
+  lfo.connect(lfoGain).connect(osc.frequency);
+
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.32, t0 + 0.06);
+  gain.gain.setValueAtTime(0.32, t0 + 0.55);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
+
+  osc.connect(filter).connect(gain).connect(c.destination);
+  osc.start(t0);
+  lfo.start(t0);
+  osc.stop(t0 + 0.95);
+  lfo.stop(t0 + 0.95);
+
+  // Breathy noise layer on top for raspy texture
+  const noise = c.createBufferSource();
+  noise.buffer = makeNoiseBuffer(c, 1, 'pink');
+  const nFilter = c.createBiquadFilter();
+  nFilter.type = 'bandpass';
+  nFilter.frequency.value = 1400;
+  nFilter.Q.value = 4;
+  const nGain = c.createGain();
+  nGain.gain.setValueAtTime(0.0001, t0);
+  nGain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.06);
+  nGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
+  noise.connect(nFilter).connect(nGain).connect(c.destination);
+  noise.start(t0);
+  noise.stop(t0 + 0.95);
+}
+
+export function cowMoo() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Two-note slide: low growl that rises slightly, then drops at the end.
+  const osc = c.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(130, t0);
+  osc.frequency.linearRampToValueAtTime(170, t0 + 0.5);
+  osc.frequency.exponentialRampToValueAtTime(90, t0 + 1.05);
+
+  const filter = c.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 800;
+  filter.Q.value = 4;
+
+  // Slow tremolo for the "moo" wobble
+  const lfo = c.createOscillator();
+  const lfoGain = c.createGain();
+  lfo.frequency.value = 5.5;
+  lfoGain.gain.value = 14;
+  lfo.connect(lfoGain).connect(osc.frequency);
+
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.28, t0 + 0.08);
+  gain.gain.setValueAtTime(0.28, t0 + 0.75);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
+
+  osc.connect(filter).connect(gain).connect(c.destination);
+  osc.start(t0);
+  lfo.start(t0);
+  osc.stop(t0 + 1.2);
+  lfo.stop(t0 + 1.2);
+}
+
 /** Stops all tornado loops + clears state for replay. */
 export function resetTornadoAudio() {
   const c = ensureCtx();
