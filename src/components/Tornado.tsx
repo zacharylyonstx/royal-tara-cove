@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../state/tornadoStore';
 import { buildDebrisArchetypes, type DebrisArchetype } from './weather/tornado/debrisShapes';
 import { VaporWisps } from './weather/tornado/VaporWisps';
+import { DustFountain } from './weather/tornado/DustFountain';
 
 // Tornado funnel — three concentric vapor layers + 3 satellite vortices,
 // each built from a custom variable-radius "tube" geometry with a vapor-noise
@@ -684,6 +685,7 @@ export function Tornado() {
       ))}
       </group>
       <VaporWisps />
+      <DustFountain />
     </>
   );
 }
