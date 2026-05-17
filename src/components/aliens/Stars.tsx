@@ -3,14 +3,11 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Points } from 'three';
 import { useCombatStore } from '../../state/combatStore';
-import { useGameStore } from '../../state/gameStore';
 
 /**
  * A dome of starfield Points that fades in as timeOfDay → 1 (night).
  */
 export function Stars() {
-  const gameMode = useGameStore((s) => s.gameMode);
-  if (gameMode !== 'aliens') return null;
   const N = 320;
   const positions = useMemo(() => {
     const arr = new Float32Array(N * 3);

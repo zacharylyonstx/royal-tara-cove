@@ -2,12 +2,9 @@ import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import type { Group } from 'three';
 import { BLOB_COLORS, useCombatStore } from '../../state/combatStore';
-import { useGameStore } from '../../state/gameStore';
 
 export function HitParticles() {
-  const gameMode = useGameStore((s) => s.gameMode);
   const particles = useCombatStore((s) => s.hitParticles);
-  if (gameMode !== 'aliens') return null;
   return (
     <>
       {particles.map((p) => <ParticleBurst key={p.id} particle={p} />)}

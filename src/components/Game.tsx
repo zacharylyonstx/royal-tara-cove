@@ -155,37 +155,11 @@ export function Game() {
         />
       ))}
 
-      {/* Aliens + combat */}
-      <UFOCrash />
-      <BlobRenderer />
-      <SplatRenderer />
-      <HitParticles />
-      <Beams />
-      <RayGun />
-      <PennyBomber />
-      <LukeLegoLauncher />
-      <KidBlaster who="penny" color="#e26aa1" />
-      <KidBlaster who="luke" color="#5cb85c" />
+      <AliensModeSystems />
 
-      {/* Pickups + projectiles */}
-      <PickupsLive />
-      <Projectiles />
-
-      {/* Spawn portal (visible whenever blobs are queued) */}
-      <BackyardPortal />
-
-      {/* Celebration — only mount during victory phase so they don't tick when irrelevant */}
-      <VictoryOnly />
-      <Fireflies />
-
+      {/* Mode-agnostic systems */}
       <PlayerController />
       <NPCController />
-      <BlobController />
-      <CombatController />
-      <ProjectileController />
-      <PowerUpController />
-      <SidekickController />
-      <WaveController />
       <SkyController />
       <MusicController />
       <ProjectorController />
@@ -208,6 +182,37 @@ function TornadoModeSystems() {
       <Hail />
       <Lightning />
       <StormFog />
+    </>
+  );
+}
+
+function AliensModeSystems() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'aliens') return null;
+  return (
+    <>
+      {/* Aliens + combat */}
+      <UFOCrash />
+      <BlobRenderer />
+      <SplatRenderer />
+      <HitParticles />
+      <Beams />
+      <RayGun />
+      <PennyBomber />
+      <LukeLegoLauncher />
+      <KidBlaster who="penny" color="#e26aa1" />
+      <KidBlaster who="luke" color="#5cb85c" />
+      <PickupsLive />
+      <Projectiles />
+      <BackyardPortal />
+      <VictoryOnly />
+      <Fireflies />
+      <BlobController />
+      <CombatController />
+      <ProjectileController />
+      <PowerUpController />
+      <SidekickController />
+      <WaveController />
     </>
   );
 }

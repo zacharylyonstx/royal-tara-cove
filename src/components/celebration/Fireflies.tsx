@@ -2,7 +2,6 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import { useCombatStore } from '../../state/combatStore';
-import { useGameStore } from '../../state/gameStore';
 
 const COUNT = 18;
 const CENTER_X = 0;
@@ -23,8 +22,6 @@ interface FireflyData {
  * when timeOfDay is dark enough to read as evening/night.
  */
 export function Fireflies() {
-  const gameMode = useGameStore((s) => s.gameMode);
-  if (gameMode !== 'aliens') return null;
   const groupRef = useRef<Group>(null);
   const meshRefs = useRef<(Mesh | null)[]>([]);
 

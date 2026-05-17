@@ -2,12 +2,9 @@ import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { useCombatStore } from '../../state/combatStore';
-import { useGameStore } from '../../state/gameStore';
 
 /** Renders all active beam visuals. Each fades out over ~0.14s. */
 export function Beams() {
-  const gameMode = useGameStore((s) => s.gameMode);
-  if (gameMode !== 'aliens') return null;
   const beams = useCombatStore((s) => s.beams);
   return (
     <>
