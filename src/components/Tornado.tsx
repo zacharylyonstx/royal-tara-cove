@@ -297,6 +297,17 @@ interface DustItem {
 
 const ORBITAL_DEBRIS_COUNT = 240;
 const BASE_DUST_COUNT = 260;
+const YEET_POOL_PER_ARCHETYPE = 20;
+
+interface YeetItem {
+  archetypeIdx: number;
+  x: number; y: number; z: number;     // relative to tornado center
+  vx: number; vy: number; vz: number;
+  spinX: number; spinY: number; spinZ: number;
+  scale: number;
+  spawnedAt: number;
+  alive: boolean;
+}
 
 function buildLayerMaterial(layer: FunnelLayer): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -400,6 +411,22 @@ export function Tornado() {
     return arr;
   }, []);
 
+  // ---- Yeet jets — debris flying tangentially out the top ----
+  const yeetMeshRefs = useRef<(THREE.InstancedMesh | null)[]>([]);
+  const yeetItems = useMemo<YeetItem[][]>(() =>
+    debrisArchetypes.map(() =>
+      Array.from({ length: YEET_POOL_PER_ARCHETYPE }, () => ({
+        archetypeIdx: 0,
+        x: 0, y: 0, z: 0,
+        vx: 0, vy: 0, vz: 0,
+        spinX: 0, spinY: 0, spinZ: 0,
+        scale: 1,
+        spawnedAt: 0,
+        alive: false,
+      }))
+    ), [debrisArchetypes]);
+  const nextYeetAtRef = useRef(0);
+
   const tmp = useMemo(() => new THREE.Object3D(), []);
 
   useFrame((_state, dtRaw) => {
@@ -448,6 +475,84 @@ export function Tornado() {
         const cur = m.uniforms.flashFlare.value;
         m.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
       }
+    }
+
+    // ---- Yeet jets ----
+    if (t.tornadoOpacity > 0.3 && now >= nextYeetAtRef.current) {
+      const burstCount = 3 + Math.floor(Math.random() * 3); // 3..5
+      for (let b = 0; b < burstCount; b++) {
+        const archetypeIdx = Math.floor(Math.random() * debrisArchetypes.length);
+        const pool = yeetItems[archetypeIdx];
+        const slot = pool.find((p) => !p.alive);
+        if (!slot) continue;
+        const ang = Math.random() * Math.PI * 2;
+        const r = LAYERS[0].topR;
+        // Tangential direction
+        const tangX = -Math.sin(ang);
+        const tangZ = Math.cos(ang);
+        // Outward bias (~35° outward from tangent)
+        const outX = Math.cos(ang);
+        const outZ = Math.sin(ang);
+        const tanCos = Math.cos(0.61);
+        const tanSin = Math.sin(0.61);
+        const dirX = tangX * tanCos + outX * tanSin;
+        const dirZ = tangZ * tanCos + outZ * tanSin;
+        const speed = 8 + Math.random() * 7;
+        slot.archetypeIdx = archetypeIdx;
+        slot.x = Math.cos(ang) * r;
+        slot.y = FUNNEL_HEIGHT;
+        slot.z = Math.sin(ang) * r;
+        slot.vx = dirX * speed;
+        slot.vy = 2 + Math.random() * 3;
+        slot.vz = dirZ * speed;
+        slot.spinX = (Math.random() - 0.5) * 12;
+        slot.spinY = (Math.random() - 0.5) * 8;
+        slot.spinZ = (Math.random() - 0.5) * 12;
+        slot.scale = 1.2 + Math.random() * 0.9;
+        slot.spawnedAt = now;
+        slot.alive = true;
+      }
+      nextYeetAtRef.current = now + 0.7 + Math.random() * 0.5;
+    }
+
+    for (let ai = 0; ai < yeetItems.length; ai++) {
+      const pool = yeetItems[ai];
+      const mesh = yeetMeshRefs.current[ai];
+      if (!mesh) continue;
+      for (let i = 0; i < pool.length; i++) {
+        const p = pool[i];
+        if (!p.alive) {
+          tmp.scale.set(0, 0, 0);
+          tmp.position.set(0, -1000, 0);
+          tmp.rotation.set(0, 0, 0);
+          tmp.updateMatrix();
+          mesh.setMatrixAt(i, tmp.matrix);
+          continue;
+        }
+        p.vy -= 5 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.z += p.vz * dt;
+        const dist = Math.hypot(p.x, p.z);
+        if (p.y < 0 || dist > 30) {
+          p.alive = false;
+          tmp.scale.set(0, 0, 0);
+          tmp.position.set(0, -1000, 0);
+          tmp.rotation.set(0, 0, 0);
+          tmp.updateMatrix();
+          mesh.setMatrixAt(i, tmp.matrix);
+          continue;
+        }
+        const age = now - p.spawnedAt;
+        tmp.position.set(p.x, p.y, p.z);
+        tmp.rotation.set(p.spinX * age, p.spinY * age, p.spinZ * age);
+        tmp.scale.setScalar(p.scale);
+        tmp.updateMatrix();
+        mesh.setMatrixAt(i, tmp.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      const m = mesh.material as THREE.MeshStandardMaterial;
+      if (m) m.opacity = t.tornadoOpacity;
     }
 
     // Orbital debris — chaotic spiral-up motion
@@ -560,6 +665,17 @@ export function Tornado() {
           key={`deb-${i}`}
           ref={(el) => { debrisMeshRefs.current[i] = el; }}
           args={[g.archetype.geom, g.archetype.material, g.items.length]}
+          castShadow
+          renderOrder={4}
+        />
+      ))}
+
+      {/* Yeet jets — separate InstancedMesh per archetype */}
+      {debrisArchetypes.map((a, i) => (
+        <instancedMesh
+          key={`yeet-${i}`}
+          ref={(el) => { yeetMeshRefs.current[i] = el; }}
+          args={[a.geom, a.material, YEET_POOL_PER_ARCHETYPE]}
           castShadow
           renderOrder={4}
         />
