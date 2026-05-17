@@ -3,6 +3,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Euler, Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
+import { CHARACTER_ORDER } from '../world/characters';
 
 // First-person camera.
 // - Camera sits at the active character's eye height (1.7m).
@@ -19,7 +21,12 @@ const SHAKE_AMP = 0.4; // smaller than 3rd-person since the cam is "on" the play
 
 export function CameraRig() {
   const { camera, gl } = useThree();
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  // Camera tracks myCharacterId if I claimed one; falls back to gameStore
+  // activeCharacterId for legacy single-player flows.
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const spectator = useNetStore((s) => s.spectator);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
   const shake = useCombatStore((s) => s.shake);
@@ -37,8 +44,10 @@ export function CameraRig() {
 
     const onClick = () => {
       if (locked.current) return;
-      // Don't grab the cursor while the welcome screen is open.
+      // Don't grab the cursor while the welcome screen is open or when
+      // spectating (no input to capture).
       if (useGameStore.getState().welcomeOpen) return;
+      if (useNetStore.getState().spectator) return;
       // requestPointerLock returns a Promise in newer browsers; older ones return void.
       const result = canvas.requestPointerLock();
       if (result instanceof Promise) result.catch(() => {});
@@ -73,6 +82,39 @@ export function CameraRig() {
 
   useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.1) * slowMo;
+
+    // --- Spectator mode ---
+    // Slow orbital camera around the cul-de-sac, looking at the center of
+    // mass of any claimed peers. Lets onlookers see the action.
+    if (spectator) {
+      const peers = useNetStore.getState().peers;
+      const claimed: string[] = [];
+      for (const p of Object.values(peers)) {
+        if (p.characterId) claimed.push(p.characterId);
+      }
+      const focusIds = claimed.length > 0 ? claimed : CHARACTER_ORDER;
+      let cx = 0;
+      let cz = 10;
+      let n = 0;
+      for (const id of focusIds) {
+        const p = positions[id as keyof typeof positions];
+        if (p) {
+          cx += p.x;
+          cz += p.z;
+          n++;
+        }
+      }
+      if (n > 0) {
+        cx /= n;
+        cz /= n;
+      }
+      const t = performance.now() * 0.0002;
+      const radius = 30;
+      camera.position.set(cx + Math.cos(t) * radius, 18, cz + Math.sin(t) * radius);
+      camera.lookAt(cx, 1, cz);
+      return;
+    }
+
     const pos = positions[activeId];
     if (!pos) return;
 

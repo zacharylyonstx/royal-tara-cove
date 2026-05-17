@@ -1,6 +1,8 @@
 import { Canvas } from '@react-three/fiber';
 import { Game } from './components/Game';
 import { WelcomeScreen } from './ui/WelcomeScreen';
+import { CharacterSelect } from './ui/CharacterSelect';
+import { RoomBadge } from './ui/RoomBadge';
 import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
@@ -45,6 +47,8 @@ export default function App() {
       <TornadoHud />
       <StormVignette />
       <WelcomeScreen />
+      <CharacterSelect />
+      <RoomBadge />
       <VictoryScreen />
       <DefeatScreen />
     </>

@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import {
@@ -117,6 +118,7 @@ export function TornadoController() {
   // On phase change, set phaseEnteredAt
   const lastPhase = useRef<string>('');
   useFrame(() => {
+    if (!useNetStore.getState().isHost) return;
     const g = useGameStore.getState();
     if (g.gameMode !== 'tornado') return;
     if (g.phase !== lastPhase.current) {
@@ -128,6 +130,7 @@ export function TornadoController() {
 
   // Main phase machine + per-frame storm + tornado motion
   useFrame(() => {
+    if (!useNetStore.getState().isHost) return;
     const g = useGameStore.getState();
     if (g.gameMode !== 'tornado') return;
     const ts = useTornadoStore.getState();

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import type { CharacterId } from '../types';
 import { laserZap } from '../audio';
 
@@ -31,6 +32,8 @@ export function SidekickController() {
   });
 
   useFrame((_, dtRaw) => {
+    const net = useNetStore.getState();
+    if (!net.isHost) return;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);
@@ -38,8 +41,16 @@ export function SidekickController() {
     const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
     if (blobs.length === 0) return;
 
+    // Skip characters that any peer (including self) claims — those are
+    // human-controlled and shouldn't autoshoot.
+    const claimed = new Set<CharacterId>();
+    for (const p of Object.values(net.peers)) {
+      if (p.characterId) claimed.add(p.characterId);
+    }
+
     for (const id of ['penny', 'luke'] as CharacterId[]) {
-      if (id === activeId) continue;
+      if (claimed.has(id)) continue;
+      if (id === activeId && Object.keys(net.peers).length === 0) continue;
       cooldowns.current[id] -= dt;
       if (cooldowns.current[id] > 0) continue;
 

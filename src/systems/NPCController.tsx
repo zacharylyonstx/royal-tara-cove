@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { resolveMotion } from './collision';
 import type { CharacterId } from '../types';
 import { CHARACTER_ORDER } from '../world/characters';
@@ -37,6 +38,13 @@ export function NPCController() {
 
   useFrame((state, dtRaw) => {
     if (welcomeOpen) return;
+    const net = useNetStore.getState();
+    // Only run NPC wandering on the host — non-hosts receive character
+    // positions via player_state broadcasts. Wandering for unclaimed
+    // characters is host-authoritative; their positions are seen by other
+    // peers because the host's CharacterId for each NPC isn't broadcast
+    // (peers see them at spawn). Acceptable for v1.
+    if (!net.isHost) return;
     const dt = Math.min(dtRaw, 0.1);
     const t = state.clock.elapsedTime;
 
@@ -45,8 +53,19 @@ export function NPCController() {
       if (!door.open) colliders.push(door.aabbWhenClosed);
     }
 
+    // Characters claimed by any peer (other than unclaimed ones).
+    const claimed = new Set<CharacterId>();
+    for (const p of Object.values(net.peers)) {
+      if (p.characterId) claimed.add(p.characterId);
+    }
+
     for (const id of CHARACTER_ORDER) {
-      if (id === activeId) continue;
+      // Don't wander characters that any peer (including self) claims —
+      // those are driven by their owner's input / network broadcasts.
+      if (claimed.has(id)) continue;
+      // Single-player fallback: if no one claims a character but we ARE the
+      // local active player by gameStore, skip too.
+      if (id === activeId && net.peers && Object.keys(net.peers).length === 0) continue;
       const pos = positions[id];
       const npc = npcStates.current[id];
 

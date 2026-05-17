@@ -5,6 +5,7 @@ import { useGameStore } from '../state/gameStore';
 import { floorAt, resolveMotion } from './collision';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
+import { useNetStore } from '../state/netStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 
@@ -55,10 +56,15 @@ export function PlayerController() {
   const keys = useRef<Record<string, boolean>>({});
   const yVel = useRef(0);
 
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  // In multiplayer the local browser only controls its claimed character.
+  // Fallback to gameStore.activeCharacterId only if no net character is set
+  // (shouldn't happen in normal flow but keeps single-window dev workable).
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const spectator = useNetStore((s) => s.spectator);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
-  const setActive = useGameStore((s) => s.setActiveCharacter);
   const welcomeOpen = useGameStore((s) => s.welcomeOpen);
   const staticColliders = useGameStore((s) => s.staticColliders);
   const floors = useGameStore((s) => s.floors);
@@ -73,9 +79,8 @@ export function PlayerController() {
     const down = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       keys.current[k] = true;
-      if (k === '1') setActive('dad');
-      if (k === '2') setActive('penny');
-      if (k === '3') setActive('luke');
+      // 1/2/3 character swap disabled in multiplayer — character is fixed
+      // to whatever you claimed in CharacterSelect.
       if (k === 'r') {
         // reset to spawn
         const pos = positions[activeId];
@@ -92,10 +97,12 @@ export function PlayerController() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [setActive, activeId, positions]);
+  }, [activeId, positions]);
 
   useFrame((_, dtRaw) => {
     if (welcomeOpen) return;
+    // Spectators don't move anything.
+    if (spectator) return;
     const slowFactor = useCombatStore.getState().slowMo;
     const dt = Math.min(dtRaw, 0.1) * slowFactor;
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import type { BlobKind } from '../state/combatStore';
 import { BLOB_SPAWN } from '../components/aliens/UFOCrash';
 import { victoryFanfare, stopCrackleLoop, waveAlarm, bossRoar } from '../audio';
@@ -58,6 +59,7 @@ export function WaveController() {
 
   // When combat begins for the first time, kick off Wave 1.
   useEffect(() => {
+    if (!useNetStore.getState().isHost) return;
     if (phase === 'combat' && !enteredCombatRef.current) {
       enteredCombatRef.current = true;
       startGame();
@@ -70,6 +72,7 @@ export function WaveController() {
   }, [phase, setWave, startGame, pushDialogue]);
 
   useFrame((state, dtRaw) => {
+    if (!useNetStore.getState().isHost) return;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);

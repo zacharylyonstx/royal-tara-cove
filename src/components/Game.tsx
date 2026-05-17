@@ -49,6 +49,7 @@ import { MusicController } from '../systems/MusicController';
 import { ProjectorController } from '../systems/ProjectorController';
 import { TornadoController } from '../systems/TornadoController';
 import { RagdollController } from '../systems/RagdollController';
+import { NetSyncController } from '../systems/NetSyncController';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
 import { Hail } from './weather/Hail';
@@ -170,6 +171,7 @@ export function Game() {
       <TornadoModeSystems />
       <CameraRig />
       <CameraExposer />
+      <NetSyncController />
     </>
   );
 }

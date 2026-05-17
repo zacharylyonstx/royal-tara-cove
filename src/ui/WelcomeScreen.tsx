@@ -1,23 +1,20 @@
 import { useGameStore } from '../state/gameStore';
 import type { GameMode } from '../state/gameStore';
-import { useTornadoStore } from '../state/tornadoStore';
 import { unlockAudio } from '../audio';
+import { joinRoom } from '../net/room';
 
 export function WelcomeScreen() {
   const open = useGameStore((s) => s.welcomeOpen);
-  const close = useGameStore((s) => s.closeWelcome);
   const setGameMode = useGameStore((s) => s.setGameMode);
-  const resetTornadoGame = useGameStore((s) => s.resetTornadoGame);
-  const resetHp = useGameStore((s) => s.resetHp);
 
-  const pick = (mode: GameMode) => {
+  const pick = async (mode: GameMode) => {
     unlockAudio();
     setGameMode(mode);
-    resetHp();
-    resetTornadoGame();
-    useTornadoStore.getState().reset();
-    useTornadoStore.getState().setPhaseEnteredAt(performance.now() / 1000);
-    close();
+    // Hide welcome but DON'T start phase yet — CharacterSelect appears next
+    // and calls closeWelcome() (which sets the phase) once a character is
+    // claimed.
+    useGameStore.setState({ welcomeOpen: false });
+    await joinRoom(mode);
   };
 
   if (!open) return null;

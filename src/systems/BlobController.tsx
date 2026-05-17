@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useCombatStore, POWERUP_BASE_DROP_RATE, POWERUP_KINDS } from '../state/combatStore';
 import type { Blob } from '../state/combatStore';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { blobAttack, damageHit, bossSlam } from '../audio';
 
 const HOP_DIST = 1.3;
@@ -87,6 +88,7 @@ export function BlobController() {
   }, [phase]);
 
   useFrame((state, dtRaw) => {
+    if (!useNetStore.getState().isHost) return;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     const now = state.clock.elapsedTime;
     const realDt = Math.min(dtRaw, 0.1);

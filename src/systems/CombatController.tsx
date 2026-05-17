@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import { laserZap, blobSquish } from '../audio';
 
 const FIRE_COOLDOWN_BASE = 0.18;
@@ -198,10 +199,15 @@ export function CombatController() {
     if (bestId !== null) {
       const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
       const target = blobs.find((b) => b.id === bestId);
-      damageBlob(bestId, dmg);
+      // Damage is host-authoritative. Non-host beams are cosmetic — they
+      // hit visually but don't subtract HP. Damage broadcast for non-host
+      // shots is a follow-up.
+      if (useNetStore.getState().isHost) {
+        damageBlob(bestId, dmg);
+        if (target && target.hp <= dmg) blobSquish();
+      }
       recordShotHit();
       spawnHitParticle(bestPoint[0], bestPoint[1], bestPoint[2], bestVariant);
-      if (target && target.hp <= dmg) blobSquish();
     }
     lastTargetId.current = bestId;
   }
@@ -230,6 +236,9 @@ export function CombatController() {
     const { muzzleX, muzzleY, muzzleZ, dirX, dirZ, pos, yaw } = getAimVectors();
     recordShotFired();
     laserZap();
+    // Only host spawns projectiles (ProjectileController is host-gated; on
+    // non-host they would accumulate forever).
+    if (!useNetStore.getState().isHost) return;
     // Auto-aim toward nearest target
     const snap = snapTargetForYaw(yaw, pos.x, pos.z);
     let tx = pos.x + dirX * 12;
@@ -258,6 +267,7 @@ export function CombatController() {
     const { muzzleX, muzzleY, muzzleZ, pos, yaw } = getAimVectors();
     recordShotFired();
     laserZap();
+    if (!useNetStore.getState().isHost) return;
     const snap = snapTargetForYaw(yaw, pos.x, pos.z);
     let aimYaw = yaw;
     if (snap) {

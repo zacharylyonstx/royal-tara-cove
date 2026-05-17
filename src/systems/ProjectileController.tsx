@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useCombatStore } from '../state/combatStore';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { blobSquish, damageHit } from '../audio';
 
 const GRAVITY = 22;
@@ -14,6 +15,7 @@ export function ProjectileController() {
   const slowMo = useCombatStore((s) => s.slowMo);
 
   useFrame((_, dtRaw) => {
+    if (!useNetStore.getState().isHost) return;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;

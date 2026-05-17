@@ -4,6 +4,7 @@ import { Euler, Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import { startRagdollWhoosh, tickRagdollWhoosh, stopRagdollWhoosh, wilhelmScream } from '../audio';
 
 // Defeat-throw cinematic. Active only while gameStore.ragdoll != null.
@@ -32,6 +33,7 @@ export function RagdollController() {
   }, []);
 
   useFrame(() => {
+    if (!useNetStore.getState().isHost) return;
     const g = useGameStore.getState();
     if (g.gameMode !== 'tornado') return;
     const rag = g.ragdoll;
