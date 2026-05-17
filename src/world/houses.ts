@@ -39,10 +39,13 @@ const PALETTE = {
   },
 } as const;
 
-// 8 lots per side along the straight section. South-most slot (t=0) sits just
-// north of the bulb; north-most slot (t=1) sits at the entry from Avery Ranch.
-// Spacing: t = (i + 0.5) / 8 for i = 0..7 ⇒ midpoints of equal slots.
-const SLOT = (i: number) => straightZ((i + 0.5) / 8);
+// 7 lots per side along the straight section. South-most slot (t=0) sits just
+// north of the bulb; north-most slot (t=1) sits closer to the entry. Spacing:
+// t = (i + 0.5) / 7 for i = 0..6 ⇒ midpoints of equal slots. With STRAIGHT
+// length 95m, slot pitch is ~13.6m — comfortable for ≤12.5m-wide houses with
+// a real ~1m yard gap between neighbors.
+const STRAIGHT_SLOTS_PER_SIDE = 7;
+const SLOT = (i: number) => straightZ((i + 0.5) / STRAIGHT_SLOTS_PER_SIDE);
 
 // Houses on Royal Tara Cove. Real lat/lng was used to determine which side of
 // the street + which slot each address occupies (Nominatim geocoding May 2026).
@@ -127,13 +130,15 @@ export const HOUSES: HouseConfig[] = [
     source: 'inferred',
   },
 
-  // ---- East side of the straight section (odd numbers, 8 houses) ----
-  // Slot 0 (closest to bulb) ⇒ slot 7 (entry from Avery Ranch Blvd north).
+  // ---- East side of the straight section (odd numbers, 7 houses) ----
+  // Slot 0 (closest to bulb) ⇒ slot 6 (north). House widths are capped at
+  // 12.5m to leave ~1m of yard between adjacent neighbors (slot pitch ~13.6m).
+  // Per-slot Z jitter (±0.5m) breaks the laser-line setback.
   {
     address: '10609',
-    position: { kind: 'straight', side: 'east', z: SLOT(0) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'east', z: SLOT(0) + 0.4 },
+    width: 11,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.cream,
     trimColor: PALETTE.trim.cream,
@@ -146,9 +151,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10613',
-    position: { kind: 'straight', side: 'east', z: SLOT(1) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'east', z: SLOT(1) - 0.3 },
+    width: 12.5,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.warmGray,
     trimColor: PALETTE.trim.soft,
@@ -161,9 +166,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10617',
-    position: { kind: 'straight', side: 'east', z: SLOT(2) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'east', z: SLOT(2) + 0.5 },
+    width: 11.5,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.tan,
     trimColor: PALETTE.trim.cream,
@@ -176,9 +181,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10621',
-    position: { kind: 'straight', side: 'east', z: SLOT(3) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'east', z: SLOT(3) - 0.4 },
+    width: 12,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.brick,
     trimColor: PALETTE.trim.cream,
@@ -191,9 +196,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10625',
-    position: { kind: 'straight', side: 'east', z: SLOT(4) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'east', z: SLOT(4) + 0.3 },
+    width: 11,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.cream,
     trimColor: PALETTE.trim.cream,
@@ -208,9 +213,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10629',
-    position: { kind: 'straight', side: 'east', z: SLOT(5) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'east', z: SLOT(5) - 0.5 },
+    width: 12.5,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.softGray,
     trimColor: PALETTE.trim.soft,
@@ -223,9 +228,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10633',
-    position: { kind: 'straight', side: 'east', z: SLOT(6) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'east', z: SLOT(6) + 0.4 },
+    width: 11.5,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.biscuit,
     trimColor: PALETTE.trim.cream,
@@ -237,28 +242,13 @@ export const HOUSES: HouseConfig[] = [
     sqft: 1786,
     source: 'partial',
   },
-  {
-    address: '10637',
-    position: { kind: 'straight', side: 'east', z: SLOT(7) },
-    width: 14,
-    depth: 13,
-    stories: 2,
-    wallColor: PALETTE.walls.tan,
-    trimColor: PALETTE.trim.cream,
-    hasStone: true,
-    stoneColor: PALETTE.stone.cream,
-    roofColor: PALETTE.roof.brown,
-    doorColor: PALETTE.doors.burgundy,
-    garageOnLeft: false,
-    source: 'partial',
-  },
 
-  // ---- West side of the straight section (even numbers, 8 houses) ----
+  // ---- West side of the straight section (even numbers, 7 houses) ----
   {
     address: '10608',
-    position: { kind: 'straight', side: 'west', z: SLOT(0) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'west', z: SLOT(0) - 0.3 },
+    width: 11,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.sand,
     trimColor: PALETTE.trim.cream,
@@ -271,9 +261,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10612',
-    position: { kind: 'straight', side: 'west', z: SLOT(1) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'west', z: SLOT(1) + 0.5 },
+    width: 12,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.brick,
     trimColor: PALETTE.trim.cream,
@@ -286,9 +276,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10616',
-    position: { kind: 'straight', side: 'west', z: SLOT(2) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'west', z: SLOT(2) - 0.4 },
+    width: 12.5,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.cream,
     trimColor: PALETTE.trim.cream,
@@ -301,9 +291,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10620',
-    position: { kind: 'straight', side: 'west', z: SLOT(3) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'west', z: SLOT(3) + 0.3 },
+    width: 11.5,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.paleBeige,
     trimColor: PALETTE.trim.cream,
@@ -316,9 +306,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10624',
-    position: { kind: 'straight', side: 'west', z: SLOT(4) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'west', z: SLOT(4) - 0.5 },
+    width: 12.5,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.warmGray,
     trimColor: PALETTE.trim.soft,
@@ -331,9 +321,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10628',
-    position: { kind: 'straight', side: 'west', z: SLOT(5) },
-    width: 13,
-    depth: 12,
+    position: { kind: 'straight', side: 'west', z: SLOT(5) + 0.4 },
+    width: 11,
+    depth: 11,
     stories: 1,
     wallColor: PALETTE.walls.biscuit,
     trimColor: PALETTE.trim.cream,
@@ -346,9 +336,9 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10632',
-    position: { kind: 'straight', side: 'west', z: SLOT(6) },
-    width: 14,
-    depth: 13,
+    position: { kind: 'straight', side: 'west', z: SLOT(6) - 0.3 },
+    width: 12,
+    depth: 12,
     stories: 2,
     wallColor: PALETTE.walls.softGray,
     trimColor: PALETTE.trim.soft,
@@ -357,21 +347,6 @@ export const HOUSES: HouseConfig[] = [
     roofColor: PALETTE.roof.charcoal,
     doorColor: PALETTE.doors.black,
     garageOnLeft: false,
-    source: 'inferred',
-  },
-  {
-    address: '10636',
-    position: { kind: 'straight', side: 'west', z: SLOT(7) },
-    width: 13,
-    depth: 12,
-    stories: 1,
-    wallColor: PALETTE.walls.tan,
-    trimColor: PALETTE.trim.cream,
-    hasStone: true,
-    stoneColor: PALETTE.stone.cream,
-    roofColor: PALETTE.roof.brown,
-    doorColor: PALETTE.doors.forest,
-    garageOnLeft: true,
     source: 'inferred',
   },
 ];
