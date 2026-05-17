@@ -49,6 +49,7 @@ export function TornadoController() {
   const setStormIntensity = useTornadoStore((s) => s.setStormIntensity);
   const setWindStrength = useTornadoStore((s) => s.setWindStrength);
   const setTornadoZ = useTornadoStore((s) => s.setTornadoZ);
+  const setTornadoX = useTornadoStore((s) => s.setTornadoX);
   const setTornadoOpacity = useTornadoStore((s) => s.setTornadoOpacity);
   const setPhaseEnteredAt = useTornadoStore((s) => s.setPhaseEnteredAt);
   // Force-subscribe so this component participates in zustand updates
@@ -155,31 +156,55 @@ export function TornadoController() {
       setTornadoOpacity(1);
       const t = Math.min(1, elapsed / APPROACH_DURATION);
       const z = TORNADO_START_Z + (TORNADO_END_Z - TORNADO_START_Z) * t;
+      // Wobble: multi-frequency sway, decays as we approach 10600 so it
+      // lands roughly centered.
+      const wobbleAmp = 5 * (1 - Math.pow(t, 2));
+      const x = Math.sin(t * 4 * Math.PI) * wobbleAmp +
+                Math.sin(t * 9.3 * Math.PI + 1.7) * wobbleAmp * 0.3;
       setTornadoZ(z);
+      setTornadoX(x);
 
-      // Trigger destruction on the next un-destroyed house we've passed.
+      // Trigger destruction on houses near the funnel center (not just Z-pass)
       for (const h of housePath) {
         if (g.destroyedHouses[h.address] != null) continue;
-        if (z >= h.z - TORNADO_KILL_RADIUS) {
+        const dist = Math.hypot(h.x - x, h.z - z);
+        if (dist < TORNADO_KILL_RADIUS) {
           g.markHouseDestroyed(h.address, now);
-          // Audio: distance attenuated
           const player = g.positions[g.activeCharacterId];
-          const distToHouse = player
+          const distToPlayer = player
             ? Math.hypot(player.x - h.x, player.z - h.z)
             : 30;
-          houseCollapse(Math.min(1, distToHouse / 60));
-          break; // one per frame, keeps audio uncluttered
+          houseCollapse(Math.min(1, distToPlayer / 60));
+          break; // one per frame to keep audio uncluttered
         }
       }
 
-      // Camera shake scaled to player distance from tornado
+      // PLAYER KILL ZONE — walking into the funnel triggers ragdoll throw.
       const player = g.positions[g.activeCharacterId];
+      const KILL_RADIUS = 4;
       if (player) {
-        const distZ = Math.abs(player.z - z);
-        const distX = Math.abs(player.x);
-        const dist = Math.hypot(distX, distZ);
-        const shake = Math.min(0.04, 0.04 / Math.max(1, dist / 8));
+        const dx = player.x - x;
+        const dz = player.z - z;
+        const distToFunnel = Math.hypot(dx, dz);
+        if (distToFunnel < KILL_RADIUS) {
+          g.startRagdoll(player.x, player.y, player.z, now);
+          g.setPhase('defeat');
+          return;
+        }
+        // Camera shake by proximity
+        const shake = Math.min(0.06, 0.05 / Math.max(1, distToFunnel / 8));
         addShake(shake);
+      }
+      // NPCs near the funnel get yeeted offscreen (no clutter)
+      for (const id of ['penny', 'luke'] as const) {
+        const p = g.positions[id];
+        if (!p) continue;
+        const dist = Math.hypot(p.x - x, p.z - z);
+        if (dist < KILL_RADIUS) {
+          p.x = x + (Math.random() - 0.5) * 60;
+          p.z = z + 80 + Math.random() * 20;
+          p.y = 0;
+        }
       }
 
       if (elapsed >= APPROACH_DURATION || z >= TORNADO_END_Z - 0.5) {

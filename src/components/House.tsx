@@ -34,34 +34,112 @@ export function House({ config, lot }: HouseProps) {
 
   const wallMaterial = mat.stucco(config.wallColor);
 
-  // Destruction animation refs (tornado-mode). Shrinks the body group and
-  // drops the roof; rubble group fades in at the end.
+  // Destruction animation refs (tornado-mode). The dramatic overhaul:
+  //   • roof LAUNCHES upward + tumbles + scales away
+  //   • body walls tilt then collapse over a 1.4s sequence
+  //   • debris fountain (40 boxes) bursts outward + falls under gravity
+  //   • dust burst sphere expands to ~12m then fades
+  //   • rubble pile materializes at the end
   const bodyRef = useRef<THREE.Group>(null);
   const roofRef = useRef<THREE.Group>(null);
   const rubbleRef = useRef<THREE.Mesh>(null);
   const rubbleMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const debrisMeshRef = useRef<THREE.InstancedMesh>(null);
+  const dustMeshRef = useRef<THREE.Mesh>(null);
+  const dustMatRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  // Pre-compute debris launch velocities (stable per house instance)
+  const debrisLaunch = useMemo(() => {
+    const n = 40;
+    const arr: { vx: number; vy: number; vz: number; spinX: number; spinY: number; spinZ: number; offsetX: number; offsetZ: number; size: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const speed = 4 + Math.random() * 8;
+      arr.push({
+        vx: Math.cos(ang) * speed,
+        vy: 6 + Math.random() * 10,
+        vz: Math.sin(ang) * speed,
+        spinX: (Math.random() - 0.5) * 10,
+        spinY: (Math.random() - 0.5) * 10,
+        spinZ: (Math.random() - 0.5) * 10,
+        offsetX: (Math.random() - 0.5) * 2,
+        offsetZ: (Math.random() - 0.5) * 2,
+        size: 0.18 + Math.random() * 0.32,
+      });
+    }
+    return arr;
+  }, []);
+
+  const tmpDebrisObj = useMemo(() => new THREE.Object3D(), []);
+
   useFrame(() => {
     const body = bodyRef.current;
     const roof = roofRef.current;
     const rubble = rubbleRef.current;
     const rubMat = rubbleMatRef.current;
+    const debris = debrisMeshRef.current;
+    const dust = dustMeshRef.current;
+    const dustMat = dustMatRef.current;
     if (!body) return;
     const now = performance.now() / 1000;
     const p = destructionProgress(config.address, now);
     if (p <= 0) {
-      body.scale.y = 1;
+      body.scale.set(1, 1, 1);
+      body.rotation.set(0, 0, 0);
       body.visible = true;
-      if (roof) { roof.scale.y = 1; roof.position.y = 0; }
+      if (roof) { roof.scale.set(1, 1, 1); roof.position.set(0, wallH + 0.1, 0); roof.rotation.set(0, 0, 0); }
       if (rubble) rubble.visible = false;
+      if (debris) debris.visible = false;
+      if (dust) dust.visible = false;
       return;
     }
     const ph = destructionPhases(p);
+
+    // Roof: launches up + tumbles + shrinks
     if (roof) {
-      roof.position.y = -ph.roofDrop * 1.6;
-      roof.scale.y = 1 - ph.roofDrop * 0.6;
+      const liftP = Math.min(1, p * 1.8); // launches faster than the rest
+      roof.position.set(
+        Math.sin(p * 7) * 1.5,
+        wallH + 0.1 + liftP * 9 - liftP * liftP * 4, // parabola up then down
+        Math.cos(p * 5) * 1.2,
+      );
+      roof.rotation.set(p * 7, p * 4, p * 5);
+      roof.scale.setScalar(Math.max(0.01, 1 - liftP * 0.85));
     }
-    body.scale.y = 1 - ph.wallShrink * 0.92;
-    body.visible = body.scale.y > 0.01;
+
+    // Body walls: tilt away from tornado, then collapse
+    body.rotation.z = ph.wallShrink * -0.4; // 23° tilt
+    body.scale.set(1, Math.max(0.02, 1 - ph.wallShrink * 0.95), 1);
+    body.visible = body.scale.y > 0.02;
+
+    // Debris fountain
+    if (debris) {
+      debris.visible = true;
+      const dragP = Math.min(1, p * 1.3);
+      for (let i = 0; i < debrisLaunch.length; i++) {
+        const d = debrisLaunch[i];
+        const t = p * 1.4; // seconds-ish since destruction
+        const x = d.offsetX + d.vx * t;
+        const y = Math.max(0.2, d.vy * t - 12 * t * t); // gravity
+        const z = d.offsetZ + d.vz * t;
+        tmpDebrisObj.position.set(x, y, z);
+        tmpDebrisObj.rotation.set(d.spinX * t, d.spinY * t, d.spinZ * t);
+        tmpDebrisObj.scale.setScalar(d.size * (1 - dragP * 0.3));
+        tmpDebrisObj.updateMatrix();
+        debris.setMatrixAt(i, tmpDebrisObj.matrix);
+      }
+      debris.instanceMatrix.needsUpdate = true;
+    }
+
+    // Dust burst sphere
+    if (dust && dustMat) {
+      dust.visible = true;
+      const dustP = Math.min(1, p * 1.2);
+      const radius = 1 + dustP * 11;
+      dust.scale.setScalar(radius);
+      dustMat.opacity = 0.45 * (1 - dustP);
+    }
+
     if (rubble) {
       rubble.visible = ph.rubble > 0;
       if (rubMat) rubMat.opacity = ph.rubble;
@@ -85,6 +163,29 @@ export function House({ config, lot }: HouseProps) {
           roughness={1}
           transparent
           opacity={0}
+        />
+      </mesh>
+
+      {/* Debris fountain (40 instanced boxes launched on destruction) */}
+      <instancedMesh
+        ref={debrisMeshRef}
+        args={[undefined, undefined, debrisLaunch.length]}
+        visible={false}
+        castShadow
+      >
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#7a5a32" roughness={0.85} />
+      </instancedMesh>
+
+      {/* Dust burst sphere */}
+      <mesh ref={dustMeshRef} position={[0, 2, 0]} visible={false}>
+        <sphereGeometry args={[1, 16, 12]} />
+        <meshBasicMaterial
+          ref={dustMatRef}
+          color="#a89888"
+          transparent
+          opacity={0.45}
+          depthWrite={false}
         />
       </mesh>
 

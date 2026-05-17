@@ -4,7 +4,7 @@ import { useGameStore } from '../state/gameStore';
 // Components read `destructionProgress(address, now)` each frame and apply
 // the resulting 0..1 value to their visual transforms.
 
-export const DESTRUCTION_DURATION = 1.4; // seconds from collapse start to rubble
+export const DESTRUCTION_DURATION = 2.2; // seconds from collapse start to rubble — extended for dramatic debris fountain + dust burst
 
 export function destructionProgress(address: string, now: number): number {
   const at = useGameStore.getState().destroyedHouses[address];
