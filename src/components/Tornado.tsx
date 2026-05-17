@@ -241,7 +241,7 @@ const LAYERS: FunnelLayer[] = [
   {
     baseR: 1.2, topR: 5.5,
     scroll: 0.9, updraft: 1.2, density: 0.4,
-    baseTint: new THREE.Color('#78746e'),
+    baseTint: new THREE.Color('#7a5a3a'),
     midTint:  new THREE.Color('#32303a'),
     topTint:  new THREE.Color('#1a1a1c'),
     opacityMult: 1.0, sBend: 1.0, renderOrder: 5,
@@ -251,7 +251,7 @@ const LAYERS: FunnelLayer[] = [
   {
     baseR: 0.6, topR: 2.5,
     scroll: 1.55, updraft: 1.9, density: 0.55,
-    baseTint: new THREE.Color('#8c8782'),
+    baseTint: new THREE.Color('#8a6e48'),
     midTint:  new THREE.Color('#2a262e'),
     topTint:  new THREE.Color('#0a0a0c'),
     opacityMult: 1.0, sBend: 1.2, renderOrder: 6,
