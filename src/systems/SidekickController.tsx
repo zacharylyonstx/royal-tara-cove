@@ -31,6 +31,7 @@ export function SidekickController() {
   });
 
   useFrame((_, dtRaw) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);
 

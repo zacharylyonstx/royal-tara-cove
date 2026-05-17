@@ -19,7 +19,7 @@ export function PennyBomber() {
     const g = groupRef.current;
     if (!g) return;
     // FPS: hide own weapon; show Penny's bomber only when she's an NPC.
-    if (phase !== 'combat' || activeId === 'penny') {
+    if (phase !== 'combat' || activeId === 'penny' || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }

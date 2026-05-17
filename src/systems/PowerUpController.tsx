@@ -10,6 +10,7 @@ export function PowerUpController() {
   const phase = useGameStore((s) => s.phase);
 
   useFrame(() => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const c = useCombatStore.getState();
     const g = useGameStore.getState();

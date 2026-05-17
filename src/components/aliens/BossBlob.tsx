@@ -15,6 +15,8 @@ interface Props {
  * Visual only; AI lives in BlobController.
  */
 export function BossBlob({ blob }: Props) {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'aliens') return null;
   const group = useRef<Group>(null);
   const body = useRef<Mesh>(null);
   const crown = useRef<Group>(null);

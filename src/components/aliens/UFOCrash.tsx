@@ -61,6 +61,7 @@ export function UFOCrash() {
   }, [phase, reset]);
 
   useFrame((_, dtRaw) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'intro' && phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);
     introT.current += dt;

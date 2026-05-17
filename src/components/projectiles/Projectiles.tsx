@@ -1,7 +1,10 @@
 import { useCombatStore } from '../../state/combatStore';
 import type { Projectile } from '../../state/combatStore';
+import { useGameStore } from '../../state/gameStore';
 
 export function Projectiles() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'aliens') return null;
   const projectiles = useCombatStore((s) => s.projectiles);
   return (
     <>

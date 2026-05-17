@@ -21,6 +21,7 @@ export function MusicController() {
   // Adjust mix based on phase + combat intensity
   useFrame(() => {
     if (!startedRef.current) return;
+    const gameMode = useGameStore.getState().gameMode;
     if (phase === 'victory') {
       setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.6 });
       return;
@@ -29,7 +30,7 @@ export function MusicController() {
       setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.0 });
       return;
     }
-    if (phase === 'combat') {
+    if (phase === 'combat' && gameMode === 'aliens') {
       const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
       const intensity = Math.min(1, blobs.length / MAX_BLOBS_FOR_INTENSITY);
       setMusicMix({

@@ -3,10 +3,13 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PowerUpDrop } from '../../state/combatStore';
 import { POWERUP_COLOR } from '../../state/combatStore';
+import { useGameStore } from '../../state/gameStore';
 
 interface Props { drop: PowerUpDrop }
 
 export function Pickup({ drop }: Props) {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'aliens') return null;
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const color = POWERUP_COLOR[drop.kind];

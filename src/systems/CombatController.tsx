@@ -60,6 +60,7 @@ export function CombatController() {
   }, [gl]);
 
   useFrame((_, dtRaw) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
     cooldown.current = Math.max(0, cooldown.current - dt);

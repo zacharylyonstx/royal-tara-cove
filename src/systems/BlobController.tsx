@@ -87,6 +87,7 @@ export function BlobController() {
   }, [phase]);
 
   useFrame((state, dtRaw) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     const now = state.clock.elapsedTime;
     const realDt = Math.min(dtRaw, 0.1);
     const dt = realDt * slowMo;

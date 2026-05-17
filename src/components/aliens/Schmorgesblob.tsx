@@ -10,6 +10,8 @@ interface BlobProps {
 }
 
 export function Schmorgesblob({ blob }: BlobProps) {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'aliens') return null;
   if (blob.kind === 'sprinter') return <Sprinter blob={blob} />;
   if (blob.kind === 'splitter') return <Splitter blob={blob} />;
   // hopper (default)

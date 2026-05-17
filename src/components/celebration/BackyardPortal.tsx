@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useCombatStore } from '../../state/combatStore';
+import { useGameStore } from '../../state/gameStore';
 import { BLOB_SPAWN } from '../aliens/UFOCrash';
 
 /**
@@ -20,6 +21,7 @@ export function BackyardPortal() {
   const visibleRef = useRef(false);
 
   useFrame(({ clock }) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     const c = useCombatStore.getState();
     const queued = c.blobsToSpawn.reduce((s, x) => s + x.count, 0);
     const cinActive = c.cinematic.active;

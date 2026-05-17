@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Points } from 'three';
+import { useGameStore } from '../../state/gameStore';
 
 interface SmokeColumnProps {
   position: [number, number, number];
@@ -49,6 +50,7 @@ export function SmokeColumn({ position, count = 80, color = '#7a7a7c', embers = 
   const emberColor = useMemo(() => new THREE.Color('#ff8a3a'), []);
 
   useFrame((state) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     const t = state.clock.elapsedTime;
     for (let i = 0; i < count; i++) {
       const p = init[i];

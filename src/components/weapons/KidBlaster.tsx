@@ -27,7 +27,7 @@ export function KidBlaster({ who, color }: KidBlasterProps) {
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
-    if (phase !== 'combat' || activeId === who) {
+    if (phase !== 'combat' || activeId === who || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }

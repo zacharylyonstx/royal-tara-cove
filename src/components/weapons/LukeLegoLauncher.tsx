@@ -19,7 +19,7 @@ export function LukeLegoLauncher() {
     const g = groupRef.current;
     if (!g) return;
     // FPS: hide own weapon; show Luke's launcher only when he's an NPC.
-    if (phase !== 'combat' || activeId === 'luke') {
+    if (phase !== 'combat' || activeId === 'luke' || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }

@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import * as THREE from 'three';
 import type { Mesh, PointLight } from 'three';
 import { useCombatStore } from '../../state/combatStore';
+import { useGameStore } from '../../state/gameStore';
 
 interface CrashFXProps {
   position: [number, number, number];
@@ -20,6 +21,7 @@ export function CrashFX({ position }: CrashFXProps) {
   const crashAt = useCombatStore((s) => s.crashFlashAt);
 
   useFrame((state) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     const now = state.clock.elapsedTime;
     const age = now - (crashAt > 0 ? crashAt : -999);
     // Flash sphere: 0..0.18s grow + fade
@@ -71,6 +73,7 @@ export function Debris() {
   const debris = useCombatStore((s) => s.debris);
   const reapDebris = useCombatStore((s) => s.reapDebris);
   useFrame((state) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     reapDebris(state.clock.elapsedTime);
   });
   return (
@@ -83,6 +86,7 @@ export function Debris() {
 function DebrisPiece({ d }: { d: ReturnType<typeof useCombatStore.getState>['debris'][number] }) {
   const ref = useRef<Mesh>(null);
   useFrame((state) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     const now = state.clock.elapsedTime;
     const age = now - d.spawnedAt;
     const x = d.x + d.vx * age;

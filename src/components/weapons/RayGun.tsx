@@ -44,7 +44,7 @@ export function RayGun() {
     const dt = Math.min(dtRaw, 0.1);
     // FPS: hide own weapon (you're holding it but can't see your hands).
     // Show Dad's gun to other characters when Dad is an NPC.
-    if (phase !== 'combat' || activeId === 'dad') {
+    if (phase !== 'combat' || activeId === 'dad' || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }

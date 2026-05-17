@@ -70,6 +70,7 @@ export function WaveController() {
   }, [phase, setWave, startGame, pushDialogue]);
 
   useFrame((state, dtRaw) => {
+    if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);
     const now = state.clock.elapsedTime;
