@@ -2,7 +2,19 @@ import { create } from 'zustand';
 import { Vector3 } from 'three';
 import type { CharacterId, Floor, RectCollider } from '../types';
 
-export type GamePhase = 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat';
+export type GameMode = 'aliens' | 'tornado';
+export type TornadoPhase =
+  | 'calm' | 'rain' | 'hail' | 'tornado-approach' | 'tornado-arrived';
+export type GamePhase =
+  | 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat' | TornadoPhase;
+
+interface RagdollState {
+  active: boolean;
+  startedAt: number;
+  originX: number;
+  originY: number;
+  originZ: number;
+}
 
 interface GameStore {
   activeCharacterId: CharacterId;
@@ -13,7 +25,25 @@ interface GameStore {
   closeWelcome: () => void;
   openWelcome: () => void;
 
-  /** Game phase machine. Welcome closes → intro → combat → victory|defeat. */
+  /** Selected game mode (chosen on welcome screen). */
+  gameMode: GameMode;
+  setGameMode: (m: GameMode) => void;
+
+  /** Tornado-mode per-house destruction state. address → destroyedAt seconds. */
+  destroyedHouses: Record<string, number>;
+  markHouseDestroyed: (address: string, at: number) => void;
+  clearDestroyedHouses: () => void;
+
+  /** Tornado-mode ragdoll-throw state (null when not throwing). */
+  ragdoll: RagdollState | null;
+  startRagdoll: (x: number, y: number, z: number, at: number) => void;
+  clearRagdoll: () => void;
+
+  /** Reset all tornado-mode state for replay or mode switch. */
+  resetTornadoGame: () => void;
+
+  /** Game phase machine. Welcome closes → intro → combat → victory|defeat (aliens),
+   *  or → calm → rain → hail → tornado-approach → tornado-arrived → victory|defeat (tornado). */
   phase: GamePhase;
   setPhase: (p: GamePhase) => void;
 
@@ -57,8 +87,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // Yaw π = facing +Z (south, toward 10600's backyard / crash site).
   yaws: { dad: Math.PI, penny: Math.PI, luke: Math.PI },
   setActiveCharacter: (id) => set({ activeCharacterId: id }),
-  closeWelcome: () => set({ welcomeOpen: false, phase: 'intro' }),
+  closeWelcome: () => set((s) => ({
+    welcomeOpen: false,
+    // Aliens uses an intro cinematic; tornado has its own pacing and starts in calm.
+    phase: s.gameMode === 'tornado' ? 'calm' : 'intro',
+  })),
   openWelcome: () => set({ welcomeOpen: true }),
+
+  gameMode: 'aliens',
+  setGameMode: (m) => set({ gameMode: m }),
+
+  destroyedHouses: {},
+  markHouseDestroyed: (address, at) =>
+    set((s) => ({ destroyedHouses: { ...s.destroyedHouses, [address]: at } })),
+  clearDestroyedHouses: () => set({ destroyedHouses: {} }),
+
+  ragdoll: null,
+  startRagdoll: (x, y, z, at) =>
+    set({ ragdoll: { active: true, startedAt: at, originX: x, originY: y, originZ: z } }),
+  clearRagdoll: () => set({ ragdoll: null }),
+
+  resetTornadoGame: () => set({
+    destroyedHouses: {},
+    ragdoll: null,
+    positions: {
+      dad: new Vector3(-2.5, 0, 10),
+      penny: new Vector3(0, 0, 11),
+      luke: new Vector3(2.5, 0, 10),
+    },
+    yaws: { dad: Math.PI, penny: Math.PI, luke: Math.PI },
+  }),
 
   phase: 'pre-intro',
   setPhase: (p) => set({ phase: p }),
