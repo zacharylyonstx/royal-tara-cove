@@ -1,0 +1,33 @@
+- generic [ref=e2]:
+  - generic: 👨Playing as Dad
+  - generic:
+    - generic:
+      - generic: "1"
+      - text: Dad
+      - generic: "2"
+      - text: Penny
+      - generic: "3"
+      - text: Luke
+    - generic:
+      - generic: WASD
+      - text: move
+      - generic: ⇧
+      - text: run
+      - generic: ␣
+      - text: jump
+    - generic:
+      - generic: E
+      - text: open / close door
+      - generic: R
+      - text: reset
+    - generic:
+      - generic: click
+      - text: look around
+      - generic: esc
+      - text: release cursor
+  - generic:
+    - generic: 👽 Aliens
+    - generic: ·
+    - generic: 👥 2
+    - generic: ·
+    - generic: 👨 Dad· host

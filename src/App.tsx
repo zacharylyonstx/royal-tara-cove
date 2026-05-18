@@ -3,6 +3,8 @@ import { Game } from './components/Game';
 import { WelcomeScreen } from './ui/WelcomeScreen';
 import { CharacterSelect } from './ui/CharacterSelect';
 import { RoomBadge } from './ui/RoomBadge';
+import { ChatInput } from './ui/ChatInput';
+import { ChatLog } from './ui/ChatLog';
 import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
@@ -49,6 +51,8 @@ export default function App() {
       <WelcomeScreen />
       <CharacterSelect />
       <RoomBadge />
+      <ChatLog />
+      <ChatInput />
       <VictoryScreen />
       <DefeatScreen />
     </>

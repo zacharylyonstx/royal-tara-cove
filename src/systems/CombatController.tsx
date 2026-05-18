@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
+import { useChatStore } from '../state/chatStore';
 import { laserZap, blobSquish } from '../audio';
 
 const FIRE_COOLDOWN_BASE = 0.18;
@@ -49,6 +50,7 @@ export function CombatController() {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       if (useGameStore.getState().phase !== 'combat') return;
+      if (useChatStore.getState().inputOpen) return;
       wantsFire.current = true;
     };
     const onMouseUp = () => { wantsFire.current = false; };
@@ -63,6 +65,8 @@ export function CombatController() {
   useFrame((_, dtRaw) => {
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
+    // Don't fire while chatting.
+    if (useChatStore.getState().inputOpen) return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
     cooldown.current = Math.max(0, cooldown.current - dt);
 

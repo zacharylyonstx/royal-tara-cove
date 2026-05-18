@@ -6,6 +6,7 @@ import { floorAt, resolveMotion } from './collision';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useNetStore } from '../state/netStore';
+import { useChatStore } from '../state/chatStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 
@@ -77,6 +78,8 @@ export function PlayerController() {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // Don't react to typing in the chat input.
+      if (useChatStore.getState().inputOpen) return;
       const k = e.key.toLowerCase();
       keys.current[k] = true;
       // 1/2/3 character swap disabled in multiplayer — character is fixed
@@ -103,6 +106,8 @@ export function PlayerController() {
     if (welcomeOpen) return;
     // Spectators don't move anything.
     if (spectator) return;
+    // While chat is open, the textbox owns the keyboard.
+    if (useChatStore.getState().inputOpen) return;
     const slowFactor = useCombatStore.getState().slowMo;
     const dt = Math.min(dtRaw, 0.1) * slowFactor;
 

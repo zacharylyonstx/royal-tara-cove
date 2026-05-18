@@ -4,6 +4,7 @@ import { Euler, Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
+import { useChatStore } from '../state/chatStore';
 import { CHARACTER_ORDER } from '../world/characters';
 
 // First-person camera.
@@ -48,6 +49,8 @@ export function CameraRig() {
       // spectating (no input to capture).
       if (useGameStore.getState().welcomeOpen) return;
       if (useNetStore.getState().spectator) return;
+      // Chat textbox owns focus while open.
+      if (useChatStore.getState().inputOpen) return;
       // requestPointerLock returns a Promise in newer browsers; older ones return void.
       const result = canvas.requestPointerLock();
       if (result instanceof Promise) result.catch(() => {});

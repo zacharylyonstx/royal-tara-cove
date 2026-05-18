@@ -1,9 +1,12 @@
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 
 export function VictoryScreen() {
   const phase = useGameStore((s) => s.phase);
   const gameMode = useGameStore((s) => s.gameMode);
+  const isHost = useNetStore((s) => s.isHost);
+  const peerCount = useNetStore((s) => Object.keys(s.peers).length);
   const kills = useCombatStore((s) => s.kills);
   const shotsFired = useCombatStore((s) => s.shotsFired);
   const shotsHit = useCombatStore((s) => s.shotsHit);
@@ -67,19 +70,45 @@ export function VictoryScreen() {
         >
           RANK: {rating}
         </div>
-        <div>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <button
             onClick={() => window.location.reload()}
             style={{
-              padding: '14px 36px', fontSize: 18, fontWeight: 700,
-              background: '#5a8a3e', color: 'white',
+              padding: '14px 28px', fontSize: 16, fontWeight: 700,
+              background: '#888', color: 'white',
               border: 'none', borderRadius: 12,
               cursor: 'pointer',
               boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
             }}
           >
-            Play again ▶
+            Play again ↻
           </button>
+          {isHost ? (
+            <button
+              onClick={() => useGameStore.getState().setPhase('free-play')}
+              style={{
+                padding: '14px 36px', fontSize: 18, fontWeight: 700,
+                background: '#5a8a3e', color: 'white',
+                border: 'none', borderRadius: 12,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              }}
+            >
+              Keep playing →
+            </button>
+          ) : peerCount > 1 ? (
+            <button
+              disabled
+              style={{
+                padding: '14px 36px', fontSize: 18, fontWeight: 700,
+                background: 'rgba(120,120,120,0.4)', color: 'rgba(255,255,255,0.7)',
+                border: 'none', borderRadius: 12,
+                cursor: 'not-allowed',
+              }}
+            >
+              Keep playing → (host decides)
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

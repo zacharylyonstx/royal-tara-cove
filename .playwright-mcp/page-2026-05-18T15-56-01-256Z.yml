@@ -1,0 +1,41 @@
+- generic [ref=e2]:
+  - generic [ref=e62]:
+    - generic: 👨hi from dad
+  - generic: 👨Playing as Dad
+  - generic:
+    - generic:
+      - generic: "1"
+      - text: Dad
+      - generic: "2"
+      - text: Penny
+      - generic: "3"
+      - text: Luke
+    - generic:
+      - generic: WASD
+      - text: move
+      - generic: ⇧
+      - text: run
+      - generic: ␣
+      - text: jump
+    - generic:
+      - generic: E
+      - text: open / close door
+      - generic: R
+      - text: reset
+    - generic:
+      - generic: click
+      - text: look around
+      - generic: esc
+      - text: release cursor
+  - generic: 🌪️ TORNADO IMPACT IN 0:31 — RUN INSIDE 10600
+  - generic:
+    - generic: 🌪️ Tornado
+    - generic: ·
+    - generic: 👥 1
+    - generic: ·
+    - generic: 👨 Dad
+  - generic:
+    - generic:
+      - generic: 👨
+      - generic: "Dad:"
+      - generic: hi from dad

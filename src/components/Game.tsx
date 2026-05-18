@@ -50,6 +50,7 @@ import { ProjectorController } from '../systems/ProjectorController';
 import { TornadoController } from '../systems/TornadoController';
 import { RagdollController } from '../systems/RagdollController';
 import { NetSyncController } from '../systems/NetSyncController';
+import { SpeechBubbles } from '../ui/SpeechBubbles';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
 import { Hail } from './weather/Hail';
@@ -172,6 +173,7 @@ export function Game() {
       <CameraRig />
       <CameraExposer />
       <NetSyncController />
+      <SpeechBubbles />
     </>
   );
 }
@@ -323,7 +325,7 @@ function PickupsLive() {
 
 function VictoryOnly() {
   const phase = useGameStore((s) => s.phase);
-  if (phase !== 'victory') return null;
+  if (phase !== 'victory' && phase !== 'free-play') return null;
   return (
     <>
       <Fireworks />

@@ -1,0 +1,47 @@
+- generic [ref=e2]:
+  - generic [ref=e76]:
+    - generic: 👨test message
+  - generic: 👨Playing as Dad
+  - generic:
+    - generic:
+      - generic: "1"
+      - text: Dad
+      - generic: "2"
+      - text: Penny
+      - generic: "3"
+      - text: Luke
+    - generic:
+      - generic: WASD
+      - text: move
+      - generic: ⇧
+      - text: run
+      - generic: ␣
+      - text: jump
+    - generic:
+      - generic: E
+      - text: open / close door
+      - generic: R
+      - text: reset
+    - generic:
+      - generic: click
+      - text: look around
+      - generic: esc
+      - text: release cursor
+  - generic [ref=e64]:
+    - generic [ref=e65]: 🌪️
+    - heading "Carried away by the storm!" [level=1] [ref=e66]
+    - paragraph [ref=e67]: You needed to be inside 10600 when the tornado hit.
+    - generic [ref=e68]:
+      - button "Try again ↻" [ref=e69] [cursor=pointer]
+      - button "Back to menu" [ref=e70] [cursor=pointer]
+  - generic:
+    - generic: 🌪️ Tornado
+    - generic: ·
+    - generic: 👥 1
+    - generic: ·
+    - generic: 👨 Dad
+  - generic:
+    - generic:
+      - generic: 👨
+      - generic: "Dad:"
+      - generic: test message

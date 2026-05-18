@@ -8,6 +8,7 @@ import { useNetStore } from '../state/netStore';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
+import { useChatStore, type ChatMsg } from '../state/chatStore';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -59,7 +60,9 @@ let room: Room | null = null;
 let sendWhoami: ((data: Whoami, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendPlayer: ((data: PlayerStateMsg) => Promise<void[]>) | null = null;
 let sendWorld: ((data: WorldStateMsg) => Promise<void[]>) | null = null;
+let sendChatAction: ((data: ChatMsg) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
+let chatMsgCounter = 0;
 
 export function getSelfId(): string {
   return selfId;
@@ -86,9 +89,11 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [whoamiSender, whoamiReceiver] = r.makeAction('whoami');
   const [playerSender, playerReceiver] = r.makeAction('player');
   const [worldSender, worldReceiver] = r.makeAction('world');
+  const [chatSender, chatReceiver] = r.makeAction('chat');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
+  sendChatAction = chatSender as unknown as typeof sendChatAction;
 
   whoamiReceiver((rawData, peerId) => {
     const data = rawData as unknown as Whoami;
@@ -110,6 +115,11 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     // Only apply if I'm NOT the host (avoid overwriting our own sim).
     if (useNetStore.getState().isHost) return;
     applyWorldSnapshot(rawData as unknown as WorldStateMsg);
+  });
+
+  chatReceiver((rawData) => {
+    const msg = rawData as unknown as ChatMsg;
+    useChatStore.getState().appendMessage(msg);
   });
 
   r.onPeerJoin((peerId) => {
@@ -145,8 +155,26 @@ export async function leaveRoom(): Promise<void> {
     // ignore
   }
   room = null;
-  sendWhoami = sendPlayer = sendWorld = null;
+  sendWhoami = sendPlayer = sendWorld = sendChatAction = null;
   useNetStore.getState().leftRoom();
+}
+
+/** Send a chat message. No-op for spectators or anyone without a character. */
+export async function sendChat(text: string): Promise<void> {
+  const trimmed = text.trim().slice(0, 120);
+  if (!trimmed) return;
+  const characterId = useNetStore.getState().myCharacterId;
+  if (!characterId) return; // spectators can't send
+  chatMsgCounter += 1;
+  const msg: ChatMsg = {
+    id: `${selfId}-${chatMsgCounter}`,
+    characterId,
+    text: trimmed,
+    sentAt: Date.now(),
+  };
+  // Append locally first so the sender sees their own message immediately.
+  useChatStore.getState().appendMessage(msg);
+  if (sendChatAction) await sendChatAction(msg).catch(() => {});
 }
 
 export async function claimCharacter(id: CharacterId): Promise<void> {

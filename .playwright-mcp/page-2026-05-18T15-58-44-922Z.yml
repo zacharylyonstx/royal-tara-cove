@@ -1,0 +1,69 @@
+- generic [ref=e2]:
+  - generic: 👨Playing as Dad
+  - generic:
+    - generic:
+      - generic: "1"
+      - text: Dad
+      - generic: "2"
+      - text: Penny
+      - generic: "3"
+      - text: Luke
+    - generic:
+      - generic: WASD
+      - text: move
+      - generic: ⇧
+      - text: run
+      - generic: ␣
+      - text: jump
+    - generic:
+      - generic: E
+      - text: open / close door
+      - generic: R
+      - text: reset
+    - generic:
+      - generic: click
+      - text: look around
+      - generic: esc
+      - text: release cursor
+  - generic:
+    - generic:
+      - text: FAMILY HP
+      - generic: 20/20
+  - generic:
+    - generic: WAVE 1 / 3
+    - generic: "🛸 SCHMORGESBLOBS: 4"
+  - generic:
+    - generic: CLICK
+    - text: fire ray gun
+  - generic:
+    - img
+  - generic:
+    - generic: SCORE
+    - generic: "0"
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - text: "Room:"
+      - strong [ref=e34]: ALIEN INVASION
+      - text: · 2 players here
+    - heading "Pick your character" [level=1] [ref=e35]
+    - generic [ref=e36]:
+      - button "👨 DAD Taken" [disabled] [ref=e52]:
+        - generic [ref=e38]: 👨
+        - generic [ref=e39]: DAD
+        - generic [ref=e40]: Taken
+      - button "👧 PENNY Available" [ref=e41] [cursor=pointer]:
+        - generic [ref=e42]: 👧
+        - generic [ref=e43]: PENNY
+        - generic [ref=e44]: Available
+      - button "👦 LUKE Available" [ref=e45] [cursor=pointer]:
+        - generic [ref=e46]: 👦
+        - generic [ref=e47]: LUKE
+        - generic [ref=e48]: Available
+    - button "← Back" [ref=e50] [cursor=pointer]
+    - paragraph [ref=e51]: New players appear automatically — others on your call just go to the same URL and pick the same mode.
+  - generic:
+    - generic: 👽 Aliens
+    - generic: ·
+    - generic: 👥 2
+    - generic: ·
+    - generic: no character

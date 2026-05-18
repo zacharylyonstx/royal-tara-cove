@@ -6,7 +6,7 @@ export type GameMode = 'aliens' | 'tornado';
 export type TornadoPhase =
   | 'calm' | 'rain' | 'hail' | 'tornado-approach' | 'tornado-arrived';
 export type GamePhase =
-  | 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat' | TornadoPhase;
+  | 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat' | 'free-play' | TornadoPhase;
 
 interface RagdollState {
   active: boolean;
