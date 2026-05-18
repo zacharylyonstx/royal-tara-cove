@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .netlify
+.playwright-mcp/
+*-as-*.png
+chat-test-*.png
+tab*-freeplay.png
