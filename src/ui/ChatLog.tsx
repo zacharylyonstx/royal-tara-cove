@@ -38,9 +38,10 @@ export function ChatLog() {
     <div
       style={{
         position: 'fixed',
-        bottom: 16,
+        // Sit above ControlsHud (which lives at bottom: 16, ~140px tall).
+        bottom: 160,
         left: 16,
-        zIndex: 40,
+        zIndex: 105,
         pointerEvents: 'none',
         userSelect: 'none',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',

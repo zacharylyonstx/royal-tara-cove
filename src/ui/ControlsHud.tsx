@@ -27,7 +27,7 @@ export function ControlsHud() {
         <kbd>E</kbd> open / close door &nbsp; <kbd>R</kbd> reset
       </div>
       <div>
-        <kbd>click</kbd> look around &nbsp; <kbd>esc</kbd> release cursor
+        <kbd>click</kbd> look around &nbsp; <kbd>esc</kbd> release cursor &nbsp; <kbd>T</kbd> chat
       </div>
     </div>
   );
