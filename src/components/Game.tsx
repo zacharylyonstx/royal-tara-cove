@@ -57,6 +57,7 @@ import { MilkPickupsLive } from './munchies/MilkPickup';
 import { BonusCookieLive } from './munchies/BonusCookie';
 import { BedsLive } from './munchies/Bed';
 import { SleepwalkersLive } from './munchies/Sleepwalker';
+import { SiblingBond } from './munchies/SiblingBond';
 import { RagdollController } from '../systems/RagdollController';
 import { NetSyncController } from '../systems/NetSyncController';
 import { SpeechBubbles } from '../ui/SpeechBubbles';
@@ -203,6 +204,7 @@ function MunchiesModeSystems() {
       <BonusCookieLive />
       <BedsLive />
       <SleepwalkersLive />
+      <SiblingBond />
       {phase === 'munchies-victory' && <Confetti />}
     </>
   );

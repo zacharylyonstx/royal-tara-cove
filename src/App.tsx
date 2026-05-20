@@ -27,6 +27,7 @@ import { MunchiesIntro } from './ui/MunchiesIntro';
 import { MunchiesLevelClear } from './ui/MunchiesLevelClear';
 import { MunchiesGameOver } from './ui/MunchiesGameOver';
 import { MunchiesVictoryScreen } from './ui/MunchiesVictoryScreen';
+import { MunchiesGoodnightOverlay } from './ui/MunchiesGoodnightOverlay';
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
       <MunchiesIntro />
       <MunchiesLevelClear />
       <MunchiesGameOver />
+      <MunchiesGoodnightOverlay />
       <MunchiesVictoryScreen />
       <WelcomeScreen />
       <CharacterSelect />

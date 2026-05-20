@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { useMunchiesStore } from '../state/munchiesStore';
+import { useNetStore } from '../state/netStore';
+import { loadBestScore } from '../world/munchiesScoreStorage';
+import type { PlayableCharacter } from '../world/munchiesConfig';
 
 export function MunchiesHud() {
   const gameMode = useGameStore((s) => s.gameMode);
@@ -8,6 +12,13 @@ export function MunchiesHud() {
   const lives = useMunchiesStore((s) => s.lives);
   const level = useMunchiesStore((s) => s.level);
   const pelletsLeft = useMunchiesStore((s) => Object.keys(s.pellets).length);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const localChar: PlayableCharacter = (myCharacterId === 'penny' ? 'penny' : 'luke');
+  const [best, setBest] = useState<number>(() => loadBestScore(localChar));
+  useEffect(() => { setBest(loadBestScore(localChar)); }, [localChar]);
+  useEffect(() => {
+    if (score > best) setBest(score);
+  }, [score, best]);
 
   if (gameMode !== 'munchies') return null;
   if (phase === 'munchies-intro') return null;
@@ -41,7 +52,7 @@ export function MunchiesHud() {
         }}
       >
         <span>🍪 {pelletsLeft}</span>
-        <span>⭐ {score}</span>
+        <span>⭐ {score} <span style={{ opacity: 0.65, fontWeight: 500, fontSize: 13 }}>· Best {best}</span></span>
         <span>Level {level}</span>
         <span>{Array.from({ length: lives }).map((_, i) => <span key={i}>🥛</span>)}</span>
       </div>

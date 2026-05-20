@@ -19,7 +19,7 @@ export function MunchiesVictoryScreen() {
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(20, 20, 30, 0.55)', zIndex: 150,
+        position: 'fixed', inset: 0, background: 'rgba(20, 20, 30, 0.55)', zIndex: 160,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
