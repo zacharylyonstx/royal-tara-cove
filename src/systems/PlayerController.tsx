@@ -9,6 +9,7 @@ import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
+import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -108,6 +109,13 @@ export function PlayerController() {
     if (spectator) return;
     // While chat is open, the textbox owns the keyboard.
     if (useChatStore.getState().inputOpen) return;
+
+    const modeNow = useGameStore.getState().gameMode;
+    if (modeNow === 'munchies') {
+      munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders);
+      return;
+    }
+
     const slowFactor = useCombatStore.getState().slowMo;
     const dt = Math.min(dtRaw, 0.1) * slowFactor;
 
@@ -235,4 +243,39 @@ export function PlayerController() {
   });
 
   return null;
+}
+
+function munchiesTick(
+  pos: Vector3,
+  yaws: Record<string, number>,
+  activeId: string,
+  keys: Record<string, boolean>,
+  dtRaw: number,
+  staticColliders: import('../types').RectCollider[],
+) {
+  const dt = Math.min(dtRaw, 0.1);
+  // 4-direction movement, world-axis, no diagonal.
+  let dx = 0;
+  let dz = 0;
+  if (keys['w'] || keys['arrowup']) dz -= 1;
+  if (keys['s'] || keys['arrowdown']) dz += 1;
+  if (keys['a'] || keys['arrowleft']) dx -= 1;
+  if (keys['d'] || keys['arrowright']) dx += 1;
+
+  // Prefer X-axis when both axes pressed (no diagonal drift).
+  if (dx !== 0 && dz !== 0) {
+    dz = 0;
+  }
+
+  if (dx === 0 && dz === 0) return;
+
+  const moveX = dx * MUNCHIES_PLAYER_SPEED * dt;
+  const moveZ = dz * MUNCHIES_PLAYER_SPEED * dt;
+  const desiredX = pos.x + moveX;
+  const desiredZ = pos.z + moveZ;
+  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, staticColliders);
+  pos.x = resolved.x;
+  pos.z = resolved.z;
+  // Snap yaw to movement direction (Pac-Man-feel).
+  yaws[activeId] = Math.atan2(-dx, -dz);
 }
