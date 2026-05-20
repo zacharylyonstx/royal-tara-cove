@@ -35,8 +35,8 @@ function SleepwalkerRender({ id }: { id: SleepwalkerId }) {
     return (
       <group ref={groupRef}>
         <Dog positionRef={sw} bluish={bluish} />
-        <NameLabel name={SLEEPWALKER_LABEL.dog} yOffset={1.4} />
-        <ZzzOverlay bigger={bluish} />
+        <ZzzOverlay bigger={bluish} yOffset={1.15} />
+        <NameLabel name={SLEEPWALKER_LABEL.dog} yOffset={1.7} />
       </group>
     );
   }
@@ -45,8 +45,8 @@ function SleepwalkerRender({ id }: { id: SleepwalkerId }) {
     return (
       <group ref={groupRef}>
         <SchmorgesGhost positionRef={sw} bluish={bluish} />
-        <NameLabel name={SLEEPWALKER_LABEL.schmorgesblob} yOffset={1.4} />
-        <ZzzOverlay bigger={bluish} yOffset={0.9} />
+        <ZzzOverlay bigger={bluish} yOffset={1.15} />
+        <NameLabel name={SLEEPWALKER_LABEL.schmorgesblob} yOffset={1.7} />
       </group>
     );
   }
@@ -97,8 +97,8 @@ function SleepwalkerRender({ id }: { id: SleepwalkerId }) {
         <sphereGeometry args={[h * 0.13, 12, 10]} />
         <meshStandardMaterial color={def.skinTone} />
       </mesh>
-      <NameLabel name={SLEEPWALKER_LABEL[id]} yOffset={h * 1.45} />
       <ZzzOverlay bigger={bluish} yOffset={h * 1.15} />
+      <NameLabel name={SLEEPWALKER_LABEL[id]} yOffset={h * 1.55} />
     </group>
   );
 }
@@ -112,14 +112,16 @@ function NameLabel({ name, yOffset }: { name: string; yOffset: number }) {
       style={{
         pointerEvents: 'none',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: 700,
         color: '#fff7e6',
-        background: 'rgba(20,16,30,0.7)',
-        padding: '2px 8px',
-        borderRadius: 10,
+        background: 'rgba(20,16,30,0.78)',
+        padding: '2px 7px',
+        borderRadius: 8,
         whiteSpace: 'nowrap',
         textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+        transform: 'translateY(-100%)',
+        border: '1px solid rgba(255,255,255,0.18)',
       }}
     >
       {name}
