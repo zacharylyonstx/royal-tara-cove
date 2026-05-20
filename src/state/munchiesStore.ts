@@ -9,6 +9,8 @@ import {
   TUCK_POINTS_COMBO_MULT,
   POWERED_DURATION_S,
 } from '../world/munchiesConfig';
+import type { Difficulty } from '../world/munchiesConfig';
+import { loadDifficulty, saveDifficulty } from '../world/munchiesScoreStorage';
 
 export type SleepwalkerId = 'dad' | 'penny' | 'dog' | 'schmorgesblob';
 export type SleepwalkerMode = 'normal' | 'powered' | 'tucked';
@@ -47,6 +49,8 @@ interface MunchiesStore {
   sleepwalkers: Record<SleepwalkerId, SleepwalkerState>;
   caughtAt: number | null;                // perf seconds when player was caught
   caughtBy: SleepwalkerId | null;
+  difficulty: Difficulty;
+  activeRoster: SleepwalkerId[];
 
   // Setters / actions
   setLevelData: (
@@ -67,6 +71,9 @@ interface MunchiesStore {
   setCaught: (sleepwalkerId: SleepwalkerId, now: number) => void;
   clearCaught: () => void;
   loseLife: () => void;
+  setDifficulty: (d: Difficulty) => void;
+  addScore: (n: number) => void;
+  setActiveRoster: (ids: SleepwalkerId[]) => void;
   reset: () => void;
 }
 
@@ -90,6 +97,8 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   sleepwalkers: EMPTY_SLEEPWALKERS,
   caughtAt: null,
   caughtBy: null,
+  difficulty: loadDifficulty(),
+  activeRoster: ['dad', 'dog', 'penny'],
 
   setLevelData: (level, pellets, milks, sleepwalkers) => set({
     level, pellets, milks, sleepwalkers,
@@ -157,7 +166,14 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
 
   loseLife: () => set((s) => ({ lives: Math.max(0, s.lives - 1) })),
 
-  reset: () => set({
+  setDifficulty: (d) => {
+    saveDifficulty(d);
+    set({ difficulty: d });
+  },
+  addScore: (n) => set((s) => ({ score: s.score + n })),
+  setActiveRoster: (ids) => set({ activeRoster: ids }),
+
+  reset: () => set((s) => ({
     level: 1,
     score: 0,
     lives: STARTING_LIVES,
@@ -170,7 +186,10 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     sleepwalkers: EMPTY_SLEEPWALKERS,
     caughtAt: null,
     caughtBy: null,
-  }),
+    // keep difficulty + activeRoster (session-level)
+    activeRoster: s.activeRoster,
+    difficulty: s.difficulty,
+  })),
 }));
 
 // Counts of remaining pellets / milks are derived; expose helpers.
