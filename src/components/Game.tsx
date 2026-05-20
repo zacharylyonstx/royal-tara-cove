@@ -48,6 +48,7 @@ import { ProjectileController } from '../systems/ProjectileController';
 import { MusicController } from '../systems/MusicController';
 import { ProjectorController } from '../systems/ProjectorController';
 import { TornadoController } from '../systems/TornadoController';
+import { MunchiesCamera } from '../systems/MunchiesCamera';
 import { RagdollController } from '../systems/RagdollController';
 import { NetSyncController } from '../systems/NetSyncController';
 import { SpeechBubbles } from '../ui/SpeechBubbles';
@@ -170,10 +171,21 @@ export function Game() {
       <MusicController />
       <ProjectorController />
       <TornadoModeSystems />
+      <MunchiesModeSystems />
       <CameraRig />
       <CameraExposer />
       <NetSyncController />
       <SpeechBubbles />
+    </>
+  );
+}
+
+function MunchiesModeSystems() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'munchies') return null;
+  return (
+    <>
+      <MunchiesCamera />
     </>
   );
 }
