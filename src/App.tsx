@@ -22,6 +22,11 @@ import { PowerUpHud } from './ui/PowerUpHud';
 import { FloatingNumbers } from './ui/FloatingNumbers';
 import { TornadoHud } from './ui/TornadoHud';
 import { StormVignette } from './ui/StormVignette';
+import { MunchiesHud } from './ui/MunchiesHud';
+import { MunchiesIntro } from './ui/MunchiesIntro';
+import { MunchiesLevelClear } from './ui/MunchiesLevelClear';
+import { MunchiesGameOver } from './ui/MunchiesGameOver';
+import { MunchiesVictoryScreen } from './ui/MunchiesVictoryScreen';
 
 export default function App() {
   return (
@@ -48,6 +53,11 @@ export default function App() {
       <FloatingNumbers />
       <TornadoHud />
       <StormVignette />
+      <MunchiesHud />
+      <MunchiesIntro />
+      <MunchiesLevelClear />
+      <MunchiesGameOver />
+      <MunchiesVictoryScreen />
       <WelcomeScreen />
       <CharacterSelect />
       <RoomBadge />
