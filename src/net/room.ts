@@ -9,6 +9,7 @@ import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore'
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useChatStore, type ChatMsg } from '../state/chatStore';
+import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -29,6 +30,19 @@ export interface PlayerStateMsg {
   running: boolean;
   jumping: boolean;
   t: number; // sender timestamp ms
+}
+
+export interface MunchiesNetSnapshot {
+  level: number;
+  score: number;
+  lives: number;
+  sleepwalkers: Record<string, { x: number; z: number; yaw: number; mode: string; tuckedAt: number }>;
+  pellets: { id: string; x: number; z: number }[];
+  milks: { id: string; x: number; z: number }[];
+  bonus: { x: number; z: number; spawnedAt: number; eaten: boolean } | null;
+  poweredUntil: number;
+  difficulty: string;
+  roster: string[];
 }
 
 /** Authoritative world snapshot (host only). */
@@ -54,6 +68,8 @@ export interface WorldStateMsg {
   windStrength: number;
   tornadoOpacity: number;
   t: number;
+  /** munchies — undefined when not in munchies mode. */
+  munchies?: MunchiesNetSnapshot;
 }
 
 let room: Room | null = null;
@@ -227,4 +243,60 @@ function applyWorldSnapshot(s: WorldStateMsg): void {
     windStrength: s.windStrength,
     tornadoOpacity: s.tornadoOpacity,
   });
+
+  // Munchies — only when host's snapshot includes it.
+  if (s.munchies) {
+    applyMunchiesSnapshot(s.munchies);
+  }
+}
+
+function applyMunchiesSnapshot(m: MunchiesNetSnapshot): void {
+  const ms = useMunchiesStore.getState();
+
+  // Replace pellets/milks if sizes differ (cheap signal).
+  if (Object.keys(ms.pellets).length !== m.pellets.length) {
+    useMunchiesStore.setState({
+      pellets: Object.fromEntries(m.pellets.map((p) => [p.id, p])),
+    });
+  }
+  if (Object.keys(ms.milks).length !== m.milks.length) {
+    useMunchiesStore.setState({
+      milks: Object.fromEntries(m.milks.map((mm) => [mm.id, mm])),
+    });
+  }
+
+  // Sleepwalkers — mutate live x/z/yaw directly; update mode through setState only if changed.
+  let sleepwalkersChanged = false;
+  const updated = { ...ms.sleepwalkers };
+  for (const id of Object.keys(m.sleepwalkers)) {
+    const swId = id as SleepwalkerId;
+    const src = m.sleepwalkers[id];
+    const target = updated[swId];
+    if (!target) continue;
+    target.x = src.x;
+    target.z = src.z;
+    target.yaw = src.yaw;
+    if (target.mode !== src.mode) {
+      updated[swId] = { ...target, mode: src.mode as SleepwalkerMode, tuckedAt: src.tuckedAt };
+      sleepwalkersChanged = true;
+    }
+  }
+  if (sleepwalkersChanged) {
+    useMunchiesStore.setState({ sleepwalkers: updated });
+  }
+
+  // Scalars
+  useMunchiesStore.setState({
+    level: m.level,
+    score: m.score,
+    lives: m.lives,
+    bonus: m.bonus,
+    poweredUntil: m.poweredUntil,
+    difficulty: (m.difficulty === 'awake' ? 'awake' : 'sleepy'),
+    activeRoster: m.roster.filter(isSleepwalkerId),
+  });
+}
+
+function isSleepwalkerId(s: string): s is 'dad' | 'penny' | 'dog' | 'schmorgesblob' {
+  return s === 'dad' || s === 'penny' || s === 'dog' || s === 'schmorgesblob';
 }

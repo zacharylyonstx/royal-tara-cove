@@ -5,7 +5,8 @@ import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { broadcastPlayerState, broadcastWorldState, isInRoom } from '../net/room';
-import type { PlayerStateMsg, WorldStateMsg } from '../net/room';
+import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
+import { useMunchiesStore } from '../state/munchiesStore';
 
 const PLAYER_RATE_HZ = 15;
 const WORLD_RATE_HZ = 10;
@@ -95,6 +96,27 @@ export function NetSyncController() {
           tornadoOpacity: tornado.tornadoOpacity,
           t: Date.now(),
         };
+        if (game.gameMode === 'munchies') {
+          const ms = useMunchiesStore.getState();
+          const swSerial: Record<string, { x: number; z: number; yaw: number; mode: string; tuckedAt: number }> = {};
+          for (const id of Object.keys(ms.sleepwalkers)) {
+            const sw = ms.sleepwalkers[id as keyof typeof ms.sleepwalkers];
+            swSerial[id] = { x: sw.x, z: sw.z, yaw: sw.yaw, mode: sw.mode, tuckedAt: sw.tuckedAt };
+          }
+          const munchiesSnap: MunchiesNetSnapshot = {
+            level: ms.level,
+            score: ms.score,
+            lives: ms.lives,
+            sleepwalkers: swSerial,
+            pellets: Object.values(ms.pellets),
+            milks: Object.values(ms.milks),
+            bonus: ms.bonus,
+            poweredUntil: ms.poweredUntil,
+            difficulty: ms.difficulty,
+            roster: ms.activeRoster,
+          };
+          snap.munchies = munchiesSnap;
+        }
         broadcastWorldState(snap);
       }
     }
