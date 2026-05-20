@@ -9,7 +9,11 @@ import {
   buildMilks,
   BONUS_SPAWN_POS,
 } from '../world/munchiesPellets';
-import { munchiesCrunch, munchiesGlug, munchiesShh, startMunchiesLullaby, stopMunchiesLullaby } from '../audio';
+import {
+  munchiesCrunch, munchiesGlug, munchiesShh,
+  munchiesPowerUp, munchiesTuckIn, munchiesLevelClear, munchiesVictoryFanfare,
+  startMunchiesLullaby, stopMunchiesLullaby,
+} from '../audio';
 import { getNode, SLEEPWALKER_BEDS } from '../world/munchiesGraph';
 import {
   CATCH_RADIUS,
@@ -154,6 +158,7 @@ function MunchiesControllerInner() {
             useMunchiesStore.setState({ poweredUntil: now + charDur * diffMult });
             gs.setPhase('munchies-powered');
             munchiesGlug();
+            munchiesPowerUp();
           }
         }
 
@@ -176,6 +181,7 @@ function MunchiesControllerInner() {
           if (d < catchR) {
             if (phase === 'munchies-powered') {
               useMunchiesStore.getState().tuckIn(id, now);
+              munchiesTuckIn();
             } else {
               useMunchiesStore.getState().setCaught(id, now);
               gs.setPhase('munchies-caught');
@@ -198,6 +204,7 @@ function MunchiesControllerInner() {
       // Level clear
       if (Object.keys(ms.pellets).length === 0) {
         gs.setPhase('munchies-level-clear');
+        munchiesLevelClear();
         phaseChangeAt.current = now;
       }
     }
@@ -224,6 +231,7 @@ function MunchiesControllerInner() {
       if (nextLevel > MAX_LEVEL) {
         saveAllBestScores();
         gs.setPhase('munchies-victory');
+        munchiesVictoryFanfare();
       } else {
         startLevel(nextLevel);
         gs.setPhase('munchies-play');

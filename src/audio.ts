@@ -1071,52 +1071,78 @@ export function munchiesCrunch() {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
-  // Short noise burst with quick decay.
-  const bufSize = Math.floor(c.sampleRate * 0.12);
+  // Layered: bright crunch noise + low sub-thump
+  const bufSize = Math.floor(c.sampleRate * 0.15);
   const buf = c.createBuffer(1, bufSize, c.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < bufSize; i++) {
-    data[i] = (Math.random() - 0.5) * (1 - i / bufSize) * 0.6;
+    data[i] = (Math.random() - 0.5) * (1 - i / bufSize) * 0.7;
   }
   const src = c.createBufferSource();
   src.buffer = buf;
   const gain = c.createGain();
-  gain.gain.setValueAtTime(0.22, t0);
-  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+  gain.gain.setValueAtTime(0.28, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
   const bp = c.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 1600;
-  bp.Q.value = 0.8;
+  bp.frequency.value = 1800;
+  bp.Q.value = 1.0;
   src.connect(bp).connect(gain).connect(c.destination);
   src.start(t0);
-  src.stop(t0 + 0.13);
+  src.stop(t0 + 0.16);
+
+  // Sub-thump for chompiness
+  const sub = c.createOscillator();
+  const subGain = c.createGain();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(120, t0);
+  sub.frequency.exponentialRampToValueAtTime(50, t0 + 0.09);
+  subGain.gain.setValueAtTime(0.18, t0);
+  subGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1);
+  sub.connect(subGain).connect(c.destination);
+  sub.start(t0);
+  sub.stop(t0 + 0.11);
 }
 
 export function munchiesGlug() {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
-  for (let i = 0; i < 3; i++) {
-    const tStart = t0 + i * 0.07;
+  // 4 quick descending sine bubbles
+  for (let i = 0; i < 4; i++) {
+    const tStart = t0 + i * 0.08;
     const osc = c.createOscillator();
     const gain = c.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(420 - i * 60, tStart);
-    osc.frequency.exponentialRampToValueAtTime(140, tStart + 0.12);
+    osc.frequency.setValueAtTime(520 - i * 80, tStart);
+    osc.frequency.exponentialRampToValueAtTime(140, tStart + 0.13);
     gain.gain.setValueAtTime(0.0001, tStart);
-    gain.gain.exponentialRampToValueAtTime(0.18, tStart + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, tStart + 0.14);
+    gain.gain.exponentialRampToValueAtTime(0.24, tStart + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, tStart + 0.16);
     osc.connect(gain).connect(c.destination);
     osc.start(tStart);
-    osc.stop(tStart + 0.16);
+    osc.stop(tStart + 0.17);
   }
+  // Satisfying low "pop" at end
+  const tEnd = t0 + 0.34;
+  const pop = c.createOscillator();
+  const popGain = c.createGain();
+  pop.type = 'sine';
+  pop.frequency.setValueAtTime(200, tEnd);
+  pop.frequency.exponentialRampToValueAtTime(80, tEnd + 0.08);
+  popGain.gain.setValueAtTime(0.22, tEnd);
+  popGain.gain.exponentialRampToValueAtTime(0.0001, tEnd + 0.1);
+  pop.connect(popGain).connect(c.destination);
+  pop.start(tEnd);
+  pop.stop(tEnd + 0.11);
 }
 
 export function munchiesShh() {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
-  const bufSize = Math.floor(c.sampleRate * 0.5);
+  // The classic shh — bandpass noise
+  const bufSize = Math.floor(c.sampleRate * 0.55);
   const buf = c.createBuffer(1, bufSize, c.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < bufSize; i++) data[i] = (Math.random() - 0.5) * 0.5;
@@ -1128,29 +1154,43 @@ export function munchiesShh() {
   bp.Q.value = 1.2;
   const gain = c.createGain();
   gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.linearRampToValueAtTime(0.18, t0 + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+  gain.gain.linearRampToValueAtTime(0.22, t0 + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
   src.connect(bp).connect(gain).connect(c.destination);
   src.start(t0);
-  src.stop(t0 + 0.52);
+  src.stop(t0 + 0.57);
+
+  // Sad downward sine — "oh no"
+  const sad = c.createOscillator();
+  const sadGain = c.createGain();
+  sad.type = 'triangle';
+  sad.frequency.setValueAtTime(440, t0 + 0.15);
+  sad.frequency.exponentialRampToValueAtTime(220, t0 + 0.55);
+  sadGain.gain.setValueAtTime(0.0001, t0 + 0.15);
+  sadGain.gain.exponentialRampToValueAtTime(0.16, t0 + 0.2);
+  sadGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.58);
+  sad.connect(sadGain).connect(c.destination);
+  sad.start(t0 + 0.15);
+  sad.stop(t0 + 0.6);
 }
 
-// Lullaby loop: simple piano-ish triad arpeggio at slow tempo. Loops via
-// scheduling a fresh batch every ~5 seconds.
+// Lullaby loop: F major arpeggio with sustained sub-bass. Loops via scheduling
+// a fresh batch every ~5 seconds.
 let lullabyStop: (() => void) | null = null;
 export function startMunchiesLullaby() {
   const c = ensureCtx();
   if (!c) return;
   if (lullabyStop) return;
   let cancelled = false;
+
   const baseGain = c.createGain();
-  baseGain.gain.value = 0.05;
+  baseGain.gain.value = 0.06;
   baseGain.connect(c.destination);
 
-  const playNote = (freq: number, when: number, dur = 0.6) => {
+  const playNote = (freq: number, when: number, dur = 0.6, type: OscillatorType = 'triangle') => {
     const osc = c.createOscillator();
     const env = c.createGain();
-    osc.type = 'triangle';
+    osc.type = type;
     osc.frequency.value = freq;
     env.gain.setValueAtTime(0.0001, when);
     env.gain.exponentialRampToValueAtTime(0.5, when + 0.02);
@@ -1163,9 +1203,12 @@ export function startMunchiesLullaby() {
   const tick = () => {
     if (cancelled) return;
     const t = c.currentTime;
-    // F major arpeggio
-    const notes = [349.23, 440.00, 523.25, 440.00, 349.23, 293.66, 349.23, 440.00];
-    notes.forEach((n, i) => playNote(n, t + i * 0.6, 0.55));
+    // F major arpeggio melody
+    const melody = [349.23, 440.00, 523.25, 440.00, 349.23, 293.66, 349.23, 440.00];
+    melody.forEach((n, i) => playNote(n, t + i * 0.6, 0.55, 'triangle'));
+    // Sustained sub-bass — alternating F2 and C3
+    playNote(87.31, t, 2.4, 'sine');                  // F2
+    playNote(130.81, t + 2.4, 2.4, 'sine');           // C3
     setTimeout(tick, 4800);
   };
   tick();
@@ -1174,6 +1217,153 @@ export function startMunchiesLullaby() {
 export function stopMunchiesLullaby() {
   lullabyStop?.();
   lullabyStop = null;
+}
+
+/** Power-up fanfare — 4-note ascending arpeggio + woosh. Played when milk is eaten. */
+export function munchiesPowerUp() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Woosh: filtered noise sweep
+  const wooshSize = Math.floor(c.sampleRate * 0.4);
+  const wooshBuf = c.createBuffer(1, wooshSize, c.sampleRate);
+  const wooshData = wooshBuf.getChannelData(0);
+  for (let i = 0; i < wooshSize; i++) wooshData[i] = (Math.random() - 0.5) * 0.5;
+  const woosh = c.createBufferSource();
+  woosh.buffer = wooshBuf;
+  const wBp = c.createBiquadFilter();
+  wBp.type = 'bandpass';
+  wBp.frequency.setValueAtTime(800, t0);
+  wBp.frequency.exponentialRampToValueAtTime(3200, t0 + 0.4);
+  wBp.Q.value = 2;
+  const wGain = c.createGain();
+  wGain.gain.setValueAtTime(0.001, t0);
+  wGain.gain.linearRampToValueAtTime(0.18, t0 + 0.15);
+  wGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
+  woosh.connect(wBp).connect(wGain).connect(c.destination);
+  woosh.start(t0);
+  woosh.stop(t0 + 0.42);
+
+  // Ascending arpeggio: C E G B (C major 7)
+  const arp = [261.63, 329.63, 392.00, 493.88];
+  arp.forEach((freq, i) => {
+    const tn = t0 + i * 0.08;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, tn);
+    gain.gain.exponentialRampToValueAtTime(0.22, tn + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.4);
+    osc.connect(gain).connect(c.destination);
+    osc.start(tn);
+    osc.stop(tn + 0.42);
+  });
+}
+
+/** Tuck-in chime — bright 2-note ding when a powered sleepwalker is tagged. */
+export function munchiesTuckIn() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const notes = [880, 1318.51]; // A5, E6
+  notes.forEach((freq, i) => {
+    const tn = t0 + i * 0.06;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, tn);
+    gain.gain.exponentialRampToValueAtTime(0.26, tn + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.35);
+    osc.connect(gain).connect(c.destination);
+    osc.start(tn);
+    osc.stop(tn + 0.37);
+  });
+}
+
+/** Level-clear resolving chord — F major triad, brief sparkle. */
+export function munchiesLevelClear() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // F major triad: F4, A4, C5
+  const chord = [349.23, 440.00, 523.25];
+  chord.forEach((freq) => {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 1.2);
+    osc.connect(gain).connect(c.destination);
+    osc.start(t0);
+    osc.stop(t0 + 1.25);
+  });
+  // Sparkle: high arpeggio
+  const sparkle = [1046.5, 1318.51, 1567.98, 2093.0];
+  sparkle.forEach((freq, i) => {
+    const tn = t0 + 0.1 + i * 0.07;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, tn);
+    gain.gain.exponentialRampToValueAtTime(0.14, tn + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.3);
+    osc.connect(gain).connect(c.destination);
+    osc.start(tn);
+    osc.stop(tn + 0.32);
+  });
+}
+
+/** Victory fanfare — ascending major scale with chord finale. */
+export function munchiesVictoryFanfare() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // C major scale ascending then a big chord
+  const scale = [523.25, 587.33, 659.25, 698.46, 783.99, 880.0, 987.77, 1046.5];
+  scale.forEach((freq, i) => {
+    const tn = t0 + i * 0.13;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, tn);
+    gain.gain.exponentialRampToValueAtTime(0.2, tn + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.3);
+    osc.connect(gain).connect(c.destination);
+    osc.start(tn);
+    osc.stop(tn + 0.32);
+  });
+  // Big finale chord at end of scale
+  const finaleT = t0 + scale.length * 0.13;
+  const finale = [523.25, 659.25, 783.99, 1046.5]; // C major
+  finale.forEach((freq) => {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, finaleT);
+    gain.gain.exponentialRampToValueAtTime(0.22, finaleT + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, finaleT + 2.0);
+    osc.connect(gain).connect(c.destination);
+    osc.start(finaleT);
+    osc.stop(finaleT + 2.05);
+  });
+  // Sub bass under finale
+  const bass = c.createOscillator();
+  const bassGain = c.createGain();
+  bass.type = 'sine';
+  bass.frequency.value = 130.81; // C3
+  bassGain.gain.setValueAtTime(0.0001, finaleT);
+  bassGain.gain.exponentialRampToValueAtTime(0.3, finaleT + 0.05);
+  bassGain.gain.exponentialRampToValueAtTime(0.001, finaleT + 2.0);
+  bass.connect(bassGain).connect(c.destination);
+  bass.start(finaleT);
+  bass.stop(finaleT + 2.05);
 }
 
 /** Stops all tornado loops + clears state for replay. */
