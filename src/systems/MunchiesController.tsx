@@ -8,6 +8,7 @@ import {
   buildMilks,
   BONUS_SPAWN_POS,
 } from '../world/munchiesPellets';
+import { munchiesCrunch, munchiesGlug, munchiesShh, startMunchiesLullaby, stopMunchiesLullaby } from '../audio';
 import { getNode, SLEEPWALKER_BEDS } from '../world/munchiesGraph';
 import {
   CATCH_RADIUS,
@@ -39,12 +40,14 @@ function MunchiesControllerInner() {
   // On mount: set time of day to night and close all doors.
   useEffect(() => {
     useCombatStore.setState({ timeOfDay: 1.0 });
+    startMunchiesLullaby();
     const gs = useGameStore.getState();
     for (const id of Object.keys(gs.doors)) {
       gs.doors[id].open = false;
     }
     return () => {
       useCombatStore.setState({ timeOfDay: 0.0 });
+      stopMunchiesLullaby();
     };
   }, []);
 
@@ -108,6 +111,7 @@ function MunchiesControllerInner() {
         const p = ms.pellets[id];
         if (Math.hypot(p.x - luke.x, p.z - luke.z) < PELLET_PICKUP_RADIUS) {
           useMunchiesStore.getState().eatPellet(id);
+          munchiesCrunch();
         }
       }
       // Milk pickup
@@ -115,6 +119,7 @@ function MunchiesControllerInner() {
         const m = ms.milks[id];
         if (Math.hypot(m.x - luke.x, m.z - luke.z) < MILK_PICKUP_RADIUS) {
           useMunchiesStore.getState().eatMilk(id, now);
+          munchiesGlug();
           gs.setPhase('munchies-powered');
         }
       }
@@ -140,6 +145,7 @@ function MunchiesControllerInner() {
             useMunchiesStore.getState().tuckIn(id, now);
           } else {
             useMunchiesStore.getState().setCaught(id, now);
+            munchiesShh();
             gs.setPhase('munchies-caught');
             phaseChangeAt.current = now;
             break;

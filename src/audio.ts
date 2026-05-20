@@ -1065,6 +1065,117 @@ export function cowMoo() {
   lfo.stop(t0 + 1.2);
 }
 
+// --- Midnight Munchies SFX ---
+
+export function munchiesCrunch() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // Short noise burst with quick decay.
+  const bufSize = Math.floor(c.sampleRate * 0.12);
+  const buf = c.createBuffer(1, bufSize, c.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    data[i] = (Math.random() - 0.5) * (1 - i / bufSize) * 0.6;
+  }
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.22, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1600;
+  bp.Q.value = 0.8;
+  src.connect(bp).connect(gain).connect(c.destination);
+  src.start(t0);
+  src.stop(t0 + 0.13);
+}
+
+export function munchiesGlug() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  for (let i = 0; i < 3; i++) {
+    const tStart = t0 + i * 0.07;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(420 - i * 60, tStart);
+    osc.frequency.exponentialRampToValueAtTime(140, tStart + 0.12);
+    gain.gain.setValueAtTime(0.0001, tStart);
+    gain.gain.exponentialRampToValueAtTime(0.18, tStart + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, tStart + 0.14);
+    osc.connect(gain).connect(c.destination);
+    osc.start(tStart);
+    osc.stop(tStart + 0.16);
+  }
+}
+
+export function munchiesShh() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const bufSize = Math.floor(c.sampleRate * 0.5);
+  const buf = c.createBuffer(1, bufSize, c.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = (Math.random() - 0.5) * 0.5;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 5800;
+  bp.Q.value = 1.2;
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.18, t0 + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+  src.connect(bp).connect(gain).connect(c.destination);
+  src.start(t0);
+  src.stop(t0 + 0.52);
+}
+
+// Lullaby loop: simple piano-ish triad arpeggio at slow tempo. Loops via
+// scheduling a fresh batch every ~5 seconds.
+let lullabyStop: (() => void) | null = null;
+export function startMunchiesLullaby() {
+  const c = ensureCtx();
+  if (!c) return;
+  if (lullabyStop) return;
+  let cancelled = false;
+  const baseGain = c.createGain();
+  baseGain.gain.value = 0.05;
+  baseGain.connect(c.destination);
+
+  const playNote = (freq: number, when: number, dur = 0.6) => {
+    const osc = c.createOscillator();
+    const env = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    env.gain.setValueAtTime(0.0001, when);
+    env.gain.exponentialRampToValueAtTime(0.5, when + 0.02);
+    env.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(env).connect(baseGain);
+    osc.start(when);
+    osc.stop(when + dur + 0.05);
+  };
+
+  const tick = () => {
+    if (cancelled) return;
+    const t = c.currentTime;
+    // F major arpeggio
+    const notes = [349.23, 440.00, 523.25, 440.00, 349.23, 293.66, 349.23, 440.00];
+    notes.forEach((n, i) => playNote(n, t + i * 0.6, 0.55));
+    setTimeout(tick, 4800);
+  };
+  tick();
+  lullabyStop = () => { cancelled = true; };
+}
+export function stopMunchiesLullaby() {
+  lullabyStop?.();
+  lullabyStop = null;
+}
+
 /** Stops all tornado loops + clears state for replay. */
 export function resetTornadoAudio() {
   const c = ensureCtx();
