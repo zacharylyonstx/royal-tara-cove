@@ -5,6 +5,7 @@ import type { Group } from 'three';
 import { CHARACTERS } from '../../world/characters';
 import { useMunchiesStore, type SleepwalkerId } from '../../state/munchiesStore';
 import { Dog } from './Dog';
+import { SchmorgesGhost } from './SchmorgesGhost';
 
 export function SleepwalkersLive() {
   const sleepwalkers = useMunchiesStore((s) => s.sleepwalkers);
@@ -39,7 +40,16 @@ function SleepwalkerRender({ id }: { id: SleepwalkerId }) {
     );
   }
 
-  // schmorgesblob and any future non-humanoid IDs: render as a blob placeholder
+  if (id === 'schmorgesblob') {
+    return (
+      <group ref={groupRef}>
+        <SchmorgesGhost positionRef={sw} bluish={bluish} />
+        <ZzzOverlay bigger={bluish} yOffset={0.9} />
+      </group>
+    );
+  }
+
+  // any future non-humanoid IDs not yet handled
   if (!(id in CHARACTERS)) {
     return (
       <group ref={groupRef}>
