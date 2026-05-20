@@ -3,7 +3,14 @@ import { CHARACTERS } from '../world/characters';
 
 export function CharacterIndicator() {
   const activeId = useGameStore((s) => s.activeCharacterId);
+  const gameMode = useGameStore((s) => s.gameMode);
   const def = CHARACTERS[activeId];
+
+  // Munchies uses its own character selection (netStore.myCharacterId); the
+  // activeCharacterId here reflects the free-roam 3D character and is
+  // irrelevant/misleading while a munchies session is active.
+  if (gameMode === 'munchies') return null;
+
   return (
     <div
       style={{

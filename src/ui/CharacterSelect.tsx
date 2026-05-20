@@ -128,7 +128,7 @@ export function CharacterSelect() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            gridTemplateColumns: visibleChars.length === 2 ? '1fr 1fr' : '1fr 1fr 1fr',
             gap: 12,
             margin: '8px 0 18px',
           }}

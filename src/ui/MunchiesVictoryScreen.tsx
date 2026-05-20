@@ -1,5 +1,6 @@
 import { useGameStore } from '../state/gameStore';
 import { useMunchiesStore } from '../state/munchiesStore';
+import { useNetStore } from '../state/netStore';
 
 export function MunchiesVictoryScreen() {
   const gameMode = useGameStore((s) => s.gameMode);
@@ -7,6 +8,7 @@ export function MunchiesVictoryScreen() {
   const score = useMunchiesStore((s) => s.score);
   const setPhase = useGameStore((s) => s.setPhase);
   const reset = useMunchiesStore((s) => s.reset);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
 
   if (gameMode !== 'munchies') return null;
   if (phase !== 'munchies-victory') return null;
@@ -15,6 +17,11 @@ export function MunchiesVictoryScreen() {
     reset();
     setPhase('munchies-intro');
   };
+
+  const isPenny = myCharacterId === 'penny';
+  const winLine = isPenny
+    ? 'Penny wins midnight. Snack queen crowned.'
+    : 'Luke wins midnight. Snack king crowned.';
 
   return (
     <div
@@ -31,7 +38,7 @@ export function MunchiesVictoryScreen() {
       }}>
         <div style={{ fontSize: 64 }}>🍪🥛🍪</div>
         <h2 style={{ margin: '6px 0', fontSize: 30 }}>You ate everything!</h2>
-        <p style={{ margin: '6px 0' }}>Luke wins midnight. Snack king crowned.</p>
+        <p style={{ margin: '6px 0' }}>{winLine}</p>
         <p style={{ margin: '12px 0', fontSize: 18 }}>Final score: <strong>{score}</strong></p>
         <button
           onClick={playAgain}
