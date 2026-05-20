@@ -67,8 +67,9 @@ function MunchiesControllerInner() {
   // Phase transitions: start level on intro entry; stamp phase-change timestamps.
   useEffect(() => {
     const unsub = useGameStore.subscribe((s, prev) => {
+      const isHost = useNetStore.getState().isHost;
       if (s.phase === 'munchies-intro' && prev.phase !== 'munchies-intro') {
-        startLevel(1);
+        if (isHost) startLevel(1);
         phaseChangeAt.current = performance.now() / 1000;
         introInputDetected.current = false;
       }
@@ -84,7 +85,8 @@ function MunchiesControllerInner() {
     });
     // Initial run if we're already in munchies-intro on mount.
     const phaseNow = useGameStore.getState().phase;
-    if (phaseNow === 'munchies-intro' && Object.keys(useMunchiesStore.getState().pellets).length === 0) {
+    const isHost = useNetStore.getState().isHost;
+    if (isHost && phaseNow === 'munchies-intro' && Object.keys(useMunchiesStore.getState().pellets).length === 0) {
       startLevel(1);
       phaseChangeAt.current = performance.now() / 1000;
     }
@@ -94,6 +96,7 @@ function MunchiesControllerInner() {
   // First WASD press dismisses intro.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!useNetStore.getState().isHost) return;
       const k = e.key.toLowerCase();
       const phase = useGameStore.getState().phase;
       if (phase !== 'munchies-intro') return;

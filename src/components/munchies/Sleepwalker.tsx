@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei';
 import type { Group } from 'three';
 import { CHARACTERS } from '../../world/characters';
 import { useMunchiesStore, type SleepwalkerId } from '../../state/munchiesStore';
+import { useGameStore } from '../../state/gameStore';
 import { Dog } from './Dog';
 import { SchmorgesGhost } from './SchmorgesGhost';
 
@@ -29,7 +30,8 @@ function SleepwalkerRender({ id }: { id: SleepwalkerId }) {
     groupRef.current.visible = sw.mode !== 'tucked';
   });
 
-  const bluish = sw.mode === 'powered';
+  const phase = useGameStore((s) => s.phase);
+  const bluish = phase === 'munchies-powered' && sw.mode !== 'tucked';
 
   if (id === 'dog') {
     return (
