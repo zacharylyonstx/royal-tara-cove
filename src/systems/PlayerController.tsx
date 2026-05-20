@@ -86,9 +86,15 @@ export function PlayerController() {
       // 1/2/3 character swap disabled in multiplayer — character is fixed
       // to whatever you claimed in CharacterSelect.
       if (k === 'r') {
-        // reset to spawn
+        // reset to spawn (mode-aware)
         const pos = positions[activeId];
-        pos.set(0, 0, -90);
+        const modeForReset = useGameStore.getState().gameMode;
+        if (modeForReset === 'munchies') {
+          // Munchies spawn is the great-room couch, not the cul-de-sac.
+          pos.set(-5.0, 0, -3.0);
+        } else {
+          pos.set(0, 0, -90);
+        }
       }
       if (k === 'e') interactPressedRef.current = true;
     };
@@ -112,7 +118,7 @@ export function PlayerController() {
 
     const modeNow = useGameStore.getState().gameMode;
     if (modeNow === 'munchies') {
-      munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders);
+      munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors);
       return;
     }
 
@@ -252,6 +258,7 @@ function munchiesTick(
   keys: Record<string, boolean>,
   dtRaw: number,
   staticColliders: import('../types').RectCollider[],
+  doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>,
 ) {
   const dt = Math.min(dtRaw, 0.1);
   // 4-direction movement, world-axis, no diagonal.
@@ -273,9 +280,24 @@ function munchiesTick(
   const moveZ = dz * MUNCHIES_PLAYER_SPEED * dt;
   const desiredX = pos.x + moveX;
   const desiredZ = pos.z + moveZ;
-  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, staticColliders);
+  const allColliders = [...staticColliders];
+  for (const door of Object.values(doors)) {
+    if (door.open) continue;
+    allColliders.push(door.aabbWhenClosed);
+  }
+  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
   pos.x = resolved.x;
   pos.z = resolved.z;
+  // Belt-and-suspenders: clamp to hero house interior bounds (matches floorPlan.ts).
+  // Even if a door collider has a gap, this guarantees Luke can't escape the maze.
+  const HOUSE_MIN_X = -8.8;
+  const HOUSE_MAX_X = 1.9;     // exclude garage (x>=2)
+  const HOUSE_MIN_Z = -7.8;
+  const HOUSE_MAX_Z = 7.8;
+  if (pos.x < HOUSE_MIN_X) pos.x = HOUSE_MIN_X;
+  if (pos.x > HOUSE_MAX_X) pos.x = HOUSE_MAX_X;
+  if (pos.z < HOUSE_MIN_Z) pos.z = HOUSE_MIN_Z;
+  if (pos.z > HOUSE_MAX_Z) pos.z = HOUSE_MAX_Z;
   // Snap yaw to movement direction (Pac-Man-feel).
   yaws[activeId] = Math.atan2(-dx, -dz);
 }

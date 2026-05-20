@@ -16,7 +16,11 @@ export function RoomBadge() {
   if (!mode) return null;
 
   const peerCount = Object.keys(peers).length;
-  const modeLabel = mode === 'aliens' ? '👽 Aliens' : '🌪️ Tornado';
+  const modeLabel =
+    mode === 'aliens'   ? '👽 Aliens'
+    : mode === 'tornado' ? '🌪️ Tornado'
+    : mode === 'munchies' ? '🥛 Munchies'
+    : '·';
   const myDef = myCharacterId ? CHARACTERS[myCharacterId] : null;
 
   const statusDot =
