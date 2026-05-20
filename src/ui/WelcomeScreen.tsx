@@ -57,8 +57,8 @@ export function WelcomeScreen() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 14,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
             margin: '4px 0 18px',
           }}
         >
@@ -75,6 +75,13 @@ export function WelcomeScreen() {
             blurb="A tornado is ripping down the street. Run inside 10600 before it throws you away!"
             accent="#3a5a8a"
             onPlay={() => pick('tornado')}
+          />
+          <GameCard
+            emoji="🥛"
+            title="MIDNIGHT MUNCHIES"
+            blurb="It's midnight. Sneak through the house, grab every cookie, and don't let sleepwalking Dad and Penny catch you!"
+            accent="#7a5cad"
+            onPlay={() => pick('munchies')}
           />
         </div>
 
