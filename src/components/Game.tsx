@@ -190,6 +190,7 @@ export function Game() {
 
 function MunchiesModeSystems() {
   const gameMode = useGameStore((s) => s.gameMode);
+  const phase = useGameStore((s) => s.phase);
   if (gameMode !== 'munchies') return null;
   return (
     <>
@@ -202,6 +203,7 @@ function MunchiesModeSystems() {
       <BonusCookieLive />
       <BedsLive />
       <SleepwalkersLive />
+      {phase === 'munchies-victory' && <Confetti />}
     </>
   );
 }

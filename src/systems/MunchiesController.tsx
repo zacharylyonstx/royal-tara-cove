@@ -35,7 +35,9 @@ export function MunchiesController() {
 }
 
 function MunchiesControllerInner() {
-  const phaseChangeAt = useRef(0);
+  // Initialize to Infinity so timer checks (now - phaseChangeAt > threshold) never
+  // fire spuriously on the first frame before a real timestamp is stamped.
+  const phaseChangeAt = useRef(Infinity);
   const introInputDetected = useRef(false);
 
   // On mount: set time of day to night and close all doors.

@@ -180,3 +180,7 @@ export function selectIsPowered(s: MunchiesStore, now: number): boolean {
   return s.poweredUntil > now;
 }
 export const MUNCHIES_MAX_LEVEL = MAX_LEVEL;
+
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__munchies = useMunchiesStore;
+}

@@ -77,8 +77,8 @@ export function CharacterSelect() {
 
   if (!visible) return null;
 
-  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : 'TORNADO WARNING';
-  const modeAccent = mode === 'aliens' ? '#5a8a3e' : '#3a5a8a';
+  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : 'TORNADO WARNING';
+  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : '#3a5a8a';
 
   return (
     <div
