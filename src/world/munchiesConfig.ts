@@ -26,7 +26,7 @@ export const BONUS_FIRST_SPAWN_FRAC = 0.70;          // remaining pellets / tota
 export const BONUS_SECOND_SPAWN_FRAC = 0.30;
 
 // Catch detection
-export const CATCH_RADIUS = 1.0;
+export const CATCH_RADIUS = 0.7;
 
 // Spawn
 export const PLAYER_SPAWN: [number, number] = [-5.0, -3.0];   // great room couch area
@@ -47,8 +47,8 @@ export const CHARACTER_STATS: Record<PlayableCharacter, {
   catchRadius: number;
   poweredDurationS: number;
 }> = {
-  luke:  { catchRadius: 0.95, poweredDurationS: 8.0 },
-  penny: { catchRadius: 1.05, poweredDurationS: 10.0 },
+  luke:  { catchRadius: 0.65, poweredDurationS: 8.0 },
+  penny: { catchRadius: 0.72, poweredDurationS: 10.0 },
 };
 
 export type Difficulty = 'sleepy' | 'awake';
