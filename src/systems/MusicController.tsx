@@ -12,6 +12,7 @@ export function MusicController() {
 
   // Kick off music as soon as combat starts (audio context is unlocked)
   useEffect(() => {
+    if (useGameStore.getState().gameMode === 'munchies') return;
     if ((phase === 'combat' || phase === 'intro' || phase === 'victory') && !startedRef.current) {
       startedRef.current = true;
       startMusic();
@@ -20,6 +21,7 @@ export function MusicController() {
 
   // Adjust mix based on phase + combat intensity
   useFrame(() => {
+    if (useGameStore.getState().gameMode === 'munchies') return;
     if (!startedRef.current) return;
     const gameMode = useGameStore.getState().gameMode;
     if (phase === 'victory') {

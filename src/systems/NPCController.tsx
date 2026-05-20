@@ -38,6 +38,8 @@ export function NPCController() {
 
   useFrame((state, dtRaw) => {
     if (welcomeOpen) return;
+    const mode = useGameStore.getState().gameMode;
+    if (mode === 'munchies') return;
     const net = useNetStore.getState();
     // Only run NPC wandering on the host — non-hosts receive character
     // positions via player_state broadcasts. Wandering for unclaimed
