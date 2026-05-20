@@ -49,6 +49,14 @@ import { MusicController } from '../systems/MusicController';
 import { ProjectorController } from '../systems/ProjectorController';
 import { TornadoController } from '../systems/TornadoController';
 import { MunchiesCamera } from '../systems/MunchiesCamera';
+import { MunchiesController } from '../systems/MunchiesController';
+import { SleepwalkerController } from '../systems/SleepwalkerController';
+import { NightAtmosphere } from './munchies/NightAtmosphere';
+import { CookiePickupsLive } from './munchies/CookiePickup';
+import { MilkPickupsLive } from './munchies/MilkPickup';
+import { BonusCookieLive } from './munchies/BonusCookie';
+import { BedsLive } from './munchies/Bed';
+import { SleepwalkersLive } from './munchies/Sleepwalker';
 import { RagdollController } from '../systems/RagdollController';
 import { NetSyncController } from '../systems/NetSyncController';
 import { SpeechBubbles } from '../ui/SpeechBubbles';
@@ -185,7 +193,15 @@ function MunchiesModeSystems() {
   if (gameMode !== 'munchies') return null;
   return (
     <>
+      <NightAtmosphere />
       <MunchiesCamera />
+      <MunchiesController />
+      <SleepwalkerController />
+      <CookiePickupsLive />
+      <MilkPickupsLive />
+      <BonusCookieLive />
+      <BedsLive />
+      <SleepwalkersLive />
     </>
   );
 }
