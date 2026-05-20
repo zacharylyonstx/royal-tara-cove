@@ -10,7 +10,7 @@ import {
   POWERED_DURATION_S,
 } from '../world/munchiesConfig';
 
-export type SleepwalkerId = 'dad' | 'penny' | 'dog';
+export type SleepwalkerId = 'dad' | 'penny' | 'dog' | 'schmorgesblob';
 export type SleepwalkerMode = 'normal' | 'powered' | 'tucked';
 
 export interface PelletPosition {
@@ -71,9 +71,10 @@ interface MunchiesStore {
 }
 
 const EMPTY_SLEEPWALKERS: Record<SleepwalkerId, SleepwalkerState> = {
-  dad:   { id: 'dad',   x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
-  penny: { id: 'penny', x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
-  dog:   { id: 'dog',   x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
+  dad:           { id: 'dad',           x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
+  penny:         { id: 'penny',         x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
+  dog:           { id: 'dog',           x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
+  schmorgesblob: { id: 'schmorgesblob', x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
 };
 
 export const useMunchiesStore = create<MunchiesStore>((set, get) => ({

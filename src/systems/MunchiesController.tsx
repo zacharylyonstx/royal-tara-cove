@@ -202,9 +202,10 @@ function startLevel(level: number) {
   const pellets = generatePellets();
   const milks = buildMilks();
   const sleepwalkers = {
-    dad:   makeSpawn('dad'),
-    penny: makeSpawn('penny'),
-    dog:   makeSpawn('dog'),
+    dad:           makeSpawn('dad'),
+    penny:         makeSpawn('penny'),
+    dog:           makeSpawn('dog'),
+    schmorgesblob: makeSpawn('schmorgesblob'),
   };
   useMunchiesStore.getState().setLevelData(level, pellets, milks, sleepwalkers);
   LEVEL_INITIAL_PELLET_COUNT = Object.keys(pellets).length;

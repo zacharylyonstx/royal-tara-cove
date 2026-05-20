@@ -83,6 +83,7 @@ export const SLEEPWALKER_BEDS: Record<SleepwalkerId, string> = {
   dad: 'master-bed',
   penny: 'penny-bed',
   dog: 'kitchen-center',   // dog bed is in the kitchen near the pantry
+  schmorgesblob: 'master-bed', // crashed in Dad's room; shares his bed area
 };
 
 /** Shy-mode home node for the dog (Clyde-like behavior). */

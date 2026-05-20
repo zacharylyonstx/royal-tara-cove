@@ -39,7 +39,20 @@ function SleepwalkerRender({ id }: { id: SleepwalkerId }) {
     );
   }
 
-  const def = CHARACTERS[id];
+  // schmorgesblob and any future non-humanoid IDs: render as a blob placeholder
+  if (!(id in CHARACTERS)) {
+    return (
+      <group ref={groupRef}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.45, 10, 8]} />
+          <meshStandardMaterial color={bluish ? '#7a8aa8' : '#7a5c8a'} />
+        </mesh>
+        <ZzzOverlay bigger={bluish} />
+      </group>
+    );
+  }
+
+  const def = CHARACTERS[id as keyof typeof CHARACTERS];
   const h = def.height;
   const torsoColor = bluish ? '#7a8aa8' : def.bodyColor;
   return (

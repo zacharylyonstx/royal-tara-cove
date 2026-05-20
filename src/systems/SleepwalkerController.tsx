@@ -28,9 +28,9 @@ interface FrameState {
   lastMovedAt: Record<SleepwalkerId, number>;
 }
 const frameState: FrameState = {
-  lastX: { dad: 0, penny: 0, dog: 0 },
-  lastZ: { dad: 0, penny: 0, dog: 0 },
-  lastMovedAt: { dad: 0, penny: 0, dog: 0 },
+  lastX:       { dad: 0, penny: 0, dog: 0, schmorgesblob: 0 },
+  lastZ:       { dad: 0, penny: 0, dog: 0, schmorgesblob: 0 },
+  lastMovedAt: { dad: 0, penny: 0, dog: 0, schmorgesblob: 0 },
 };
 
 export function SleepwalkerController() {

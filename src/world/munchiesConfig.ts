@@ -37,3 +37,31 @@ export const MILK_POINTS = 50;
 export const BONUS_POINTS = 500;
 export const TUCK_POINTS_BASE = 200;
 export const TUCK_POINTS_COMBO_MULT = 2;             // doubles per tuck-in within a single powered window
+
+// --- v2 additions ---
+
+export type PlayableCharacter = 'luke' | 'penny';
+
+/** Per-character gameplay tweaks. */
+export const CHARACTER_STATS: Record<PlayableCharacter, {
+  catchRadius: number;
+  poweredDurationS: number;
+}> = {
+  luke:  { catchRadius: 0.51, poweredDurationS: 8.0 },   // -15% catch radius — quick on his feet
+  penny: { catchRadius: 0.6,  poweredDurationS: 10.0 },  // +25% milk window — times runs better
+};
+
+export type Difficulty = 'sleepy' | 'awake';
+
+/** Difficulty multipliers applied on top of base values. */
+export const DIFFICULTY_MULT: Record<Difficulty, { speed: number; poweredMult: number }> = {
+  sleepy: { speed: 0.7, poweredMult: 1.5 },
+  awake:  { speed: 1.0, poweredMult: 1.0 },
+};
+
+export const DEFAULT_DIFFICULTY: Difficulty = 'sleepy';
+
+/** Distance threshold (m) for the sibling-bond bonus in co-op. */
+export const SIBLING_BOND_DIST = 3.0;
+/** Multiplier (×) applied to cookie scoring while siblings are within bond distance. */
+export const SIBLING_BOND_MULT = 1.5;
