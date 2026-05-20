@@ -6,6 +6,7 @@ import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { claimCharacter, leaveRoom } from '../net/room';
 import { unlockAudio } from '../audio';
+import { MunchiesDifficultyToggle } from './MunchiesDifficultyToggle';
 
 /**
  * Shown after a game mode is picked but before the game starts. Lets the
@@ -25,7 +26,7 @@ export function CharacterSelect() {
   const gameMode = useGameStore((s) => s.gameMode);
 
   const visibleChars = gameMode === 'munchies'
-    ? CHARACTER_ORDER.filter((id) => id === 'luke')
+    ? CHARACTER_ORDER.filter((id) => id === 'luke' || id === 'penny')
     : CHARACTER_ORDER;
 
   // Picking shows the select; once myCharacterId or spectator chosen, hide.
@@ -116,9 +117,12 @@ export function CharacterSelect() {
         </h1>
 
         {gameMode === 'munchies' && (
-          <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>
-            Luke's adventure tonight. (Penny and Dad are sleepwalking…)
-          </p>
+          <>
+            <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 8px' }}>
+              Pick a sneaker. Penny and Luke can both play — or team up in two windows.
+            </p>
+            <MunchiesDifficultyToggle />
+          </>
         )}
 
         <div
