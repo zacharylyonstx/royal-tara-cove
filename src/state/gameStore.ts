@@ -2,11 +2,21 @@ import { create } from 'zustand';
 import { Vector3 } from 'three';
 import type { CharacterId, Floor, RectCollider } from '../types';
 
-export type GameMode = 'aliens' | 'tornado';
+export type GameMode = 'aliens' | 'tornado' | 'munchies';
 export type TornadoPhase =
   | 'calm' | 'rain' | 'hail' | 'tornado-approach' | 'tornado-arrived';
+export type MunchiesPhase =
+  | 'munchies-intro'
+  | 'munchies-play'
+  | 'munchies-powered'
+  | 'munchies-caught'
+  | 'munchies-level-clear'
+  | 'munchies-game-over'
+  | 'munchies-victory';
 export type GamePhase =
-  | 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat' | 'free-play' | TornadoPhase;
+  | 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat' | 'free-play'
+  | TornadoPhase
+  | MunchiesPhase;
 
 interface RagdollState {
   active: boolean;
@@ -90,7 +100,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   closeWelcome: () => set((s) => ({
     welcomeOpen: false,
     // Aliens uses an intro cinematic; tornado has its own pacing and starts in calm.
-    phase: s.gameMode === 'tornado' ? 'calm' : 'intro',
+    phase:
+      s.gameMode === 'tornado' ? 'calm' :
+      s.gameMode === 'munchies' ? 'munchies-intro' :
+      'intro',
   })),
   openWelcome: () => set({ welcomeOpen: true }),
 
