@@ -1,10 +1,22 @@
 import { useGameStore } from '../state/gameStore';
 import { useMunchiesStore } from '../state/munchiesStore';
+import type { SleepwalkerId } from '../state/munchiesStore';
+
+function caughtByLine(who: SleepwalkerId | null): string {
+  switch (who) {
+    case 'dad':           return 'Dad walked you back to bed.';
+    case 'penny':         return 'Penny mumbled "shhh" and walked you back to bed.';
+    case 'dog':           return 'The dog gently herded you back to bed.';
+    case 'schmorgesblob': return 'A leftover Schmorgesblob slimed you back to bed!';
+    default:              return 'You got tucked back in.';
+  }
+}
 
 export function MunchiesGameOver() {
   const gameMode = useGameStore((s) => s.gameMode);
   const phase = useGameStore((s) => s.phase);
   const score = useMunchiesStore((s) => s.score);
+  const lastCaughtBy = useMunchiesStore((s) => s.lastCaughtBy);
   const setPhase = useGameStore((s) => s.setPhase);
   const reset = useMunchiesStore((s) => s.reset);
 
@@ -31,7 +43,7 @@ export function MunchiesGameOver() {
       }}>
         <div style={{ fontSize: 64 }}>😴</div>
         <h2 style={{ margin: '6px 0', fontSize: 28 }}>Caught!</h2>
-        <p style={{ margin: '6px 0' }}>Dad walked you back to bed.</p>
+        <p style={{ margin: '6px 0' }}>{caughtByLine(lastCaughtBy)}</p>
         <p style={{ margin: '12px 0', fontSize: 16 }}>Cookies eaten: <strong>{Math.floor(score / 10)}</strong> · Score: <strong>{score}</strong></p>
         <button
           onClick={tryAgain}

@@ -49,6 +49,7 @@ interface MunchiesStore {
   sleepwalkers: Record<SleepwalkerId, SleepwalkerState>;
   caughtAt: number | null;                // perf seconds when player was caught
   caughtBy: SleepwalkerId | null;
+  lastCaughtBy: SleepwalkerId | null;     // persists through clearCaught so game-over UI can read it
   difficulty: Difficulty;
   activeRoster: SleepwalkerId[];
 
@@ -97,6 +98,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   sleepwalkers: EMPTY_SLEEPWALKERS,
   caughtAt: null,
   caughtBy: null,
+  lastCaughtBy: null,
   difficulty: loadDifficulty(),
   activeRoster: ['dad', 'dog', 'penny'],
 
@@ -108,6 +110,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     poweredCombo: 0,
     caughtAt: null,
     caughtBy: null,
+    lastCaughtBy: null,
   }),
 
   eatPellet: (id) => set((s) => {
@@ -161,7 +164,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     },
   })),
 
-  setCaught: (sleepwalkerId, now) => set({ caughtAt: now, caughtBy: sleepwalkerId }),
+  setCaught: (sleepwalkerId, now) => set({ caughtAt: now, caughtBy: sleepwalkerId, lastCaughtBy: sleepwalkerId }),
   clearCaught: () => set({ caughtAt: null, caughtBy: null }),
 
   loseLife: () => set((s) => ({ lives: Math.max(0, s.lives - 1) })),
@@ -186,6 +189,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     sleepwalkers: EMPTY_SLEEPWALKERS,
     caughtAt: null,
     caughtBy: null,
+    lastCaughtBy: null,
     // keep difficulty + activeRoster (session-level)
     activeRoster: s.activeRoster,
     difficulty: s.difficulty,
