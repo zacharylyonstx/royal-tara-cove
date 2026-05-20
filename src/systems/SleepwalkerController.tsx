@@ -4,7 +4,6 @@ import { useNetStore } from '../state/netStore';
 import { useMunchiesStore, type SleepwalkerId } from '../state/munchiesStore';
 import { resolveMotion } from './collision';
 import {
-  MUNCHIES_GRAPH,
   getNode,
   graphDistance,
   nearestNode,
@@ -16,7 +15,9 @@ import {
   SLEEPWALKER_SPEED_PER_LEVEL,
   POWERED_SPEED_MULT,
   TUCK_RESPAWN_S,
+  DIFFICULTY_MULT,
 } from '../world/munchiesConfig';
+import { playerSnapshots, type PlayerSnapshot } from '../world/munchiesRoster';
 
 const ARRIVE_EPS = 0.25;
 const STUCK_RESCUE_DT = 0.6;
@@ -49,16 +50,16 @@ function SleepwalkerControllerInner() {
     const now = performance.now() / 1000;
     const ms = useMunchiesStore.getState();
 
-    const lukePos = gs.positions.luke;
-    const lukeYaw = gs.yaws.luke;
-    const lukeNodeId = nearestNode(lukePos.x, lukePos.z).id;
+    const players = playerSnapshots();
+    if (players.length === 0) return;
 
-    const baseSpeed = SLEEPWALKER_BASE_SPEED + (ms.level - 1) * SLEEPWALKER_SPEED_PER_LEVEL;
+    const diffMult = DIFFICULTY_MULT[ms.difficulty].speed;
+    const baseSpeed = (SLEEPWALKER_BASE_SPEED + (ms.level - 1) * SLEEPWALKER_SPEED_PER_LEVEL) * diffMult;
     const powered = phase === 'munchies-powered';
 
     const colliders = gs.staticColliders;
 
-    for (const id of ['dad', 'penny', 'dog'] as const) {
+    for (const id of ms.activeRoster) {
       const sw = ms.sleepwalkers[id];
       if (!sw) continue;
 
@@ -77,7 +78,7 @@ function SleepwalkerControllerInner() {
 
       if (!sw.targetNodeId) {
         const cur = nearestNode(sw.x, sw.z);
-        sw.targetNodeId = pickNextNode(id, cur.id, cur.id, lukeNodeId, lukePos, lukeYaw, powered);
+        sw.targetNodeId = pickNextNode(id, cur.id, cur.id, sw, players, powered);
         sw.lastNodeId = cur.id;
       }
 
@@ -89,7 +90,7 @@ function SleepwalkerControllerInner() {
       if (dist < ARRIVE_EPS) {
         const last = sw.lastNodeId;
         sw.lastNodeId = sw.targetNodeId;
-        sw.targetNodeId = pickNextNode(id, sw.targetNodeId, last, lukeNodeId, lukePos, lukeYaw, powered);
+        sw.targetNodeId = pickNextNode(id, sw.targetNodeId, last, sw, players, powered);
         continue;
       }
 
@@ -125,9 +126,8 @@ function pickNextNode(
   id: SleepwalkerId,
   currentId: string,
   lastId: string,
-  lukeNodeId: string,
-  lukePos: { x: number; z: number },
-  lukeYaw: number,
+  sw: { x: number; z: number },
+  players: PlayerSnapshot[],
   powered: boolean,
 ): string {
   const cur = getNode(currentId);
@@ -139,27 +139,40 @@ function pickNextNode(
     return pickByMinDistanceToTarget(candidates, homeId);
   }
 
+  const target = pickClosestPlayer(sw, players);
+  const targetNodeId = nearestNode(target.x, target.z).id;
+
   if (id === 'dad') {
-    return pickByMinDistanceToTarget(candidates, lukeNodeId);
+    return pickByMinDistanceToTarget(candidates, targetNodeId);
   }
-  if (id === 'penny') {
-    // Aim 3m ahead of Luke along his yaw. Convention used elsewhere: forward = (-sin(yaw), -cos(yaw)).
-    const fx = -Math.sin(lukeYaw);
-    const fz = -Math.cos(lukeYaw);
-    const aheadX = lukePos.x + fx * 3.0;
-    const aheadZ = lukePos.z + fz * 3.0;
-    const aheadNode = nearestNode(aheadX, aheadZ);
-    return pickByMinDistanceToTarget(candidates, aheadNode.id);
+  if (id === 'penny' || id === 'schmorgesblob') {
+    // Ambush 3m ahead of the target player along their yaw.
+    const fx = -Math.sin(target.yaw);
+    const fz = -Math.cos(target.yaw);
+    const aheadX = target.x + fx * 3.0;
+    const aheadZ = target.z + fz * 3.0;
+    const aheadNodeId = nearestNode(aheadX, aheadZ).id;
+    return pickByMinDistanceToTarget(candidates, aheadNodeId);
   }
   if (id === 'dog') {
-    const distToLuke = Math.hypot(lukePos.x - cur.x, lukePos.z - cur.z);
-    if (distToLuke > DOG_SHY_DIST) {
-      return pickByMinDistanceToTarget(candidates, lukeNodeId);
+    const dist = Math.hypot(target.x - cur.x, target.z - cur.z);
+    if (dist > DOG_SHY_DIST) {
+      return pickByMinDistanceToTarget(candidates, targetNodeId);
     } else {
       return pickByMinDistanceToTarget(candidates, DOG_HOME_NODE);
     }
   }
   return candidates[0];
+}
+
+function pickClosestPlayer(sw: { x: number; z: number }, players: PlayerSnapshot[]): PlayerSnapshot {
+  let best = players[0];
+  let bestD = Infinity;
+  for (const p of players) {
+    const d = Math.hypot(p.x - sw.x, p.z - sw.z);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
 }
 
 function pickByMinDistanceToTarget(candidates: string[], targetId: string): string {
@@ -172,5 +185,3 @@ function pickByMinDistanceToTarget(candidates: string[], targetId: string): stri
   return best;
 }
 
-// Silence "unused export" — MUNCHIES_GRAPH is re-exported for ad-hoc dev access.
-void MUNCHIES_GRAPH;
