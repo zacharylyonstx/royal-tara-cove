@@ -12,7 +12,7 @@ interface Props {
  * Stripped-down "ghost" version of the Schmorgesblob from the aliens game.
  * Smaller, semi-translucent, cyan-tinted; bobs softly with floating tentacles.
  */
-export function SchmorgesGhost({ positionRef, bluish }: Props) {
+export function SchmorgesGhost({ positionRef: _positionRef, bluish }: Props) {
   const ref = useRef<Group>(null);
   const body = useRef<Mesh>(null);
   const leftEye = useRef<Mesh>(null);
@@ -21,8 +21,8 @@ export function SchmorgesGhost({ positionRef, bluish }: Props) {
   useFrame((state) => {
     if (!ref.current) return;
     const t = state.clock.elapsedTime;
-    ref.current.position.set(positionRef.x, 0.4 + Math.sin(t * 1.5) * 0.08, positionRef.z);
-    ref.current.rotation.y = positionRef.yaw;
+    // Only y-bob locally; x/z/yaw are owned by the parent Sleepwalker group.
+    ref.current.position.y = 0.4 + Math.sin(t * 1.5) * 0.08;
     if (body.current) {
       body.current.scale.y = 1 + Math.sin(t * 2.4) * 0.04;
     }

@@ -8,15 +8,14 @@ interface DogProps {
 }
 
 /** Minimalist box-dog. Brown body, head, ears, tail. */
-export function Dog({ positionRef, bluish }: DogProps) {
+export function Dog({ positionRef: _positionRef, bluish }: DogProps) {
   const ref = useRef<Group>(null);
   useFrame((state) => {
     if (!ref.current) return;
-    ref.current.position.set(positionRef.x, 0, positionRef.z);
-    ref.current.rotation.y = positionRef.yaw;
     const t = state.clock.elapsedTime;
     const tail = ref.current.getObjectByName('dog-tail');
     if (tail) tail.rotation.y = Math.sin(t * 8) * 0.6;
+    // Position + rotation are owned by the parent Sleepwalker group.
   });
   const body = bluish ? '#7a8aa8' : '#9a6a3a';
   const dark = bluish ? '#3a4a6a' : '#5a3a1a';
