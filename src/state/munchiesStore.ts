@@ -50,6 +50,7 @@ interface MunchiesStore {
   caughtAt: number | null;                // perf seconds when player was caught
   caughtBy: SleepwalkerId | null;
   lastCaughtBy: SleepwalkerId | null;     // persists through clearCaught so game-over UI can read it
+  invincibleUntil: number;               // perf seconds; while now < this, catch detection is suppressed
   difficulty: Difficulty;
   activeRoster: SleepwalkerId[];
 
@@ -71,6 +72,7 @@ interface MunchiesStore {
   resumeSleepwalker: (sleepwalkerId: SleepwalkerId) => void;
   setCaught: (sleepwalkerId: SleepwalkerId, now: number) => void;
   clearCaught: () => void;
+  setInvincibleUntil: (untilSec: number) => void;
   loseLife: () => void;
   setDifficulty: (d: Difficulty) => void;
   addScore: (n: number) => void;
@@ -99,6 +101,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   caughtAt: null,
   caughtBy: null,
   lastCaughtBy: null,
+  invincibleUntil: 0,
   difficulty: loadDifficulty(),
   activeRoster: ['dad', 'dog', 'penny'],
 
@@ -111,6 +114,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     caughtAt: null,
     caughtBy: null,
     lastCaughtBy: null,
+    invincibleUntil: 0,
   }),
 
   eatPellet: (id) => set((s) => {
@@ -166,6 +170,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
 
   setCaught: (sleepwalkerId, now) => set({ caughtAt: now, caughtBy: sleepwalkerId, lastCaughtBy: sleepwalkerId }),
   clearCaught: () => set({ caughtAt: null, caughtBy: null }),
+  setInvincibleUntil: (untilSec) => set({ invincibleUntil: untilSec }),
 
   loseLife: () => set((s) => ({ lives: Math.max(0, s.lives - 1) })),
 
@@ -190,6 +195,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     caughtAt: null,
     caughtBy: null,
     lastCaughtBy: null,
+    invincibleUntil: 0,
     // keep difficulty + activeRoster (session-level)
     activeRoster: s.activeRoster,
     difficulty: s.difficulty,

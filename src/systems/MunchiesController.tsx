@@ -177,6 +177,7 @@ function MunchiesControllerInner() {
 
         // Catch / tuck-in detection — per-character catch radius, iterate roster.
         const catchR = stats?.catchRadius ?? CATCH_RADIUS;
+        const invincibleUntil = ms.invincibleUntil;
         for (const id of ms.activeRoster) {
           const sw = ms.sleepwalkers[id];
           if (!sw || sw.mode === 'tucked') continue;
@@ -185,7 +186,7 @@ function MunchiesControllerInner() {
             if (phase === 'munchies-powered') {
               useMunchiesStore.getState().tuckIn(id, now);
               munchiesTuckIn();
-            } else {
+            } else if (now > invincibleUntil) {
               useMunchiesStore.getState().setCaught(id, now);
               gs.setPhase('munchies-caught');
               phaseChangeAt.current = now;
@@ -225,6 +226,7 @@ function MunchiesControllerInner() {
         gs.setPhase('munchies-game-over');
       } else {
         useMunchiesStore.getState().endPowered();
+        useMunchiesStore.getState().setInvincibleUntil(now + 2.0);
         gs.setPhase('munchies-play');
       }
     }
