@@ -1,5 +1,6 @@
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { useMunchiesStore, type SleepwalkerId } from '../state/munchiesStore';
 import { resolveMotion } from './collision';
 import {
@@ -40,6 +41,7 @@ export function SleepwalkerController() {
 
 function SleepwalkerControllerInner() {
   useFrame((_, dtRaw) => {
+    if (!useNetStore.getState().isHost) return;
     const gs = useGameStore.getState();
     const phase = gs.phase;
     if (phase !== 'munchies-play' && phase !== 'munchies-powered') return;

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import { useMunchiesStore, type SleepwalkerId } from '../state/munchiesStore';
 import {
   generatePellets,
@@ -94,6 +95,7 @@ function MunchiesControllerInner() {
   }, []);
 
   useFrame(() => {
+    if (!useNetStore.getState().isHost) return;
     const gs = useGameStore.getState();
     const phase = gs.phase;
     const now = performance.now() / 1000;
