@@ -20,6 +20,7 @@ export function SkyController() {
   const setTimeOfDay = useCombatStore((s) => s.setTimeOfDay);
 
   useFrame((_, dtRaw) => {
+    if (useGameStore.getState().gameMode === 'munchies') return;
     const dt = Math.min(dtRaw, 0.1);
     let target = TARGETS_BY_WAVE[waveIndex] ?? 0.15;
     if (phase === 'victory') target = 0.05; // dawn
