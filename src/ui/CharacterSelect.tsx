@@ -22,6 +22,11 @@ export function CharacterSelect() {
   const closeWelcome = useGameStore((s) => s.closeWelcome);
   const resetTornadoGame = useGameStore((s) => s.resetTornadoGame);
   const resetHp = useGameStore((s) => s.resetHp);
+  const gameMode = useGameStore((s) => s.gameMode);
+
+  const visibleChars = gameMode === 'munchies'
+    ? CHARACTER_ORDER.filter((id) => id === 'luke')
+    : CHARACTER_ORDER;
 
   // Picking shows the select; once myCharacterId or spectator chosen, hide.
   const visible = mode !== null && myCharacterId === null && !spectator;
@@ -110,6 +115,12 @@ export function CharacterSelect() {
           {allTaken ? 'All characters are taken' : 'Pick your character'}
         </h1>
 
+        {gameMode === 'munchies' && (
+          <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>
+            Luke's adventure tonight. (Penny and Dad are sleepwalking…)
+          </p>
+        )}
+
         <div
           style={{
             display: 'grid',
@@ -118,7 +129,7 @@ export function CharacterSelect() {
             margin: '8px 0 18px',
           }}
         >
-          {CHARACTER_ORDER.map((id) => {
+          {visibleChars.map((id) => {
             const def = CHARACTERS[id];
             const ownerId = owners[id];
             const taken = !!ownerId && ownerId !== selfId;
