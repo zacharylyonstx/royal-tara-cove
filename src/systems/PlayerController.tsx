@@ -10,6 +10,8 @@ import { useChatStore } from '../state/chatStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
+import { useTreehouseStore } from '../state/treehouseStore';
+import { liveOakPosition } from '../world/treehouseMissions';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -119,6 +121,11 @@ export function PlayerController() {
     const modeNow = useGameStore.getState().gameMode;
     if (modeNow === 'munchies') {
       munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors);
+      return;
+    }
+
+    if (modeNow === 'treehouse') {
+      treehouseTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors, interactPressedRef);
       return;
     }
 
@@ -300,4 +307,104 @@ function munchiesTick(
   if (pos.z > HOUSE_MAX_Z) pos.z = HOUSE_MAX_Z;
   // Snap yaw to movement direction (Pac-Man-feel).
   yaws[activeId] = Math.atan2(-dx, -dz);
+}
+
+const TREEHOUSE_SPEED = 5.0;
+const TREEHOUSE_RUN_SPEED = 8.5;
+const LADDER_INTERACT_RADIUS = 2.5;
+const ITEM_INTERACT_RADIUS = 2.0;
+const TREEHOUSE_FLOOR_Y = 4.0;
+const COVE_BOUND_RADIUS = 75;
+
+function treehouseTick(
+  pos: Vector3,
+  yaws: Record<string, number>,
+  activeId: string,
+  keys: Record<string, boolean>,
+  dtRaw: number,
+  staticColliders: import('../types').RectCollider[],
+  doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>,
+  interactPressedRef: { current: boolean },
+) {
+  const dt = Math.min(dtRaw, 0.1);
+
+  // --- Movement (world-axis WASD) ---
+  let dx = 0;
+  let dz = 0;
+  if (keys['w'] || keys['arrowup']) dz -= 1;
+  if (keys['s'] || keys['arrowdown']) dz += 1;
+  if (keys['a'] || keys['arrowleft']) dx -= 1;
+  if (keys['d'] || keys['arrowright']) dx += 1;
+  if (dx !== 0 || dz !== 0) {
+    const len = Math.hypot(dx, dz);
+    dx /= len;
+    dz /= len;
+    const isRunning = !!keys['shift'];
+    const speed = isRunning ? TREEHOUSE_RUN_SPEED : TREEHOUSE_SPEED;
+    const moveX = dx * speed * dt;
+    const moveZ = dz * speed * dt;
+    const desiredX = pos.x + moveX;
+    const desiredZ = pos.z + moveZ;
+    const allColliders = [...staticColliders];
+    for (const door of Object.values(doors)) {
+      if (door.open) continue;
+      allColliders.push(door.aabbWhenClosed);
+    }
+    const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
+    pos.x = resolved.x;
+    pos.z = resolved.z;
+    yaws[activeId] = Math.atan2(-dx, -dz);
+  }
+
+  // --- Soft cove boundary ---
+  const distFromCenter = Math.hypot(pos.x, pos.z);
+  if (distFromCenter > COVE_BOUND_RADIUS) {
+    const k = COVE_BOUND_RADIUS / distFromCenter;
+    pos.x *= k;
+    pos.z *= k;
+  }
+
+  // --- Interact ---
+  if (interactPressedRef.current) {
+    interactPressedRef.current = false;
+    handleTreehouseInteract(pos, activeId);
+  }
+
+  // Carry mission item: when carried, item follows player.
+  const mi = useTreehouseStore.getState().missionItem;
+  if (mi && mi.carriedBy === activeId) {
+    useTreehouseStore.getState().setMissionItemPos(pos.x, pos.z);
+  }
+}
+
+function handleTreehouseInteract(pos: Vector3, activeId: string) {
+  const oak = liveOakPosition();
+
+  // 1) Ladder up: ground level near tree
+  if (pos.y < 0.5 && Math.hypot(pos.x - oak.x, pos.z - oak.z) < LADDER_INTERACT_RADIUS) {
+    pos.y = TREEHOUSE_FLOOR_Y + 0.05;
+    return;
+  }
+
+  // 2) Ladder down: inside treehouse
+  if (pos.y > TREEHOUSE_FLOOR_Y - 0.5 && Math.hypot(pos.x - oak.x, pos.z - oak.z) < LADDER_INTERACT_RADIUS + 0.5) {
+    pos.y = 0;
+    return;
+  }
+
+  // 3) Mission item pickup (on ground, not yet carried)
+  const ts = useTreehouseStore.getState();
+  const item = ts.missionItem;
+  if (item && item.carriedBy === null) {
+    if (Math.hypot(pos.x - item.x, pos.z - item.z) < ITEM_INTERACT_RADIUS) {
+      ts.pickUpMissionItem(activeId as 'luke' | 'penny');
+      return;
+    }
+  }
+
+  // 4) Mission item drop (currently carrying)
+  if (item && item.carriedBy === activeId) {
+    ts.dropMissionItem(pos.x, pos.z);
+    return;
+  }
 }
