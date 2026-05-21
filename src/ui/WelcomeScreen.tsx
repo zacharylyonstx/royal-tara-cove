@@ -83,6 +83,13 @@ export function WelcomeScreen() {
             accent="#7a5cad"
             onPlay={() => pick('munchies')}
           />
+          <GameCard
+            emoji="🌳"
+            title="THE TREEHOUSE CLUB"
+            blurb="Penny and Luke's secret clubhouse. Read letters from neighbors, do little adventures, and fill the shelf with stickers!"
+            accent="#5a8a3e"
+            onPlay={() => pick('treehouse')}
+          />
         </div>
 
         <p style={{ fontSize: 13, color: '#5a5040', margin: 0 }}>

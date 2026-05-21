@@ -47,7 +47,8 @@ export function CameraRig() {
       if (locked.current) return;
       // Don't grab the cursor while the welcome screen is open or when
       // spectating (no input to capture).
-      if (useGameStore.getState().gameMode === 'munchies') return;
+      const _camMode = useGameStore.getState().gameMode;
+      if (_camMode === 'munchies' || _camMode === 'treehouse') return;
       if (useGameStore.getState().welcomeOpen) return;
       if (useNetStore.getState().spectator) return;
       // Chat textbox owns focus while open.
@@ -85,7 +86,8 @@ export function CameraRig() {
   }, [gl]);
 
   useFrame((_, dtRaw) => {
-    if (useGameStore.getState().gameMode === 'munchies') return;
+    const _camMode = useGameStore.getState().gameMode;
+    if (_camMode === 'munchies' || _camMode === 'treehouse') return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
 
     // --- Spectator mode ---

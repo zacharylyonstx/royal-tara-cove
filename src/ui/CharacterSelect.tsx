@@ -25,7 +25,7 @@ export function CharacterSelect() {
   const resetHp = useGameStore((s) => s.resetHp);
   const gameMode = useGameStore((s) => s.gameMode);
 
-  const visibleChars = gameMode === 'munchies'
+  const visibleChars = (gameMode === 'munchies' || gameMode === 'treehouse')
     ? CHARACTER_ORDER.filter((id) => id === 'luke' || id === 'penny')
     : CHARACTER_ORDER;
 
@@ -123,6 +123,11 @@ export function CharacterSelect() {
             </p>
             <MunchiesDifficultyToggle />
           </>
+        )}
+        {gameMode === 'treehouse' && (
+          <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>
+            Pick a club member. Penny and Luke can both play — solo or in two windows.
+          </p>
         )}
 
         <div
