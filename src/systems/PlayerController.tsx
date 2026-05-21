@@ -11,7 +11,7 @@ import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { useTreehouseStore } from '../state/treehouseStore';
-import { liveOakPosition } from '../world/treehouseMissions';
+import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
 import { treehousePickup } from '../audio';
 
 const SPEED = 5.5;
@@ -95,6 +95,10 @@ export function PlayerController() {
         if (modeForReset === 'munchies') {
           // Munchies spawn is the great-room couch, not the cul-de-sac.
           pos.set(-5.0, 0, -3.0);
+        } else if (modeForReset === 'treehouse') {
+          // Treehouse spawn is 10600's backyard near the live oak.
+          const sp = treehouseSpawnPoint();
+          pos.set(sp.x, 0, sp.z);
         } else {
           pos.set(0, 0, -90);
         }
