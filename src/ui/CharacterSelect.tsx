@@ -78,8 +78,8 @@ export function CharacterSelect() {
 
   if (!visible) return null;
 
-  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : 'TORNADO WARNING';
-  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : '#3a5a8a';
+  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : mode === 'treehouse' ? 'THE TREEHOUSE CLUB' : 'TORNADO WARNING';
+  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : mode === 'treehouse' ? '#3a7a3a' : '#3a5a8a';
 
   return (
     <div

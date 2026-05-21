@@ -6,10 +6,10 @@ export function CharacterIndicator() {
   const gameMode = useGameStore((s) => s.gameMode);
   const def = CHARACTERS[activeId];
 
-  // Munchies uses its own character selection (netStore.myCharacterId); the
+  // Munchies and Treehouse use netStore.myCharacterId for character selection;
   // activeCharacterId here reflects the free-roam 3D character and is
-  // irrelevant/misleading while a munchies session is active.
-  if (gameMode === 'munchies') return null;
+  // irrelevant/misleading while those modes are active.
+  if (gameMode === 'munchies' || gameMode === 'treehouse') return null;
 
   return (
     <div
