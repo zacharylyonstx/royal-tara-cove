@@ -12,6 +12,7 @@ import { buildLots } from '../world/lots';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition } from '../world/treehouseMissions';
+import { treehousePickup } from '../audio';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -398,6 +399,7 @@ function handleTreehouseInteract(pos: Vector3, activeId: string) {
   if (item && item.carriedBy === null) {
     if (Math.hypot(pos.x - item.x, pos.z - item.z) < ITEM_INTERACT_RADIUS) {
       ts.pickUpMissionItem(activeId as 'luke' | 'penny');
+      treehousePickup();
       return;
     }
   }

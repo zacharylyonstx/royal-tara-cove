@@ -9,11 +9,7 @@ import {
   getNextMissionId,
   treehouseSpawnPoint,
 } from '../world/treehouseMissions';
-
-// TODO(Task 14): replace these with real imports from '../audio'.
-const treehouseChime = () => { /* added in Task 14 */ };
-const startTreehouseTheme = () => { /* added in Task 14 */ };
-const stopTreehouseTheme = () => { /* added in Task 14 */ };
+import { treehouseChime, startTreehouseTheme, stopTreehouseTheme } from '../audio';
 
 const COMPLETE_TOAST_S = 3.2;
 

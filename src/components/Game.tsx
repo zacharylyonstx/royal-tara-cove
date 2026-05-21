@@ -48,6 +48,13 @@ import { ProjectileController } from '../systems/ProjectileController';
 import { MusicController } from '../systems/MusicController';
 import { ProjectorController } from '../systems/ProjectorController';
 import { TornadoController } from '../systems/TornadoController';
+import { TreehouseCamera } from '../systems/TreehouseCamera';
+import { TreehouseController } from '../systems/TreehouseController';
+import { Treehouse } from './treehouse/Treehouse';
+import { Ladder } from './treehouse/Ladder';
+import { SouvenirShelf } from './treehouse/SouvenirShelf';
+import { MissionItem } from './treehouse/MissionItem';
+import { MissionMarker } from './treehouse/MissionMarker';
 import { MunchiesCamera } from '../systems/MunchiesCamera';
 import { MunchiesController } from '../systems/MunchiesController';
 import { SleepwalkerController } from '../systems/SleepwalkerController';
@@ -181,6 +188,7 @@ export function Game() {
       <ProjectorController />
       <TornadoModeSystems />
       <MunchiesModeSystems />
+      <TreehouseModeSystems />
       <CameraRig />
       <CameraExposer />
       <NetSyncController />
@@ -206,6 +214,22 @@ function MunchiesModeSystems() {
       <SleepwalkersLive />
       <SiblingBond />
       {phase === 'munchies-victory' && <Confetti />}
+    </>
+  );
+}
+
+function TreehouseModeSystems() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'treehouse') return null;
+  return (
+    <>
+      <TreehouseCamera />
+      <TreehouseController />
+      <Treehouse />
+      <Ladder />
+      <SouvenirShelf />
+      <MissionItem />
+      <MissionMarker />
     </>
   );
 }

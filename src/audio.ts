@@ -1366,6 +1366,89 @@ export function munchiesVictoryFanfare() {
   bass.stop(finaleT + 2.05);
 }
 
+// --- Treehouse Club audio ---
+
+let treehouseStop: (() => void) | null = null;
+
+export function startTreehouseTheme() {
+  const c = ensureCtx();
+  if (!c) return;
+  if (treehouseStop) return;
+  let cancelled = false;
+  const baseGain = c.createGain();
+  baseGain.gain.value = 0.06;
+  baseGain.connect(c.destination);
+
+  const playNote = (freq: number, when: number, dur = 0.7, type: OscillatorType = 'triangle') => {
+    const osc = c.createOscillator();
+    const env = c.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    env.gain.setValueAtTime(0.0001, when);
+    env.gain.exponentialRampToValueAtTime(0.55, when + 0.02);
+    env.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(env).connect(baseGain);
+    osc.start(when);
+    osc.stop(when + dur + 0.05);
+  };
+
+  const tick = () => {
+    if (cancelled) return;
+    const t = c.currentTime;
+    const melody = [261.63, 392.00, 493.88, 523.25, 392.00, 329.63, 261.63, 392.00];
+    melody.forEach((n, i) => playNote(n, t + i * 0.55, 0.5, 'triangle'));
+    playNote(65.41,  t,         1.8, 'sine');
+    playNote(98.00,  t + 1.8,   1.2, 'sine');
+    playNote(110.00, t + 3.0,   0.9, 'sine');
+    playNote(87.31,  t + 3.9,   0.8, 'sine');
+    setTimeout(tick, 5200);
+  };
+  tick();
+  treehouseStop = () => { cancelled = true; };
+}
+
+export function stopTreehouseTheme() {
+  treehouseStop?.();
+  treehouseStop = null;
+}
+
+export function treehouseChime() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const notes = [523.25, 659.25, 783.99];
+  notes.forEach((freq, i) => {
+    const tn = t0 + i * 0.09;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, tn);
+    gain.gain.exponentialRampToValueAtTime(0.26, tn + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.6);
+    osc.connect(gain).connect(c.destination);
+    osc.start(tn);
+    osc.stop(tn + 0.62);
+  });
+}
+
+export function treehousePickup() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(400, t0);
+  osc.frequency.exponentialRampToValueAtTime(700, t0 + 0.08);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+  osc.connect(gain).connect(c.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.14);
+}
+
 /** Stops all tornado loops + clears state for replay. */
 export function resetTornadoAudio() {
   const c = ensureCtx();
