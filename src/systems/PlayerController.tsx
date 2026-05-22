@@ -358,7 +358,12 @@ function treehouseTick(
     const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
     pos.x = resolved.x;
     pos.z = resolved.z;
-    yaws[activeId] = Math.atan2(-dx, -dz);
+    // Smoothly lerp yaw toward movement direction (no snap → no camera jumps).
+    const targetYaw = Math.atan2(-dx, -dz);
+    let diff = targetYaw - yaws[activeId];
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    yaws[activeId] = yaws[activeId] + diff * Math.min(1, 8 * dt);
   }
 
   // --- Soft cove boundary ---

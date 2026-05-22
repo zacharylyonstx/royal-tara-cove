@@ -14,7 +14,7 @@ const BACK_DISTANCE_ELEVATED = 5.0;
 const LOOK_AHEAD = 3.0;
 const LOOK_HEIGHT_GROUND = 4.0;  // look at canopy-height so treehouse is framed
 const LOOK_HEIGHT_ELEVATED = 1.0;
-const LERP_K = 5;
+const LERP_K = 3.5;
 const TELEPORT_THRESHOLD = 4.0;
 
 export function TreehouseCamera() {
