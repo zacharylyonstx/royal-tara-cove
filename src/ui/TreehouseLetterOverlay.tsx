@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { MISSIONS } from '../world/treehouseMissions';
 
-function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
+function renderInlineMarkdown(text: string): ReactNode[] {
   const parts = text.split(/\*\*(.+?)\*\*/g);
   return parts.map((part, i) =>
     i % 2 === 1 ? <strong key={i}>{part}</strong> : part
