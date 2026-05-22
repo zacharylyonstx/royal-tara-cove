@@ -2,7 +2,7 @@ import { Html } from '@react-three/drei';
 import { useTreehouseStore } from '../../state/treehouseStore';
 import { liveOakPosition } from '../../world/treehouseMissions';
 
-const FLOOR_Y = 4.0;
+const FLOOR_Y = 8.0;
 const FLOOR_SIZE = 3.2;
 
 export function SouvenirShelf() {

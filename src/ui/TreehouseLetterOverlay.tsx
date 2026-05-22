@@ -2,6 +2,13 @@ import { useGameStore } from '../state/gameStore';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { MISSIONS } from '../world/treehouseMissions';
 
+function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+  );
+}
+
 export function TreehouseLetterOverlay() {
   const gameMode = useGameStore((s) => s.gameMode);
   const phase = useGameStore((s) => s.phase);
@@ -43,8 +50,12 @@ export function TreehouseLetterOverlay() {
           📬 From: {mission.sender}
         </div>
         <h2 style={{ margin: '4px 0 14px', fontSize: 22 }}>{mission.title}</h2>
-        <div style={{ whiteSpace: 'pre-wrap', fontSize: 15, lineHeight: 1.55 }}>
-          {mission.bodyMarkdown}
+        <div style={{ fontSize: 15, lineHeight: 1.55 }}>
+          {mission.bodyMarkdown.split('\n').map((line, i) => (
+            <p key={i} style={{ margin: '0 0 8px' }}>
+              {renderInlineMarkdown(line)}
+            </p>
+          ))}
         </div>
         <div style={{ marginTop: 16, padding: '10px 12px', background: '#f0e2c2', borderRadius: 8, fontSize: 14 }}>
           {mission.goalHint}

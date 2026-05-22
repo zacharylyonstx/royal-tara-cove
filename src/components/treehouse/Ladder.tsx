@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
@@ -5,7 +7,7 @@ import { liveOakPosition } from '../../world/treehouseMissions';
 
 const LADDER_X_OFFSET = 0;
 const LADDER_Z_OFFSET = -1.55;
-const LADDER_HEIGHT = 4.0;
+const LADDER_HEIGHT = 8.0;
 const PROMPT_RADIUS = 2.5;
 
 export function Ladder() {
@@ -36,11 +38,24 @@ function ClimbPrompt() {
   const oak = liveOakPosition();
   const myCharacterId = useNetStore((s) => s.myCharacterId);
   const fallbackActive = useGameStore((s) => s.activeCharacterId);
-  const id = myCharacterId ?? fallbackActive;
-  const pos = useGameStore((s) => s.positions[id]);
-  const dist = Math.hypot(pos.x - oak.x, pos.z - oak.z);
-  if (dist > PROMPT_RADIUS) return null;
-  const direction = pos.y < 0.5 ? 'Climb up' : 'Climb down';
+
+  // Use state to track proximity and direction — positions are mutated in-place
+  // so we can't rely on Zustand's selector equality to trigger re-renders.
+  const [near, setNear] = useState(false);
+  const [direction, setDirection] = useState<'Climb up' | 'Climb down'>('Climb up');
+
+  useFrame(() => {
+    const id = myCharacterId ?? fallbackActive;
+    const pos = useGameStore.getState().positions[id];
+    if (!pos) return;
+    const dist = Math.hypot(pos.x - oak.x, pos.z - oak.z);
+    const isNear = dist < PROMPT_RADIUS;
+    const dir = pos.y < 0.5 ? 'Climb up' : 'Climb down';
+    if (isNear !== near) setNear(isNear);
+    if (dir !== direction) setDirection(dir);
+  });
+
+  if (!near) return null;
   return (
     <Html
       position={[0, 1.6, 0]}

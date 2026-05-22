@@ -7,9 +7,13 @@ import { useNetStore } from '../state/netStore';
 // Behind-the-back 3rd person. No pointer lock, no mouse-look.
 // Auto-orients behind the player; smooth lag.
 
-const HEIGHT = 3.2;
-const BACK_DISTANCE = 6.0;
-const LOOK_AHEAD = 2.0;
+const HEIGHT_GROUND = 4.0;       // slightly elevated — avoids foliage near trunk
+const HEIGHT_ELEVATED = 2.0;    // inside treehouse: lower offset (already up high)
+const BACK_DISTANCE_GROUND = 6.0;
+const BACK_DISTANCE_ELEVATED = 5.0;
+const LOOK_AHEAD = 3.0;
+const LOOK_HEIGHT_GROUND = 4.0;  // look at canopy-height so treehouse is framed
+const LOOK_HEIGHT_ELEVATED = 1.0;
 const LERP_K = 5;
 const TELEPORT_THRESHOLD = 4.0;
 
@@ -35,10 +39,16 @@ export function TreehouseCamera() {
     const behindX = Math.sin(yaw);
     const behindZ = Math.cos(yaw);
 
+    // Use different camera params depending on whether player is elevated
+    // (in treehouse) or on the ground.
+    const elevated = pos.y > 3.0;
+    const backDist = elevated ? BACK_DISTANCE_ELEVATED : BACK_DISTANCE_GROUND;
+    const heightOffset = elevated ? HEIGHT_ELEVATED : HEIGHT_GROUND;
+
     target.current.set(
-      pos.x + behindX * BACK_DISTANCE,
-      pos.y + HEIGHT,
-      pos.z + behindZ * BACK_DISTANCE,
+      pos.x + behindX * backDist,
+      pos.y + heightOffset,
+      pos.z + behindZ * backDist,
     );
 
     if (!prevTarget.current) {
@@ -57,7 +67,9 @@ export function TreehouseCamera() {
 
     const forwardX = -behindX;
     const forwardZ = -behindZ;
-    look.current.set(pos.x + forwardX * LOOK_AHEAD, pos.y + 1.4, pos.z + forwardZ * LOOK_AHEAD);
+    const lookAhead = elevated ? 2.0 : LOOK_AHEAD;
+    const lookHeight = elevated ? LOOK_HEIGHT_ELEVATED : LOOK_HEIGHT_GROUND;
+    look.current.set(pos.x + forwardX * lookAhead, pos.y + lookHeight, pos.z + forwardZ * lookAhead);
     camera.lookAt(look.current);
   });
 

@@ -51,11 +51,22 @@ function TreehouseControllerInner() {
     const gs = useGameStore.getState();
     const phase = gs.phase;
 
-    // Teleport players to spawn on first frame after entering the mode.
-    if (!teleported.current) {
+    // Teleport players to spawn once the game phase has actually started
+    // (not during CharacterSelect, which also runs this controller).
+    // We wait until phase is 'treehouse-welcome' or 'treehouse-play' so that
+    // CharacterSelect's resetTornadoGame() can't undo the teleport.
+    const isTreehousePhase =
+      phase === 'treehouse-welcome' ||
+      phase === 'treehouse-play' ||
+      phase === 'treehouse-letter-open' ||
+      phase === 'treehouse-complete';
+    if (!teleported.current && isTreehousePhase) {
       const spawn = treehouseSpawnPoint();
       gs.positions.luke.set(spawn.x, 0, spawn.z);
       gs.positions.penny.set(spawn.x + 1.5, 0, spawn.z);
+      // Face players toward the live oak (yaw=π → camera south of player, looking north/+Z).
+      gs.yaws.luke = Math.PI;
+      gs.yaws.penny = Math.PI;
       teleported.current = true;
     }
 

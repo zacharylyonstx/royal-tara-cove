@@ -318,7 +318,7 @@ const TREEHOUSE_SPEED = 5.0;
 const TREEHOUSE_RUN_SPEED = 8.5;
 const LADDER_INTERACT_RADIUS = 2.5;
 const ITEM_INTERACT_RADIUS = 2.0;
-const TREEHOUSE_FLOOR_Y = 4.0;
+const TREEHOUSE_FLOOR_Y = 8.0;
 const COVE_BOUND_RADIUS = 75;
 
 function treehouseTick(

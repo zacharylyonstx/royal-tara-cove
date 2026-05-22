@@ -239,10 +239,12 @@ export function getNextMissionId(currentId: string): string | null {
   return MISSION_ORDER[idx + 1];
 }
 
-/** Treehouse spawn point — backyard of hero house, near the live oak. */
+/** Treehouse spawn point — backyard of hero house, near the live oak.
+ *  8 units south of the oak so the camera (5 behind player) is 13 units
+ *  away and the full tree+treehouse is visible in the opening shot. */
 export function treehouseSpawnPoint(): { x: number; z: number } {
   const oak = liveOakPosition();
-  return { x: oak.x, z: oak.z - 3 };
+  return { x: oak.x, z: oak.z - 8 };
 }
 
 /** Helpers exposed for UI / renderers. */

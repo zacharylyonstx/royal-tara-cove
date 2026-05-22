@@ -1,7 +1,7 @@
 import { Text } from '@react-three/drei';
 import { liveOakPosition } from '../../world/treehouseMissions';
 
-const FLOOR_Y = 4.0;
+const FLOOR_Y = 8.0;
 const FLOOR_SIZE = 3.2;
 const WALL_H = 2.2;
 const WALL_T = 0.12;
