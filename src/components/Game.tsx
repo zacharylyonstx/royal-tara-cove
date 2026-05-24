@@ -13,6 +13,7 @@ import { NPCController } from '../systems/NPCController';
 import { HOUSES } from '../world/houses';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { FRONT_YARD_DEPTH } from '../world/streetLayout';
 import { buildLots } from '../world/lots';
 import { buildColliders, buildPropColliders } from '../world/colliders';
@@ -89,7 +90,11 @@ import { useCombatStore } from '../state/combatStore';
 import { CameraExposer } from '../ui/Dialogue';
 
 export function Game() {
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  // Hide ONLY the character this peer claimed (so we don't see our own body in FPS view).
+  // In single-player this falls back to gameStore.activeCharacterId.
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
   const setStaticColliders = useGameStore((s) => s.setStaticColliders);
