@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { useTornadoStore } from '../../state/tornadoStore';
 
 // Rain rendered as ~2500 short vertical line segments that follow the active
@@ -18,7 +19,9 @@ const DROP_LEN = 0.55;          // visible streak length in metres
 export function Rain() {
   const geomRef = useRef<THREE.BufferGeometry>(null);
   const matRef = useRef<THREE.LineBasicMaterial>(null);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
 
   const { positionsAttr, dropArray } = useMemo(() => {

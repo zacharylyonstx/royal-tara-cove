@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import type { CharacterId } from '../../types';
 
 interface KidBlasterProps {
@@ -20,7 +21,9 @@ const Y = 0.85;
 export function KidBlaster({ who, color }: KidBlasterProps) {
   const groupRef = useRef<Group>(null);
   const phase = useGameStore((s) => s.phase);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
 

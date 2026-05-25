@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { useTornadoStore } from '../state/tornadoStore';
 
 // Storm vignette — radial dark gradient overlay that intensifies as the player
@@ -22,7 +23,8 @@ export function StormVignette() {
       if (g.gameMode !== 'tornado') { el.style.opacity = '0'; return; }
       const ts = useTornadoStore.getState();
       if (ts.tornadoOpacity < 0.05) { el.style.opacity = '0'; return; }
-      const player = g.positions[g.activeCharacterId];
+      const myId = useNetStore.getState().myCharacterId ?? g.activeCharacterId;
+      const player = g.positions[myId];
       if (!player) { el.style.opacity = '0'; return; }
       const dist = Math.hypot(player.x - ts.tornadoX, player.z - ts.tornadoZ);
       if (dist > ACTIVE_RADIUS) { el.style.opacity = '0'; return; }

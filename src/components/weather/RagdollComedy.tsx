@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { cowMoo } from '../../audio';
 
 // Comic debris that orbits the ragdolling player, swinging past the camera —
@@ -47,7 +48,8 @@ export function RagdollComedy() {
     }
     root.visible = true;
 
-    const player = g.positions[g.activeCharacterId];
+    const _myId = useNetStore.getState().myCharacterId ?? g.activeCharacterId;
+    const player = g.positions[_myId];
     if (!player) return;
 
     const now = performance.now() / 1000;

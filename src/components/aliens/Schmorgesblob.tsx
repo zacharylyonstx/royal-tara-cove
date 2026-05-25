@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { Group, Mesh } from 'three';
 import { BLOB_COLOR_FOR_KIND, type Blob } from '../../state/combatStore';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 
 interface BlobProps {
   blob: Blob;
@@ -25,7 +26,9 @@ function Hopper({ blob }: BlobProps) {
   const mouth = useRef<Mesh>(null);
   const tentacles = useRef<Group[]>([]);
   const positions = useGameStore((s) => s.positions);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
   const baseColor = new THREE.Color(color.body);
   const damageColor = new THREE.Color('#ff3a3a');
@@ -245,7 +248,9 @@ function Sprinter({ blob }: BlobProps) {
   const body = useRef<Mesh>(null);
   const eye = useRef<Group>(null);
   const positions = useGameStore((s) => s.positions);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
   const baseColor = new THREE.Color(color.body);
   const damageColor = new THREE.Color('#ffd83a');

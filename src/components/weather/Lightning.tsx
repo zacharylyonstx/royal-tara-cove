@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useTornadoStore } from '../../state/tornadoStore';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { useCombatStore } from '../../state/combatStore';
 import { lightningStrike } from '../../audio';
 import { spawnLightningBolt } from './LightningBolt';
@@ -55,7 +56,9 @@ export function Lightning() {
       addShake(0.6);
       lightningStrike(0.1 + Math.random() * 0.6);
       // Spawn 1-2 visible lightning bolts near the player + bump storm dome flash
-      const player = useGameStore.getState().positions[useGameStore.getState().activeCharacterId];
+      const _g = useGameStore.getState();
+      const _myId = useNetStore.getState().myCharacterId ?? _g.activeCharacterId;
+      const player = _g.positions[_myId];
       const px = player?.x ?? 0;
       const pz = player?.z ?? 0;
       const boltCount = 1 + (Math.random() < 0.4 ? 1 : 0);

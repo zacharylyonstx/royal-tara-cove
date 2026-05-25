@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { isNearPlayer } from '../../systems/distance';
 
 interface BasketballProps {
@@ -19,7 +20,9 @@ export function Basketball({ position }: BasketballProps) {
   const pos = useRef({ x: position[0], y: 0.16, z: position[2] });
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
 
   useFrame((_, dtRaw) => {
     if (!isNearPlayer(pos.current.x, pos.current.z, 40)) return;

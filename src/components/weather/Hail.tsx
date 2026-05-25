@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { useTornadoStore } from '../../state/tornadoStore';
 import { hailTick } from '../../audio';
 
@@ -33,7 +34,9 @@ export function Hail() {
     return arr;
   }, []);
 
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const tmp = useMemo(() => new THREE.Object3D(), []);
   const sinceTick = useRef(0);

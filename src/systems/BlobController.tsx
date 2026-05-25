@@ -45,10 +45,31 @@ function newRuntime(b: Blob): BlobRuntime {
   };
 }
 
+/** Returns the position of the claimed character closest to (bx, bz). */
+function nearestPlayerPos(bx: number, bz: number) {
+  const g = useGameStore.getState();
+  const net = useNetStore.getState();
+  // Build the set of claimed character IDs (all peers, including self).
+  const claimed = new Set<string>();
+  for (const p of Object.values(net.peers)) {
+    if (p.characterId) claimed.add(p.characterId);
+  }
+  // Fallback to activeCharacterId in pure single-player (no room joined).
+  if (claimed.size === 0) claimed.add(g.activeCharacterId);
+
+  let bestPos = g.positions[g.activeCharacterId];
+  let bestDist = Infinity;
+  for (const id of claimed) {
+    const p = g.positions[id as keyof typeof g.positions];
+    if (!p) continue;
+    const d = Math.hypot(p.x - bx, p.z - bz);
+    if (d < bestDist) { bestDist = d; bestPos = p; }
+  }
+  return bestPos;
+}
+
 export function BlobController() {
   const phase = useGameStore((s) => s.phase);
-  const positions = useGameStore((s) => s.positions);
-  const activeId = useGameStore((s) => s.activeCharacterId);
   const damagePlayer = useGameStore((s) => s.damagePlayer);
 
   const blobs = useCombatStore((s) => s.blobs);
@@ -107,8 +128,6 @@ export function BlobController() {
 
     if (phase !== 'combat') return;
 
-    const player = positions[activeId];
-
     for (const b of blobs) {
       if (!b.alive) {
         // Death effects (run once per blob)
@@ -158,7 +177,7 @@ export function BlobController() {
         continue;
       }
 
-      // Detour pathing: aim for waypoint until reached, then chase player.
+      // Detour pathing: aim for waypoint until reached, then chase nearest player.
       if (!b.waypointReached) {
         const wdx = b.waypointX - b.x;
         const wdz = b.waypointZ - b.z;
@@ -166,6 +185,7 @@ export function BlobController() {
           b.waypointReached = true;
         }
       }
+      const player = nearestPlayerPos(b.x, b.z);
       const targetX = b.waypointReached ? player.x : b.waypointX;
       const targetZ = b.waypointReached ? player.z : b.waypointZ;
       const dx = targetX - b.x;

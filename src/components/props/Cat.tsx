@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { isNearPlayer } from '../../systems/distance';
 
 interface CatProps {
@@ -16,7 +17,9 @@ export function Cat({ position, rotation = 0, furColor = '#d68a3a' }: CatProps) 
   const tail = useRef<Group>(null);
   const body = useRef<Group>(null);
   const positions = useGameStore((s) => s.positions);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
 
   useFrame((state) => {
     if (!isNearPlayer(position[0], position[2], 40)) return;

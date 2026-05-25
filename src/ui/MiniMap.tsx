@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { useCombatStore } from '../state/combatStore';
 
 const MAP_SIZE = 150;
@@ -9,7 +10,9 @@ export function MiniMap() {
   const phase = useGameStore((s) => s.phase);
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const blobs = useCombatStore((s) => s.blobs);
 
   // Throttled re-render so React doesn't get hit at 60fps from a setState loop.

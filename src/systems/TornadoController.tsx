@@ -4,6 +4,7 @@ import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
+import type { CharacterId } from '../types';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import {
@@ -168,10 +169,11 @@ export function TornadoController() {
         const camZ = arcCenterZ + Math.sin(angle) * radius;
         const camY = 40 - tIntro * 38;
         // Lookat sweeps toward the player's spawn near (0, -90)
-        const player = g.positions[g.activeCharacterId];
-        const targetX = player ? player.x : 0;
+        // Cinematic camera looks at the host's own character (host-authoritative).
+        const hostChar = g.positions[g.activeCharacterId];
+        const targetX = hostChar ? hostChar.x : 0;
         const targetY = 1.5;
-        const targetZ = player ? player.z : -90;
+        const targetZ = hostChar ? hostChar.z : -90;
         useCombatStore.setState({
           cinematic: {
             active: true,
@@ -223,9 +225,10 @@ export function TornadoController() {
         const dist = Math.hypot(h.x - x, h.z - z);
         if (dist < TORNADO_KILL_RADIUS) {
           g.markHouseDestroyed(h.address, now);
-          const player = g.positions[g.activeCharacterId];
-          const distToPlayer = player
-            ? Math.hypot(player.x - h.x, player.z - h.z)
+          // Use host's own character for the nearby-sound cue (host-only audio).
+          const hostPlayer = g.positions[g.activeCharacterId];
+          const distToPlayer = hostPlayer
+            ? Math.hypot(hostPlayer.x - h.x, hostPlayer.z - h.z)
             : 30;
           houseCollapse(Math.min(1, distToPlayer / 60));
           break; // one per frame to keep audio uncluttered
@@ -233,44 +236,59 @@ export function TornadoController() {
       }
 
       // PLAYER KILL ZONE — walking into the funnel triggers ragdoll throw.
-      const player = g.positions[g.activeCharacterId];
+      // Check all claimed characters (multiplayer-safe). If ANY claimed character
+      // walks into the funnel, it's a defeat for the whole family.
       const KILL_RADIUS = 4;
-      if (player) {
-        const dx = player.x - x;
-        const dz = player.z - z;
-        const distToFunnel = Math.hypot(dx, dz);
+      const net = useNetStore.getState();
+      const claimedIds = new Set<CharacterId>();
+      for (const p of Object.values(net.peers)) {
+        if (p.characterId) claimedIds.add(p.characterId);
+      }
+      if (claimedIds.size === 0) claimedIds.add(g.activeCharacterId);
 
-        // ---- v17 proximity slow-mo (hysteresis to avoid flicker) ----
+      // Use host's nearest claimed character for slow-mo / camera shake
+      // (these are local host-side effects, not broadcast).
+      const hostPlayer = g.positions[g.activeCharacterId];
+      const hostDx = hostPlayer ? hostPlayer.x - x : 0;
+      const hostDz = hostPlayer ? hostPlayer.z - z : 0;
+      const hostDistToFunnel = Math.hypot(hostDx, hostDz);
+
+      {
         const cs = useCombatStore.getState();
-        if (!slowMoActiveRef.current && distToFunnel < SLOWMO_ENTER_RADIUS) {
+        if (!slowMoActiveRef.current && hostDistToFunnel < SLOWMO_ENTER_RADIUS) {
           slowMoActiveRef.current = true;
-          // 1-second lerp via long slowMoEnd; we'll keep extending each frame.
           cs.triggerSlowMo(0.5, 999);
-        } else if (slowMoActiveRef.current && distToFunnel > SLOWMO_EXIT_RADIUS) {
+        } else if (slowMoActiveRef.current && hostDistToFunnel > SLOWMO_EXIT_RADIUS) {
           slowMoActiveRef.current = false;
-          // Snap back to normal speed
           useCombatStore.setState({ slowMo: 1, slowMoEndsAt: 0 });
         } else if (slowMoActiveRef.current) {
-          // Keep slow-mo alive
           useCombatStore.setState({ slowMoEndsAt: now + 1 });
         }
+        const shake = Math.min(0.06, 0.05 / Math.max(1, hostDistToFunnel / 8));
+        addShake(shake);
+      }
 
+      // Check all claimed players for kill zone entry.
+      for (const id of claimedIds) {
+        const player = g.positions[id];
+        if (!player) continue;
+        const distToFunnel = Math.hypot(player.x - x, player.z - z);
         if (distToFunnel < KILL_RADIUS) {
-          // Restore time before ragdoll cinematic takes over
           if (slowMoActiveRef.current) {
             slowMoActiveRef.current = false;
             useCombatStore.setState({ slowMo: 1, slowMoEndsAt: 0 });
           }
-          g.startRagdoll(player.x, player.y, player.z, now);
+          // Ragdoll uses the host's character for the visual (host-authoritative cinematic).
+          const ragPlayer = g.positions[g.activeCharacterId];
+          g.startRagdoll(ragPlayer?.x ?? player.x, ragPlayer?.y ?? player.y, ragPlayer?.z ?? player.z, now);
           g.setPhase('defeat');
           return;
         }
-        // Camera shake by proximity
-        const shake = Math.min(0.06, 0.05 / Math.max(1, distToFunnel / 8));
-        addShake(shake);
       }
-      // NPCs near the funnel get yeeted offscreen (no clutter)
-      for (const id of ['penny', 'luke'] as const) {
+
+      // NPCs (unclaimed characters) near the funnel get yeeted offscreen.
+      for (const id of ['dad', 'penny', 'luke'] as const) {
+        if (claimedIds.has(id)) continue; // skip human-controlled characters
         const p = g.positions[id];
         if (!p) continue;
         const dist = Math.hypot(p.x - x, p.z - z);
@@ -285,23 +303,44 @@ export function TornadoController() {
         g.setPhase('tornado-arrived');
       }
     } else if (phase === 'tornado-arrived') {
-      // One-shot evaluation: inside hero house → victory, else → defeat + ragdoll
+      // One-shot evaluation: inside hero house → victory, else → defeat + ragdoll.
+      // In multiplayer ALL claimed characters must be inside for victory.
       setTornadoZ(TORNADO_END_Z);
-      const player = g.positions[g.activeCharacterId];
-      if (!player || !heroBox) {
+      if (!heroBox) {
         g.setPhase('defeat');
         return;
       }
-      const relX = player.x - heroBox.pivotX;
-      const relZ = player.z - heroBox.pivotZ;
-      const lx = relX * heroBox.cosNeg - relZ * heroBox.sinNeg;
-      const lz = relX * heroBox.sinNeg + relZ * heroBox.cosNeg;
-      const inside = lx > -heroBox.halfW && lx < heroBox.halfW && lz > -heroBox.halfD && lz < heroBox.halfD;
-      if (inside) {
+      const netArrived = useNetStore.getState();
+      const claimedArrived = new Set<CharacterId>();
+      for (const p of Object.values(netArrived.peers)) {
+        if (p.characterId) claimedArrived.add(p.characterId);
+      }
+      if (claimedArrived.size === 0) claimedArrived.add(g.activeCharacterId);
+
+      const isInsideHeroBox = (px: number, pz: number): boolean => {
+        if (!heroBox) return false;
+        const relX = px - heroBox.pivotX;
+        const relZ = pz - heroBox.pivotZ;
+        const lx = relX * heroBox.cosNeg - relZ * heroBox.sinNeg;
+        const lz = relX * heroBox.sinNeg + relZ * heroBox.cosNeg;
+        return lx > -heroBox.halfW && lx < heroBox.halfW && lz > -heroBox.halfD && lz < heroBox.halfD;
+      };
+
+      let allInside = true;
+      let firstOutsidePlayer = g.positions[g.activeCharacterId];
+      for (const id of claimedArrived) {
+        const p = g.positions[id];
+        if (!p || !isInsideHeroBox(p.x, p.z)) {
+          allInside = false;
+          if (p) firstOutsidePlayer = p;
+          break;
+        }
+      }
+      if (allInside) {
         g.setPhase('victory');
         fadeAllTornadoAudio(6);
       } else {
-        g.startRagdoll(player.x, player.y, player.z, now);
+        g.startRagdoll(firstOutsidePlayer?.x ?? 0, firstOutsidePlayer?.y ?? 0, firstOutsidePlayer?.z ?? 0, now);
         g.setPhase('defeat');
       }
     } else if (phase === 'victory' || phase === 'defeat') {

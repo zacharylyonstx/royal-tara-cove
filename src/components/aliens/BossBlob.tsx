@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { Group, Mesh } from 'three';
 import { BLOB_COLOR_FOR_KIND, type Blob } from '../../state/combatStore';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 
 interface Props {
   blob: Blob;
@@ -21,7 +22,9 @@ export function BossBlob({ blob }: Props) {
   const eyes = useRef<Group[]>([]);
   const tentacles = useRef<Group[]>([]);
   const positions = useGameStore((s) => s.positions);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const color = BLOB_COLOR_FOR_KIND('boss', 0);
   const baseColor = new THREE.Color(color.body);
   const damageColor = new THREE.Color('#ff4040');

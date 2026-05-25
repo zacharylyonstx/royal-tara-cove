@@ -1,14 +1,16 @@
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { CHARACTERS } from '../world/characters';
 
 export function CharacterIndicator() {
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const gameMode = useGameStore((s) => s.gameMode);
   const def = CHARACTERS[activeId];
 
-  // Munchies and Treehouse use netStore.myCharacterId for character selection;
-  // activeCharacterId here reflects the free-roam 3D character and is
-  // irrelevant/misleading while those modes are active.
+  // Munchies and Treehouse use a different character selection flow;
+  // the indicator is irrelevant/misleading while those modes are active.
   if (gameMode === 'munchies' || gameMode === 'treehouse') return null;
 
   return (

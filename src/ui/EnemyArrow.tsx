@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { useCombatStore } from '../state/combatStore';
 
 /**
@@ -11,7 +12,9 @@ import { useCombatStore } from '../state/combatStore';
 export function EnemyArrow() {
   const phase = useGameStore((s) => s.phase);
   const positions = useGameStore((s) => s.positions);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const blobs = useCombatStore((s) => s.blobs);
   const [arrow, setArrow] = useState<{ x: number; y: number; angleDeg: number; dist: number } | null>(null);
 
@@ -73,7 +76,7 @@ export function EnemyArrow() {
       }
     }, 100);
     return () => clearInterval(id);
-  }, [phase, positions, activeId, blobs]);
+  }, [phase, positions, myCharacterId, fallbackActive, activeId, blobs]);
 
   if (!arrow) return null;
   return (

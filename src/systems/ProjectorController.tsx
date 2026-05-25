@@ -5,6 +5,7 @@ import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import { getProjectorVideo } from '../world/projectorMedia';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 
 // Audio falloff for the great-room projector. Headless: no rendering.
 //
@@ -66,7 +67,9 @@ const SETUP: Setup | null = (() => {
 
 export function ProjectorController() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
 
   // Resolve the video element once on mount.

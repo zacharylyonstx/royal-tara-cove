@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Group, PointLight, Mesh } from 'three';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { useCombatStore } from '../../state/combatStore';
 
 const HAND_X = 0.35;   // hand offset to the right (in player local)
@@ -26,7 +27,9 @@ export function RayGun() {
   const bobPhase = useRef(0);
   const beams = useCombatStore((s) => s.beams);
   const phase = useGameStore((s) => s.phase);
-  const activeId = useGameStore((s) => s.activeCharacterId);
+  const myCharacterId = useNetStore((s) => s.myCharacterId);
+  const fallbackActive = useGameStore((s) => s.activeCharacterId);
+  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
 
