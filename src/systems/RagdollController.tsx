@@ -67,13 +67,16 @@ export function RagdollController() {
     const radius = 2 + t * 6;
     const x = tornadoX + Math.cos(theta) * radius;
     const z = tornadoZ + Math.sin(theta) * radius;
-    const player = g.positions[g.activeCharacterId];
+    // Ragdoll the LOCAL peer's claimed character (multiplayer-safe).
+    // Each browser sees its own kid fly around the funnel during the defeat cinematic.
+    const ragId = useNetStore.getState().myCharacterId ?? g.activeCharacterId;
+    const player = g.positions[ragId];
     if (player) {
       player.x = x;
       player.y = Math.max(0, baseY);
       player.z = z;
     }
-    g.yaws[g.activeCharacterId] = t * 8;
+    g.yaws[ragId] = t * 8;
 
     // ---- v17 first-person ragdoll camera ----
     // Instead of an orbital cinematic, the camera lives AT the player's
@@ -83,7 +86,7 @@ export function RagdollController() {
     // whose camera == player position and whose target is in-front-of-player.
     const headY = Math.max(0, baseY) + 0.4;
     // Tumble: yaw matches player spin, pitch oscillates wildly
-    const tumbleYaw = g.yaws[g.activeCharacterId];
+    const tumbleYaw = g.yaws[ragId];
     const tumblePitch = Math.sin(t * 9) * 0.7 + Math.sin(t * 3.1) * 0.4;
     const tumbleRoll  = Math.sin(t * 5.3) * 0.6;
 

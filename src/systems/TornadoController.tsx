@@ -353,10 +353,12 @@ export function TornadoController() {
       }
     }
 
-    // Drive audio volumes from current state. When the player is INSIDE the
-    // hero house during approach, halve roar + wind for the audible "safe"
-    // cue ("you made it").
-    const playerAudio = g.positions[g.activeCharacterId];
+    // Drive audio volumes from current state. When the LOCAL peer's character
+    // is INSIDE the hero house during approach, halve roar + wind for the
+    // audible "safe" cue ("you made it"). Each peer hears their own safe-zone
+    // attenuation.
+    const localId = useNetStore.getState().myCharacterId ?? g.activeCharacterId;
+    const playerAudio = g.positions[localId];
     let insideHeroAudio = false;
     if (playerAudio && heroBox) {
       const relX = playerAudio.x - heroBox.pivotX;
