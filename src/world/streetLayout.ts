@@ -9,7 +9,7 @@
 //
 // Address numbering goes from south (cul-de-sac) to north (entry):
 //   10600/10601/10604/10605 wrap around the bulb
-//   10608..10637 line the straight section, evens west, odds east
+//   10609..10649 line the straight section, evens west, odds east (no 10606/8/10)
 
 // --- Cul-de-sac bulb (south end) ---
 // Real Royal Tara Cove bulb is ~14-15 m pavement radius (measured from Esri
@@ -25,9 +25,10 @@ export const BACKYARD_DEPTH = 12;
 export const HERO_BACKYARD_DEPTH = 24;
 
 // --- Straight section (running north from bulb to Avery Ranch Blvd) ---
-// The section starts where it meets the top of the bulb and extends 95m north.
+// The section starts where it meets the top of the bulb and extends ~165m north
+// (real measured length; 25 homes total, ~21 lining the straight stick).
 export const STRAIGHT_START_Z = -STREET_RADIUS;            // south end of straight (joins bulb)
-export const STRAIGHT_END_Z = -STREET_RADIUS - 95;         // north end (entry)
+export const STRAIGHT_END_Z = -STREET_RADIUS - 165;        // north end (entry); real stick ~165 m
 export const STRAIGHT_LENGTH = STRAIGHT_START_Z - STRAIGHT_END_Z; // 95
 export const STRAIGHT_HALF_ROAD = 5.0;                     // road centerline to curb (10m wide road)
 export const STRAIGHT_LOT_FRONT_X = STRAIGHT_HALF_ROAD + SIDEWALK_WIDTH; // sidewalk outer edge

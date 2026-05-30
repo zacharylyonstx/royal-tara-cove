@@ -159,12 +159,15 @@ export function Game() {
         );
       })}
 
-      {/* Common-area trees lining the street entry */}
+      {/* Common-area / greenbelt tree line behind the lots, spanning the
+          ~165 m street from the bulb up to the Avery Ranch Blvd entry. */}
       {[
-        { x: -16, z: -110 }, { x: 16, z: -110 },
-        { x: -22, z: -90 }, { x: 22, z: -90 },
-        { x: -22, z: -65 }, { x: 22, z: -65 },
-        { x: -22, z: -40 }, { x: 22, z: -40 },
+        { x: -42, z: -35 }, { x: 42, z: -35 },
+        { x: -44, z: -72 }, { x: 44, z: -72 },
+        { x: -44, z: -108 }, { x: 44, z: -108 },
+        { x: -42, z: -144 }, { x: 42, z: -144 },
+        { x: -40, z: -172 }, { x: 40, z: -172 },
+        { x: -12, z: -179 }, { x: 12, z: -179 },
       ].map((p, i) => (
         <LiveOak key={`bgtree-${i}`} position={[p.x, 0, p.z]} scale={1.05} seed={i + 99} />
       ))}
@@ -345,13 +348,14 @@ function DynamicLights() {
       dirRef.current.position.set(60 * Math.sin(azimuth), 80 * elev, 35 * Math.cos(azimuth));
     }
     if (hemiRef.current) {
-      // Higher base + gentler day falloff so sky/ground bounce fills shadows.
-      hemiRef.current.intensity = 0.72 * (1 - t * 0.45) * stormDarken;
+      // Bright sky/ground bounce at midday for full shadow fill, tapering back
+      // to the original moody level at night (munchies/tornado/aliens-wave-3).
+      hemiRef.current.intensity = (0.75 - 0.52 * t) * stormDarken;
     }
     if (ambRef.current) {
-      // Lifted floor so dark-albedo props (the truck, bins) keep form at
-      // midday instead of crushing to pure black.
-      ambRef.current.intensity = (0.30 + t * 0.16) * Math.max(0.24, 1 - storm * 0.7);
+      // Lifted DAYTIME floor so dark-albedo props (the truck, bins) keep form
+      // instead of crushing to black; stays near the old level at night.
+      ambRef.current.intensity = (0.30 + t * 0.05) * Math.max(0.24, 1 - storm * 0.7);
       const r = (0.62 + t * 0.2) * (1 - storm * 0.4);
       const g = (0.72 + t * 0.15) * (1 - storm * 0.4);
       const b = 0.92 * (1 - storm * 0.3);
