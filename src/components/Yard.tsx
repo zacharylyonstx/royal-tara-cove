@@ -25,6 +25,14 @@ export function Yard({ config, lot }: YardProps) {
   const halfD = config.depth / 2;
   const sidewalkZ = -halfD - FRONT_YARD_DEPTH;
 
+  // House front direction in world XZ (local -Z rotated by yaw) and a point on
+  // the front-wall plane. Fences are clipped to the side AWAY from the street.
+  const frontDir: Vec2 = [-Math.sin(lot.houseYaw), -Math.cos(lot.houseYaw)];
+  const frontPlanePoint: Vec2 = [
+    lot.housePivot[0] + frontDir[0] * halfD,
+    lot.housePivot[1] + frontDir[1] * halfD,
+  ];
+
   const garageCenterX = config.garageOnLeft
     ? -halfW + 0.6 + GARAGE_W / 2
     : halfW - 0.6 - GARAGE_W / 2;
@@ -66,10 +74,16 @@ export function Yard({ config, lot }: YardProps) {
         />
       </group>
 
-      {/* Fences along non-front edges of the lot */}
-      {lot.polygon.map((a, i) => {
+      {/* Fences along non-front edges of the lot — but only the portion BEHIND
+          the house's front-wall plane, so the front yard stays open to the
+          street (real Avery Ranch homes have open front lawns; fencing is a
+          back/side-yard feature). frontDir = house local -Z rotated by yaw. */}
+      {lot.polygon.map((a0, i) => {
         if (!shouldFenceEdge(lot, i)) return null;
-        const b = lot.polygon[(i + 1) % lot.polygon.length];
+        const b0 = lot.polygon[(i + 1) % lot.polygon.length];
+        const clipped = clipBehindFront(a0, b0, frontPlanePoint, frontDir);
+        if (!clipped) return null;
+        const [a, b] = clipped;
         // Skip if this edge is near a gate slot (we'll render the gate instead)
         const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
         const nearGate = lot.gateSlots.some(
@@ -129,6 +143,24 @@ function FenceWithGate({ a, b, gateAt }: FenceWithGateProps) {
       />
     </>
   );
+}
+
+/**
+ * Clip a fence edge to the half-space behind the house's front-wall plane
+ * (the side away from the street), so front-yard portions of side fences are
+ * removed and the lawn opens to the sidewalk. `n` is the front-facing normal;
+ * a point Q is "in front" (street side, no fence) when (Q - p0)·n > 0.
+ * Returns the kept sub-segment, or null if the edge is entirely in front.
+ */
+function clipBehindFront(a: Vec2, b: Vec2, p0: Vec2, n: Vec2): [Vec2, Vec2] | null {
+  const EPS = 1e-4;
+  const sa = (a[0] - p0[0]) * n[0] + (a[1] - p0[1]) * n[1];
+  const sb = (b[0] - p0[0]) * n[0] + (b[1] - p0[1]) * n[1];
+  if (sa <= EPS && sb <= EPS) return [a, b];
+  if (sa > EPS && sb > EPS) return null;
+  const t = sa / (sa - sb);
+  const c: Vec2 = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  return sa <= EPS ? [a, c] : [c, b];
 }
 
 function buildLawnGeometry(polygon: Vec2[]): THREE.BufferGeometry {

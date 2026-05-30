@@ -12,7 +12,10 @@
 //   10608..10637 line the straight section, evens west, odds east
 
 // --- Cul-de-sac bulb (south end) ---
-export const STREET_RADIUS = 22;          // pavement edge of the bulb
+// Real Royal Tara Cove bulb is ~14-15 m pavement radius (measured from Esri
+// satellite + OSM turning_circle + TX residential cul-de-sac specs). The old
+// 22 m read as a parking lot.
+export const STREET_RADIUS = 14.5;        // pavement edge of the bulb
 export const SIDEWALK_WIDTH = 1.4;
 export const LOT_FRONT_RADIUS = STREET_RADIUS + SIDEWALK_WIDTH;
 export const FRONT_YARD_DEPTH = 7;
