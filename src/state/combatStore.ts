@@ -293,7 +293,7 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
   shotsFired: 0,
   shotsHit: 0,
 
-  timeOfDay: 0.15,
+  timeOfDay: 0.06,
   setTimeOfDay: (t) => set({ timeOfDay: t }),
 
   slowMo: 1,

@@ -3,8 +3,8 @@ import { useCombatStore } from '../state/combatStore';
 import { useGameStore } from '../state/gameStore';
 
 const TARGETS_BY_WAVE: Record<number, number> = {
-  0: 0.15,  // pre-combat: late afternoon
-  1: 0.25,  // wave 1: golden hour
+  0: 0.05,  // pre-combat / free exploration: bright sunny midday
+  1: 0.18,  // wave 1: early afternoon (still bright)
   2: 0.55,  // wave 2: dusk
   3: 0.85,  // wave 3: night
 };

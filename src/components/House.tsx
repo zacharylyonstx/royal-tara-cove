@@ -9,7 +9,6 @@ import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 
 const STORY_H = 3.0;
-const ROOF_H = 2.0;
 const STONE_H = 1.4;
 const GARAGE_W = 5.6;
 const GARAGE_H = 2.4;
@@ -26,6 +25,9 @@ export function House({ config, lot }: HouseProps) {
   const wallH = config.stories * STORY_H;
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
+  // ~6:12 pitch (rise = depth/4 → rise/(depth/2) = 0.5), with a floor so very
+  // shallow footprints still read as a pitched roof, not a slab.
+  const roofH = Math.max(2.2, config.depth / 4);
 
   const garageCenterX = config.garageOnLeft
     ? -halfW + 0.6 + GARAGE_W / 2
@@ -231,14 +233,14 @@ export function House({ config, lot }: HouseProps) {
         <Roof
           width={config.width}
           depth={config.depth}
-          height={ROOF_H}
+          height={roofH}
           color={config.roofColor}
           hipped={config.hipped}
         />
         {!config.hipped && (
           <>
-            <GableEnd width={config.width} depth={config.depth} height={ROOF_H} material={wallMaterial} side="left" />
-            <GableEnd width={config.width} depth={config.depth} height={ROOF_H} material={wallMaterial} side="right" />
+            <GableEnd width={config.width} depth={config.depth} height={roofH} material={wallMaterial} side="left" />
+            <GableEnd width={config.width} depth={config.depth} height={roofH} material={wallMaterial} side="right" />
           </>
         )}
       </group>

@@ -53,17 +53,22 @@ function HippedRoof({ width, depth, height, color, overhang }: Required<Omit<Roo
     // Ridge length = the longer axis minus 2x the shorter axis half-pitch.
     // For our houses width >= depth, so ridge runs along X.
     const ridgeHalf = Math.max(0, w - d);
+    // Winding is CCW-from-outside so every face normal points outward/up.
+    // (The original array was wound inward, so the front/back slopes
+    // backface-culled when viewed from above — you could see straight into
+    // the house. Each triangle below has its 2nd/3rd vertices swapped to flip
+    // the normal outward.)
     const verts = new Float32Array([
-      // Front slope
-      -w, 0, -d,   w, 0, -d,   ridgeHalf, h, 0,
-      -w, 0, -d,  ridgeHalf, h, 0,  -ridgeHalf, h, 0,
-      // Back slope
-      w, 0, d,   -w, 0, d,    -ridgeHalf, h, 0,
-      w, 0, d,   -ridgeHalf, h, 0,    ridgeHalf, h, 0,
-      // Left hip
-      -w, 0, -d,  -ridgeHalf, h, 0,  -w, 0, d,
-      // Right hip
-      w, 0, -d,    w, 0, d,    ridgeHalf, h, 0,
+      // Front slope (normal -Z / +Y)
+      -w, 0, -d,   ridgeHalf, h, 0,   w, 0, -d,
+      -w, 0, -d,  -ridgeHalf, h, 0,  ridgeHalf, h, 0,
+      // Back slope (normal +Z / +Y)
+      w, 0, d,   -ridgeHalf, h, 0,   -w, 0, d,
+      w, 0, d,    ridgeHalf, h, 0,   -ridgeHalf, h, 0,
+      // Left hip (normal -X / +Y)
+      -w, 0, -d,  -w, 0, d,  -ridgeHalf, h, 0,
+      // Right hip (normal +X / +Y)
+      w, 0, -d,    ridgeHalf, h, 0,    w, 0, d,
     ]);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(verts, 3));

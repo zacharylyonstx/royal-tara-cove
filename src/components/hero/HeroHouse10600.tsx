@@ -7,7 +7,6 @@ import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
 
 const STORY_H = 3.0;
-const ROOF_H = 2.4;
 const STONE_H = 1.6;
 const GARAGE_W = 6.4;
 const GARAGE_H = 2.6;
@@ -107,7 +106,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         <Roof
           width={config.width}
           depth={config.depth}
-          height={ROOF_H}
+          height={config.depth / 4}
           color={config.roofColor}
           hipped={true}
         />

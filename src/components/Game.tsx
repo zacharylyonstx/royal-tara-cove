@@ -345,19 +345,22 @@ function DynamicLights() {
       dirRef.current.position.set(60 * Math.sin(azimuth), 80 * elev, 35 * Math.cos(azimuth));
     }
     if (hemiRef.current) {
-      hemiRef.current.intensity = 0.55 * (1 - t * 0.6) * stormDarken;
+      // Higher base + gentler day falloff so sky/ground bounce fills shadows.
+      hemiRef.current.intensity = 0.72 * (1 - t * 0.45) * stormDarken;
     }
     if (ambRef.current) {
-      ambRef.current.intensity = (0.18 + t * 0.18) * Math.max(0.18, 1 - storm * 0.7);
-      const r = (0.6 + t * 0.2) * (1 - storm * 0.4);
-      const g = (0.7 + t * 0.15) * (1 - storm * 0.4);
-      const b = 0.9 * (1 - storm * 0.3);
+      // Lifted floor so dark-albedo props (the truck, bins) keep form at
+      // midday instead of crushing to pure black.
+      ambRef.current.intensity = (0.30 + t * 0.16) * Math.max(0.24, 1 - storm * 0.7);
+      const r = (0.62 + t * 0.2) * (1 - storm * 0.4);
+      const g = (0.72 + t * 0.15) * (1 - storm * 0.4);
+      const b = 0.92 * (1 - storm * 0.3);
       ambRef.current.color.setRGB(r, g, b);
     }
   });
   return (
     <>
-      <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#5a8a3e" intensity={0.55} />
+      <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#5a8a3e" intensity={0.72} />
       <directionalLight
         ref={dirRef}
         position={[60, 80, 35]}
@@ -374,7 +377,7 @@ function DynamicLights() {
         shadow-camera-top={50}
         shadow-camera-bottom={-50}
       />
-      <ambientLight ref={ambRef} intensity={0.18} color="#9ad0e0" />
+      <ambientLight ref={ambRef} intensity={0.30} color="#9ad0e0" />
     </>
   );
 }
