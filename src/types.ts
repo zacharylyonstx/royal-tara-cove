@@ -20,6 +20,10 @@ export interface HouseConfig {
   width: number;
   depth: number;
   stories: 1 | 2;
+  /** Front-facade brick veneer color (Avery Ranch norm). Falls back to stoneColor. */
+  brickColor?: string;
+  /** Upper/side/rear HardiPlank lap-siding color. Falls back to wallColor. */
+  sidingColor?: string;
   wallColor: string;
   trimColor: string;
   hasStone: boolean;

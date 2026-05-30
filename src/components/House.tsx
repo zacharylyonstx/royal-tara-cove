@@ -9,7 +9,6 @@ import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 
 const STORY_H = 3.0;
-const STONE_H = 1.4;
 const GARAGE_W = 5.6;
 const GARAGE_H = 2.4;
 const DOOR_W = 1.05;
@@ -34,7 +33,10 @@ export function House({ config, lot }: HouseProps) {
     : halfW - 0.6 - GARAGE_W / 2;
   const doorCenterX = config.garageOnLeft ? halfW - 1.6 : -halfW + 1.6;
 
-  const wallMaterial = mat.stucco(config.wallColor);
+  // Avery Ranch tract look: brick veneer on the street-facing front, tan
+  // HardiPlank lap siding on the sides, rear, and gable ends.
+  const sidingMaterial = mat.lapSiding(config.sidingColor ?? config.wallColor);
+  const brickMaterial = mat.brick(config.brickColor ?? config.stoneColor ?? '#9c5a45');
 
   // Destruction animation refs (tornado-mode). The dramatic overhaul:
   //   • roof LAUNCHES upward + tumbles + scales away
@@ -193,39 +195,25 @@ export function House({ config, lot }: HouseProps) {
 
       <group ref={bodyRef}>
 
-      {/* Side walls */}
-      <SolidWall position={[-halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
-      <SolidWall position={[halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
+      {/* Side walls (lap siding) */}
+      <SolidWall position={[-halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={sidingMaterial} />
+      <SolidWall position={[halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={sidingMaterial} />
 
-      {/* Back wall */}
-      <SolidWall position={[0, wallH / 2 + 0.1, halfD]} args={[config.width, wallH, WALL_T]} material={wallMaterial} />
+      {/* Back wall (lap siding) */}
+      <SolidWall position={[0, wallH / 2 + 0.1, halfD]} args={[config.width, wallH, WALL_T]} material={sidingMaterial} />
 
-      {/* Front wall with garage + front-door cutouts */}
+      {/* Front wall (brick veneer) with garage + front-door cutouts */}
       <FrontWallWithCutouts
         width={config.width}
         height={wallH}
         thickness={WALL_T}
-        material={wallMaterial}
+        material={brickMaterial}
         z={-halfD}
         openings={[
           { x: garageCenterX, w: GARAGE_W, h: GARAGE_H },
           { x: doorCenterX, w: DOOR_W, h: DOOR_H },
         ]}
       />
-
-      {/* Stone accent skirting on the front lower portion */}
-      {config.hasStone && (
-        <StoneAccent
-          width={config.width}
-          height={STONE_H}
-          z={-halfD - 0.05}
-          color={config.stoneColor}
-          excludeRanges={[
-            { x: garageCenterX, w: GARAGE_W },
-            { x: doorCenterX, w: DOOR_W },
-          ]}
-        />
-      )}
 
       {/* Roof + gable end fillers (only for gable roofs) — separate ref so the
           roof can independently drop/scale during the destruction animation */}
@@ -239,8 +227,8 @@ export function House({ config, lot }: HouseProps) {
         />
         {!config.hipped && (
           <>
-            <GableEnd width={config.width} depth={config.depth} height={roofH} material={wallMaterial} side="left" />
-            <GableEnd width={config.width} depth={config.depth} height={roofH} material={wallMaterial} side="right" />
+            <GableEnd width={config.width} depth={config.depth} height={roofH} material={sidingMaterial} side="left" />
+            <GableEnd width={config.width} depth={config.depth} height={roofH} material={sidingMaterial} side="right" />
           </>
         )}
       </group>
@@ -359,50 +347,6 @@ function FrontWallWithCutouts({ width, height, thickness, material, z, openings 
       <mesh key="r" position={[cursor + w / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
         <boxGeometry args={[w, height, thickness]} />
         <primitive object={material} attach="material" />
-      </mesh>,
-    );
-  }
-
-  return <>{panels}</>;
-}
-
-interface StoneProps {
-  width: number;
-  height: number;
-  z: number;
-  color: string;
-  excludeRanges: Array<{ x: number; w: number }>;
-}
-
-function StoneAccent({ width, height, z, color, excludeRanges }: StoneProps) {
-  const sorted = [...excludeRanges].sort((a, b) => a.x - b.x);
-  const panels: React.ReactElement[] = [];
-  let cursor = -width / 2 + 0.1;
-  let key = 0;
-  const stoneMaterial = mat.stone(color);
-
-  for (const op of sorted) {
-    const opLeft = op.x - op.w / 2 - 0.05;
-    if (opLeft - cursor > 0.05) {
-      const w = opLeft - cursor;
-      panels.push(
-        <mesh key={`s${key}`} position={[cursor + w / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
-          <boxGeometry args={[w, height, 0.08]} />
-          <primitive object={stoneMaterial} attach="material" />
-        </mesh>,
-      );
-    }
-    cursor = op.x + op.w / 2 + 0.05;
-    key += 1;
-  }
-
-  const right = width / 2 - 0.1;
-  if (right - cursor > 0.05) {
-    const w = right - cursor;
-    panels.push(
-      <mesh key="sr" position={[cursor + w / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
-        <boxGeometry args={[w, height, 0.08]} />
-        <primitive object={stoneMaterial} attach="material" />
       </mesh>,
     );
   }

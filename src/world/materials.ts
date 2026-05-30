@@ -5,6 +5,7 @@ import {
   carPaintTexture,
   concreteTexture,
   grassTexture,
+  lapSidingTexture,
   limestoneTexture,
   rugTexture,
   shingleTexture,
@@ -37,6 +38,8 @@ let cached: {
 
 const stuccoCache = new Map<string, THREE.Material>();
 const stoneCache = new Map<string, THREE.Material>();
+const brickCache = new Map<string, THREE.Material>();
+const sidingCache = new Map<string, THREE.Material>();
 const carCache = new Map<string, THREE.Material>();
 
 export const mat = {
@@ -74,14 +77,27 @@ export const mat = {
     });
     return cached.sidewalk;
   },
-  brick(): THREE.Material {
-    if (cached.brick) return cached.brick;
-    cached.brick = new THREE.MeshStandardMaterial({
-      map: brickTexture(),
-      roughness: 0.86,
-      color: '#cc8a78',
+  brick(color: string): THREE.Material {
+    const c = brickCache.get(color);
+    if (c) return c;
+    const m = new THREE.MeshStandardMaterial({
+      map: brickTexture(color),
+      roughness: 0.9,
+      metalness: 0,
     });
-    return cached.brick;
+    brickCache.set(color, m);
+    return m;
+  },
+  lapSiding(color: string): THREE.Material {
+    const c = sidingCache.get(color);
+    if (c) return c;
+    const m = new THREE.MeshStandardMaterial({
+      map: lapSidingTexture(color),
+      roughness: 0.9,
+      metalness: 0,
+    });
+    sidingCache.set(color, m);
+    return m;
   },
   stucco(color: string): THREE.Material {
     const k = color;

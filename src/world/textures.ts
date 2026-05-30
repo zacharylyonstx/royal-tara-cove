@@ -195,38 +195,76 @@ export function stuccoTexture(color: string): THREE.Texture {
   return tex;
 }
 
-export function brickTexture(): THREE.Texture {
-  const key = 'brick';
+export function brickTexture(color: string): THREE.Texture {
+  const key = `brick-${color}`;
   const cached = cache.get(key);
   if (cached) return cached;
   const { ctx, canvas } = makeCanvas(512);
-  ctx.fillStyle = '#7d4030'; // mortar dark base
+  const base = new THREE.Color(color);
+  const mortar = base.clone().multiplyScalar(0.5);
+  const to255 = (c: THREE.Color) =>
+    [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)] as const;
+  const [mr, mg, mb] = to255(mortar);
+  ctx.fillStyle = `rgb(${mr},${mg},${mb})`; // mortar base
   ctx.fillRect(0, 0, 512, 512);
 
+  const [br, bg, bb] = to255(base);
   const brickW = 64;
   const brickH = 24;
-  const mortar = 4;
+  const m = 4;
   for (let row = 0; row * brickH < 512; row++) {
     const offset = (row % 2) * (brickW / 2);
     for (let col = -1; col * brickW < 512; col++) {
-      const x = col * brickW + offset + mortar / 2;
-      const y = row * brickH + mortar / 2;
-      const w = brickW - mortar;
-      const h = brickH - mortar;
-      // Per-brick color variance
-      const r = 150 + Math.floor(Math.random() * 30) - 10;
-      const g = 70 + Math.floor(Math.random() * 25);
-      const b = 55 + Math.floor(Math.random() * 20);
-      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      const x = col * brickW + offset + m / 2;
+      const y = row * brickH + m / 2;
+      const w = brickW - m;
+      const h = brickH - m;
+      // Per-brick brightness variance around the base color
+      const v = 0.86 + Math.random() * 0.28;
+      const jit = () => (Math.random() - 0.5) * 18;
+      const r = Math.max(0, Math.min(255, br * v + jit()));
+      const g = Math.max(0, Math.min(255, bg * v + jit()));
+      const b = Math.max(0, Math.min(255, bb * v + jit()));
+      ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
       ctx.fillRect(x, y, w, h);
-      // Subtle brick texture
       ctx.fillStyle = 'rgba(0,0,0,0.07)';
       for (let i = 0; i < 6; i++) {
         ctx.fillRect(x + Math.random() * w, y + Math.random() * h, 1, 1);
       }
     }
   }
-  const tex = finish(canvas, [2, 2]);
+  const tex = finish(canvas, [2.5, 2.5]);
+  cache.set(key, tex);
+  return tex;
+}
+
+export function lapSidingTexture(color: string): THREE.Texture {
+  const key = `lapsiding-${color}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const { ctx, canvas } = makeCanvas(256);
+  const base = new THREE.Color(color);
+  const to255 = (c: THREE.Color) =>
+    [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)] as const;
+  const [r, g, b] = to255(base);
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(0, 0, 256, 256);
+  // Horizontal HardiPlank lap boards: each board lighter at top, with a thin
+  // shadow line under its bottom lip.
+  const boardH = 22;
+  for (let y = 0; y < 256; y += boardH) {
+    // faint highlight along the top of the board
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(0, y + 1, 256, 2);
+    // shadow line under the lap
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(0, y + boardH - 2, 256, 2);
+    // very subtle per-board tonal drift
+    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.04})`;
+    ctx.fillRect(0, y + 2, 256, boardH - 4);
+  }
+  noise(ctx, 256, 256, 0.03, 0.4);
+  const tex = finish(canvas, [3, 3]);
   cache.set(key, tex);
   return tex;
 }

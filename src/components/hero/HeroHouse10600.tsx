@@ -7,7 +7,6 @@ import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
 
 const STORY_H = 3.0;
-const STONE_H = 1.6;
 const GARAGE_W = 6.4;
 const GARAGE_H = 2.6;
 const DOOR_W = 1.1;
@@ -36,7 +35,9 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
     ? -halfW + 0.6 + GARAGE_W / 2
     : halfW - 0.6 - GARAGE_W / 2;
   const doorCenterX = config.garageOnLeft ? halfW - 2.0 : -halfW + 2.4;
-  const wallMaterial = mat.stucco(config.wallColor);
+  // Real 10600: brick veneer front, tan HardiPlank lap siding on sides/rear.
+  const sidingMaterial = mat.lapSiding(config.sidingColor ?? config.wallColor);
+  const brickMaterial = mat.brick(config.brickColor ?? config.stoneColor ?? '#9c5a45');
 
   return (
     <group position={[lot.housePivot[0], 0, lot.housePivot[1]]} rotation={[0, lot.houseYaw, 0]}>
@@ -46,20 +47,20 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         <meshStandardMaterial color="#9c9890" roughness={0.85} />
       </mesh>
 
-      {/* Side walls */}
-      <Wall position={[-halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
-      <Wall position={[halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={wallMaterial} />
+      {/* Side walls (lap siding) */}
+      <Wall position={[-halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={sidingMaterial} />
+      <Wall position={[halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={sidingMaterial} />
 
-      {/* Back wall (with patio sliding door cutout in middle) */}
-      <BackWallWithSlider width={config.width} height={wallH} z={halfD} centerX={PATIO_SLIDER_X} material={wallMaterial} />
+      {/* Back wall (lap siding) with patio sliding door cutout in middle */}
+      <BackWallWithSlider width={config.width} height={wallH} z={halfD} centerX={PATIO_SLIDER_X} material={sidingMaterial} />
 
-      {/* Front wall with garage cutout + front door cutout + bay window cutout */}
+      {/* Front wall (brick veneer) with garage + front door + bay window cutouts */}
       <FrontWall
         config={config}
         width={config.width}
         height={wallH}
         z={-halfD}
-        material={wallMaterial}
+        material={brickMaterial}
         garageCenterX={garageCenterX}
         doorCenterX={doorCenterX}
       />
@@ -79,26 +80,13 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         </>
       )}
 
-      {/* Stone wainscot */}
-      <StoneWainscot
-        width={config.width}
-        height={STONE_H}
-        z={-halfD - 0.06}
-        color={config.stoneColor}
-        excludeRanges={[
-          { x: garageCenterX, w: GARAGE_W },
-          { x: doorCenterX, w: DOOR_W },
-          { x: doorCenterX + (config.garageOnLeft ? -2.5 : 2.5), w: 2.6 }, // bay
-        ]}
-      />
-
-      {/* Bay window (small bumpout under the great-room window) */}
+      {/* Bay window (small bumpout under the great-room window) — brick to match front */}
       <BayWindow
         x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5)}
         z={-halfD - 0.5}
         width={2.4}
         depth={0.8}
-        wallMaterial={wallMaterial}
+        wallMaterial={brickMaterial}
       />
 
       {/* Hipped roof */}
@@ -342,51 +330,6 @@ function FrontWall({
   return <>{panels}</>;
 }
 
-function StoneWainscot({
-  width,
-  height,
-  z,
-  color,
-  excludeRanges,
-}: {
-  width: number;
-  height: number;
-  z: number;
-  color: string;
-  excludeRanges: { x: number; w: number }[];
-}) {
-  const sorted = [...excludeRanges].sort((a, b) => a.x - b.x);
-  const stoneMaterial = mat.stone(color);
-  const panels: React.ReactElement[] = [];
-  let cursor = -width / 2 + 0.1;
-  let key = 0;
-
-  for (const op of sorted) {
-    const opLeft = op.x - op.w / 2 - 0.05;
-    if (opLeft - cursor > 0.05) {
-      const w = opLeft - cursor;
-      panels.push(
-        <mesh key={`s${key}`} position={[cursor + w / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
-          <boxGeometry args={[w, height, 0.1]} />
-          <primitive object={stoneMaterial} attach="material" />
-        </mesh>,
-      );
-    }
-    cursor = op.x + op.w / 2 + 0.05;
-    key++;
-  }
-  const right = width / 2 - 0.1;
-  if (right - cursor > 0.05) {
-    const w = right - cursor;
-    panels.push(
-      <mesh key="sr" position={[cursor + w / 2, height / 2 + 0.1, z]} castShadow receiveShadow>
-        <boxGeometry args={[w, height, 0.1]} />
-        <primitive object={stoneMaterial} attach="material" />
-      </mesh>,
-    );
-  }
-  return <>{panels}</>;
-}
 
 function BayWindow({
   x,
