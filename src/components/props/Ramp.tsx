@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { usePlayStore } from '../../state/playStore';
+import type { Floor, RectCollider } from '../../types';
 
 /**
  * A stylized plywood launch ramp parked midway down the street. It is a pure
@@ -23,6 +24,39 @@ const LIP_H = 1.2;      // lip height
 const DECK = '#c08a4e';   // plywood
 const FRAME = '#6e4a29';  // darker structural
 const STRIPE = '#e8b53a'; // hazard stripe
+
+// The lip (high end) is at -Z, the foot (low end, where you ride on) at +Z.
+const LIP_Z = RAMP_Z - LEN / 2;
+const FOOT_Z = RAMP_Z + LEN / 2;
+
+/**
+ * The ramp deck as a sloped floor: walk up the slope (foot at +Z, y=0) to the
+ * lip (-Z, y=LIP_H) and over. Lets the player ride/run up it without clipping.
+ */
+export function buildRampFloor(): Floor {
+  return {
+    minX: RAMP_X - WID / 2,
+    maxX: RAMP_X + WID / 2,
+    minZ: LIP_Z,   // lip end (high)
+    maxZ: FOOT_Z,  // foot end (low)
+    baseY: LIP_H,  // y at minZ (lip)
+    topY: 0,       // y at maxZ (foot)
+    axis: 'z',
+  };
+}
+
+/**
+ * Solid faces of the ramp for the PLAYER and BALL (back lip + two sides) — kept
+ * out of the bike's set on purpose (the bike has its own Y-aware ramp logic so
+ * the airborne launch isn't blocked). maxY = LIP_H so high arcs fly over.
+ */
+export function buildRampColliders(): RectCollider[] {
+  return [
+    { minX: RAMP_X - WID / 2, maxX: RAMP_X + WID / 2, minZ: LIP_Z - 0.12, maxZ: LIP_Z + 0.12, minY: 0, maxY: LIP_H, tag: 'ramp-back' },
+    { minX: RAMP_X - WID / 2 - 0.12, maxX: RAMP_X - WID / 2 + 0.12, minZ: LIP_Z, maxZ: FOOT_Z, minY: 0, maxY: LIP_H, tag: 'ramp-side-l' },
+    { minX: RAMP_X + WID / 2 - 0.12, maxX: RAMP_X + WID / 2 + 0.12, minZ: LIP_Z, maxZ: FOOT_Z, minY: 0, maxY: LIP_H, tag: 'ramp-side-r' },
+  ];
+}
 
 export function Ramp() {
   useEffect(() => {

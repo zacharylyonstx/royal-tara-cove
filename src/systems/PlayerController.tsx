@@ -486,8 +486,12 @@ function rideBikeTick(
   const fz = -Math.cos(riding.heading);
   const desiredX = pos.x + fx * speed * dt;
   const desiredZ = pos.z + fz * speed * dt;
-  const all = [...colliders];
+  // Exclude ramp faces from the bike's collider set — the bike has its own
+  // Y-aware ramp handling below, so the airborne launch flies over cleanly.
+  const all = colliders.filter((c) => !c.tag || !c.tag.startsWith('ramp'));
   for (const door of Object.values(doors)) { if (!door.open) all.push(door.aabbWhenClosed); }
+  const px0 = pos.x;
+  const pz0 = pos.z;
   const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, all);
   // Proportional speed loss: only a real head-on block (made <55% of the step)
   // bleeds momentum, scaled by how blocked it was. Grazes don't kill the ride.
@@ -505,20 +509,28 @@ function rideBikeTick(
     else if (!riding.flip) { riding.flip = { dir: back ? -1 : 1, angle: 0 }; } // 2nd tap = flip (S = back)
   }
 
-  // Ramp launch (a trigger zone, never a wall): rolling up it with speed throws you.
+  // Ramp: rolling UP the slope with speed launches you; approaching from the
+  // back or sides treats it as a solid wall (you can't ride through it).
   const ramp = play.ramp;
-  if (grounded && !wipingOut && ramp && Math.abs(speed) >= RAMP_MIN_SPEED) {
+  if (grounded && !wipingOut && ramp) {
     const rdx = pos.x - ramp.x;
     const rdz = pos.z - ramp.z;
     const rfx = -Math.sin(ramp.heading);
     const rfz = -Math.cos(ramp.heading);
     const along = rdx * rfx + rdz * rfz;
     const across = rdx * Math.cos(ramp.heading) - rdz * Math.sin(ramp.heading);
-    const movingUp = fx * rfx + fz * rfz; // bike heading vs ramp-up direction
-    if (Math.abs(along) <= ramp.halfLen && Math.abs(across) <= ramp.halfWid && movingUp > 0.4) {
-      riding.vy = RAMP_LAUNCH_BASE + Math.abs(speed) * RAMP_LAUNCH_PER_SPEED;
-      riding.airborne = true;
-      riding.speed = speed * 1.04; // tiny forward boost off the lip
+    if (Math.abs(along) <= ramp.halfLen && Math.abs(across) <= ramp.halfWid) {
+      const movingUp = fx * rfx + fz * rfz; // bike heading vs ramp-up direction
+      if (Math.abs(speed) >= RAMP_MIN_SPEED && movingUp > 0.4) {
+        riding.vy = RAMP_LAUNCH_BASE + Math.abs(speed) * RAMP_LAUNCH_PER_SPEED;
+        riding.airborne = true;
+        riding.speed = speed * 1.04; // tiny forward boost off the lip
+      } else if (movingUp < 0.2) {
+        // Solid from behind/sides: cancel the move into the ramp.
+        pos.x = px0;
+        pos.z = pz0;
+        riding.speed = speed * 0.2;
+      }
     }
   }
 

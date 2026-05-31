@@ -106,6 +106,28 @@ export function Basketball({ position, id }: BasketballProps) {
       }
     }
 
+    // Wall collision: balls bounce off house walls instead of rolling through
+    // them. Resolve out the shallowest face and reflect that velocity component.
+    if (Math.abs(velocity.current.x) + Math.abs(velocity.current.z) > 0.02) {
+      const R = 0.16;
+      const REST = 0.5;
+      const cols = useGameStore.getState().staticColliders;
+      for (const c of cols) {
+        if (pos.current.y > (c.maxY ?? 8) + R || pos.current.y < (c.minY ?? 0)) continue;
+        if (pos.current.x <= c.minX - R || pos.current.x >= c.maxX + R) continue;
+        if (pos.current.z <= c.minZ - R || pos.current.z >= c.maxZ + R) continue;
+        const penLeft = pos.current.x - (c.minX - R);
+        const penRight = (c.maxX + R) - pos.current.x;
+        const penFront = pos.current.z - (c.minZ - R);
+        const penBack = (c.maxZ + R) - pos.current.z;
+        const minPen = Math.min(penLeft, penRight, penFront, penBack);
+        if (minPen === penLeft) { pos.current.x = c.minX - R; if (velocity.current.x > 0) velocity.current.x = -velocity.current.x * REST; }
+        else if (minPen === penRight) { pos.current.x = c.maxX + R; if (velocity.current.x < 0) velocity.current.x = -velocity.current.x * REST; }
+        else if (minPen === penFront) { pos.current.z = c.minZ - R; if (velocity.current.z > 0) velocity.current.z = -velocity.current.z * REST; }
+        else { pos.current.z = c.maxZ + R; if (velocity.current.z < 0) velocity.current.z = -velocity.current.z * REST; }
+      }
+    }
+
     // Ground bounce.
     if (pos.current.y < 0.16) {
       pos.current.y = 0.16;

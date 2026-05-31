@@ -68,7 +68,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10601',
-    position: { kind: 'bulb', angleDeg: 50 },
+    position: { kind: 'bulb', angleDeg: 40 },
     width: 13.5, depth: 10, stories: 2,
     brickColor: BRICK.rust, sidingColor: SIDING.tan, roofColor: ROOF.slate, doorColor: DOOR.brown,
     wallColor: SIDING.tan, trimColor: TRIM, hasStone: false, stoneColor: BRICK.rust,
@@ -85,7 +85,7 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     address: '10604',
-    position: { kind: 'bulb', angleDeg: 135 },
+    position: { kind: 'bulb', angleDeg: 146 },
     width: 13.5, depth: 10, stories: 2,
     brickColor: BRICK.clay, sidingColor: SIDING.sand, roofColor: ROOF.graphite, doorColor: DOOR.black,
     wallColor: SIDING.sand, trimColor: TRIM, hasStone: false, stoneColor: BRICK.clay,

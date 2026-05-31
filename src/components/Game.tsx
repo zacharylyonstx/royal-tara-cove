@@ -28,7 +28,7 @@ import {
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { RiddenBikes } from './props/RiddenBike';
-import { Ramp } from './props/Ramp';
+import { Ramp, buildRampFloor, buildRampColliders } from './props/Ramp';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
 import { Hedge } from './vegetation/Hedge';
 import { UFOCrash } from './aliens/UFOCrash';
@@ -123,10 +123,10 @@ export function Game() {
         ...buildPorchColliders(hero, heroLot),
         ...buildHeroExteriorColliders(hero, heroLot),
       ];
-      setFloors(buildHeroFloors(hero, heroLot));
+      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor()]);
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildRampColliders()]);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors]);
 
   return (
@@ -432,6 +432,9 @@ function SplatRenderer() {
 }
 
 function LotVegetation({ address, lot, depth, width, garageOnLeft }: { address: string; lot: ReturnType<typeof buildLots>[number]; depth: number; width: number; garageOnLeft: boolean }) {
+  // The hero house (10600) plants its own memory oak + backyard trees, so skip
+  // the generic lot vegetation there (it would double up / fight the layout).
+  if (address === '10600') return null;
   // Place 1-2 live oaks in the backyard region (centroid + offset toward back)
   // and a crepe myrtle near the front sidewalk.
   const seed = address.charCodeAt(0) * 131 + address.charCodeAt(2) * 7;
@@ -448,10 +451,11 @@ function LotVegetation({ address, lot, depth, width, garageOnLeft }: { address: 
   const backWX = cx + backLocalX * yawCos + backLocalZ * yawSin;
   const backWZ = cz - backLocalX * yawSin + backLocalZ * yawCos;
 
-  // Crepe myrtle in the front yard, on the side AWAY from the garage/driveway
-  // so it never grows through the parked car.
-  const sideLocalX = (garageOnLeft ? 1 : -1) * (halfW - 1.6);
-  const sideLocalZ = -halfD - FRONT_YARD_DEPTH * 0.42;
+  // Crepe myrtle at the FRONT-GARAGE-SIDE corner of the yard — clear of the front
+  // door/walkway (which sits on the opposite, non-garage side) and outboard of the
+  // driveway, so it never blocks the entry or grows through a parked car.
+  const sideLocalX = (garageOnLeft ? -1 : 1) * (halfW + 1.0);
+  const sideLocalZ = -halfD - FRONT_YARD_DEPTH * 0.72;
   const sideWX = cx + sideLocalX * yawCos + sideLocalZ * yawSin;
   const sideWZ = cz - sideLocalX * yawSin + sideLocalZ * yawCos;
 
