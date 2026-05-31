@@ -1,3 +1,5 @@
+import { usePlayStore } from '../../state/playStore';
+
 interface BikeProps {
   position: [number, number, number];
   rotation?: number;
@@ -5,9 +7,15 @@ interface BikeProps {
   color?: string;
   /** Scale: kid-sized = 0.7, adult = 1 */
   scale?: number;
+  /** Registered bike id; when set and someone is riding it, this prop hides. */
+  id?: string;
 }
 
-export function Bike({ position, rotation = 0, color = '#c8392a', scale = 1 }: BikeProps) {
+export function Bike({ position, rotation = 0, color = '#c8392a', scale = 1, id }: BikeProps) {
+  const ridden = usePlayStore((s) =>
+    id != null && Object.values(s.riding).some((r) => r?.bikeId === id),
+  );
+  if (ridden) return null;
   return (
     <group position={position} rotation={[0, rotation, 0]} scale={scale}>
       {/* wheels */}

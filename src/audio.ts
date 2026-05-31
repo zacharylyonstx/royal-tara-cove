@@ -22,6 +22,64 @@ export function unlockAudio() {
   unmuteProjector();
 }
 
+// --- Free-roam play one-shots ---
+
+/** Basketball net swish: a short band-passed noise sweep. */
+export function swishSound() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const buf = makeNoiseBuffer(c, 0.4, 'white');
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(3200, t0);
+  bp.frequency.exponentialRampToValueAtTime(900, t0 + 0.25);
+  bp.Q.value = 1.2;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+  src.connect(bp).connect(g).connect(c.destination);
+  src.start(t0);
+  src.stop(t0 + 0.35);
+}
+
+/** A little kids' cheer: three rising tones + a sparkle. */
+export function cheerSound() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const freqs = [523, 659, 784];
+  freqs.forEach((f, i) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'triangle';
+    const ts = t0 + i * 0.06;
+    osc.frequency.setValueAtTime(f, ts);
+    osc.frequency.linearRampToValueAtTime(f * 1.18, ts + 0.18);
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.12, ts + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.4);
+    osc.connect(g).connect(c.destination);
+    osc.start(ts);
+    osc.stop(ts + 0.45);
+  });
+  const buf = makeNoiseBuffer(c, 0.5, 'white');
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const hp = c.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 4000;
+  const g2 = c.createGain();
+  g2.gain.setValueAtTime(0.08, t0);
+  g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+  src.connect(hp).connect(g2).connect(c.destination);
+  src.start(t0);
+  src.stop(t0 + 0.5);
+}
+
 // --- Combat one-shots ---
 
 export function laserZap() {

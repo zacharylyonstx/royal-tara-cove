@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import type { HouseConfig, Lot } from '../types';
 import type { HouseProps as HousePropsData } from '../world/props';
+import { usePlayStore } from '../state/playStore';
 import { Truck } from './props/Truck';
 import { Sedan } from './props/Sedan';
 import { BBQGrill } from './props/BBQGrill';
@@ -54,6 +56,31 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
     -halfD - 5.5,
   ];
   const sprinklerLocal: [number, number, number] = [0, 0, halfD + 9];
+
+  // Register hoop rim + bike spots (world coords) for the free-roam play layer.
+  useEffect(() => {
+    const pivot = lot.housePivot;
+    const yaw = lot.houseYaw;
+    if (data.tags.has('hoop')) {
+      const hoopX = garageCenterX + ballSide * (GARAGE_W / 2 + 0.6);
+      const hoopZ = sidewalkZ - 0.4;
+      // Hoop is drawn with rotation=Math.PI, so its local rim (0,2.85,0.65)
+      // sits at house-local (hoopX, 2.85, hoopZ-0.65).
+      const rim = toWorld(hoopX, 2.85, hoopZ - 0.65, pivot, yaw);
+      usePlayStore.getState().registerHoop(config.address, { x: rim[0], z: rim[2], rimY: rim[1], rimR: 0.32 });
+    }
+    if (data.tags.has('bike')) {
+      const bx = garageCenterX - (config.garageOnLeft ? 1.6 : -1.6);
+      const w = toWorld(bx, 0, -halfD - 1.6, pivot, yaw);
+      usePlayStore.getState().registerBike({ id: `${config.address}-bike`, x: w[0], z: w[2], color: '#3a6db0' });
+    }
+    if (data.tags.has('kidsBikes')) {
+      const a = toWorld(garageCenterX - 1.5, 0, -halfD - 1.4, pivot, yaw);
+      const b = toWorld(garageCenterX - 0.4, 0, -halfD - 1.6, pivot, yaw);
+      usePlayStore.getState().registerBike({ id: `${config.address}-kbike-0`, x: a[0], z: a[2], color: '#e26aa1' });
+      usePlayStore.getState().registerBike({ id: `${config.address}-kbike-1`, x: b[0], z: b[2], color: '#5cb85c' });
+    }
+  }, [config.address, config.garageOnLeft, garageCenterX, ballSide, sidewalkZ, halfD, lot, data]);
 
   return (
     <>
@@ -110,6 +137,7 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
 
         {data.tags.has('bike') && (
           <Bike
+            id={`${config.address}-bike`}
             position={[
               garageCenterX - (config.garageOnLeft ? 1.6 : -1.6),
               0,
@@ -123,12 +151,14 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
         {data.tags.has('kidsBikes') && (
           <>
             <Bike
+              id={`${config.address}-kbike-0`}
               position={[garageCenterX - 1.5, 0, -halfD - 1.4]}
               rotation={-Math.PI / 2.5}
               color="#e26aa1"
               scale={0.78}
             />
             <Bike
+              id={`${config.address}-kbike-1`}
               position={[garageCenterX - 0.4, 0, -halfD - 1.6]}
               rotation={-Math.PI / 2 + 0.4}
               color="#5cb85c"
@@ -158,7 +188,7 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
 
       {/* World-space sibling group for physics-driven / player-aware props. */}
       {data.tags.has('hoop') && (
-        <Basketball position={toWorld(ballLocal[0], ballLocal[1], ballLocal[2], lot.housePivot, lot.houseYaw)} />
+        <Basketball id={`${config.address}-ball`} position={toWorld(ballLocal[0], ballLocal[1], ballLocal[2], lot.housePivot, lot.houseYaw)} />
       )}
       {config.isHero && (
         <Cat

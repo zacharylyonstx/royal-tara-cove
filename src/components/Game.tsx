@@ -27,6 +27,7 @@ import {
   buildHeroExteriorColliders,
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
+import { RiddenBikes } from './props/RiddenBike';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
 import { Hedge } from './vegetation/Hedge';
 import { UFOCrash } from './aliens/UFOCrash';
@@ -185,6 +186,8 @@ export function Game() {
           isActive={id === activeId}
         />
       ))}
+
+      <RiddenBikes />
 
       <AliensModeSystems />
 

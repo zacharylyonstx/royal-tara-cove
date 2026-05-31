@@ -3,21 +3,28 @@ import { useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
+import { usePlayStore, ballPositions } from '../../state/playStore';
 import { isNearPlayer } from '../../systems/distance';
+import { swishSound } from '../../audio';
+import type { CharacterId } from '../../types';
 
 interface BasketballProps {
   position: [number, number, number];
+  id: string;
 }
 
 /**
- * A basketball that rests on the driveway. When the active character walks
- * into it, the ball is kicked away (along the player's facing direction)
- * and bounces with gravity until it settles.
+ * A driveway basketball. Walk into it to kick it (casual dribbling). The active
+ * character can press E to pick it up (held in front), then click/space to shoot
+ * an assisted arc at the nearest hoop — a make scores (swish + family count).
  */
-export function Basketball({ position }: BasketballProps) {
+export function Basketball({ position, id }: BasketballProps) {
   const meshRef = useRef<Mesh>(null);
   const velocity = useRef({ x: 0, y: 0, z: 0 });
   const pos = useRef({ x: position[0], y: 0.16, z: position[2] });
+  const lastShotT = useRef(0);
+  const shooter = useRef<CharacterId | null>(null);
+  const inFlight = useRef(false);
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
   const myCharacterId = useNetStore((s) => s.myCharacterId);
@@ -25,38 +32,83 @@ export function Basketball({ position }: BasketballProps) {
   const activeId = myCharacterId ?? fallbackActive;
 
   useFrame((_, dtRaw) => {
-    if (!isNearPlayer(pos.current.x, pos.current.z, 40)) return;
-    const dt = Math.min(dtRaw, 0.1);
+    const play = usePlayStore.getState();
+    ballPositions[id] = { x: pos.current.x, z: pos.current.z };
     const m = meshRef.current;
     if (!m) return;
+    const dt = Math.min(dtRaw, 0.1);
 
-    // Check kick: player within 0.6m of ball
-    const player = positions[activeId];
-    const dx = pos.current.x - player.x;
-    const dz = pos.current.z - player.z;
-    const dist = Math.hypot(dx, dz);
-    if (dist < 0.7 && Math.abs(velocity.current.x) + Math.abs(velocity.current.z) < 0.5) {
-      // Kick along player facing direction
-      const facingX = -Math.sin(yaws[activeId]);
-      const facingZ = -Math.cos(yaws[activeId]);
-      const kickStrength = 5.5;
-      velocity.current.x = facingX * kickStrength;
-      velocity.current.z = facingZ * kickStrength;
-      velocity.current.y = 4.5;
+    // Held: float in front of the holder at chest height.
+    if (play.heldBall && play.heldBall.ballId === id) {
+      const holder = positions[play.heldBall.by];
+      const hy = yaws[play.heldBall.by];
+      pos.current.x = holder.x - Math.sin(hy) * 0.5;
+      pos.current.z = holder.z - Math.cos(hy) * 0.5;
+      pos.current.y = 1.3;
+      velocity.current.x = velocity.current.y = velocity.current.z = 0;
+      inFlight.current = false;
+      m.position.set(pos.current.x, pos.current.y, pos.current.z);
+      m.rotation.y += dt * 1.5;
+      return;
     }
 
-    // Physics: gravity + bounce
+    // Consume a shot impulse aimed at this ball.
+    if (play.shotImpulse && play.shotImpulse.ballId === id && play.shotImpulse.t !== lastShotT.current) {
+      lastShotT.current = play.shotImpulse.t;
+      velocity.current.x = play.shotImpulse.vx;
+      velocity.current.y = play.shotImpulse.vy;
+      velocity.current.z = play.shotImpulse.vz;
+      shooter.current = play.shotImpulse.by;
+      inFlight.current = true;
+      pos.current.y = Math.max(pos.current.y, 1.3);
+      play.clearShot();
+    }
+
+    if (!isNearPlayer(pos.current.x, pos.current.z, 60)) {
+      m.position.set(pos.current.x, pos.current.y, pos.current.z);
+      return;
+    }
+
+    // Idle kick (only when not flying from a shot).
+    if (!inFlight.current) {
+      const player = positions[activeId];
+      const dist = Math.hypot(pos.current.x - player.x, pos.current.z - player.z);
+      if (dist < 0.7 && Math.abs(velocity.current.x) + Math.abs(velocity.current.z) < 0.5) {
+        velocity.current.x = -Math.sin(yaws[activeId]) * 5.5;
+        velocity.current.z = -Math.cos(yaws[activeId]) * 5.5;
+        velocity.current.y = 4.5;
+      }
+    }
+
+    const prevY = pos.current.y;
+
+    // Physics: gravity + integrate.
     velocity.current.y -= 18 * dt;
     pos.current.x += velocity.current.x * dt;
     pos.current.y += velocity.current.y * dt;
     pos.current.z += velocity.current.z * dt;
+
+    // Rim score sensor: descending through a hoop rim plane within rimR.
+    if (inFlight.current && velocity.current.y < 0) {
+      for (const h of Object.values(play.hoops)) {
+        if (prevY >= h.rimY && pos.current.y < h.rimY) {
+          const dd = Math.hypot(pos.current.x - h.x, pos.current.z - h.z);
+          if (dd < h.rimR) {
+            play.scoreBasket(shooter.current ?? activeId, performance.now());
+            swishSound();
+            inFlight.current = false;
+            break;
+          }
+        }
+      }
+    }
+
+    // Ground bounce.
     if (pos.current.y < 0.16) {
       pos.current.y = 0.16;
-      if (velocity.current.y < -0.5) {
-        velocity.current.y = -velocity.current.y * 0.55;
-      } else {
-        velocity.current.y = 0;
-      }
+      inFlight.current = false;
+      if (velocity.current.y < -0.5) velocity.current.y = -velocity.current.y * 0.55;
+      else velocity.current.y = 0;
       velocity.current.x *= 0.82;
       velocity.current.z *= 0.82;
       if (Math.abs(velocity.current.x) < 0.05) velocity.current.x = 0;
@@ -64,11 +116,10 @@ export function Basketball({ position }: BasketballProps) {
     }
 
     m.position.set(pos.current.x, pos.current.y, pos.current.z);
-    // Spin while moving
-    const spinSpeed = Math.hypot(velocity.current.x, velocity.current.z);
-    if (spinSpeed > 0.05) {
-      m.rotation.x += spinSpeed * dt * 1.5;
-      m.rotation.z += spinSpeed * dt * 0.8;
+    const spin = Math.hypot(velocity.current.x, velocity.current.z);
+    if (spin > 0.05) {
+      m.rotation.x += spin * dt * 1.5;
+      m.rotation.z += spin * dt * 0.8;
     }
   });
 

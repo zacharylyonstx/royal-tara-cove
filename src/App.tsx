@@ -8,6 +8,8 @@ import { ChatLog } from './ui/ChatLog';
 import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
+import { Scoreboard } from './ui/Scoreboard';
+import { BasketToast } from './ui/BasketToast';
 import { CombatHud } from './ui/CombatHud';
 import { Crosshair } from './ui/Crosshair';
 import { DamageFlash } from './ui/DamageFlash';
@@ -46,6 +48,8 @@ export default function App() {
       <CharacterIndicator />
       <ControlsHud />
       <InteractPrompt />
+      <Scoreboard />
+      <BasketToast />
       <CombatHud />
       <Crosshair />
       <DamageFlash />

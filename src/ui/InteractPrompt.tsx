@@ -1,11 +1,29 @@
 import { useGameStore } from '../state/gameStore';
+import { usePlayStore } from '../state/playStore';
+
+const PLAY_LABELS: Record<string, string> = {
+  ride: 'ride bike',
+  getoff: 'get off',
+  pickup: 'pick up ball',
+};
 
 export function InteractPrompt() {
   const hover = useGameStore((s) => s.hoverDoorId);
   const doors = useGameStore((s) => s.doors);
-  if (!hover) return null;
-  const door = doors[hover];
-  const label = door?.open ? 'close door' : 'open door';
+  const hoverPlay = usePlayStore((s) => s.hoverPlay);
+
+  // Free-roam play cues take precedence over doors.
+  let label: string | null = null;
+  let key = 'E';
+  if (hoverPlay === 'shoot') {
+    label = 'shoot';
+    key = 'click';
+  } else if (hoverPlay && PLAY_LABELS[hoverPlay]) {
+    label = PLAY_LABELS[hoverPlay];
+  } else if (hover) {
+    label = doors[hover]?.open ? 'close door' : 'open door';
+  }
+  if (!label) return null;
 
   return (
     <div
@@ -36,7 +54,7 @@ export function InteractPrompt() {
           marginRight: 8,
         }}
       >
-        E
+        {key}
       </kbd>
       {label}
     </div>

@@ -7,6 +7,7 @@ import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
+import { usePlayStore, ballPositions } from '../state/playStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
@@ -78,6 +79,7 @@ export function PlayerController() {
   const setHoverDoor = useGameStore((s) => s.setHoverDoor);
 
   const interactPressedRef = useRef(false);
+  const shootRef = useRef(false);
   const heroBox = useMemo(() => computeHeroBox(), []);
 
   useEffect(() => {
@@ -86,6 +88,8 @@ export function PlayerController() {
       if (useChatStore.getState().inputOpen) return;
       const k = e.key.toLowerCase();
       keys.current[k] = true;
+      // Space shoots a held ball (edge-triggered so a single press = one shot).
+      if (k === ' ' && !e.repeat) shootRef.current = true;
       // 1/2/3 character swap disabled in multiplayer — character is fixed
       // to whatever you claimed in CharacterSelect.
       if (k === 'r') {
@@ -108,11 +112,15 @@ export function PlayerController() {
     const up = (e: KeyboardEvent) => {
       keys.current[e.key.toLowerCase()] = false;
     };
+    // Mouse click also shoots a held ball (only acted on when holding).
+    const onMouseDown = () => { shootRef.current = true; };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('mousedown', onMouseDown);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('mousedown', onMouseDown);
     };
   }, [activeId, positions]);
 
@@ -147,6 +155,12 @@ export function PlayerController() {
 
     const pos = positions[activeId];
 
+    // ---- Riding a bike? Bike movement replaces walking (non-combat only) ----
+    const myRiding = usePlayStore.getState().riding[activeId];
+    if (myRiding) {
+      rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors);
+    }
+
     // ---- Tornado wind drag ----
     // During approach phases, the funnel pulls the player. We compute a
     // wind-displacement delta and bake it into desired XZ along with normal
@@ -177,7 +191,7 @@ export function PlayerController() {
       }
     }
 
-    if (dx !== 0 || dz !== 0 || windDX !== 0 || windDZ !== 0) {
+    if (!myRiding && (dx !== 0 || dz !== 0 || windDX !== 0 || windDZ !== 0)) {
       let moveX = 0;
       let moveZ = 0;
       let moveDir: Vector3 | null = null;
@@ -228,18 +242,20 @@ export function PlayerController() {
       }
     }
 
-    // Floor under player (stairs / upper-story platforms; 0 elsewhere).
-    const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
-
-    // Jump (only when on the floor under us)
-    if ((k[' '] || k['space']) && pos.y - standingFloorY < 0.05) {
-      yVel.current = JUMP_VELOCITY;
-    }
-    yVel.current -= GRAVITY * dt;
-    pos.y += yVel.current * dt;
-    if (pos.y < standingFloorY) {
-      pos.y = standingFloorY;
-      yVel.current = 0;
+    // Floor + jump + gravity (skipped while riding — the bike stays grounded).
+    if (!myRiding) {
+      const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
+      // Jump (only when on the floor under us). Space also shoots a held ball,
+      // but you can't hold a ball and jump at the same time, so no conflict.
+      if ((k[' '] || k['space']) && pos.y - standingFloorY < 0.05 && !usePlayStore.getState().heldBall) {
+        yVel.current = JUMP_VELOCITY;
+      }
+      yVel.current -= GRAVITY * dt;
+      pos.y += yVel.current * dt;
+      if (pos.y < standingFloorY) {
+        pos.y = standingFloorY;
+        yVel.current = 0;
+      }
     }
 
     // Door interaction: find nearest door within INTERACT_RADIUS.
@@ -254,13 +270,190 @@ export function PlayerController() {
     }
     setHoverDoor(nearestId);
 
+    // ---- Free-roam play hover (bikes + basketball), non-combat only ----
+    const phaseNow = useGameStore.getState().phase;
+    const playActive =
+      modeNow === 'aliens' &&
+      (phaseNow === 'free-play' || phaseNow === 'pre-intro' || phaseNow === 'victory');
+    const play = usePlayStore.getState();
+    if (playActive) {
+      const riding = play.riding[activeId];
+      if (riding) {
+        play.setHover('getoff', riding.bikeId, null);
+      } else if (play.heldBall && play.heldBall.by === activeId) {
+        play.setHover('shoot', null, play.heldBall.ballId);
+      } else {
+        let bestBike: string | null = null;
+        let bestBikeD = 2.0;
+        for (const b of Object.values(play.bikes)) {
+          const d = Math.hypot(b.x - pos.x, b.z - pos.z);
+          if (d < bestBikeD) { bestBikeD = d; bestBike = b.id; }
+        }
+        let bestBall: string | null = null;
+        let bestBallD = 1.5;
+        for (const [bid, bp] of Object.entries(ballPositions)) {
+          const d = Math.hypot(bp.x - pos.x, bp.z - pos.z);
+          if (d < bestBallD) { bestBallD = d; bestBall = bid; }
+        }
+        if (bestBall && (!bestBike || bestBallD <= bestBikeD)) play.setHover('pickup', null, bestBall);
+        else if (bestBike) play.setHover('ride', bestBike, null);
+        else play.setHover(null, null, null);
+      }
+    } else if (play.hoverPlay) {
+      play.setHover(null, null, null);
+    }
+
     if (interactPressedRef.current) {
       interactPressedRef.current = false;
-      if (nearestId) toggleDoor(nearestId);
+      // Play interactions take precedence over doors when both are in range.
+      const ph = usePlayStore.getState();
+      if (playActive && ph.heldBall && ph.heldBall.by === activeId) {
+        ph.dropBall();
+      } else if (playActive && ph.hoverPlay === 'pickup' && ph.hoverBallId) {
+        ph.pickUpBall(ph.hoverBallId, activeId);
+      } else if (playActive && ph.hoverPlay === 'ride' && ph.hoverBikeId) {
+        mountBike(activeId, ph.hoverBikeId, ph.bikes[ph.hoverBikeId]?.color ?? '#3a6db0', yaws[activeId]);
+      } else if (playActive && ph.hoverPlay === 'getoff') {
+        dismountBike(activeId, pos, staticColliders);
+      } else if (nearestId) {
+        toggleDoor(nearestId);
+      }
+    }
+
+    // ---- Shoot a held ball (space or click) ----
+    if (shootRef.current) {
+      shootRef.current = false;
+      const ph = usePlayStore.getState();
+      if (playActive && ph.heldBall && ph.heldBall.by === activeId) {
+        doShoot(ph, activeId, pos, yaws[activeId]);
+      }
     }
   });
 
   return null;
+}
+
+// ---- Bike riding ----
+const BIKE_MAX_SPEED = 13;
+const BIKE_REVERSE_SPEED = 3.5;
+const BIKE_ACCEL = 14;
+const BIKE_BRAKE = 22;
+const BIKE_FRICTION = 6;
+const BIKE_TURN = 2.4;
+
+type Colliders = import('../types').RectCollider[];
+type Doors = Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>;
+
+function mountBike(id: import('../types').CharacterId, bikeId: string, color: string, currentYaw: number) {
+  usePlayStore.getState().mount(id, { bikeId, bikeColor: color, heading: currentYaw, speed: 0 });
+}
+
+function dismountBike(id: import('../types').CharacterId, pos: Vector3, colliders: Colliders) {
+  // Nudge the rider to a clear spot beside the bike, else stay put.
+  const offsets: [number, number][] = [[1.3, 0], [-1.3, 0], [0, 1.3], [0, -1.3], [1, 1], [-1, -1]];
+  for (const [ox, oz] of offsets) {
+    const tx = pos.x + ox;
+    const tz = pos.z + oz;
+    const r = resolveMotion(pos.x, pos.z, tx, tz, colliders);
+    if (Math.hypot(r.x - tx, r.z - tz) < 0.05) { pos.x = r.x; pos.z = r.z; break; }
+  }
+  pos.y = 0;
+  usePlayStore.getState().dismount(id);
+}
+
+function rideBikeTick(
+  riding: import('../state/playStore').RidingState,
+  pos: Vector3,
+  yaws: Record<string, number>,
+  activeId: string,
+  keys: Record<string, boolean>,
+  dt: number,
+  colliders: Colliders,
+  doors: Doors,
+) {
+  const fwd = keys['w'] || keys['arrowup'];
+  const back = keys['s'] || keys['arrowdown'];
+  let speed = riding.speed;
+  if (fwd) speed += BIKE_ACCEL * dt;
+  else if (back) speed -= BIKE_BRAKE * dt;
+  else {
+    const f = BIKE_FRICTION * dt;
+    speed = speed > 0 ? Math.max(0, speed - f) : Math.min(0, speed + f);
+  }
+  speed = Math.max(-BIKE_REVERSE_SPEED, Math.min(BIKE_MAX_SPEED, speed));
+
+  // Steer only while moving; turn rate scales with speed; reverse flips it.
+  const steer = (keys['a'] || keys['arrowleft'] ? 1 : 0) - (keys['d'] || keys['arrowright'] ? 1 : 0);
+  const speedFactor = Math.min(1, Math.abs(speed) / 3);
+  const dir = speed >= 0 ? 1 : -1;
+  riding.heading += steer * BIKE_TURN * speedFactor * dir * dt;
+  riding.speed = speed;
+
+  const fx = -Math.sin(riding.heading);
+  const fz = -Math.cos(riding.heading);
+  const desiredX = pos.x + fx * speed * dt;
+  const desiredZ = pos.z + fz * speed * dt;
+  const all = [...colliders];
+  for (const door of Object.values(doors)) { if (!door.open) all.push(door.aabbWhenClosed); }
+  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, all);
+  if (Math.hypot(resolved.x - desiredX, resolved.z - desiredZ) > 0.02) riding.speed *= 0.4; // bumped something
+  pos.x = resolved.x;
+  pos.z = resolved.z;
+  pos.y = 0;
+  yaws[activeId] = riding.heading;
+
+  // Soft cove boundary.
+  const d = Math.hypot(pos.x, pos.z);
+  if (d > COVE_BOUND_RADIUS) {
+    const kk = COVE_BOUND_RADIUS / d;
+    pos.x *= kk;
+    pos.z *= kk;
+    riding.speed *= 0.7;
+  }
+}
+
+// ---- Basketball shooting (assisted arc to the nearest forward hoop) ----
+const BALL_G = 18;
+
+function doShoot(
+  play: ReturnType<typeof usePlayStore.getState>,
+  by: import('../types').CharacterId,
+  pos: Vector3,
+  yaw: number,
+) {
+  if (!play.heldBall) return;
+  const ballId = play.heldBall.ballId;
+  const fx = -Math.sin(yaw);
+  const fz = -Math.cos(yaw);
+  const x0 = pos.x + fx * 0.5;
+  const z0 = pos.z + fz * 0.5;
+  const y0 = 1.3;
+
+  // Pick the nearest hoop, biased toward the one you're facing.
+  let best: import('../state/playStore').HoopReg | null = null;
+  let bestScore = Infinity;
+  for (const h of Object.values(play.hoops)) {
+    const dx = h.x - x0;
+    const dz = h.z - z0;
+    const dist = Math.hypot(dx, dz) || 0.001;
+    const fwdDot = (dx / dist) * fx + (dz / dist) * fz; // 1 = directly ahead
+    const score = dist + (1 - fwdDot) * 8;
+    if (score < bestScore) { bestScore = score; best = h; }
+  }
+  if (!best) { play.dropBall(); return; }
+
+  const dist = Math.hypot(best.x - x0, best.z - z0);
+  const T = Math.max(0.65, Math.min(1.4, dist / 7));
+  const ty = best.rimY + 0.25;
+  let vx = (best.x - x0) / T;
+  let vz = (best.z - z0) / T;
+  let vy = (ty - y0 + 0.5 * BALL_G * T * T) / T;
+  // A touch of error so it isn't robotic (kids still mostly make it).
+  vx *= 1 + (Math.random() - 0.5) * 0.06;
+  vz *= 1 + (Math.random() - 0.5) * 0.06;
+  vy += (Math.random() - 0.5) * 0.5;
+
+  play.shoot(ballId, by, vx, vy, vz, performance.now());
 }
 
 function munchiesTick(

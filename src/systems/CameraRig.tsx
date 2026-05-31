@@ -5,6 +5,7 @@ import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
+import { usePlayStore } from '../state/playStore';
 import { CHARACTER_ORDER } from '../world/characters';
 
 // First-person camera.
@@ -124,6 +125,21 @@ export function CameraRig() {
 
     const pos = positions[activeId];
     if (!pos) return;
+
+    // --- Bike chase camera ---
+    // When riding, pull the camera behind+above the heading (Mario-Kart feel).
+    // Keep the FPS yaw ref synced to the heading so dismount hands back cleanly.
+    const riding = usePlayStore.getState().riding[activeId];
+    if (riding) {
+      const fx = -Math.sin(riding.heading);
+      const fz = -Math.cos(riding.heading);
+      const k = Math.min(1, 6 * dt);
+      camera.position.lerp(new Vector3(pos.x - fx * 4.2, pos.y + 2.4, pos.z - fz * 4.2), k);
+      camera.lookAt(pos.x + fx * 3, pos.y + 0.8, pos.z + fz * 3);
+      yaw.current = riding.heading;
+      pitch.current = 0;
+      return;
+    }
 
     // --- Cinematic override ---
     // Only the host follows cinematic camera state; non-host clients can

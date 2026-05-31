@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group, Mesh, Vector3 } from 'three';
 import type { CharacterDef } from '../types';
+import { usePlayStore } from '../state/playStore';
 
 interface CharacterProps {
   def: CharacterDef;
@@ -13,6 +14,9 @@ interface CharacterProps {
 /** Voxel-ish cartoon character with a walk animation. */
 export function Character({ def, positionRef, yawRef, isActive }: CharacterProps) {
   const groupRef = useRef<Group>(null);
+  // The local player's body is normally hidden (FPS), but show it while riding
+  // a bike so the third-person chase camera has a rider to follow.
+  const riding = usePlayStore((s) => s.riding[def.id]);
   const lastPos = useRef({ x: positionRef.x, z: positionRef.z });
   const phase = useRef(0);
 
@@ -60,7 +64,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   const headY = legsH + torsoH + headR;
 
   return (
-    <group ref={groupRef} visible={!isActive}>
+    <group ref={groupRef} visible={!isActive || !!riding}>
       {/* Legs (pivot from hip) */}
       <group position={[-h * 0.06, legsH, 0]}>
         <mesh ref={leftLegRef} position={[0, -legsH / 2, 0]} castShadow>
