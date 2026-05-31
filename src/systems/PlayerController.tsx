@@ -492,7 +492,7 @@ function rideBikeTick(
   for (const door of Object.values(doors)) { if (!door.open) all.push(door.aabbWhenClosed); }
   const px0 = pos.x;
   const pz0 = pos.z;
-  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, all);
+  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, all, pos.y);
   // Proportional speed loss: only a real head-on block (made <55% of the step)
   // bleeds momentum, scaled by how blocked it was. Grazes don't kill the ride.
   if (grounded && speed !== 0) {

@@ -163,11 +163,8 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* Garage door */}
       <GarageDoor x={garageCenterX} z={-halfD} />
 
-      {/* Address plaque */}
-      <AddressPlaque x={config.garageOnLeft ? halfW - 0.6 : -halfW + 0.6} y={2.7} z={-halfD - 0.07} />
-
-      {/* Big "10600" copper numbers on the stone wainscot */}
-      <BigAddressNumbers x={config.garageOnLeft ? halfW - 1.2 : -halfW + 0.8} y={1.0} z={-halfD - 0.12} />
+      {/* Brushed-copper "10600" house numbers mounted by the door (no black plate). */}
+      <BigAddressNumbers x={config.garageOnLeft ? halfW - 1.2 : -halfW + 0.8} y={1.55} z={-halfD - 0.07} />
 
       {/* Coach lights flanking the garage door */}
       <CoachLight position={[garageCenterX - GARAGE_W / 2 - 0.25, 1.9, -halfD - 0.12]} />
@@ -513,34 +510,18 @@ function GarageDoor({ x, z }: { x: number; z: number }) {
   );
 }
 
-function AddressPlaque({ x, y, z }: { x: number; y: number; z: number }) {
-  return (
-    <group position={[x, y, z]}>
-      <mesh>
-        <boxGeometry args={[1.0, 0.36, 0.06]} />
-        <meshStandardMaterial color="#1a1a1c" roughness={0.5} />
-      </mesh>
-    </group>
-  );
-}
-
 function BigAddressNumbers({ x, y, z }: { x: number; y: number; z: number }) {
-  // Just stylized boxes per digit; readable from a distance even without
-  // full text geometry.
+  // Brushed-copper house numbers mounted straight on the brick (no dark backplate —
+  // that read as a black artifact next to the door). Small, tidy, legible.
   const digits = '10600'.split('');
   return (
     <group position={[x, y, z]}>
       {digits.map((_d, i) => (
-        <mesh key={i} position={[i * 0.28 - (digits.length - 1) * 0.14, 0, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.34, 0.04]} />
-          <meshStandardMaterial color="#c8a32a" metalness={0.85} roughness={0.25} />
+        <mesh key={i} position={[i * 0.2 - (digits.length - 1) * 0.1, 0, 0]} castShadow>
+          <boxGeometry args={[0.15, 0.26, 0.035]} />
+          <meshStandardMaterial color="#caa14a" metalness={0.85} roughness={0.3} />
         </mesh>
       ))}
-      {/* subtle "10600" backplate so the numbers read */}
-      <mesh position={[0, 0, -0.025]}>
-        <boxGeometry args={[digits.length * 0.28 + 0.16, 0.5, 0.02]} />
-        <meshStandardMaterial color="#2a2a2c" roughness={0.6} />
-      </mesh>
     </group>
   );
 }

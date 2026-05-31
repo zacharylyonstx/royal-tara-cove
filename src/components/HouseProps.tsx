@@ -15,7 +15,7 @@ import { Flagpole } from './props/Flagpole';
 import { Basketball } from './props/Basketball';
 import { Cat } from './props/Cat';
 import { Sprinkler } from './props/Sprinkler';
-import { FRONT_YARD_DEPTH } from '../world/streetLayout';
+import { LOT_FRONT_RADIUS, frontStripReach } from '../world/streetLayout';
 
 const GARAGE_W = 5.6;
 
@@ -35,12 +35,15 @@ function toWorld(lx: number, ly: number, lz: number, pivot: [number, number], ya
 export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProps) {
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
-  const sidewalkZ = -halfD - FRONT_YARD_DEPTH;
 
   const garageCenterX = config.garageOnLeft
     ? -halfW + 0.6 + GARAGE_W / 2
     : halfW - 0.6 - GARAGE_W / 2;
-  const driveZCenter = (sidewalkZ + -halfD) / 2 + 0.6;
+  // Curb props (hoop, bins, ball, mailbox) sit at the real curved sidewalk edge,
+  // which the bulb curve + the hero's radiusOffset push further out than the flat
+  // front-yard depth. (Straight houses fall back to the flat depth.)
+  const sidewalkZ = -halfD - frontStripReach(config.position, lot.housePivot, lot.houseYaw, halfD, garageCenterX, LOT_FRONT_RADIUS);
+  const driveZCenter = -halfD - 4; // truck parked near the garage end of the driveway
   const backyardZ = halfD + 6;
 
   // Compute world positions for physics-driven props (cat, ball, sprinkler).

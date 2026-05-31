@@ -2,7 +2,9 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { HouseConfig, Lot, Vec2 } from '../types';
 import {
-  FRONT_YARD_DEPTH,
+  STREET_RADIUS,
+  LOT_FRONT_RADIUS,
+  frontStripReach,
 } from '../world/streetLayout';
 import { mat } from '../world/materials';
 import { Fence } from './Fence';
@@ -23,7 +25,6 @@ export function Yard({ config, lot }: YardProps) {
 
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
-  const sidewalkZ = -halfD - FRONT_YARD_DEPTH;
 
   // House front direction in world XZ (local -Z rotated by yaw) and a point on
   // the front-wall plane. Fences are clipped to the side AWAY from the street.
@@ -38,9 +39,16 @@ export function Yard({ config, lot }: YardProps) {
     : halfW - 0.6 - GARAGE_W / 2;
   const doorCenterX = config.garageOnLeft ? halfW - 1.6 : -halfW + 1.6;
 
-  const driveLen = -halfD - sidewalkZ;
-  const driveZCenter = (sidewalkZ + -halfD) / 2;
-  const walkLen = -halfD - sidewalkZ;
+  // Reach the actual curved street/sidewalk (accounts for the bulb curve + the hero's
+  // radiusOffset) so the driveway/walkway aren't left short of the curb.
+  const reach = (lx: number, r: number) =>
+    frontStripReach(config.position, lot.housePivot, lot.houseYaw, halfD, lx, r);
+  // Driveway runs all the way to (and a hair onto) the pavement.
+  const driveLen = reach(garageCenterX, STREET_RADIUS) + 0.6;
+  const driveZCenter = -halfD - driveLen / 2;
+  // Walkway runs to the sidewalk's lawn edge; the mailbox sits a bit past it (curb).
+  const walkLen = reach(doorCenterX, LOT_FRONT_RADIUS);
+  const mailboxZ = -halfD - reach(config.garageOnLeft ? halfW - 1.0 : -halfW + 1.0, STREET_RADIUS) - 0.2;
 
   return (
     <group>
@@ -58,7 +66,7 @@ export function Yard({ config, lot }: YardProps) {
         </mesh>
 
         {/* Front walkway */}
-        <mesh position={[doorCenterX, 0.024, (sidewalkZ + -halfD) / 2]} receiveShadow>
+        <mesh position={[doorCenterX, 0.024, -halfD - walkLen / 2]} receiveShadow>
           <boxGeometry args={[1.2, 0.04, walkLen]} />
           <primitive object={mat.sidewalk()} attach="material" />
         </mesh>
@@ -68,7 +76,7 @@ export function Yard({ config, lot }: YardProps) {
           position={[
             config.garageOnLeft ? halfW - 1.0 : -halfW + 1.0,
             0,
-            sidewalkZ - 0.6,
+            mailboxZ,
           ]}
           name={config.isHero ? 'LYONS' : undefined}
         />

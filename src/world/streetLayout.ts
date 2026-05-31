@@ -79,3 +79,36 @@ export function houseTransform(pos: HousePosition, houseDepth: number): HouseTra
 export function straightZ(t: number): number {
   return STRAIGHT_START_Z + (STRAIGHT_END_Z - STRAIGHT_START_Z) * t;
 }
+
+/**
+ * How far past the house front (in house-LOCAL +front units) a strip at house-local
+ * X must run to reach a target radius. On the bulb the street/sidewalk is a CIRCLE,
+ * so an off-center strip (the driveway at the garage) — and any radiusOffset — make
+ * the real reach longer than the flat FRONT_YARD_DEPTH. Used to extend driveways /
+ * curb props (hoop, bins, mailbox) so they actually meet the street.
+ *   targetR: STREET_RADIUS (pavement) or LOT_FRONT_RADIUS (sidewalk lawn edge).
+ * Straight-section houses keep the flat FRONT_YARD_DEPTH (they already meet the road).
+ */
+export function frontStripReach(
+  pos: HousePosition,
+  housePivot: [number, number],
+  houseYaw: number,
+  halfD: number,
+  localX: number,
+  targetR: number,
+): number {
+  if (pos.kind !== 'bulb') return FRONT_YARD_DEPTH;
+  const cy = Math.cos(houseYaw);
+  const sy = Math.sin(houseYaw);
+  // House-front world point at this local X, and the front direction (toward street).
+  const px = housePivot[0] + localX * cy + -halfD * sy;
+  const pz = housePivot[1] - localX * sy + -halfD * cy;
+  const fx = -sy;
+  const fz = -cy;
+  // Ray (px,pz)+d*(fx,fz) hits the circle radius targetR centered at the origin.
+  const PdotF = px * fx + pz * fz;
+  const disc = PdotF * PdotF - (px * px + pz * pz - targetR * targetR);
+  if (disc <= 0) return FRONT_YARD_DEPTH;
+  const d = -PdotF - Math.sqrt(disc);
+  return d > 0 ? d : FRONT_YARD_DEPTH;
+}

@@ -1,5 +1,5 @@
-import type { HouseConfig, Lot, RectCollider } from '../types';
-import { FRONT_YARD_DEPTH, houseTransform } from './streetLayout';
+import type { HouseConfig, Lot, RectCollider, Vec2 } from '../types';
+import { LOT_FRONT_RADIUS, houseTransform, frontStripReach } from './streetLayout';
 import type { HouseProps } from './props';
 
 const GARAGE_W = 5.6; // mirror of HouseProps.tsx
@@ -17,6 +17,7 @@ const FENCE_THICKNESS = 0.15;
  */
 export function buildColliders(houses: HouseConfig[], lots: Lot[]): RectCollider[] {
   const out: RectCollider[] = [];
+  const houseByAddress = new Map(houses.map((h) => [h.address, h]));
 
   // ---- House bodies: piecewise wall OBBs with a front-door GAP so every
   // house is enterable (walk in through the open door). Hero house emits its
@@ -57,12 +58,27 @@ export function buildColliders(houses: HouseConfig[], lots: Lot[]): RectCollider
   }
 
   // ---- Fence segments as thin OBBs along the actual segment line ----
+  // Clipped to BEHIND the house front plane, exactly like the visible fences in
+  // Yard.tsx — otherwise invisible front-yard fence colliders stop bikes/players
+  // "randomly" where the open lawn should be.
   for (const lot of lots) {
+    const h = houseByAddress.get(lot.address);
+    const halfD = h ? h.depth / 2 : 0;
+    const frontDir: Vec2 = [-Math.sin(lot.houseYaw), -Math.cos(lot.houseYaw)];
+    const frontPlane: Vec2 = [
+      lot.housePivot[0] + frontDir[0] * halfD,
+      lot.housePivot[1] + frontDir[1] * halfD,
+    ];
     const n = lot.polygon.length;
     for (let i = 0; i < n; i++) {
       if (!shouldFenceEdgeIndex(lot, i)) continue;
-      const a = lot.polygon[i];
-      const b = lot.polygon[(i + 1) % n];
+      let a = lot.polygon[i];
+      let b = lot.polygon[(i + 1) % n];
+      if (h) {
+        const clipped = clipFenceBehindFront(a, b, frontPlane, frontDir);
+        if (!clipped) continue;
+        [a, b] = clipped;
+      }
       const dx = b[0] - a[0];
       const dz = b[1] - a[1];
       const len = Math.hypot(dx, dz);
@@ -91,6 +107,20 @@ function shouldFenceEdgeIndex(lot: Lot, edgeIndex: number): boolean {
   const samples = 9;
   if (edgeIndex < samples - 1) return false;
   return true;
+}
+
+/** Keep only the part of a fence edge BEHIND the house front plane (street side
+ *  removed), so front yards stay open. n = front-facing normal; Q is "in front"
+ *  (no fence) when (Q-p0)·n > 0. Mirrors Yard.tsx's clipBehindFront. */
+function clipFenceBehindFront(a: Vec2, b: Vec2, p0: Vec2, n: Vec2): [Vec2, Vec2] | null {
+  const EPS = 1e-4;
+  const sa = (a[0] - p0[0]) * n[0] + (a[1] - p0[1]) * n[1];
+  const sb = (b[0] - p0[0]) * n[0] + (b[1] - p0[1]) * n[1];
+  if (sa <= EPS && sb <= EPS) return [a, b];
+  if (sa > EPS && sb > EPS) return null;
+  const t = sa / (sa - sb);
+  const c: Vec2 = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  return sa <= EPS ? [a, c] : [c, b];
 }
 
 /**
@@ -134,11 +164,12 @@ export function buildPropColliders(
     if (!lot) continue;
     const halfW = h.width / 2;
     const halfD = h.depth / 2;
-    const sidewalkZ = -halfD - FRONT_YARD_DEPTH;
     const garageCenterX = h.garageOnLeft
       ? -halfW + 0.6 + GARAGE_W / 2
       : halfW - 0.6 - GARAGE_W / 2;
-    const driveZCenter = (sidewalkZ + -halfD) / 2 + 0.6;
+    // Match HouseProps.tsx: curb props sit at the real curved sidewalk edge.
+    const sidewalkZ = -halfD - frontStripReach(h.position, lot.housePivot, lot.houseYaw, halfD, garageCenterX, LOT_FRONT_RADIUS);
+    const driveZCenter = -halfD - 4;
     const backyardZ = halfD + 6;
     const ballSide = h.garageOnLeft ? 1 : -1;
     const px = lot.housePivot[0];
