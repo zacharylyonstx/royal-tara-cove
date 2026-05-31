@@ -293,6 +293,9 @@ export function House({ config, lot }: HouseProps) {
       {/* Covered entry over the front door */}
       <EntryPortico x={doorCenterX} z={-halfD - 0.05} doorH={DOOR_H} postColor={trimColor} roofColor={roofColor} />
 
+      {/* Foundation shrubs along the front (non-garage side) */}
+      <FoundationShrubs halfW={halfW} halfD={halfD} garageOnLeft={config.garageOnLeft} seed={seed} />
+
       {/* Address plaque next to the front door */}
       <AddressPlaque
         address={config.address}
@@ -318,6 +321,27 @@ export function House({ config, lot }: HouseProps) {
       />
     </group>
   );
+}
+
+/** A low row of foundation shrubs along the front (non-garage half). */
+function FoundationShrubs({ halfW, halfD, garageOnLeft, seed }: { halfW: number; halfD: number; garageOnLeft: boolean; seed: number }) {
+  // Door/window side is OPPOSITE the garage. Place a tidy row of bushes there.
+  const sign = garageOnLeft ? 1 : -1; // +1 = right half, -1 = left half
+  const z = -halfD - 0.5;
+  const greens = ['#3f7a3f', '#4a8246', '#3a6e3c', '#558a4e'];
+  const n = 5;
+  const shrubs: React.ReactElement[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = sign * (1.0 + i * (halfW - 1.4) / n);
+    const r = 0.42 + ((seed >> (i + 1)) % 5) * 0.04;
+    shrubs.push(
+      <mesh key={i} position={[x, r * 0.7, z]} castShadow scale={[1, 0.8, 1]}>
+        <icosahedronGeometry args={[r, 1]} />
+        <meshStandardMaterial color={greens[(seed + i) % greens.length]} roughness={0.95} flatShading />
+      </mesh>,
+    );
+  }
+  return <>{shrubs}</>;
 }
 
 /** All windows (front + both sides + upper floor) + shutters for a house. */
