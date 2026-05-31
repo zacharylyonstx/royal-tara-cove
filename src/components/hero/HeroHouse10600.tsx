@@ -813,11 +813,10 @@ export function buildHeroExteriorColliders(config: HouseConfig, lot: Lot): RectC
 }
 
 /**
- * Floors that the player can stand on inside the hero house. Two pieces:
- *   1. A staircase ramp in the stairhall behind the garage, climbing FRONT→BACK
- *      (+Z) along the right (-X) wall.
- *   2. A second-floor loft / game room spanning the back of the great room,
- *      reached by walking around the handrail.
+ * Floors that the player can stand on inside the hero house:
+ *   1. An open staircase ramp in the great room (against the garage wall),
+ *      climbing FRONT→BACK (+Z) up to the game-room loft.
+ *   2. The right bedroom column slab + the game-room loft over the kitchen.
  *
  * Must match StairsAndLoft.tsx constants.
  */
@@ -843,22 +842,19 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
     return { minX, maxX, minZ, maxZ };
   };
 
-  // Open staircase climbs FRONT→BACK (+Z) against the right wall. The second floor
-  // tiles the footprint EXCEPT the two-story void (x=-4..12, z=-9..-4) and the open
-  // stairwell (x=-11.8..-9.8, z=0.2..2.0). Must match StairsAndLoft.tsx (Upstairs).
-  const stairs = toWorldRect(-11.6, -1.3, -10.0, 2.0);
-  const masterFloor = toWorldRect(-12.0, -9.0, -4.0, 0.2);   // master + lower-stair landing
-  const kidsFloor = toWorldRect(-12.0, 2.0, -4.0, 9.0);      // Penny + Luke + top landing
-  const hallFloor = toWorldRect(-9.8, 0.2, -4.0, 2.0);       // hall strip east of the stairwell
+  // The open staircase lives IN the great room (against the garage wall) and climbs
+  // FRONT→BACK (+Z), landing on the game-room loft edge at z=-4. The second floor is
+  // two flat slabs: the right bedroom column + the game room. The two-story void
+  // (x=-4..12, z=-9..-4) is open — the stairs rise in it. Match StairsAndLoft.tsx.
+  const stairs = toWorldRect(-3.9, -7.3, -2.3, -4.0);
+  const columnFloor = toWorldRect(-12.0, -9.0, -4.0, 9.0);   // master + hall + Penny + Luke
   const gameFloor = toWorldRect(-4.0, -4.0, 12.0, 9.0);      // game room over kitchen + back of great room
 
   return [
-    // Staircase ramp: climbs as z INCREASES (front -1.3 → back 2.0).
+    // Staircase ramp: climbs as z INCREASES (front -7.3 → back -4.0).
     { ...stairs, baseY: 0, topY: STORY_H, axis: 'z' as const },
-    // Flat second floor (right column minus the stairwell, + the game room).
-    { ...masterFloor, baseY: STORY_H, topY: STORY_H },
-    { ...kidsFloor, baseY: STORY_H, topY: STORY_H },
-    { ...hallFloor, baseY: STORY_H, topY: STORY_H },
+    // Flat second floor.
+    { ...columnFloor, baseY: STORY_H, topY: STORY_H },
     { ...gameFloor, baseY: STORY_H, topY: STORY_H },
   ];
 }

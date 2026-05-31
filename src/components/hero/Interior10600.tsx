@@ -35,8 +35,8 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
       {[
         [4, 2.0, -4],     // great room (front-left/center)
         [4, 2.0, 5.5],    // kitchen (back)
-        [-8, 2.0, 5.5],   // family room (back-right)
-        [-8, 2.0, 0],     // open stairs / hall
+        [-8, 2.0, 5.5],   // family den (back-right, green + fireplace)
+        [-8, 2.0, 0],     // family den (front)
         [-8, 2.0, -5],    // garage
       ].map((p, i) => (
         <pointLight key={`il-${i}`} position={p as [number, number, number]} intensity={5} distance={11} decay={2} color="#fff2dc" />
@@ -157,10 +157,11 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
       <DiningSet position={[4, 0.13, -6]} />
       {/* Cream drywall lining the interior (in FRONT of the wall faces so it covers
           the exterior siding/brick that would otherwise show inside). */}
-      {/* +X exterior wall (door/walkway side) — full two-story height */}
-      <mesh position={[11.84, 2.75, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
-      {/* -X exterior wall (garage/family side) — full height */}
-      <mesh position={[-11.84, 2.4, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* +X exterior wall (door/walkway side) — full two-story height, flush to the
+          wall's inner face so no siding peeks at grazing angles */}
+      <mesh position={[11.87, 2.75, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* -X exterior wall (garage/family side) — full height, flush to the inner face */}
+      <mesh position={[-11.87, 2.75, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       {/* great-room front (z=-9): cream framing AROUND the tall 2-story formal window
           (window glass sits at x≈0.9). Top band + side returns + sill so no exterior
           brick shows inside, matching the real cream-walled entry. */}

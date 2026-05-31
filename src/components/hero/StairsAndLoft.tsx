@@ -3,45 +3,39 @@ import { mat } from '../../world/materials';
 const STORY_H = 3.0;
 
 // HOUSE-LOCAL coords. width 24 (x=-12..12), depth 18 (z=-9..9). Facing in (+Z) the
-// RIGHT is -X (garage/stairs/family + bedrooms above), the LEFT is +X (front door,
-// great room + game room above).
+// RIGHT is -X (garage / family + bedrooms above), the LEFT is +X (front door, great
+// room + game room above).
 //
-// The staircase is OPEN to the great room: it hugs the right (-X) exterior wall and
-// climbs FRONT→BACK (+Z). Its great-room-facing (+X) side is an open white railing,
-// so from the front door you see it rise and disappear up under the second floor —
-// just like the real house. The right-spine wall (floorPlan.ts) has a wide gap here.
-const STAIR_X0 = -11.6;         // against the right wall
-const STAIR_X1 = -10.0;         // 1.6m tread width (open side faces the great room)
-const STAIR_Z0 = -1.3;          // bottom (front, by the garage)
-const STAIR_Z1 = 2.0;           // top (back), meets the loft level
+// The staircase lives IN the great room, against the garage wall (the right-spine,
+// x=-4), OPEN to the two-story space — exactly like the real entry photo. You see it
+// the moment you walk in: it rises FRONT→BACK (+Z) and lands on the game-room loft
+// over the kitchen. (It must climb toward the back because that's where the loft is.)
+const STAIR_X0 = -3.9;          // against the garage wall (spine x=-4)
+const STAIR_X1 = -2.3;          // open side faces the great room (1.6m tread)
+const STAIR_Z0 = -7.3;          // bottom (front, by the entry)
+const STAIR_Z1 = -4.0;          // top (back), lands on the game-room loft edge
 const STAIR_RUN = STAIR_Z1 - STAIR_Z0;
 const STAIR_WIDTH = STAIR_X1 - STAIR_X0;
 const STAIR_STEPS = 13;
-const STAIR_XC = (STAIR_X0 + STAIR_X1) / 2;   // -10.8
+const STAIR_XC = (STAIR_X0 + STAIR_X1) / 2;   // -3.1
 
-// The two-story VOID (open to the great room below): the front-center/left area.
-const VOID_X0 = -4.0;           // left edge of void (right-spine line)
-const VOID_X1 = 12.0;           // right edge (+X exterior wall)
-const VOID_Z1 = -4.0;           // back edge of void (game-room railing here)
-
-// Open stairwell in the second floor (upper half of the run, so you climb up into
-// daylight and the stair is visible from the great room).
-const WELL_X0 = -11.8;          // -X wall side
-const WELL_X1 = -9.8;           // hall side
-const WELL_Z0 = 0.2;            // front of the open well
-const WELL_Z1 = STAIR_Z1;       // back (stairs emerge here onto the kids' floor)
+// Two-story VOID (open great room you walk into): the front, x=-4..12, z=-9..-4.
+const VOID_X1 = 12.0;
+const VOID_Z1 = -4.0;           // back edge of the void = game-room loft railing
 
 const UP_Y = STORY_H;           // upstairs floor level
-const WALL_TOP = 5.3;           // upstairs wall top (just under the 5.5 ceiling seal)
+const WALL_TOP = 5.3;
 const UP_WALL_H = WALL_TOP - UP_Y;
 const UP_WALL_YC = (UP_Y + WALL_TOP) / 2;
 const CREAM = '#efe8d8';
 const RAIL_WHITE = '#f2eee4';
 const RAIL_WOOD = '#5a3a22';
-const WT = 0.14;                // upstairs wall thickness
+const WT = 0.14;
 
-/** Stepped staircase against the right wall, open white railing on the great-room side. */
+/** Open staircase in the great room (against the garage wall), white railing on the
+ *  great-room side, rising front→back up to the loft. */
 export function Stairs() {
+  const railX = STAIR_X1 - 0.05;   // open (+X) side
   return (
     <group>
       {Array.from({ length: STAIR_STEPS }, (_, i) => {
@@ -57,9 +51,9 @@ export function Stairs() {
           </mesh>
         );
       })}
-      {/* Wood handrail along the open (+X) side, tilted up the run */}
+      {/* Wood handrail along the open side, tilted up the run */}
       <mesh
-        position={[STAIR_X1 - 0.05, STORY_H / 2 + 0.95, (STAIR_Z0 + STAIR_Z1) / 2]}
+        position={[railX, STORY_H / 2 + 0.95, (STAIR_Z0 + STAIR_Z1) / 2]}
         rotation={[-Math.atan2(STORY_H, STAIR_RUN), 0, 0]}
         castShadow
       >
@@ -67,27 +61,27 @@ export function Stairs() {
         <meshStandardMaterial color={RAIL_WOOD} />
       </mesh>
       {/* White balusters rising with the run */}
-      {Array.from({ length: 8 }, (_, i) => {
-        const t = (i + 0.5) / 8;
+      {Array.from({ length: 9 }, (_, i) => {
+        const t = (i + 0.5) / 9;
         const z = STAIR_Z0 + t * STAIR_RUN;
         const yTop = t * STORY_H + 0.95;
         return (
-          <mesh key={`b${i}`} position={[STAIR_X1 - 0.05, yTop / 2, z]} castShadow>
+          <mesh key={`b${i}`} position={[railX, yTop / 2, z]} castShadow>
             <boxGeometry args={[0.035, yTop, 0.035]} />
             <meshStandardMaterial color={RAIL_WHITE} />
           </mesh>
         );
       })}
-      {/* Newel post at the bottom of the run (great-room side) */}
-      <mesh position={[STAIR_X1 - 0.05, 0.55, STAIR_Z0]} castShadow>
-        <boxGeometry args={[0.1, 1.1, 0.1]} />
+      {/* Newel post at the bottom of the run */}
+      <mesh position={[railX, 0.55, STAIR_Z0]} castShadow>
+        <boxGeometry args={[0.11, 1.1, 0.11]} />
         <meshStandardMaterial color={RAIL_WOOD} />
       </mesh>
     </group>
   );
 }
 
-/** Open white railing run (top rail + balusters) along one edge of a void/stairwell. */
+/** Open white railing run (top rail + balusters) along an edge of a void. */
 function Railing({ axis, at, from, to }: { axis: 'x' | 'z'; at: number; from: number; to: number }) {
   const len = to - from;
   const mid = (from + to) / 2;
@@ -167,7 +161,7 @@ function Bed({ position, color }: { position: [number, number, number]; color: s
 /** A backyard window on the upstairs back (yard) wall. */
 function YardWindow({ x }: { x: number }) {
   return (
-    <group position={[x, UP_Y + 1.1, 8.76]}>
+    <group position={[x, UP_Y + 1.1, 8.72]}>
       <mesh>
         <boxGeometry args={[1.5, 1.3, 0.05]} />
         <meshStandardMaterial color="#9fd0e6" emissive="#bfe2f0" emissiveIntensity={0.4} metalness={0.1} roughness={0.1} />
@@ -185,39 +179,35 @@ function YardWindow({ x }: { x: number }) {
 }
 
 /**
- * The entire second floor. Right (-X) column: MASTER over the garage (front),
- * a hall/landing wrapping the open stairwell (mid), PENNY + LUKE over the green
- * family room (back, with backyard windows). Left/center: the open GAME ROOM over
- * the kitchen + back of the great room, looking down into the two-story void through
- * a white railing. The void is the front of the great room (you walk in under it).
+ * The entire second floor. The right column (x=-12..-4) is one solid slab: MASTER
+ * over the garage (front), an open hall over the old stair landing (mid), PENNY +
+ * LUKE over the green family room (back) with backyard windows. The left/center slab
+ * is the open GAME ROOM over the kitchen + back of the great room; its front edge is
+ * the white loft railing overlooking the two-story void you walk into. The open
+ * staircase rises in that void on the right and lands on the game-room edge.
  */
 export function Upstairs() {
   return (
     <group>
-      {/* ---- Floor: right column (master + hall + kids) minus the open stairwell ---- */}
-      <FloorPiece cx={-8} cz={-4.4} sx={8} sz={9.2} />     {/* F1 master + lower-stair landing (z=-9..0.2) */}
-      <FloorPiece cx={-8} cz={5.5} sx={8} sz={7.0} />       {/* F2 kids + top landing (z=2.0..9) */}
-      <FloorPiece cx={-6.9} cz={1.1} sx={5.8} sz={1.8} />   {/* F3 hall strip east of the stairwell */}
-      {/* ---- Floor: game room over kitchen + back of great room (z=-4..9) ---- */}
+      {/* Right column (master + hall + kids) — one solid slab, no stairwell. */}
+      <FloorPiece cx={-8} cz={0} sx={8} sz={18} />
+      {/* Game room over the kitchen + back of the great room (z=-4..9). */}
       <FloorPiece cx={4} cz={2.5} sx={16} sz={13} />
 
-      {/* ---- Railings ---- */}
-      {/* Game-room balcony overlooking the two-story great room (the one you see on entry) */}
-      <Railing axis="z" at={VOID_Z1} from={VOID_X0} to={VOID_X1} />
-      {/* Stairwell guard rails (hall side + south edge) */}
-      <Railing axis="z" at={WELL_X1} from={WELL_Z0} to={WELL_Z1} />
-      <Railing axis="x" at={WELL_Z0} from={WELL_X0} to={WELL_X1} />
+      {/* ---- Loft railing along the game-room front edge (over the great room) ---- */}
+      {/* gap at x=-4..-2.3 where the staircase emerges */}
+      <Railing axis="z" at={VOID_Z1} from={-2.3} to={VOID_X1} />
 
       {/* ---- Bedroom walls (cream, y=3..5.3) ---- */}
-      {/* MASTER (over garage, x=-12..-4, z=-9..-1.5): back wall with a door gap to the hall */}
+      {/* MASTER east wall facing the void/great room (x=-4, over the garage) */}
+      <UpWall axis="z" at={-4} from={-9} to={-1.5} />
+      {/* MASTER back wall (z=-1.5) with a door to the hall */}
       <UpWall axis="x" at={-1.5} from={-12} to={-7.0} />
       <UpWall axis="x" at={-1.5} from={-6.0} to={-4} />
-      {/* MASTER east wall facing the void/great room */}
-      <UpWall axis="z" at={-4} from={-9} to={-1.5} />
 
       {/* PENNY + LUKE front wall (z=2, x=-12..-4) with two door gaps */}
       <UpWall axis="x" at={2.0} from={-12} to={-10.6} />
-      <UpWall axis="x" at={2.0} from={-9.4} to={-6.6} />   {/* between Penny & Luke doors */}
+      <UpWall axis="x" at={2.0} from={-9.4} to={-6.6} />
       <UpWall axis="x" at={2.0} from={-5.4} to={-4} />
       {/* Penny / Luke divider (x=-7.75, z=2..9) */}
       <UpWall axis="z" at={-7.75} from={2.0} to={9} />
@@ -225,18 +215,18 @@ export function Upstairs() {
       <UpWall axis="z" at={-4} from={2.0} to={9} />
 
       {/* ---- Beds + backyard windows ---- */}
-      <Bed position={[-8, 0, -5.5]} color="#3a5a7a" />       {/* master (over garage) */}
+      <Bed position={[-8, 0, -5.0]} color="#3a5a7a" />       {/* master (over garage) */}
       <Bed position={[-9.9, 0, 6.2]} color="#d94f8c" />       {/* Penny (pink) */}
       <YardWindow x={-9.9} />
       <Bed position={[-5.9, 0, 6.2]} color="#2f8f4f" />       {/* Luke (green) */}
       <YardWindow x={-5.9} />
 
       {/* ---- Game-room props on the open loft (over the kitchen) ---- */}
-      <mesh position={[7, UP_Y + 0.25, -1.5]} castShadow>
+      <mesh position={[7, UP_Y + 0.25, 0]} castShadow>
         <sphereGeometry args={[0.45, 14, 10]} />
         <meshStandardMaterial color="#e26aa1" roughness={0.85} />
       </mesh>
-      <group position={[5, UP_Y + 0.05, -1.8]}>
+      <group position={[5, UP_Y + 0.05, -0.5]}>
         {['#a83a3a', '#3a5aa6', '#5cb85c', '#e6b94a'].map((c, i) => (
           <mesh key={i} position={[0, 0.05 + i * 0.06, 0]} castShadow>
             <boxGeometry args={[0.28, 0.06, 0.22]} />

@@ -11,7 +11,7 @@ export type FloorMaterial = 'wood' | 'tile' | 'concrete';
 
 export type RoomId =
   | 'great' | 'kitchen' | 'family'
-  | 'garage' | 'stairhall';
+  | 'garage';
 
 export interface Room {
   id: RoomId;
@@ -43,33 +43,33 @@ export const WALL_Y = 1.4;
 
 // House: width 24 (x = -12..12), depth 18 (z = -9..9). Facing in (+Z) the RIGHT is
 // -X (garage side), the LEFT is +X (front door + oak). Two columns:
-//   RIGHT  (-X, x=-12..-4): garage (front) → open stairs (mid) → family room (back)
+//   RIGHT  (-X, x=-12..-4): garage (front) → family den (back, green + fireplace)
 //   LEFT+CENTER (x=-4..12): great room (front, 2-story) → kitchen (back)
-// The stairhall is OPEN to the great room (the right-spine wall has a wide gap at
-// the stairs) so the staircase reads from the front door, like the real house.
+// The staircase is NOT in this column — it lives IN the great room against the
+// garage wall, open to the two-story space (see StairsAndLoft.tsx), like the real
+// entry photo: you see it the moment you walk in.
 export const ROOMS: Room[] = [
   // Left/center: the open flow you walk into.
   { id: 'great',   minX: -4.0, maxX: 12.0, minZ: -9.0, maxZ:  1.0, floor: 'wood', ceiling: false },
   { id: 'kitchen', minX: -4.0, maxX: 12.0, minZ:  1.0, maxZ:  9.0, floor: 'tile', ceiling: true },
   // Right (-X) column.
-  { id: 'garage',    minX: -12.0, maxX: -4.0, minZ: -9.0, maxZ: -1.5, floor: 'concrete', ceiling: false },
-  { id: 'stairhall', minX: -12.0, maxX: -4.0, minZ: -1.5, maxZ:  2.0, floor: 'wood', ceiling: false },
-  { id: 'family',    minX: -12.0, maxX: -4.0, minZ:  2.0, maxZ:  9.0, floor: 'wood', ceiling: true },
+  { id: 'garage', minX: -12.0, maxX: -4.0, minZ: -9.0, maxZ: -1.5, floor: 'concrete', ceiling: false },
+  { id: 'family', minX: -12.0, maxX: -4.0, minZ: -1.5, maxZ:  9.0, floor: 'wood', ceiling: true },
 ];
 
 export const INTERIOR_WALLS: InteriorWall[] = [
-  // Right wall of the great room / kitchen (x = -4): behind it is the garage/stairs/
-  // family column. Openings: a man-door into the garage, a WIDE gap at the stairs
-  // (so the open staircase reads from the great room), and the kitchen→family dog-leg.
+  // Right wall of the great room / kitchen (x = -4): behind it is the garage (front)
+  // and the family den (back). The staircase stands in the great room just east of
+  // this wall, so z=-9..-1.5 stays solid (the garage/stair wall). Openings let you
+  // into the family den.
   { axis: 'z', at: -4.0, from: -9.0, to: 9.0, openings: [
-    { from: -6.0, to: -5.0 },  // garage man-door
-    { from: -1.5, to:  2.0 },  // open stair bay → great room
-    { from:  3.0, to:  7.0 },  // kitchen → family dog-leg
+    { from: -0.5, to: 1.0 },   // great room ↔ family (front of the den)
+    { from:  3.0, to: 7.0 },   // kitchen → family dog-leg
   ], tag: 'right-spine' },
-  // Garage back wall (z = -1.5): garage is enclosed from the stairhall.
-  { axis: 'x', at: -1.5, from: -12.0, to: -4.0, openings: [], tag: 'garage-back' },
-  // Stairhall ↔ family divider (z = 2).
-  { axis: 'x', at: 2.0, from: -12.0, to: -4.0, openings: [], tag: 'stairhall-family' },
+  // Garage back wall (z = -1.5): garage is enclosed; a man-door into the family den.
+  { axis: 'x', at: -1.5, from: -12.0, to: -4.0, openings: [
+    { from: -6.0, to: -5.0 },  // garage man-door
+  ], tag: 'garage-back' },
 ];
 
 /**

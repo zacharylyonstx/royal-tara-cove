@@ -522,9 +522,16 @@ export function tileFloorTexture(): THREE.Texture {
   const cached = cache.get(key);
   if (cached) return cached;
   const { ctx, canvas } = makeCanvas(256);
-  ctx.fillStyle = '#a89880';
+  ctx.fillStyle = '#cbbfa6';
   ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = 'rgba(60,50,40,0.8)';
+  // soft per-tile shade so each tile reads cleanly without harsh speckle
+  for (let ty = 0; ty < 4; ty++) {
+    for (let tx = 0; tx < 4; tx++) {
+      ctx.fillStyle = (tx + ty) % 2 ? 'rgba(255,255,255,0.05)' : 'rgba(120,105,80,0.05)';
+      ctx.fillRect(tx * 64 + 2, ty * 64 + 2, 60, 60);
+    }
+  }
+  ctx.strokeStyle = 'rgba(110,98,78,0.5)';
   ctx.lineWidth = 2;
   for (let i = 0; i < 5; i++) {
     ctx.beginPath();
@@ -534,12 +541,7 @@ export function tileFloorTexture(): THREE.Texture {
     ctx.lineTo(i * 64, 256);
     ctx.stroke();
   }
-  // Tile speckle
-  for (let i = 0; i < 1500; i++) {
-    ctx.fillStyle = 'rgba(140,120,90,0.5)';
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 1.4);
-  }
-  const tex = finish(canvas, [3, 3]);
+  const tex = finish(canvas, [4, 4]);
   cache.set(key, tex);
   return tex;
 }
