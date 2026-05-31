@@ -843,18 +843,22 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
     return { minX, maxX, minZ, maxZ };
   };
 
-  // Stairhall stairs climb FRONT→BACK (+Z). The second floor is two flat pieces
-  // that tile the whole footprint EXCEPT the two-story void (x=-4..10, z=-9..-4).
-  // Must match StairsAndLoft.tsx (Upstairs).
-  const stairs = toWorldRect(-9.7, -1.3, -8.3, 2.0);
-  const bedroomFloor = toWorldRect(-10.0, -9.0, -4.0, 9.0);   // master + Penny + Luke column
-  const gameFloor = toWorldRect(-4.0, -4.0, 10.0, 9.0);       // game room over great room + kitchen
+  // Open staircase climbs FRONT→BACK (+Z) against the right wall. The second floor
+  // tiles the footprint EXCEPT the two-story void (x=-4..12, z=-9..-4) and the open
+  // stairwell (x=-11.8..-9.8, z=0.2..2.0). Must match StairsAndLoft.tsx (Upstairs).
+  const stairs = toWorldRect(-11.6, -1.3, -10.0, 2.0);
+  const masterFloor = toWorldRect(-12.0, -9.0, -4.0, 0.2);   // master + lower-stair landing
+  const kidsFloor = toWorldRect(-12.0, 2.0, -4.0, 9.0);      // Penny + Luke + top landing
+  const hallFloor = toWorldRect(-9.8, 0.2, -4.0, 2.0);       // hall strip east of the stairwell
+  const gameFloor = toWorldRect(-4.0, -4.0, 12.0, 9.0);      // game room over kitchen + back of great room
 
   return [
     // Staircase ramp: climbs as z INCREASES (front -1.3 → back 2.0).
     { ...stairs, baseY: 0, topY: STORY_H, axis: 'z' as const },
-    // Flat second floor.
-    { ...bedroomFloor, baseY: STORY_H, topY: STORY_H },
+    // Flat second floor (right column minus the stairwell, + the game room).
+    { ...masterFloor, baseY: STORY_H, topY: STORY_H },
+    { ...kidsFloor, baseY: STORY_H, topY: STORY_H },
+    { ...hallFloor, baseY: STORY_H, topY: STORY_H },
     { ...gameFloor, baseY: STORY_H, topY: STORY_H },
   ];
 }

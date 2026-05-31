@@ -3,19 +3,19 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { getProjectorTexture } from '../../world/projectorMedia';
 
-// House-local coordinates. Great-kitchen wall sits at x = -1.5 (wall mesh
-// thickness 0.15 → spans x = -1.575..-1.425). Couch is at (-5.25, -4) in
-// the great room and faces east toward this wall. The screen surface
-// must therefore point WEST (its normal in -X) to be visible from the couch.
+// House-local coordinates. The screen is mounted FLUSH on the +X great-room side
+// wall (cream lining at x = 11.84). Its normal points -X (into the room) so the
+// couch — which sits in the great room facing +X — looks straight at it. The
+// projector is ceiling-mounted to the west and throws +X onto the screen.
 
 const SCREEN_W = 2.5;
 const SCREEN_H = 1.4;
-const SCREEN_X = -1.58;   // 0.005m west of the wall surface (-1.575)
-const SCREEN_Y = 1.8;     // eye level
-const SCREEN_Z = -4;      // centered in the great room (z = -8..0)
+const SCREEN_X = 11.6;    // flush on the +X side wall (lining at 11.84)
+const SCREEN_Y = 1.9;     // eye level
+const SCREEN_Z = -4;      // great-room seating row
 
-const PROJECTOR_X = -3.5;
-const PROJECTOR_Y = 2.78; // just below ceiling (2.95) so the lens reads
+const PROJECTOR_X = 8.6;  // ceiling-mounted west of the screen, throws +X
+const PROJECTOR_Y = 2.78; // just below the great-room loft underside
 const PROJECTOR_Z = -4;
 const PROJECTOR_BODY_W = 0.35; // along X
 const PROJECTOR_BODY_H = 0.18; // along Y

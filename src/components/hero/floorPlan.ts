@@ -2,8 +2,10 @@
 // Renderer (Interior10600.tsx), collider builder (HeroHouse10600.tsx),
 // and any future consumer all read from this file so geometry can't drift.
 //
-// House-local coordinate system: +X right, -Z front (street side), +Z back.
-// Hero house: width=18 (halfW=9), depth=16 (halfD=8). Garage on +X side.
+// House-local coordinate system: facing INTO the house (+Z) your RIGHT is -X
+// (garage / stairs / family + bedrooms above) and your LEFT is +X (front door,
+// great room + game room above). -Z = front (street), +Z = back (yard).
+// Hero house: width=24 (x=-12..12), depth=18 (z=-9..9).
 
 export type FloorMaterial = 'wood' | 'tile' | 'concrete';
 
@@ -39,33 +41,35 @@ export const WALL_THICK = 0.15;
 /** Interior wall y-center (mesh position). */
 export const WALL_Y = 1.4;
 
-// House: width 20 (x = -10..10), depth 18 (z = -9..9). Facing in (+Z) the RIGHT is
+// House: width 24 (x = -12..12), depth 18 (z = -9..9). Facing in (+Z) the RIGHT is
 // -X (garage side), the LEFT is +X (front door + oak). Two columns:
-//   RIGHT  (-X, x=-10..-4): garage (front) → stairhall (mid) → family room (back)
-//   LEFT+CENTER (x=-4..10): great room (front, 2-story) → kitchen (back)
+//   RIGHT  (-X, x=-12..-4): garage (front) → open stairs (mid) → family room (back)
+//   LEFT+CENTER (x=-4..12): great room (front, 2-story) → kitchen (back)
+// The stairhall is OPEN to the great room (the right-spine wall has a wide gap at
+// the stairs) so the staircase reads from the front door, like the real house.
 export const ROOMS: Room[] = [
   // Left/center: the open flow you walk into.
-  { id: 'great',   minX: -4.0, maxX: 10.0, minZ: -9.0, maxZ:  1.0, floor: 'wood', ceiling: false },
-  { id: 'kitchen', minX: -4.0, maxX: 10.0, minZ:  1.0, maxZ:  9.0, floor: 'tile', ceiling: true },
+  { id: 'great',   minX: -4.0, maxX: 12.0, minZ: -9.0, maxZ:  1.0, floor: 'wood', ceiling: false },
+  { id: 'kitchen', minX: -4.0, maxX: 12.0, minZ:  1.0, maxZ:  9.0, floor: 'tile', ceiling: true },
   // Right (-X) column.
-  { id: 'garage',    minX: -10.0, maxX: -4.0, minZ: -9.0, maxZ: -1.5, floor: 'concrete', ceiling: false },
-  { id: 'stairhall', minX: -10.0, maxX: -4.0, minZ: -1.5, maxZ:  2.0, floor: 'wood', ceiling: false },
-  { id: 'family',    minX: -10.0, maxX: -4.0, minZ:  2.0, maxZ:  9.0, floor: 'wood', ceiling: true },
+  { id: 'garage',    minX: -12.0, maxX: -4.0, minZ: -9.0, maxZ: -1.5, floor: 'concrete', ceiling: false },
+  { id: 'stairhall', minX: -12.0, maxX: -4.0, minZ: -1.5, maxZ:  2.0, floor: 'wood', ceiling: false },
+  { id: 'family',    minX: -12.0, maxX: -4.0, minZ:  2.0, maxZ:  9.0, floor: 'wood', ceiling: true },
 ];
 
 export const INTERIOR_WALLS: InteriorWall[] = [
   // Right wall of the great room / kitchen (x = -4): behind it is the garage/stairs/
-  // family column. Openings: a man-door into the garage, the stair access, and the
-  // kitchen→family dog-leg.
+  // family column. Openings: a man-door into the garage, a WIDE gap at the stairs
+  // (so the open staircase reads from the great room), and the kitchen→family dog-leg.
   { axis: 'z', at: -4.0, from: -9.0, to: 9.0, openings: [
     { from: -6.0, to: -5.0 },  // garage man-door
-    { from: -1.0, to:  1.5 },  // stair access
-    { from:  3.0, to:  7.5 },  // kitchen → family dog-leg
+    { from: -1.5, to:  2.0 },  // open stair bay → great room
+    { from:  3.0, to:  7.0 },  // kitchen → family dog-leg
   ], tag: 'right-spine' },
   // Garage back wall (z = -1.5): garage is enclosed from the stairhall.
-  { axis: 'x', at: -1.5, from: -10.0, to: -4.0, openings: [], tag: 'garage-back' },
+  { axis: 'x', at: -1.5, from: -12.0, to: -4.0, openings: [], tag: 'garage-back' },
   // Stairhall ↔ family divider (z = 2).
-  { axis: 'x', at: 2.0, from: -10.0, to: -4.0, openings: [], tag: 'stairhall-family' },
+  { axis: 'x', at: 2.0, from: -12.0, to: -4.0, openings: [], tag: 'stairhall-family' },
 ];
 
 /**
@@ -97,7 +101,7 @@ function validate(): void {
     }
   }
 
-  // 3. The interior bounds cover x=-9..+2 and z=-8..+8 (the hero house livable + garage).
+  // 3. The interior bounds cover x=-12..+12 and z=-9..+9 (the hero house livable + garage).
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const r of ROOMS) {
     if (r.minX < minX) minX = r.minX;
@@ -105,8 +109,8 @@ function validate(): void {
     if (r.minZ < minZ) minZ = r.minZ;
     if (r.maxZ > maxZ) maxZ = r.maxZ;
   }
-  if (minX !== -10.0 || maxX !== 10.0 || minZ !== -9.0 || maxZ !== 9.0) {
-    throw new Error(`floorPlan: room bounds (${minX}..${maxX}, ${minZ}..${maxZ}) don't match hero house (-10..10, -9..9)`);
+  if (minX !== -12.0 || maxX !== 12.0 || minZ !== -9.0 || maxZ !== 9.0) {
+    throw new Error(`floorPlan: room bounds (${minX}..${maxX}, ${minZ}..${maxZ}) don't match hero house (-12..12, -9..9)`);
   }
 }
 validate();

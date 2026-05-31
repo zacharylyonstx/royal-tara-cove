@@ -78,7 +78,7 @@ export const HOUSES: HouseConfig[] = [
     // The hero house — Zak's family home, on the bulb at the end of the cul-de-sac.
     address: '10600',
     position: { kind: 'bulb', angleDeg: 90 },
-    width: 20, depth: 18, stories: 2,
+    width: 24, depth: 18, stories: 2,
     // The real 10600: tan/beige brick + cream siding (per the family memory spec).
     // garageOnLeft: true -> garage on the viewer's RIGHT (-X), front door + oak on
     // the LEFT (+X), matching the real house.

@@ -12,20 +12,18 @@ interface InteriorProps {
 }
 
 /**
- * Interior of the hero house. House-local coordinates:
- *   +X = right (toward garage / east in house frame)
- *   -Z = front (street side)
- *   +Z = back (yard side)
+ * Interior of the hero house. House-local coordinates (facing INTO the house, +Z):
+ *   +X = your LEFT  (front door, oak, great room + game room above)
+ *   -X = your RIGHT (garage, open stairs, family room + bedrooms above)
+ *   -Z = front (street side)   +Z = back (yard side)
  *
- * Floor plan:
- *   front-left half  → great room (couch, TV, coffee table)
- *   center           → kitchen with island
- *   back-left wide   → master bedroom (dad)
- *   back-right small → Penny's bedroom
- *   back-far-right   → Luke's bedroom
- *   middle-right     → bathroom
+ * Downstairs flow:
+ *   walk in → two-story GREAT ROOM (front, loft balcony overhead) with the open
+ *   staircase on the RIGHT → KITCHEN straight back → dog-legs RIGHT into the green
+ *   FAMILY ROOM with the corner brick fireplace. GARAGE is front-right.
  *
- * The interior walls are colliders built in HeroHouse10600.tsx (buildInteriorColliders).
+ * The interior walls are colliders built in HeroHouse10600.tsx (buildInteriorColliders);
+ * the second floor + stairs live in StairsAndLoft.tsx.
  */
 export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorProps) {
   void depth;
@@ -35,16 +33,16 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
       {/* Interior lighting — the rooms only got the dim outdoor hemisphere, so they
           read as caves. Warm point lights make them bright & even, like the photos. */}
       {[
-        [3, 2.0, -4],     // great room (front-left/center)
-        [3, 2.0, 5.5],    // kitchen (back)
-        [-7, 2.0, 5.5],   // family room (back-right)
-        [-7, 2.0, 0],     // stairhall
-        [-7, 2.0, -5],    // garage
+        [4, 2.0, -4],     // great room (front-left/center)
+        [4, 2.0, 5.5],    // kitchen (back)
+        [-8, 2.0, 5.5],   // family room (back-right)
+        [-8, 2.0, 0],     // open stairs / hall
+        [-8, 2.0, -5],    // garage
       ].map((p, i) => (
         <pointLight key={`il-${i}`} position={p as [number, number, number]} intensity={5} distance={11} decay={2} color="#fff2dc" />
       ))}
       {/* A soft fill so corners aren't black */}
-      <pointLight position={[3, 1.9, 1]} intensity={4} distance={18} decay={2} color="#fff0d8" />
+      <pointLight position={[4, 1.9, 1]} intensity={4} distance={18} decay={2} color="#fff0d8" />
 
       {/* Per-room floors driven by floorPlan.ts — no overlap by construction */}
       {ROOMS.map((r) => {
@@ -83,11 +81,11 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
           open above the loft. The great room (ceiling:false) is open up to this; the
           single-story rooms keep their own 2.95m ceilings below it. */}
       <mesh position={[0, 5.5, 0]} receiveShadow>
-        <boxGeometry args={[20.4, 0.16, 18.4]} />
+        <boxGeometry args={[24.4, 0.16, 18.4]} />
         <meshStandardMaterial color="#f6efe0" emissive="#f3ead4" emissiveIntensity={0.3} />
       </mesh>
       {/* High light to fill the two-story volume */}
-      <pointLight position={[3, 4.6, -4]} intensity={6} distance={14} decay={2} color="#fff2dc" />
+      <pointLight position={[4, 4.6, -4]} intensity={6} distance={14} decay={2} color="#fff2dc" />
 
       {/* Interior wall meshes driven by floorPlan.ts. Each wall splits into 1+
           segments around its door openings, with a header over each opening. */}
@@ -154,23 +152,40 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         );
       })()}
 
-      {/* Great room: dining table + chandelier toward the front windows. */}
-      <DiningSet position={[5.5, 0.13, -4]} />
+      {/* Great room: dining table + chandelier centered in the two-story void by the
+          front windows — the centerpiece you see walking in (matches the entry photo). */}
+      <DiningSet position={[4, 0.13, -6]} />
       {/* Cream drywall lining the interior (in FRONT of the wall faces so it covers
           the exterior siding/brick that would otherwise show inside). */}
       {/* +X exterior wall (door/walkway side) — full two-story height */}
-      <mesh position={[9.84, 2.75, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[11.84, 2.75, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       {/* -X exterior wall (garage/family side) — full height */}
-      <mesh position={[-9.84, 2.4, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
-      {/* great-room front (z=-9) upper band, above the tall 2-story window */}
-      <mesh position={[3, 4.55, -8.85]}><boxGeometry args={[14, 1.9, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[-11.84, 2.4, 0]}><boxGeometry args={[0.06, 5.5, 18]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* great-room front (z=-9): cream framing AROUND the tall 2-story formal window
+          (window glass sits at x≈0.9). Top band + side returns + sill so no exterior
+          brick shows inside, matching the real cream-walled entry. */}
+      <mesh position={[4, 4.45, -8.85]}><boxGeometry args={[16, 2.1, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[-2.35, 1.7, -8.85]}><boxGeometry args={[3.3, 3.4, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[7.25, 1.7, -8.85]}><boxGeometry args={[9.5, 3.4, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[0.9, 0.3, -8.85]}><boxGeometry args={[3.2, 0.6, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* Tall formal window (interior glass) filling the cream frame, so the exterior
+          brick can't show through — the real cream-walled entry window. */}
+      <group position={[0.9, 1.95, -8.8]}>
+        <mesh><boxGeometry args={[3.3, 2.9, 0.05]} /><meshStandardMaterial color="#bfe0ef" emissive="#dff0f8" emissiveIntensity={0.45} metalness={0.1} roughness={0.1} /></mesh>
+        {[-1.05, 0, 1.05].map((dx, i) => (
+          <mesh key={`mv${i}`} position={[dx, 0, 0.02]}><boxGeometry args={[0.07, 2.94, 0.06]} /><meshStandardMaterial color="#fff" /></mesh>
+        ))}
+        {[-0.95, 0, 0.95].map((dy, i) => (
+          <mesh key={`mh${i}`} position={[0, dy, 0.02]}><boxGeometry args={[3.34, 0.07, 0.06]} /><meshStandardMaterial color="#fff" /></mesh>
+        ))}
+      </group>
       {/* master front (z=-9, over the garage) — line the whole upstairs face cream */}
-      <mesh position={[-7, 4.25, -8.85]}><boxGeometry args={[6, 2.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[-8, 4.25, -8.85]}><boxGeometry args={[8, 2.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       {/* back wall (z=9, yard side) — lined IN FRONT of the wall's inner face so the
           upstairs bedrooms don't show exterior siding. Yard windows sit in front of this. */}
-      <mesh position={[0, 2.75, 8.82]}><boxGeometry args={[20, 5.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[0, 2.75, 8.82]}><boxGeometry args={[24, 5.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
 
-      {/* Staircase (stairhall, behind garage) + the full second floor. */}
+      {/* Open staircase (right side, behind the garage) + the full second floor. */}
       <Stairs />
       <Upstairs />
 
