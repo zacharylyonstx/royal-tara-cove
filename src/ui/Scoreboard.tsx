@@ -7,8 +7,9 @@ export function Scoreboard() {
   const gameMode = useGameStore((s) => s.gameMode);
   const phase = useGameStore((s) => s.phase);
   const show =
-    gameMode === 'aliens' &&
-    (phase === 'free-play' || phase === 'pre-intro' || phase === 'victory');
+    gameMode === 'treehouse' ||
+    (gameMode === 'aliens' &&
+      (phase === 'free-play' || phase === 'pre-intro' || phase === 'victory'));
   if (!show || familyBaskets <= 0) return null;
   return (
     <div

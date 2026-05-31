@@ -138,7 +138,65 @@ export function PlayerController() {
     }
 
     if (modeNow === 'treehouse') {
-      treehouseTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors, interactPressedRef);
+      // The Treehouse Club is the free-roam neighborhood mode, so bikes +
+      // basketball are available here (always — no combat to conflict with).
+      // This mirrors the aliens free-roam play layer; TreehouseCamera already
+      // follows behind the player, which doubles as the bike chase cam.
+      const pos = positions[activeId];
+      const dt = Math.min(dtRaw, 0.1);
+      const k = keys.current;
+      const play = usePlayStore.getState();
+      const myRiding = play.riding[activeId];
+
+      // Contextual hover (bike / ball).
+      if (myRiding) {
+        play.setHover('getoff', myRiding.bikeId, null);
+      } else if (play.heldBall && play.heldBall.by === activeId) {
+        play.setHover('shoot', null, play.heldBall.ballId);
+      } else {
+        let bBike: string | null = null; let bBikeD = 2.0;
+        for (const b of Object.values(play.bikes)) {
+          const d = Math.hypot(b.x - pos.x, b.z - pos.z);
+          if (d < bBikeD) { bBikeD = d; bBike = b.id; }
+        }
+        let bBall: string | null = null; let bBallD = 1.5;
+        for (const [bid, bp] of Object.entries(ballPositions)) {
+          const d = Math.hypot(bp.x - pos.x, bp.z - pos.z);
+          if (d < bBallD) { bBallD = d; bBall = bid; }
+        }
+        if (bBall && (!bBike || bBallD <= bBikeD)) play.setHover('pickup', null, bBall);
+        else if (bBike) play.setHover('ride', bBike, null);
+        else play.setHover(null, null, null);
+      }
+
+      // Ride movement (replaces walking while mounted).
+      if (myRiding) {
+        rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors);
+      }
+
+      // E interaction: play takes priority; otherwise fall through to the
+      // treehouse ladder / mission-item interact (we leave the ref set).
+      if (interactPressedRef.current) {
+        if (play.heldBall && play.heldBall.by === activeId) { interactPressedRef.current = false; play.dropBall(); }
+        else if (play.hoverPlay === 'pickup' && play.hoverBallId) { interactPressedRef.current = false; play.pickUpBall(play.hoverBallId, activeId); }
+        else if (play.hoverPlay === 'ride' && play.hoverBikeId) { interactPressedRef.current = false; mountBike(activeId, play.hoverBikeId, play.bikes[play.hoverBikeId]?.color ?? '#3a6db0', yaws[activeId]); }
+        else if (play.hoverPlay === 'getoff') { interactPressedRef.current = false; dismountBike(activeId, pos, staticColliders); }
+      }
+
+      // Shoot a held ball (space / click).
+      if (shootRef.current) {
+        shootRef.current = false;
+        const p2 = usePlayStore.getState();
+        if (p2.heldBall && p2.heldBall.by === activeId) doShoot(p2, activeId, pos, yaws[activeId]);
+      }
+
+      if (play.riding[activeId]) {
+        // Riding: keep a carried mission item following us; skip walking.
+        const mi = useTreehouseStore.getState().missionItem;
+        if (mi && mi.carriedBy === activeId) useTreehouseStore.getState().setMissionItemPos(pos.x, pos.z);
+      } else {
+        treehouseTick(pos, yaws, activeId, k, dtRaw, staticColliders, doors, interactPressedRef);
+      }
       return;
     }
 
