@@ -6,6 +6,7 @@ import type { HouseConfig, Lot } from '../types';
 import { Roof } from './Roof';
 import { Door } from './Door';
 import { HouseInterior } from './HouseInterior';
+import { WindowUnit, EntryPortico } from './houseDetail';
 import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 
@@ -15,6 +16,20 @@ const GARAGE_H = 2.4;
 const DOOR_W = 1.05;
 const DOOR_H = 2.15;
 const WALL_T = 0.18;
+
+// Rich, VARIED facade palettes — selected per house from the address seed so
+// every home on the street looks distinct (red brick, brown, tan, buff…).
+const BRICKS = ['#a8503c', '#b56e4a', '#7d5844', '#c2895c', '#9a6450', '#ccac7d', '#8c4a38', '#b88a62', '#a35a46', '#d0b489'];
+const SIDINGS = ['#d8c9a6', '#e4d9be', '#c6d0c2', '#c3cdd5', '#cdc7bb', '#dccfb4', '#bcc6bf', '#e0d3b6'];
+const ROOFS = ['#6f6a62', '#5e5a53', '#74695c', '#827b70', '#665e54', '#6b6258'];
+const DOORS = ['#3c2a1a', '#243a4e', '#5a2828', '#2d4a2d', '#1d1d1d', '#6b3a1a', '#3a2342'];
+const SHUTTERS = ['#2a2a2a', '#33433a', '#26303f', '#4a3422', '#5a2828', '#2d3b2d'];
+
+function seedFor(address: string): number {
+  let h = 0;
+  for (let i = 0; i < address.length; i++) h = (h * 31 + address.charCodeAt(i)) >>> 0;
+  return h;
+}
 
 interface HouseProps {
   config: HouseConfig;
@@ -34,10 +49,18 @@ export function House({ config, lot }: HouseProps) {
     : halfW - 0.6 - GARAGE_W / 2;
   const doorCenterX = config.garageOnLeft ? halfW - 1.6 : -halfW + 1.6;
 
-  // Avery Ranch tract look: brick veneer on the street-facing front, tan
-  // HardiPlank lap siding on the sides, rear, and gable ends.
-  const sidingMaterial = mat.lapSiding(config.sidingColor ?? config.wallColor);
-  const brickMaterial = mat.brick(config.brickColor ?? config.stoneColor ?? '#9c5a45');
+  // Per-house varied palette (seeded by address). Brick front, lap siding on
+  // the sides/rear/gables, varied roof/door/shutter colors.
+  const seed = seedFor(config.address);
+  const brickColor = BRICKS[seed % BRICKS.length];
+  const sidingColor = SIDINGS[(seed >> 3) % SIDINGS.length];
+  const roofColor = ROOFS[(seed >> 6) % ROOFS.length];
+  const doorColor = DOORS[(seed >> 9) % DOORS.length];
+  const shutterColor = SHUTTERS[(seed >> 11) % SHUTTERS.length];
+  const trimColor = '#f4f1e8';
+  const winGrid = (seed >> 7) % 3; // 0=2x2, 1=3x2, 2=2x3 grid style
+  const sidingMaterial = mat.lapSiding(sidingColor);
+  const brickMaterial = mat.brick(brickColor);
 
   // Destruction animation refs (tornado-mode). The dramatic overhaul:
   //   • roof LAUNCHES upward + tumbles + scales away
@@ -223,7 +246,7 @@ export function House({ config, lot }: HouseProps) {
           width={config.width}
           depth={config.depth}
           height={roofH}
-          color={config.roofColor}
+          color={roofColor}
           hipped={config.hipped}
         />
         {!config.hipped && (
@@ -241,8 +264,8 @@ export function House({ config, lot }: HouseProps) {
         z={-halfD}
         width={DOOR_W}
         height={DOOR_H}
-        color={config.doorColor}
-        trimColor={config.trimColor}
+        color={doorColor}
+        trimColor={trimColor}
         houseWorldX={lot.housePivot[0]}
         houseWorldZ={lot.housePivot[1]}
         houseYaw={lot.houseYaw}
@@ -251,16 +274,24 @@ export function House({ config, lot }: HouseProps) {
       {/* Garage door */}
       <GarageDoor x={garageCenterX} z={-halfD} />
 
-      {/* Front decorative windows */}
-      <FrontWindows
+      {/* Windows on every elevation + shutters */}
+      <FacadeDetail
         width={config.width}
+        depth={config.depth}
+        wallH={wallH}
         stories={config.stories}
-        z={-halfD - 0.04}
         garageOnLeft={config.garageOnLeft}
         garageCenterX={garageCenterX}
         doorCenterX={doorCenterX}
-        trimColor={config.trimColor}
+        halfD={halfD}
+        halfW={halfW}
+        trimColor={trimColor}
+        shutterColor={shutterColor}
+        winGrid={winGrid}
       />
+
+      {/* Covered entry over the front door */}
+      <EntryPortico x={doorCenterX} z={-halfD - 0.05} doorH={DOOR_H} postColor={trimColor} roofColor={roofColor} />
 
       {/* Address plaque next to the front door */}
       <AddressPlaque
@@ -287,6 +318,59 @@ export function House({ config, lot }: HouseProps) {
       />
     </group>
   );
+}
+
+/** All windows (front + both sides + upper floor) + shutters for a house. */
+function FacadeDetail({
+  width, depth, wallH, stories, garageOnLeft, garageCenterX, doorCenterX, halfD, halfW, trimColor, shutterColor, winGrid,
+}: {
+  width: number; depth: number; wallH: number; stories: 1 | 2;
+  garageOnLeft: boolean; garageCenterX: number; doorCenterX: number;
+  halfD: number; halfW: number; trimColor: string; shutterColor: string; winGrid: number;
+}) {
+  void width; void wallH;
+  const z = -halfD - 0.05;
+  const [cols, rows] = winGrid === 1 ? [3, 2] : winGrid === 2 ? [2, 3] : [2, 2];
+  const wins: React.ReactElement[] = [];
+
+  // --- Front: living-room picture window in the gap between garage + door ---
+  const garageInner = garageOnLeft ? garageCenterX + GARAGE_W / 2 : garageCenterX - GARAGE_W / 2;
+  const doorInner = garageOnLeft ? doorCenterX - DOOR_W / 2 : doorCenterX + DOOR_W / 2;
+  const lrX = (garageInner + doorInner) / 2;
+  wins.push(
+    <WindowUnit key="lr" position={[lrX, 1.55, z]} w={1.9} h={1.5} cols={3} rows={2} trimColor={trimColor} shutters shutterColor={shutterColor} />,
+  );
+
+  // --- Upper-floor front windows (2-story) ---
+  if (stories === 2) {
+    const upY = STORY_H + 1.55;
+    [garageCenterX - 1.3, garageCenterX + 1.3, doorCenterX].forEach((x, i) => {
+      wins.push(
+        <WindowUnit key={`uf${i}`} position={[x, upY, z]} w={1.0} h={1.25} cols={cols} rows={rows} trimColor={trimColor} shutters shutterColor={shutterColor} />,
+      );
+    });
+  }
+
+  // --- Side windows (both sides) facing outward ---
+  const sideZ = [-depth * 0.24, depth * 0.12];
+  for (const side of [-1, 1] as const) {
+    const x = side * (halfW + 0.06);
+    const facing: 'x' | '-x' = side === 1 ? 'x' : '-x';
+    sideZ.forEach((sz, i) => {
+      wins.push(
+        <WindowUnit key={`s${side}_${i}`} position={[x, 1.5, sz]} w={1.0} h={1.25} cols={2} rows={2} trimColor={trimColor} facing={facing} />,
+      );
+    });
+    if (stories === 2) {
+      sideZ.forEach((sz, i) => {
+        wins.push(
+          <WindowUnit key={`su${side}_${i}`} position={[x, STORY_H + 1.5, sz]} w={0.9} h={1.05} cols={2} rows={2} trimColor={trimColor} facing={facing} />,
+        );
+      });
+    }
+  }
+
+  return <>{wins}</>;
 }
 
 function SolidWall({
@@ -421,78 +505,6 @@ function GarageDoor({ x, z }: { x: number; z: number }) {
   );
 }
 
-interface FrontWindowsProps {
-  width: number;
-  stories: 1 | 2;
-  z: number;
-  garageOnLeft: boolean;
-  garageCenterX: number;
-  doorCenterX: number;
-  trimColor: string;
-}
-
-function FrontWindows({
-  width,
-  stories,
-  z,
-  garageOnLeft,
-  doorCenterX,
-  garageCenterX,
-  trimColor,
-}: FrontWindowsProps) {
-  const wins: React.ReactElement[] = [];
-  const farX = garageOnLeft ? width / 2 - 0.8 : -width / 2 + 0.8;
-  const midX = (farX + doorCenterX) / 2;
-
-  // Living-room window between door and far edge
-  wins.push(<WindowDeco key="lr" position={[midX, 1.55, z]} w={1.6} h={1.2} trimColor={trimColor} />);
-
-  if (stories === 2) {
-    wins.push(<WindowDeco key="up-g1" position={[garageCenterX - 1.2, 4.5, z]} w={1.0} h={1.0} trimColor={trimColor} />);
-    wins.push(<WindowDeco key="up-g2" position={[garageCenterX + 1.2, 4.5, z]} w={1.0} h={1.0} trimColor={trimColor} />);
-    wins.push(<WindowDeco key="up-d" position={[doorCenterX, 4.5, z]} w={1.0} h={1.0} trimColor={trimColor} />);
-  }
-
-  return <>{wins}</>;
-}
-
-interface WindowDecoProps {
-  position: [number, number, number];
-  w: number;
-  h: number;
-  trimColor: string;
-}
-
-function WindowDeco({ position, w, h, trimColor }: WindowDecoProps) {
-  return (
-    <group position={position}>
-      {/* outer frame */}
-      <mesh castShadow>
-        <boxGeometry args={[w + 0.16, h + 0.16, 0.08]} />
-        <meshStandardMaterial color={trimColor} roughness={0.65} />
-      </mesh>
-      {/* glass pane (recessed) */}
-      <mesh position={[0, 0, 0.025]}>
-        <boxGeometry args={[w, h, 0.02]} />
-        <primitive object={mat.glass()} attach="material" />
-      </mesh>
-      {/* mullions */}
-      <mesh position={[0, 0, 0.06]}>
-        <boxGeometry args={[w + 0.04, 0.06, 0.02]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-      <mesh position={[0, 0, 0.06]}>
-        <boxGeometry args={[0.06, h + 0.04, 0.02]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-      {/* sill */}
-      <mesh position={[0, -h / 2 - 0.12, 0.02]} castShadow>
-        <boxGeometry args={[w + 0.3, 0.08, 0.18]} />
-        <meshStandardMaterial color={trimColor} />
-      </mesh>
-    </group>
-  );
-}
 
 function AddressPlaque({
   address,
