@@ -199,12 +199,12 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
 
       {/* --- Front-yard memory landmarks --- */}
       {/* The big live oak on the LEFT front yard with a circular brick ring. */}
-      <LiveOak position={[-halfW + 1.5, 0, -halfD - 5.2]} scale={1.55} seed={4} />
-      <mesh position={[-halfW + 1.5, 0.09, -halfD - 5.2]} receiveShadow>
+      <LiveOak position={[halfW - 1.5, 0, -halfD - 5.2]} scale={1.55} seed={4} />
+      <mesh position={[halfW - 1.5, 0.09, -halfD - 5.2]} receiveShadow>
         <cylinderGeometry args={[1.5, 1.5, 0.18, 22]} />
         <meshStandardMaterial color="#a8835f" roughness={0.9} />
       </mesh>
-      <mesh position={[-halfW + 1.5, 0.16, -halfD - 5.2]} receiveShadow>
+      <mesh position={[halfW - 1.5, 0.16, -halfD - 5.2]} receiveShadow>
         <cylinderGeometry args={[1.25, 1.25, 0.1, 22]} />
         <meshStandardMaterial color="#4a3526" roughness={1} />
       </mesh>
@@ -814,13 +814,12 @@ export function buildHeroExteriorColliders(config: HouseConfig, lot: Lot): RectC
 
 /**
  * Floors that the player can stand on inside the hero house. Two pieces:
- *   1. A staircase ramp running west-to-east (climbs as x increases) along
- *      the back-left wall of the great room.
- *   2. A second-floor loft platform spanning the back-half of the upstairs.
+ *   1. A staircase ramp in the stairhall behind the garage, climbing FRONT→BACK
+ *      (+Z) along the right (-X) wall.
+ *   2. A second-floor loft / game room spanning the back of the great room,
+ *      reached by walking around the handrail.
  *
- * Local coords (rotated to world via lot.houseYaw):
- *   stairs base: (x=-8.4..-5.0, z=-2.5..-1.4) climbs 0 → STORY_H
- *   loft floor: (x=-9..-2, z=-3..3.5) at y = STORY_H
+ * Must match StairsAndLoft.tsx constants.
  */
 export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
   const cy = Math.cos(lot.houseYaw);
@@ -844,16 +843,19 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
     return { minX, maxX, minZ, maxZ };
   };
 
-  // Stairs run along the right wall and climb FRONT→BACK (+Z); loft spans the full
-  // great-room width over the back portion. Must match StairsAndLoft.tsx.
-  const stairs = toWorldRect(-8.85, -3.7, -7.6, -0.3);
-  const loft = toWorldRect(-9.0, -3.0, 2.0, 0.0);
+  // Stairhall stairs climb FRONT→BACK (+Z). The second floor is two flat pieces
+  // that tile the whole footprint EXCEPT the two-story void (x=-4..10, z=-9..-4).
+  // Must match StairsAndLoft.tsx (Upstairs).
+  const stairs = toWorldRect(-9.7, -1.3, -8.3, 2.0);
+  const bedroomFloor = toWorldRect(-10.0, -9.0, -4.0, 9.0);   // master + Penny + Luke column
+  const gameFloor = toWorldRect(-4.0, -4.0, 10.0, 9.0);       // game room over great room + kitchen
 
   return [
-    // Staircase ramp: climbs as z INCREASES (front -3.7 → back -0.3).
+    // Staircase ramp: climbs as z INCREASES (front -1.3 → back 2.0).
     { ...stairs, baseY: 0, topY: STORY_H, axis: 'z' as const },
-    // Flat upper-floor loft.
-    { ...loft, baseY: STORY_H, topY: STORY_H },
+    // Flat second floor.
+    { ...bedroomFloor, baseY: STORY_H, topY: STORY_H },
+    { ...gameFloor, baseY: STORY_H, topY: STORY_H },
   ];
 }
 

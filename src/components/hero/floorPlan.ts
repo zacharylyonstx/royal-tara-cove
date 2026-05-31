@@ -9,7 +9,7 @@ export type FloorMaterial = 'wood' | 'tile' | 'concrete';
 
 export type RoomId =
   | 'great' | 'kitchen' | 'family'
-  | 'garage';
+  | 'garage' | 'stairhall';
 
 export interface Room {
   id: RoomId;
@@ -39,20 +39,33 @@ export const WALL_THICK = 0.15;
 /** Interior wall y-center (mesh position). */
 export const WALL_Y = 1.4;
 
+// House: width 20 (x = -10..10), depth 18 (z = -9..9). Facing in (+Z) the RIGHT is
+// -X (garage side), the LEFT is +X (front door + oak). Two columns:
+//   RIGHT  (-X, x=-10..-4): garage (front) → stairhall (mid) → family room (back)
+//   LEFT+CENTER (x=-4..10): great room (front, 2-story) → kitchen (back)
 export const ROOMS: Room[] = [
-  // Open flow front-to-back, full interior width: you enter the TWO-STORY great room
-  // (ceiling:false = open up to the loft), the kitchen is straight back, the family
-  // room (with the fireplace) is behind that. Very few interior walls.
-  { id: 'great',   minX: -9.0, maxX:  2.0, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: false },
-  { id: 'kitchen', minX: -9.0, maxX:  2.0, minZ:  0.0, maxZ:  4.0, floor: 'tile', ceiling: true },
-  { id: 'family',  minX: -9.0, maxX:  2.0, minZ:  4.0, maxZ:  8.0, floor: 'wood', ceiling: true },
-  // Garage (no ceiling = open rafters)
-  { id: 'garage',  minX:  2.0, maxX:  8.4, minZ: -8.0, maxZ:  8.0, floor: 'concrete', ceiling: false },
+  // Left/center: the open flow you walk into.
+  { id: 'great',   minX: -4.0, maxX: 10.0, minZ: -9.0, maxZ:  1.0, floor: 'wood', ceiling: false },
+  { id: 'kitchen', minX: -4.0, maxX: 10.0, minZ:  1.0, maxZ:  9.0, floor: 'tile', ceiling: true },
+  // Right (-X) column.
+  { id: 'garage',    minX: -10.0, maxX: -4.0, minZ: -9.0, maxZ: -1.5, floor: 'concrete', ceiling: false },
+  { id: 'stairhall', minX: -10.0, maxX: -4.0, minZ: -1.5, maxZ:  2.0, floor: 'wood', ceiling: false },
+  { id: 'family',    minX: -10.0, maxX: -4.0, minZ:  2.0, maxZ:  9.0, floor: 'wood', ceiling: true },
 ];
 
 export const INTERIOR_WALLS: InteriorWall[] = [
-  // Garage wall (the only real interior partition) with a door into the kitchen/family.
-  { axis: 'z', at: 2.0, from: -8.0, to: 8.0, openings: [{ from: 4.5, to: 5.5 }], tag: 'garage-wall' },
+  // Right wall of the great room / kitchen (x = -4): behind it is the garage/stairs/
+  // family column. Openings: a man-door into the garage, the stair access, and the
+  // kitchen→family dog-leg.
+  { axis: 'z', at: -4.0, from: -9.0, to: 9.0, openings: [
+    { from: -6.0, to: -5.0 },  // garage man-door
+    { from: -1.0, to:  1.5 },  // stair access
+    { from:  3.0, to:  7.5 },  // kitchen → family dog-leg
+  ], tag: 'right-spine' },
+  // Garage back wall (z = -1.5): garage is enclosed from the stairhall.
+  { axis: 'x', at: -1.5, from: -10.0, to: -4.0, openings: [], tag: 'garage-back' },
+  // Stairhall ↔ family divider (z = 2).
+  { axis: 'x', at: 2.0, from: -10.0, to: -4.0, openings: [], tag: 'stairhall-family' },
 ];
 
 /**
@@ -92,8 +105,8 @@ function validate(): void {
     if (r.minZ < minZ) minZ = r.minZ;
     if (r.maxZ > maxZ) maxZ = r.maxZ;
   }
-  if (minX !== -9.0 || maxX !== 8.4 || minZ !== -8.0 || maxZ !== 8.0) {
-    throw new Error(`floorPlan: room bounds (${minX}..${maxX}, ${minZ}..${maxZ}) don't match hero house (-9..8.4, -8..8)`);
+  if (minX !== -10.0 || maxX !== 10.0 || minZ !== -9.0 || maxZ !== 9.0) {
+    throw new Error(`floorPlan: room bounds (${minX}..${maxX}, ${minZ}..${maxZ}) don't match hero house (-10..10, -9..9)`);
   }
 }
 validate();

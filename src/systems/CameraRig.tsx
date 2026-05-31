@@ -41,6 +41,16 @@ export function CameraRig() {
   const pitch = useRef(0);
   const locked = useRef(false);
 
+  // DEV-only: drive the first-person look direction from the console / Playwright
+  // for screenshot verification (the camera is otherwise mouse-only).
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __cam?: unknown }).__cam = {
+      set: (y: number, p = 0) => { yaw.current = y; pitch.current = p; },
+      get: () => ({ yaw: yaw.current, pitch: pitch.current }),
+    };
+  }, []);
+
   useEffect(() => {
     const canvas = gl.domElement;
 

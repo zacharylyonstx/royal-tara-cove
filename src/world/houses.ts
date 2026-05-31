@@ -78,11 +78,13 @@ export const HOUSES: HouseConfig[] = [
     // The hero house — Zak's family home, on the bulb at the end of the cul-de-sac.
     address: '10600',
     position: { kind: 'bulb', angleDeg: 90 },
-    width: 18, depth: 16, stories: 2,
+    width: 20, depth: 18, stories: 2,
     // The real 10600: tan/beige brick + cream siding (per the family memory spec).
+    // garageOnLeft: true -> garage on the viewer's RIGHT (-X), front door + oak on
+    // the LEFT (+X), matching the real house.
     brickColor: BRICK.buff, sidingColor: SIDING.cream, roofColor: ROOF.gray, doorColor: DOOR.brown,
     wallColor: SIDING.cream, trimColor: TRIM, hasStone: false, stoneColor: BRICK.buff,
-    garageOnLeft: false, isHero: true, hipped: true, sqft: 2129, yearBuilt: 2004, source: 'verified',
+    garageOnLeft: true, isHero: true, hipped: true, sqft: 2129, yearBuilt: 2004, source: 'verified',
   },
   {
     address: '10604',
