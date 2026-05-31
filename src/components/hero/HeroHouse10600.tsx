@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Floor, HouseConfig, Lot, RectCollider } from '../../types';
 import { Roof } from '../Roof';
 import { Door } from '../Door';
+import { WindowUnit } from '../houseDetail';
 import { Interior10600 } from './Interior10600';
 import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
@@ -65,18 +66,27 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         doorCenterX={doorCenterX}
       />
 
+      {/* Ground-floor great-room window — the big mulled picture window that
+          faces the street (this was previously blank brick). */}
+      <WindowUnit
+        position={[(doorCenterX + garageCenterX) / 2, 1.65, -halfD - 0.07]}
+        w={3.4} h={1.9} cols={4} rows={2}
+        facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor}
+      />
+
       {/* Upper-floor windows on front (visible because we're 2 stories) */}
       {config.stories === 2 && (
         <>
-          <UpperWindow x={doorCenterX} y={STORY_H + 1.4} z={-halfD - 0.06} />
-          <UpperWindow x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5)} y={STORY_H + 1.4} z={-halfD - 0.06} />
-          <UpperWindow x={garageCenterX - 1.4} y={STORY_H + 1.4} z={-halfD - 0.06} />
-          <UpperWindow x={garageCenterX + 1.4} y={STORY_H + 1.4} z={-halfD - 0.06} />
+          <WindowUnit position={[doorCenterX, STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[doorCenterX + (config.garageOnLeft ? -2.5 : 2.5), STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[(doorCenterX + garageCenterX) / 2, STORY_H + 1.55, -halfD - 0.07]} w={1.8} h={1.45} cols={3} rows={3} facing="-z" trimColor={config.trimColor} />
+          <WindowUnit position={[garageCenterX - 1.5, STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[garageCenterX + 1.5, STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
           {/* Side windows upstairs */}
-          <UpperWindow x={-halfW - 0.06} y={STORY_H + 1.4} z={-halfD * 0.4} sideWall />
-          <UpperWindow x={-halfW - 0.06} y={STORY_H + 1.4} z={halfD * 0.4} sideWall />
-          <UpperWindow x={halfW + 0.06} y={STORY_H + 1.4} z={-halfD * 0.4} sideWall right />
-          <UpperWindow x={halfW + 0.06} y={STORY_H + 1.4} z={halfD * 0.4} sideWall right />
+          <WindowUnit position={[-halfW - 0.06, STORY_H + 1.55, -halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="-x" trimColor={config.trimColor} />
+          <WindowUnit position={[-halfW - 0.06, STORY_H + 1.55, halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="-x" trimColor={config.trimColor} />
+          <WindowUnit position={[halfW + 0.06, STORY_H + 1.55, -halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="x" trimColor={config.trimColor} />
+          <WindowUnit position={[halfW + 0.06, STORY_H + 1.55, halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="x" trimColor={config.trimColor} />
         </>
       )}
 
@@ -146,10 +156,6 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
 
       {/* Big "10600" copper numbers on the stone wainscot */}
       <BigAddressNumbers x={config.garageOnLeft ? halfW - 1.2 : -halfW + 0.8} y={1.0} z={-halfD - 0.12} />
-
-      {/* Shutters flanking front windows */}
-      <Shutter x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5) - 1.4} y={1.55} z={-halfD - 0.08} />
-      <Shutter x={doorCenterX + (config.garageOnLeft ? -2.5 : 2.5) + 1.4} y={1.55} z={-halfD - 0.08} />
 
       {/* Coach lights flanking the garage door */}
       <CoachLight position={[garageCenterX - GARAGE_W / 2 - 0.25, 1.9, -halfD - 0.12]} />
@@ -457,48 +463,6 @@ function GarageDoor({ x, z }: { x: number; z: number }) {
   );
 }
 
-function UpperWindow({ x, y, z, sideWall = false, right = false }: { x: number; y: number; z: number; sideWall?: boolean; right?: boolean }) {
-  const w = 1.0;
-  const h = 1.0;
-  if (sideWall) {
-    // Window faces +X (right side) or -X (left side)
-    const yRot = right ? Math.PI / 2 : -Math.PI / 2;
-    return (
-      <group position={[x, y, z]} rotation={[0, yRot, 0]}>
-        <mesh castShadow>
-          <boxGeometry args={[w, h, 0.06]} />
-          <meshStandardMaterial color="#f5ecd9" roughness={0.7} />
-        </mesh>
-        <mesh position={[0, 0, 0.04]}>
-          <boxGeometry args={[w - 0.16, h - 0.16, 0.02]} />
-          <primitive object={mat.glass()} attach="material" />
-        </mesh>
-      </group>
-    );
-  }
-  return (
-    <group position={[x, y, z]}>
-      <mesh castShadow>
-        <boxGeometry args={[w, h, 0.06]} />
-        <meshStandardMaterial color="#f5ecd9" roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 0, 0.04]}>
-        <boxGeometry args={[w - 0.16, h - 0.16, 0.02]} />
-        <primitive object={mat.glass()} attach="material" />
-      </mesh>
-      {/* mullions */}
-      <mesh position={[0, 0, 0.07]}>
-        <boxGeometry args={[w + 0.04, 0.05, 0.02]} />
-        <meshStandardMaterial color="#f5ecd9" />
-      </mesh>
-      <mesh position={[0, 0, 0.07]}>
-        <boxGeometry args={[0.05, h + 0.04, 0.02]} />
-        <meshStandardMaterial color="#f5ecd9" />
-      </mesh>
-    </group>
-  );
-}
-
 function AddressPlaque({ x, y, z }: { x: number; y: number; z: number }) {
   return (
     <group position={[x, y, z]}>
@@ -527,24 +491,6 @@ function BigAddressNumbers({ x, y, z }: { x: number; y: number; z: number }) {
         <boxGeometry args={[digits.length * 0.28 + 0.16, 0.5, 0.02]} />
         <meshStandardMaterial color="#2a2a2c" roughness={0.6} />
       </mesh>
-    </group>
-  );
-}
-
-function Shutter({ x, y, z }: { x: number; y: number; z: number }) {
-  return (
-    <group position={[x, y, z]}>
-      <mesh castShadow>
-        <boxGeometry args={[0.34, 1.4, 0.04]} />
-        <meshStandardMaterial color="#2d4a2d" roughness={0.8} />
-      </mesh>
-      {/* slats */}
-      {Array.from({ length: 8 }, (_, i) => (
-        <mesh key={i} position={[0, 0.65 - i * 0.18, 0.025]}>
-          <boxGeometry args={[0.3, 0.14, 0.01]} />
-          <meshStandardMaterial color="#3a5a3a" />
-        </mesh>
-      ))}
     </group>
   );
 }

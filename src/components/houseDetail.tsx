@@ -125,6 +125,26 @@ export function Shutter({ position, h, color }: { position: [number, number, num
   );
 }
 
+/** A black coach lantern mounted beside the front door. */
+export function CoachLight({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh castShadow>
+        <boxGeometry args={[0.13, 0.26, 0.12]} />
+        <meshStandardMaterial color="#191919" roughness={0.55} metalness={0.3} />
+      </mesh>
+      <mesh position={[0, 0, 0.07]}>
+        <boxGeometry args={[0.085, 0.17, 0.02]} />
+        <meshStandardMaterial color="#ffe9a8" emissive="#ffd45a" emissiveIntensity={0.85} />
+      </mesh>
+      <mesh position={[0, 0.16, 0.0]} castShadow>
+        <boxGeometry args={[0.17, 0.05, 0.15]} />
+        <meshStandardMaterial color="#191919" />
+      </mesh>
+    </group>
+  );
+}
+
 /** A small gabled entry portico over the front door: two posts + gable roof. */
 export function EntryPortico({
   x,

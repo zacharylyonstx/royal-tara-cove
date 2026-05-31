@@ -201,17 +201,19 @@ export function brickTexture(color: string): THREE.Texture {
   if (cached) return cached;
   const { ctx, canvas } = makeCanvas(512);
   const base = new THREE.Color(color);
-  const mortar = base.clone().multiplyScalar(0.5);
+  // Light mortar joints (real brick has pale grey-tan mortar, not dark).
+  const mortar = base.clone().lerp(new THREE.Color('#cfc9bc'), 0.78);
   const to255 = (c: THREE.Color) =>
     [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)] as const;
+  const clamp = (v: number) => Math.max(0, Math.min(255, v)) | 0;
   const [mr, mg, mb] = to255(mortar);
-  ctx.fillStyle = `rgb(${mr},${mg},${mb})`; // mortar base
+  ctx.fillStyle = `rgb(${mr},${mg},${mb})`;
   ctx.fillRect(0, 0, 512, 512);
 
   const [br, bg, bb] = to255(base);
-  const brickW = 64;
-  const brickH = 24;
-  const m = 4;
+  const brickW = 60;
+  const brickH = 22;
+  const m = 4; // mortar joint width
   for (let row = 0; row * brickH < 512; row++) {
     const offset = (row % 2) * (brickW / 2);
     for (let col = -1; col * brickW < 512; col++) {
@@ -219,21 +221,24 @@ export function brickTexture(color: string): THREE.Texture {
       const y = row * brickH + m / 2;
       const w = brickW - m;
       const h = brickH - m;
-      // Per-brick brightness variance around the base color
-      const v = 0.86 + Math.random() * 0.28;
-      const jit = () => (Math.random() - 0.5) * 18;
-      const r = Math.max(0, Math.min(255, br * v + jit()));
-      const g = Math.max(0, Math.min(255, bg * v + jit()));
-      const b = Math.max(0, Math.min(255, bb * v + jit()));
-      ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
+      // Strong per-brick tonal variance — multi-tone "blend" look. A few bricks
+      // are noticeably flashed (darker) or lighter than the family.
+      const roll = Math.random();
+      const v = roll < 0.14 ? 0.66 + Math.random() * 0.14   // flashed/dark brick
+        : roll > 0.86 ? 1.12 + Math.random() * 0.16          // light brick
+        : 0.84 + Math.random() * 0.3;                        // normal spread
+      const jit = () => (Math.random() - 0.5) * 22;
+      ctx.fillStyle = `rgb(${clamp(br * v + jit())},${clamp(bg * v + jit())},${clamp(bb * v + jit())})`;
       ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = 'rgba(0,0,0,0.07)';
-      for (let i = 0; i < 6; i++) {
-        ctx.fillRect(x + Math.random() * w, y + Math.random() * h, 1, 1);
+      // Mottled speckle within the brick (light + dark grains).
+      for (let i = 0; i < 14; i++) {
+        const dark = Math.random() < 0.5;
+        ctx.fillStyle = dark ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.08)';
+        ctx.fillRect(x + Math.random() * w, y + Math.random() * h, 1.4, 1.4);
       }
     }
   }
-  const tex = finish(canvas, [2.5, 2.5]);
+  const tex = finish(canvas, [3, 3]);
   cache.set(key, tex);
   return tex;
 }

@@ -77,7 +77,7 @@ export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
       // directly on top of the front door (-halfW + 2.4), blocking entry.
       out.set(h.address, {
         address: h.address,
-        vehicleColor: '#3a5e96', // bright navy F-150 for Zak
+        vehicleColor: '#3f72c4', // bright blue F-150 for Zak
         tags,
       });
       continue;

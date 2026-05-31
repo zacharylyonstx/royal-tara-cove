@@ -6,7 +6,7 @@ import type { HouseConfig, Lot } from '../types';
 import { Roof } from './Roof';
 import { Door } from './Door';
 import { HouseInterior } from './HouseInterior';
-import { WindowUnit, EntryPortico } from './houseDetail';
+import { WindowUnit, EntryPortico, GableAccent, CoachLight } from './houseDetail';
 import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 
@@ -17,13 +17,15 @@ const DOOR_W = 1.05;
 const DOOR_H = 2.15;
 const WALL_T = 0.18;
 
-// Rich, VARIED facade palettes — selected per house from the address seed so
-// every home on the street looks distinct (red brick, brown, tan, buff…).
-const BRICKS = ['#a8503c', '#b56e4a', '#7d5844', '#c2895c', '#9a6450', '#ccac7d', '#8c4a38', '#b88a62', '#a35a46', '#d0b489'];
-const SIDINGS = ['#d8c9a6', '#e4d9be', '#c6d0c2', '#c3cdd5', '#cdc7bb', '#dccfb4', '#bcc6bf', '#e0d3b6'];
-const ROOFS = ['#6f6a62', '#5e5a53', '#74695c', '#827b70', '#665e54', '#6b6258'];
-const DOORS = ['#3c2a1a', '#243a4e', '#5a2828', '#2d4a2d', '#1d1d1d', '#6b3a1a', '#3a2342'];
-const SHUTTERS = ['#2a2a2a', '#33433a', '#26303f', '#4a3422', '#5a2828', '#2d3b2d'];
+// Authentic Avery Ranch / Acme-brick + James-Hardie palettes (researched: real
+// DR Horton 2004-2010 tract homes). Selected per house from the address seed so
+// every home on the street looks distinct.
+const BRICKS = ['#9e4b3c', '#8a4636', '#985641', '#6e4a38', '#a06b4e', '#c2a878', '#cbb893', '#a8987e'];
+const SIDINGS = ['#c9b79c', '#a8997e', '#b3a894', '#cfc4b0', '#d8ccad', '#9fa288', '#c2cac4', '#7c8b92'];
+const ROOFS = ['#5b4e3f', '#6a6258', '#4a4843', '#5e5a53', '#6b6258'];
+const DOORS = ['#7a4e2c', '#3a2a1e', '#1c1c1a', '#27374b', '#34433a', '#6e2a24', '#ede7da'];
+// Shutter colours, black-weighted (black listed twice).
+const SHUTTERS = ['#1c1c1a', '#1c1c1a', '#2b2520', '#23352a', '#5a2a24', '#1f2a3c'];
 
 function seedFor(address: string): number {
   let h = 0;
@@ -57,8 +59,10 @@ export function House({ config, lot }: HouseProps) {
   const roofColor = ROOFS[(seed >> 6) % ROOFS.length];
   const doorColor = DOORS[(seed >> 9) % DOORS.length];
   const shutterColor = SHUTTERS[(seed >> 11) % SHUTTERS.length];
-  const trimColor = '#f4f1e8';
+  const trimColor = '#f2efe8';
   const winGrid = (seed >> 7) % 3; // 0=2x2, 1=3x2, 2=2x3 grid style
+  const hasShutters = (seed % 4) !== 0; // ~75% of houses have shutters
+  const hasFrontGable = config.stories === 2 && !config.hipped && ((seed >> 4) & 1) === 0; // ~half of 2-story
   const sidingMaterial = mat.lapSiding(sidingColor);
   const brickMaterial = mat.brick(brickColor);
 
@@ -278,7 +282,6 @@ export function House({ config, lot }: HouseProps) {
       <FacadeDetail
         width={config.width}
         depth={config.depth}
-        wallH={wallH}
         stories={config.stories}
         garageOnLeft={config.garageOnLeft}
         garageCenterX={garageCenterX}
@@ -286,12 +289,25 @@ export function House({ config, lot }: HouseProps) {
         halfD={halfD}
         halfW={halfW}
         trimColor={trimColor}
-        shutterColor={shutterColor}
+        shutterColor={hasShutters ? shutterColor : null}
         winGrid={winGrid}
       />
 
-      {/* Covered entry over the front door */}
+      {/* Covered entry over the front door + coach light */}
       <EntryPortico x={doorCenterX} z={-halfD - 0.05} doorH={DOOR_H} postColor={trimColor} roofColor={roofColor} />
+      <CoachLight position={[doorCenterX + (config.garageOnLeft ? -1.0 : 1.0), 1.9, -halfD - 0.12]} />
+
+      {/* Front-facing siding gable over the garage (box-breaker, 2-story) */}
+      {hasFrontGable && (
+        <GableAccent
+          centerX={garageCenterX}
+          baseY={wallH + 0.1}
+          width={GARAGE_W + 1.4}
+          height={Math.min(2.0, (GARAGE_W + 1.4) / 4)}
+          z={-halfD - 0.04}
+          sidingColor={sidingColor}
+        />
+      )}
 
       {/* Foundation shrubs along the front (non-garage side) */}
       <FoundationShrubs halfW={halfW} halfD={halfD} garageOnLeft={config.garageOnLeft} seed={seed} />
@@ -304,11 +320,22 @@ export function House({ config, lot }: HouseProps) {
         z={-halfD - 0.06}
       />
 
-      {/* Soffit shadow line under eaves (subtle) */}
-      <mesh position={[0, wallH + 0.05, 0]}>
-        <boxGeometry args={[config.width + 0.6, 0.06, config.depth + 0.6]} />
-        <meshStandardMaterial color="#6a5d48" />
+      {/* Fascia/soffit band under the eaves (crisp white) + thin shadow reveal */}
+      <mesh position={[0, wallH + 0.12, 0]}>
+        <boxGeometry args={[config.width + 0.62, 0.14, config.depth + 0.62]} />
+        <meshStandardMaterial color="#f2efe8" roughness={0.7} />
       </mesh>
+      <mesh position={[0, wallH + 0.02, 0]}>
+        <boxGeometry args={[config.width + 0.5, 0.06, config.depth + 0.5]} />
+        <meshStandardMaterial color="#3a342a" />
+      </mesh>
+      {/* Belt course where brick (1st story) meets siding (2-story only) */}
+      {config.stories === 2 && (
+        <mesh position={[0, STORY_H + 0.05, -halfD - 0.06]} castShadow>
+          <boxGeometry args={[config.width + 0.1, 0.16, 0.12]} />
+          <meshStandardMaterial color={trimColor} roughness={0.7} />
+        </mesh>
+      )}
       </group> {/* end bodyRef wrapper */}
 
       {/* Cozy living room — every house is enterable. Renders only when near. */}
@@ -344,54 +371,62 @@ function FoundationShrubs({ halfW, halfD, garageOnLeft, seed }: { halfW: number;
   return <>{shrubs}</>;
 }
 
-/** All windows (front + both sides + upper floor) + shutters for a house. */
+/** Windows on EVERY elevation. Front: colonial grids + shutters; sides/rear:
+ *  plain glass, no shutters (the real DR Horton cost-saving pattern). */
 function FacadeDetail({
-  width, depth, wallH, stories, garageOnLeft, garageCenterX, doorCenterX, halfD, halfW, trimColor, shutterColor, winGrid,
+  width, depth, stories, garageOnLeft, garageCenterX, doorCenterX, halfD, halfW, trimColor, shutterColor, winGrid,
 }: {
-  width: number; depth: number; wallH: number; stories: 1 | 2;
+  width: number; depth: number; stories: 1 | 2;
   garageOnLeft: boolean; garageCenterX: number; doorCenterX: number;
-  halfD: number; halfW: number; trimColor: string; shutterColor: string; winGrid: number;
+  halfD: number; halfW: number; trimColor: string; shutterColor: string | null; winGrid: number;
 }) {
-  void width; void wallH;
-  const z = -halfD - 0.05;
-  const [cols, rows] = winGrid === 1 ? [3, 2] : winGrid === 2 ? [2, 3] : [2, 2];
+  const fz = -halfD - 0.05; // front, glazing faces the street (-Z)
+  const [fc, fr] = winGrid === 2 ? [2, 3] : [3, 2]; // front colonial grid
+  const sc = shutterColor; // null = this house has no shutters
   const wins: React.ReactElement[] = [];
 
-  // --- Front: living-room picture window in the gap between garage + door ---
+  // --- FRONT: mulled living-room picture window (anchor) + shutters ---
   const garageInner = garageOnLeft ? garageCenterX + GARAGE_W / 2 : garageCenterX - GARAGE_W / 2;
   const doorInner = garageOnLeft ? doorCenterX - DOOR_W / 2 : doorCenterX + DOOR_W / 2;
   const lrX = (garageInner + doorInner) / 2;
   wins.push(
-    <WindowUnit key="lr" position={[lrX, 1.55, z]} w={1.9} h={1.5} cols={3} rows={2} trimColor={trimColor} shutters shutterColor={shutterColor} />,
+    <WindowUnit key="lr" position={[lrX, 1.55, fz]} w={2.3} h={1.5} cols={4} rows={2} trimColor={trimColor} shutters={!!sc} shutterColor={sc ?? undefined} facing="-z" />,
   );
 
-  // --- Upper-floor front windows (2-story) ---
+  // --- FRONT upper-floor windows (2-story) ---
   if (stories === 2) {
     const upY = STORY_H + 1.55;
-    [garageCenterX - 1.3, garageCenterX + 1.3, doorCenterX].forEach((x, i) => {
+    [garageCenterX - 1.4, garageCenterX + 1.4, doorCenterX].forEach((x, i) => {
       wins.push(
-        <WindowUnit key={`uf${i}`} position={[x, upY, z]} w={1.0} h={1.25} cols={cols} rows={rows} trimColor={trimColor} shutters shutterColor={shutterColor} />,
+        <WindowUnit key={`uf${i}`} position={[x, upY, fz]} w={1.0} h={1.3} cols={fc} rows={fr} trimColor={trimColor} shutters={!!sc} shutterColor={sc ?? undefined} facing="-z" />,
       );
     });
   }
 
-  // --- Side windows (both sides) facing outward ---
+  // --- SIDE windows: plain glass, no grid, no shutters ---
   const sideZ = [-depth * 0.24, depth * 0.12];
   for (const side of [-1, 1] as const) {
-    const x = side * (halfW + 0.06);
+    const x = side * (halfW + 0.05);
     const facing: 'x' | '-x' = side === 1 ? 'x' : '-x';
     sideZ.forEach((sz, i) => {
-      wins.push(
-        <WindowUnit key={`s${side}_${i}`} position={[x, 1.5, sz]} w={1.0} h={1.25} cols={2} rows={2} trimColor={trimColor} facing={facing} />,
-      );
+      wins.push(<WindowUnit key={`s${side}_${i}`} position={[x, 1.5, sz]} w={1.0} h={1.3} cols={1} rows={1} trimColor={trimColor} facing={facing} />);
     });
     if (stories === 2) {
       sideZ.forEach((sz, i) => {
-        wins.push(
-          <WindowUnit key={`su${side}_${i}`} position={[x, STORY_H + 1.5, sz]} w={0.9} h={1.05} cols={2} rows={2} trimColor={trimColor} facing={facing} />,
-        );
+        wins.push(<WindowUnit key={`su${side}_${i}`} position={[x, STORY_H + 1.5, sz]} w={0.9} h={1.1} cols={1} rows={1} trimColor={trimColor} facing={facing} />);
       });
     }
+  }
+
+  // --- REAR: kitchen + family windows + a sliding patio door ---
+  const rz = halfD + 0.05;
+  wins.push(<WindowUnit key="r1" position={[-width * 0.26, 1.5, rz]} w={1.4} h={1.3} cols={1} rows={1} trimColor={trimColor} facing="z" />);
+  wins.push(<WindowUnit key="r2" position={[width * 0.3, 1.5, rz]} w={1.0} h={1.3} cols={1} rows={1} trimColor={trimColor} facing="z" />);
+  wins.push(<WindowUnit key="patio" position={[width * 0.02, 1.15, rz]} w={1.9} h={2.1} cols={2} rows={1} trimColor={trimColor} facing="z" />);
+  if (stories === 2) {
+    [-width * 0.28, 0, width * 0.28].forEach((x, i) => {
+      wins.push(<WindowUnit key={`ru${i}`} position={[x, STORY_H + 1.5, rz]} w={0.9} h={1.1} cols={1} rows={1} trimColor={trimColor} facing="z" />);
+    });
   }
 
   return <>{wins}</>;
