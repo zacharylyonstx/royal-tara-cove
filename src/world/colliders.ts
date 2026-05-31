@@ -18,21 +18,42 @@ const FENCE_THICKNESS = 0.15;
 export function buildColliders(houses: HouseConfig[], lots: Lot[]): RectCollider[] {
   const out: RectCollider[] = [];
 
-  // ---- House bodies as OBBs (matching the visible house exactly) ----
+  // ---- House bodies: piecewise wall OBBs with a front-door GAP so every
+  // house is enterable (walk in through the open door). Hero house emits its
+  // own walls via buildHeroExteriorColliders, so skip it here. ----
+  const WALL_T = 0.3;
+  // Gap slightly NARROWER than the door collider (1.05 m wide) so a closed door
+  // fully seals it; opening the door lets you walk in.
+  const DOOR_GAP_HALF = 0.5;
+  const pushWall = (
+    pivotX: number, pivotZ: number, yaw: number,
+    lcx: number, lcz: number, sx: number, sz: number, maxY: number, tag: string,
+  ) => {
+    if (sx <= 0.02 || sz <= 0.02) return;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const wx = pivotX + lcx * cy + lcz * sy;
+    const wz = pivotZ - lcx * sy + lcz * cy;
+    out.push({ minX: wx - sx / 2, maxX: wx + sx / 2, minZ: wz - sz / 2, maxZ: wz + sz / 2, minY: 0, maxY, yaw, tag });
+  };
   for (const h of houses) {
-    // Hero house emits piecewise wall colliders (with door gaps) via
-    // buildHeroExteriorColliders, so skip the solid body here.
     if (h.isHero) continue;
     const tx = houseTransform(h.position, h.depth);
     const halfW = h.width / 2;
     const halfD = h.depth / 2;
-    out.push({
-      minX: tx.worldX - halfW, maxX: tx.worldX + halfW,
-      minZ: tx.worldZ - halfD, maxZ: tx.worldZ + halfD,
-      minY: 0, maxY: h.stories * 3 + 2,
-      yaw: tx.yaw,
-      tag: `house-${h.address}`,
-    });
+    const maxY = h.stories * 3 + 0.5;
+    const doorCenterX = h.garageOnLeft ? halfW - 1.6 : -halfW + 1.6;
+    const dl = doorCenterX - DOOR_GAP_HALF;
+    const dr = doorCenterX + DOOR_GAP_HALF;
+    const p = (lcx: number, lcz: number, sx: number, sz: number, tag: string) =>
+      pushWall(tx.worldX, tx.worldZ, tx.yaw, lcx, lcz, sx, sz, maxY, `house-${h.address}-${tag}`);
+    // Front wall split around the front-door gap.
+    p((-halfW + dl) / 2, -halfD, dl - -halfW, WALL_T, 'front-l');
+    p((dr + halfW) / 2, -halfD, halfW - dr, WALL_T, 'front-r');
+    // Back + side walls (solid).
+    p(0, halfD, 2 * halfW, WALL_T, 'back');
+    p(-halfW, 0, WALL_T, 2 * halfD, 'side-l');
+    p(halfW, 0, WALL_T, 2 * halfD, 'side-r');
   }
 
   // ---- Fence segments as thin OBBs along the actual segment line ----

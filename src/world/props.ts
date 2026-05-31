@@ -89,7 +89,7 @@ export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
       tags.add(prng.chance(0.55) ? 'truck' : 'sedan');
       vehicleColor = prng.pick(VEHICLE_COLORS);
     }
-    if (prng.chance(0.30)) tags.add('hoop');
+    // Basketball hoop is ONLY at 10600 (the family home) — no neighbor hoops.
     if (prng.chance(0.55)) tags.add('bins');
     if (prng.chance(0.70)) tags.add('patio');
     if (prng.chance(0.40)) tags.add('gardenBed');

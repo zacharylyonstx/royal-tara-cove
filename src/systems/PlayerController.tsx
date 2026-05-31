@@ -510,10 +510,10 @@ function doShoot(
   let vx = (best.x - x0) / T;
   let vz = (best.z - z0) / T;
   let vy = (ty - y0 + 0.5 * BALL_G * T * T) / T;
-  // A touch of error so it isn't robotic (kids still mostly make it).
-  vx *= 1 + (Math.random() - 0.5) * 0.06;
-  vz *= 1 + (Math.random() - 0.5) * 0.06;
-  vy += (Math.random() - 0.5) * 0.5;
+  // A tiny bit of error so it isn't robotic, but kids reliably make it.
+  vx *= 1 + (Math.random() - 0.5) * 0.03;
+  vz *= 1 + (Math.random() - 0.5) * 0.03;
+  vy += (Math.random() - 0.5) * 0.25;
 
   play.shoot(ballId, by, vx, vy, vz, performance.now());
 }

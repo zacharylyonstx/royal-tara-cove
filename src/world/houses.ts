@@ -16,12 +16,12 @@ import { straightZ } from './streetLayout';
 // Lighter, warmer Avery Ranch brick tones — the old set read as dark maroon,
 // especially on shadowed front walls. These are noticeably lighter + varied.
 const BRICK = {
-  redBrown: '#c2886a',
-  rust: '#cc9472',
-  umber: '#b9866a',
-  clay: '#c89070',
-  mocha: '#bd8462',
-  buff: '#d4ab88',
+  redBrown: '#cd967a',
+  rust: '#d6a182',
+  umber: '#c6957a',
+  clay: '#d29d7e',
+  mocha: '#ca9474',
+  buff: '#ddb999',
 } as const;
 
 const SIDING = {

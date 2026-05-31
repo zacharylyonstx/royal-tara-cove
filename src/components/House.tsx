@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import type { HouseConfig, Lot } from '../types';
 import { Roof } from './Roof';
 import { Door } from './Door';
+import { HouseInterior } from './HouseInterior';
 import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 
@@ -245,7 +246,6 @@ export function House({ config, lot }: HouseProps) {
         houseWorldX={lot.housePivot[0]}
         houseWorldZ={lot.housePivot[1]}
         houseYaw={lot.houseYaw}
-        decorative
       />
 
       {/* Garage door */}
@@ -276,6 +276,15 @@ export function House({ config, lot }: HouseProps) {
         <meshStandardMaterial color="#6a5d48" />
       </mesh>
       </group> {/* end bodyRef wrapper */}
+
+      {/* Cozy living room — every house is enterable. Renders only when near. */}
+      <HouseInterior
+        width={config.width}
+        depth={config.depth}
+        worldX={lot.housePivot[0]}
+        worldZ={lot.housePivot[1]}
+        seed={config.address.charCodeAt(2) * 13 + config.address.charCodeAt(4) * 7}
+      />
     </group>
   );
 }

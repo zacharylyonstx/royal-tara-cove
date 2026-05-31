@@ -67,7 +67,8 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
       // Hoop is drawn with rotation=Math.PI, so its local rim (0,2.85,0.65)
       // sits at house-local (hoopX, 2.85, hoopZ-0.65).
       const rim = toWorld(hoopX, 2.85, hoopZ - 0.65, pivot, yaw);
-      usePlayStore.getState().registerHoop(config.address, { x: rim[0], z: rim[2], rimY: rim[1], rimR: 0.32 });
+      // Forgiving scoring radius so the kids reliably make baskets.
+      usePlayStore.getState().registerHoop(config.address, { x: rim[0], z: rim[2], rimY: rim[1], rimR: 0.5 });
     }
     if (data.tags.has('bike')) {
       const bx = garageCenterX - (config.garageOnLeft ? 1.6 : -1.6);
@@ -187,9 +188,18 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
       </group>
 
       {/* World-space sibling group for physics-driven / player-aware props. */}
-      {data.tags.has('hoop') && (
-        <Basketball id={`${config.address}-ball`} position={toWorld(ballLocal[0], ballLocal[1], ballLocal[2], lot.housePivot, lot.houseYaw)} />
-      )}
+      {/* A few basketballs in the driveway so the whole family can play together. */}
+      {data.tags.has('hoop') && [
+        [ballLocal[0], 0, ballLocal[2]],
+        [ballLocal[0] + 1.3, 0, ballLocal[2] + 0.5],
+        [ballLocal[0] - 0.7, 0, ballLocal[2] + 1.0],
+      ].map((bl, i) => (
+        <Basketball
+          key={i}
+          id={`${config.address}-ball-${i}`}
+          position={toWorld(bl[0], bl[1], bl[2], lot.housePivot, lot.houseYaw)}
+        />
+      ))}
       {config.isHero && (
         <Cat
           position={toWorld(catLocal[0], catLocal[1], catLocal[2], lot.housePivot, lot.houseYaw)}
