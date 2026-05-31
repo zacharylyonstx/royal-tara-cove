@@ -99,11 +99,17 @@ export function resolveMotion(
   endX: number,
   endZ: number,
   colliders: RectCollider[],
+  /** Player feet Y. When provided, colliders outside [minY,maxY] are ignored, so
+   *  upstairs walls (minY=3) don't block downstairs and vice-versa. Omit for the
+   *  old 2D behavior (NPCs, etc.). */
+  py?: number,
 ): { x: number; z: number; collidedX: boolean; collidedZ: boolean } {
   let x = startX;
   let z = startZ;
   let collidedX = false;
   let collidedZ = false;
+  const outOfY = (c: RectCollider) =>
+    py !== undefined && (py < (c.minY ?? 0) || py > (c.maxY ?? 6));
 
   // X first (axis-aligned colliders only)
   if (endX !== startX) {
@@ -112,6 +118,7 @@ export function resolveMotion(
     for (const c of colliders) {
       if (c.passable) continue;
       if (c.yaw) continue;
+      if (outOfY(c)) continue;
       if (
         allowed + PLAYER_RADIUS > c.minX &&
         allowed - PLAYER_RADIUS < c.maxX &&
@@ -141,6 +148,7 @@ export function resolveMotion(
     for (const c of colliders) {
       if (c.passable) continue;
       if (c.yaw) continue;
+      if (outOfY(c)) continue;
       if (
         x + PLAYER_RADIUS > c.minX &&
         x - PLAYER_RADIUS < c.maxX &&
@@ -170,6 +178,7 @@ export function resolveMotion(
     let pushed = false;
     for (const c of colliders) {
       if (c.passable || !c.yaw) continue;
+      if (outOfY(c)) continue;
       const result = pushOutOfOBB(c, x, z);
       if (result.hit) {
         x = result.x;

@@ -198,14 +198,16 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       />
 
       {/* --- Front-yard memory landmarks --- */}
-      {/* The big live oak on the LEFT front yard with a circular brick ring. */}
-      <LiveOak position={[halfW - 1.5, 0, -halfD - 5.2]} scale={1.55} seed={4} />
-      <mesh position={[halfW - 1.5, 0.09, -halfD - 5.2]} receiveShadow>
-        <cylinderGeometry args={[1.5, 1.5, 0.18, 22]} />
+      {/* The big live oak in the front yard, set off to the side (NOT in front of the
+          door) with a circular brick ring. Scaled down a touch so it frames the house
+          instead of swallowing the facade. */}
+      <LiveOak position={[6, 0, -halfD - 7.5]} scale={1.05} seed={4} />
+      <mesh position={[6, 0.09, -halfD - 7.5]} receiveShadow>
+        <cylinderGeometry args={[1.3, 1.3, 0.18, 22]} />
         <meshStandardMaterial color="#a8835f" roughness={0.9} />
       </mesh>
-      <mesh position={[halfW - 1.5, 0.16, -halfD - 5.2]} receiveShadow>
-        <cylinderGeometry args={[1.25, 1.25, 0.1, 22]} />
+      <mesh position={[6, 0.16, -halfD - 7.5]} receiveShadow>
+        <cylinderGeometry args={[1.05, 1.05, 0.1, 22]} />
         <meshStandardMaterial color="#4a3526" roughness={1} />
       </mesh>
       {/* Rounded shrub mass along the front, in front of the formal window. */}
@@ -746,7 +748,7 @@ export function buildInteriorColliders(config: HouseConfig, lot: Lot): RectColli
         if (wz < minZ) minZ = wz;
         if (wz > maxZ) maxZ = wz;
       }
-      out.push({ minX, maxX, minZ, maxZ, minY: 0, maxY: 3, tag: `interior-${w.tag}-${i}` });
+      out.push({ minX, maxX, minZ, maxZ, minY: 0, maxY: 2.9, tag: `interior-${w.tag}-${i}` });
     }
   }
   return out;
@@ -857,6 +859,51 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
     { ...columnFloor, baseY: STORY_H, topY: STORY_H },
     { ...gameFloor, baseY: STORY_H, topY: STORY_H },
   ];
+}
+
+// Upstairs bedroom/hall walls (must mirror the UpWall calls in StairsAndLoft.tsx).
+// minY 2.95 means they only block the player when upstairs (resolveMotion is now
+// Y-aware), so they don't block the open great room below.
+const UP_WT = 0.14;
+const UPSTAIRS_WALLS: { axis: 'x' | 'z'; at: number; from: number; to: number }[] = [
+  { axis: 'z', at: -4, from: -9, to: -1.5 },     // master east wall (faces the void)
+  { axis: 'x', at: -1.5, from: -12, to: -7.0 },  // master back wall (left of the door gap)
+  { axis: 'x', at: -1.5, from: -6.0, to: -4 },   // master back wall (right of the door gap)
+  { axis: 'x', at: 2.0, from: -12, to: -10.6 },  // Penny/Luke front wall (3 segments)
+  { axis: 'x', at: 2.0, from: -9.4, to: -6.6 },
+  { axis: 'x', at: 2.0, from: -5.4, to: -4 },
+  { axis: 'z', at: -7.75, from: 2.0, to: 9 },    // Penny / Luke divider
+  { axis: 'z', at: -4, from: 2.0, to: 9 },       // kids ↔ game-room divider
+];
+
+export function buildHeroUpstairsColliders(_config: HouseConfig, lot: Lot): RectCollider[] {
+  const cy = Math.cos(lot.houseYaw);
+  const sy = Math.sin(lot.houseYaw);
+  const out: RectCollider[] = [];
+  UPSTAIRS_WALLS.forEach((w, i) => {
+    const center = (w.from + w.to) / 2;
+    const span = w.to - w.from;
+    const halfA = span / 2;
+    const halfB = UP_WT / 2;
+    let cx: number, cz: number, halfX: number, halfZ: number;
+    if (w.axis === 'x') { cx = center; cz = w.at; halfX = halfA; halfZ = halfB; }
+    else { cx = w.at; cz = center; halfX = halfB; halfZ = halfA; }
+    const corners: [number, number][] = [
+      [cx - halfX, cz - halfZ], [cx + halfX, cz - halfZ],
+      [cx + halfX, cz + halfZ], [cx - halfX, cz + halfZ],
+    ];
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [lx, lz] of corners) {
+      const wx = lot.housePivot[0] + lx * cy + lz * sy;
+      const wz = lot.housePivot[1] - lx * sy + lz * cy;
+      if (wx < minX) minX = wx;
+      if (wx > maxX) maxX = wx;
+      if (wz < minZ) minZ = wz;
+      if (wz > maxZ) maxZ = wz;
+    }
+    out.push({ minX, maxX, minZ, maxZ, minY: 2.95, maxY: 5.3, tag: `upstairs-${i}` });
+  });
+  return out;
 }
 
 export function buildPorchColliders(config: HouseConfig, lot: Lot): RectCollider[] {

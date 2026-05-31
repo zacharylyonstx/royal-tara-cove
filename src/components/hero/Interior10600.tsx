@@ -167,7 +167,11 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
           brick shows inside, matching the real cream-walled entry. */}
       <mesh position={[4, 4.45, -8.85]}><boxGeometry args={[16, 2.1, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       <mesh position={[-2.35, 1.7, -8.85]}><boxGeometry args={[3.3, 3.4, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
-      <mesh position={[7.25, 1.7, -8.85]}><boxGeometry args={[9.5, 3.4, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* right of window — SPLIT around the front door (x≈9.45..10.55, h=2.2) so you
+          don't walk into a wall when you enter */}
+      <mesh position={[5.975, 1.7, -8.85]}><boxGeometry args={[6.95, 3.4, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[11.275, 1.7, -8.85]}><boxGeometry args={[1.45, 3.4, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[10, 2.8, -8.85]}><boxGeometry args={[1.1, 1.2, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       <mesh position={[0.9, 0.3, -8.85]}><boxGeometry args={[3.2, 0.6, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       {/* Tall formal window (interior glass) filling the cream frame, so the exterior
           brick can't show through — the real cream-walled entry window. */}
@@ -180,11 +184,31 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
           <mesh key={`mh${i}`} position={[0, dy, 0.02]}><boxGeometry args={[3.34, 0.07, 0.06]} /><meshStandardMaterial color="#fff" /></mesh>
         ))}
       </group>
+      {/* Sheer white curtains framing the tall window (drawn open), like the real entry */}
+      <mesh position={[0.9, 3.55, -8.66]} castShadow><boxGeometry args={[3.9, 0.08, 0.08]} /><meshStandardMaterial color="#b8a888" metalness={0.3} roughness={0.5} /></mesh>
+      {[-0.9, 2.7].map((cx, i) => (
+        <mesh key={`curt-${i}`} position={[cx, 1.95, -8.66]} castShadow>
+          <boxGeometry args={[0.6, 3.1, 0.05]} />
+          <meshStandardMaterial color="#f6f3ec" roughness={1} transparent opacity={0.6} />
+        </mesh>
+      ))}
       {/* master front (z=-9, over the garage) — line the whole upstairs face cream */}
       <mesh position={[-8, 4.25, -8.85]}><boxGeometry args={[8, 2.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
       {/* back wall (z=9, yard side) — lined IN FRONT of the wall's inner face so the
-          upstairs bedrooms don't show exterior siding. Yard windows sit in front of this. */}
-      <mesh position={[0, 2.75, 8.82]}><boxGeometry args={[24, 5.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+          upstairs bedrooms don't show exterior siding. SPLIT around the patio slider
+          (x≈-0.6..1.6, y=0..2.4) so the glass door reads see-through to the backyard. */}
+      <mesh position={[-6.3, 2.75, 8.82]}><boxGeometry args={[11.4, 5.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[6.8, 2.75, 8.82]}><boxGeometry args={[10.4, 5.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[0.5, 3.95, 8.82]}><boxGeometry args={[2.2, 3.1, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* Sliding glass patio door (interior pane) — see-through to the deck/pool */}
+      <group position={[0.5, 1.1, 8.72]}>
+        <mesh><boxGeometry args={[2.0, 2.2, 0.04]} /><meshStandardMaterial color="#bfe0ef" emissive="#dff0f8" emissiveIntensity={0.3} transparent opacity={0.32} metalness={0.1} roughness={0.1} /></mesh>
+        <mesh position={[0, 0, 0.03]}><boxGeometry args={[0.08, 2.2, 0.05]} /><meshStandardMaterial color="#f0ece0" /></mesh>
+        <mesh position={[0, 1.12, 0.03]}><boxGeometry args={[2.08, 0.08, 0.05]} /><meshStandardMaterial color="#f0ece0" /></mesh>
+        {[-1.02, 1.02].map((dx, i) => (
+          <mesh key={`pf${i}`} position={[dx, 0, 0.03]}><boxGeometry args={[0.08, 2.24, 0.05]} /><meshStandardMaterial color="#f0ece0" /></mesh>
+        ))}
+      </group>
 
       {/* Open staircase (right side, behind the garage) + the full second floor. */}
       <Stairs />

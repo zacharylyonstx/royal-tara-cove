@@ -22,6 +22,7 @@ import { mat } from '../world/materials';
 import {
   HeroHouse10600,
   buildInteriorColliders,
+  buildHeroUpstairsColliders,
   buildPorchColliders,
   buildHeroFloors,
   buildHeroExteriorColliders,
@@ -120,6 +121,7 @@ export function Game() {
       const heroLot = lotsByAddress.get(hero.address)!;
       extra = [
         ...buildInteriorColliders(hero, heroLot),
+        ...buildHeroUpstairsColliders(hero, heroLot),
         ...buildPorchColliders(hero, heroLot),
         ...buildHeroExteriorColliders(hero, heroLot),
       ];

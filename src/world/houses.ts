@@ -76,8 +76,10 @@ export const HOUSES: HouseConfig[] = [
   },
   {
     // The hero house — Zak's family home, on the bulb at the end of the cul-de-sac.
+    // radiusOffset sets it deeper in its (apex) lot so the widened body doesn't
+    // crowd the flanking neighbors.
     address: '10600',
-    position: { kind: 'bulb', angleDeg: 90 },
+    position: { kind: 'bulb', angleDeg: 90, radiusOffset: 6 },
     width: 24, depth: 18, stories: 2,
     // The real 10600: tan/beige brick + cream siding (per the family memory spec).
     // garageOnLeft: true -> garage on the viewer's RIGHT (-X), front door + oak on

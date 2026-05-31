@@ -292,7 +292,7 @@ export function PlayerController() {
         if (door.open) continue;
         allColliders.push(door.aabbWhenClosed);
       }
-      const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
+      const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders, pos.y);
       pos.x = resolved.x;
       pos.z = resolved.z;
 

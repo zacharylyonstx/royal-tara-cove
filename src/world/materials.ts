@@ -20,7 +20,7 @@ import {
 // Lazily-built shared materials. Calling `mat.X()` from React components is
 // fine as long as we're inside the canvas (browser env).
 
-let cached: {
+const cached: {
   grass?: THREE.Material;
   asphalt?: THREE.Material;
   concrete?: THREE.Material;
@@ -221,9 +221,11 @@ export const mat = {
   carWindow(): THREE.Material {
     if (cached.carWindow) return cached.carWindow;
     cached.carWindow = new THREE.MeshStandardMaterial({
-      color: '#0a0e14',
-      roughness: 0.2,
-      metalness: 0.5,
+      color: '#33485f',
+      roughness: 0.15,
+      metalness: 0.4,
+      emissive: '#22384e',
+      emissiveIntensity: 0.5,
     });
     return cached.carWindow;
   },

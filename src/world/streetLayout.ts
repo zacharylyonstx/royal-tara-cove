@@ -38,7 +38,7 @@ export const STRAIGHT_BACK_X = STRAIGHT_HOUSE_FRONT_X + 13 + BACKYARD_DEPTH;   /
 // --- Per-house position type ---
 // A house lives EITHER on the bulb (polar) OR on the straight section (linear).
 export type HousePosition =
-  | { kind: 'bulb'; angleDeg: number }
+  | { kind: 'bulb'; angleDeg: number; radiusOffset?: number }
   | { kind: 'straight'; side: 'east' | 'west'; z: number };
 
 export interface HouseTransform {
@@ -56,7 +56,9 @@ export interface HouseTransform {
 //     yaw α = 90° − θ.
 export function houseTransform(pos: HousePosition, houseDepth: number): HouseTransform {
   if (pos.kind === 'bulb') {
-    const r = HOUSE_FRONT_RADIUS + houseDepth / 2;
+    // radiusOffset pushes a house deeper into its lot (used by the wide hero house
+    // so it doesn't crowd its cul-de-sac neighbors).
+    const r = HOUSE_FRONT_RADIUS + houseDepth / 2 + (pos.radiusOffset ?? 0);
     const rad = (pos.angleDeg * Math.PI) / 180;
     return {
       worldX: Math.cos(rad) * r,
