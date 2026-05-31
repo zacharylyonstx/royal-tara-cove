@@ -41,9 +41,9 @@ export const WALL_THICK = 0.15;
 export const WALL_Y = 1.4;
 
 export const ROOMS: Room[] = [
-  // Front half (z = -8..0). Great room: the formal living/dining (with the loft as
-  // the second floor above its ceiling, reached by the open stairs).
-  { id: 'great',   minX: -9.0, maxX: -1.5, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: true },
+  // Front half (z = -8..0). Great room: the TWO-STORY open living/dining you enter
+  // into. ceiling:false so it's open all the way up — you see the loft railing above.
+  { id: 'great',   minX: -9.0, maxX: -1.5, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: false },
   { id: 'kitchen', minX: -1.5, maxX:  2.0, minZ: -8.0, maxZ:  0.0, floor: 'tile', ceiling: true },
   // Hallway (z = 0..1.5)
   { id: 'hall',    minX: -9.0, maxX:  2.0, minZ:  0.0, maxZ:  1.5, floor: 'wood', ceiling: true },

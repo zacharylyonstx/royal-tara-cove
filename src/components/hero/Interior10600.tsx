@@ -79,6 +79,17 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         );
       })}
 
+      {/* SECOND-FLOOR ceiling at 5.5m sealing the ENTIRE interior footprint, so the
+          two-story open great room is enclosed (no roof void / sky) while still being
+          open above the loft. The great room (ceiling:false) is open up to this; the
+          single-story rooms keep their own 2.95m ceilings below it. */}
+      <mesh position={[-3.5, 5.5, 0]} receiveShadow>
+        <boxGeometry args={[11.4, 0.16, 16.4]} />
+        <meshStandardMaterial color="#f6efe0" emissive="#f3ead4" emissiveIntensity={0.3} />
+      </mesh>
+      {/* High light to fill the two-story volume */}
+      <pointLight position={[-5, 4.6, -4]} intensity={6} distance={12} decay={2} color="#fff2dc" />
+
       {/* Interior wall meshes driven by floorPlan.ts. Each wall splits into 1+
           segments around its door openings, with a header over each opening. */}
       {INTERIOR_WALLS.flatMap((w) => {
@@ -167,22 +178,16 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         );
       })()}
 
-      {/* Family room (great room): olive walls, corner fireplace, ceiling fan —
-          matching the real 10600. */}
-      <Fireplace />
-      {/* Olive accent walls (thin panels just inside the great-room perimeter) */}
-      {[
-        { p: [-8.88, 1.45, -4.0] as [number, number, number], a: [0.04, 2.9, 8.0] as [number, number, number] }, // left wall
-        { p: [-5.25, 1.45, -7.88] as [number, number, number], a: [7.5, 2.9, 0.04] as [number, number, number] }, // front wall
-        { p: [-5.25, 1.45, -0.12] as [number, number, number], a: [7.5, 2.9, 0.04] as [number, number, number] }, // back wall
-      ].map((w, i) => (
-        <mesh key={`olive-${i}`} position={w.p}>
-          <boxGeometry args={w.a} />
-          <meshStandardMaterial color="#8a8a4a" roughness={0.95} />
-        </mesh>
-      ))}
-      {/* Ceiling fan over the family room */}
-      <CeilingFan position={[-5.0, 2.85, -3.5]} />
+      {/* Great room = open two-story formal living/DINING: a dining table under a
+          chandelier (the fireplace lives in the family room, not here). */}
+      <DiningSet position={[-5.6, 0.13, -3.2]} />
+      {/* Cream drywall lining the great room's exterior walls (which otherwise show
+          brick/siding inside), full two-story height so the open space reads clean. */}
+      <mesh position={[-8.9, 2.75, -4]}><boxGeometry args={[0.06, 5.5, 8]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[-5.25, 4.2, -7.9]}><boxGeometry args={[7.5, 2.6, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* upper band over the great-room/back boundary so the two-story void above the
+          loft reads as cream wall, not open roof */}
+      <mesh position={[-1.6, 4.2, -4]}><boxGeometry args={[0.06, 2.6, 8]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
 
       {/* Staircase up to the loft (back-left corner of great room) */}
       <Stairs />
@@ -218,62 +223,36 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
   );
 }
 
-/** Tan-brick CORNER fireplace in the great room's back-left corner, angled 45°
-    into the room (matching the real 10600 family room). */
-function Fireplace() {
-  const brick = mat.brick('#b89270');
-  return (
-    <group position={[-8.0, 0.13, -1.0]} rotation={[0, Math.PI / 4, 0]}>
-      {/* Brick chimney breast, floor to ceiling */}
-      <mesh position={[0.0, 1.45, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.5, 2.74, 1.9]} />
-        <primitive object={brick} attach="material" />
-      </mesh>
-      {/* Raised hearth slab */}
-      <mesh position={[0.42, 0.16, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.85, 0.32, 1.7]} />
-        <primitive object={mat.brick('#a8835f')} attach="material" />
-      </mesh>
-      {/* Firebox: a shallow warm recess (not a bottomless black void) */}
-      <mesh position={[0.34, 0.82, 0]}>
-        <boxGeometry args={[0.18, 0.78, 1.0]} />
-        <meshStandardMaterial color="#3a2418" roughness={1} />
-      </mesh>
-      {/* Logs + ember glow */}
-      <mesh position={[0.4, 0.52, 0]} castShadow>
-        <boxGeometry args={[0.16, 0.1, 0.7]} />
-        <meshStandardMaterial color="#4a3322" roughness={1} />
-      </mesh>
-      <mesh position={[0.42, 0.55, 0]}>
-        <boxGeometry args={[0.14, 0.14, 0.78]} />
-        <meshStandardMaterial color="#ff8a3a" emissive="#ff5a14" emissiveIntensity={1.1} />
-      </mesh>
-      {/* Wood mantle */}
-      <mesh position={[0.5, 1.5, 0]} castShadow>
-        <boxGeometry args={[0.72, 0.16, 1.9]} />
-        <meshStandardMaterial color="#6e4a2a" roughness={0.7} />
-      </mesh>
-    </group>
-  );
-}
-
-/** A simple ceiling fan with a light, like the family room's. */
-function CeilingFan({ position }: { position: [number, number, number] }) {
+/** Dining table + dark chairs under a hanging chandelier — the centerpiece of the
+    open two-story great room (matches the entry photo). */
+function DiningSet({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      {/* downrod */}
-      <mesh position={[0, 0.08, 0]}><cylinderGeometry args={[0.02, 0.02, 0.16, 6]} /><meshStandardMaterial color="#3a2a1c" /></mesh>
-      {/* motor housing */}
-      <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.1, 0.12, 0.1, 12]} /><meshStandardMaterial color="#4a3526" metalness={0.3} /></mesh>
-      {/* blades */}
-      {[0, 1, 2, 3, 4].map((i) => (
-        <mesh key={i} position={[0, -0.02, 0]} rotation={[0, (i * Math.PI * 2) / 5, 0.03]}>
-          <boxGeometry args={[0.62, 0.015, 0.12]} />
-          <meshStandardMaterial color="#6e4a2a" roughness={0.7} />
+      {/* table top */}
+      <mesh position={[0, 0.74, 0]} castShadow receiveShadow>
+        <boxGeometry args={[1.8, 0.06, 1.0]} />
+        <meshStandardMaterial color="#3a2a1e" roughness={0.4} />
+      </mesh>
+      {[[-0.8, -0.42], [0.8, -0.42], [-0.8, 0.42], [0.8, 0.42]].map(([x, z], i) => (
+        <mesh key={`leg${i}`} position={[x, 0.37, z]} castShadow>
+          <boxGeometry args={[0.07, 0.74, 0.07]} /><meshStandardMaterial color="#241810" />
         </mesh>
       ))}
-      {/* light globe */}
-      <mesh position={[0, -0.1, 0]}><sphereGeometry args={[0.08, 10, 10]} /><meshStandardMaterial color="#fff4d6" emissive="#ffe9b0" emissiveIntensity={0.7} /></mesh>
+      {/* six dark chairs, three per long side */}
+      {[-0.58, 0, 0.58].flatMap((z) => [-1.0, 1.0].map((sx) => [sx, z] as [number, number])).map(([sx, z], i) => (
+        <group key={`ch${i}`} position={[sx, 0, z]}>
+          <mesh position={[0, 0.44, 0]} castShadow><boxGeometry args={[0.42, 0.05, 0.42]} /><meshStandardMaterial color="#222226" /></mesh>
+          <mesh position={[sx > 0 ? 0.18 : -0.18, 0.72, 0]} castShadow><boxGeometry args={[0.05, 0.58, 0.42]} /><meshStandardMaterial color="#222226" /></mesh>
+          {[-0.16, 0.16].flatMap((bx) => [-0.16, 0.16].map((bz) => [bx, bz] as [number, number])).map(([bx, bz], j) => (
+            <mesh key={j} position={[bx, 0.21, bz]} castShadow><boxGeometry args={[0.04, 0.42, 0.04]} /><meshStandardMaterial color="#18181a" /></mesh>
+          ))}
+        </group>
+      ))}
+      {/* Hanging chandelier (dark modern box pendant) high in the two-story space */}
+      <mesh position={[0, 2.7, 0]}><cylinderGeometry args={[0.012, 0.012, 1.4, 4]} /><meshStandardMaterial color="#2a2a2c" /></mesh>
+      <mesh position={[0, 1.95, 0]} castShadow><boxGeometry args={[0.52, 0.3, 0.52]} /><meshStandardMaterial color="#34343a" metalness={0.3} roughness={0.5} /></mesh>
+      <mesh position={[0, 1.93, 0]}><boxGeometry args={[0.4, 0.22, 0.4]} /><meshStandardMaterial color="#fff0c0" emissive="#ffe6a0" emissiveIntensity={0.9} /></mesh>
+      <pointLight position={[0, 1.9, 0]} intensity={4} distance={7} decay={2} color="#fff0d0" />
     </group>
   );
 }
