@@ -245,6 +245,7 @@ export function House({ config, lot }: HouseProps) {
         houseWorldX={lot.housePivot[0]}
         houseWorldZ={lot.housePivot[1]}
         houseYaw={lot.houseYaw}
+        decorative
       />
 
       {/* Garage door */}

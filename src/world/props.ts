@@ -46,14 +46,16 @@ class Prng {
   chance(p: number): boolean { return this.next() < p; }
 }
 
+// Brighter, cheerful car colours (no near-black) so vehicles read as real cars.
 const VEHICLE_COLORS = [
-  '#1a3a5e', // navy
-  '#5a1a1a', // dark red
-  '#b08a4a', // tan
-  '#2a2a2a', // black
-  '#a8a8a8', // silver
-  '#3a5a3a', // dark green
-  '#d8d4c8', // off-white
+  '#3a62a8', // blue
+  '#c23a3a', // red
+  '#c6a45c', // gold/tan
+  '#5a6472', // slate gray
+  '#b8b8be', // silver
+  '#4f864f', // green
+  '#e0dacb', // off-white
+  '#cf7a3a', // orange
 ] as const;
 
 export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
@@ -75,7 +77,7 @@ export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
       // directly on top of the front door (-halfW + 2.4), blocking entry.
       out.set(h.address, {
         address: h.address,
-        vehicleColor: '#2a3f5a', // navy F-150 for Zak
+        vehicleColor: '#3a5e96', // bright navy F-150 for Zak
         tags,
       });
       continue;

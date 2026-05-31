@@ -331,8 +331,9 @@ export function PlayerController() {
     // ---- Free-roam play hover (bikes + basketball), non-combat only ----
     const phaseNow = useGameStore.getState().phase;
     const playActive =
-      modeNow === 'aliens' &&
-      (phaseNow === 'free-play' || phaseNow === 'pre-intro' || phaseNow === 'victory');
+      modeNow === 'freeplay' ||
+      (modeNow === 'aliens' &&
+        (phaseNow === 'free-play' || phaseNow === 'pre-intro' || phaseNow === 'victory'));
     const play = usePlayStore.getState();
     if (playActive) {
       const riding = play.riding[activeId];

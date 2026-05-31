@@ -155,7 +155,7 @@ export function Game() {
             )}
             <HousePropsRenderer config={h} lot={lot} data={propsByAddress.get(h.address)!} />
             {/* Per-lot vegetation: 1 live oak in back, 1 crepe myrtle in front */}
-            <LotVegetation address={h.address} lot={lot} depth={h.depth} />
+            <LotVegetation address={h.address} lot={lot} depth={h.depth} width={h.width} garageOnLeft={h.garageOnLeft} />
           </group>
         );
       })}
@@ -351,14 +351,15 @@ function DynamicLights() {
       dirRef.current.position.set(60 * Math.sin(azimuth), 80 * elev, 35 * Math.cos(azimuth));
     }
     if (hemiRef.current) {
-      // Bright sky/ground bounce at midday for full shadow fill, tapering back
-      // to the original moody level at night (munchies/tornado/aliens-wave-3).
-      hemiRef.current.intensity = (0.75 - 0.52 * t) * stormDarken;
+      // Strong sky/ground bounce at midday so shadowed (north-facing) walls
+      // stay bright and brick reads warm, not black. Tapers to a moody level
+      // at night (munchies/tornado/aliens-wave-3).
+      hemiRef.current.intensity = (0.95 - 0.62 * t) * stormDarken;
     }
     if (ambRef.current) {
-      // Lifted DAYTIME floor so dark-albedo props (the truck, bins) keep form
+      // High DAYTIME ambient floor so shadow sides + dark props keep colour
       // instead of crushing to black; stays near the old level at night.
-      ambRef.current.intensity = (0.30 + t * 0.05) * Math.max(0.24, 1 - storm * 0.7);
+      ambRef.current.intensity = (0.45 - t * 0.10) * Math.max(0.26, 1 - storm * 0.7);
       const r = (0.62 + t * 0.2) * (1 - storm * 0.4);
       const g = (0.72 + t * 0.15) * (1 - storm * 0.4);
       const b = 0.92 * (1 - storm * 0.3);
@@ -367,7 +368,7 @@ function DynamicLights() {
   });
   return (
     <>
-      <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#5a8a3e" intensity={0.72} />
+      <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#6a9a4e" intensity={0.92} />
       <directionalLight
         ref={dirRef}
         position={[60, 80, 35]}
@@ -384,7 +385,7 @@ function DynamicLights() {
         shadow-camera-top={50}
         shadow-camera-bottom={-50}
       />
-      <ambientLight ref={ambRef} intensity={0.30} color="#9ad0e0" />
+      <ambientLight ref={ambRef} intensity={0.45} color="#bfe0ec" />
     </>
   );
 }
@@ -428,7 +429,7 @@ function SplatRenderer() {
   );
 }
 
-function LotVegetation({ address, lot, depth }: { address: string; lot: ReturnType<typeof buildLots>[number]; depth: number }) {
+function LotVegetation({ address, lot, depth, width, garageOnLeft }: { address: string; lot: ReturnType<typeof buildLots>[number]; depth: number; width: number; garageOnLeft: boolean }) {
   // Place 1-2 live oaks in the backyard region (centroid + offset toward back)
   // and a crepe myrtle near the front sidewalk.
   const seed = address.charCodeAt(0) * 131 + address.charCodeAt(2) * 7;
@@ -438,15 +439,17 @@ function LotVegetation({ address, lot, depth }: { address: string; lot: ReturnTy
   const yawSin = Math.sin(lot.houseYaw);
 
   const halfD = depth / 2;
+  const halfW = width / 2;
   // backyard offset: well behind the back wall + any back deck/pool
   const backLocalX = (((seed % 7) - 3) * 0.7);
   const backLocalZ = halfD + 4 + (seed % 3);
   const backWX = cx + backLocalX * yawCos + backLocalZ * yawSin;
   const backWZ = cz - backLocalX * yawSin + backLocalZ * yawCos;
 
-  // crepe in front yard between house and sidewalk
-  const sideLocalX = (seed % 11) > 5 ? -3 : 3;
-  const sideLocalZ = -halfD - FRONT_YARD_DEPTH * 0.55;
+  // Crepe myrtle in the front yard, on the side AWAY from the garage/driveway
+  // so it never grows through the parked car.
+  const sideLocalX = (garageOnLeft ? 1 : -1) * (halfW - 1.6);
+  const sideLocalZ = -halfD - FRONT_YARD_DEPTH * 0.42;
   const sideWX = cx + sideLocalX * yawCos + sideLocalZ * yawSin;
   const sideWZ = cz - sideLocalX * yawSin + sideLocalZ * yawCos;
 

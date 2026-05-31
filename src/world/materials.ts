@@ -162,10 +162,12 @@ export const mat = {
   carPaint(color: string): THREE.Material {
     const c = carCache.get(color);
     if (c) return c;
+    // Low metalness: with no environment map, high metalness made every car
+    // read as black. This shows the actual paint colour (diffuse) instead.
     const m = new THREE.MeshStandardMaterial({
       map: carPaintTexture(color),
-      roughness: 0.42,
-      metalness: 0.6,
+      roughness: 0.5,
+      metalness: 0.15,
       color,
     });
     carCache.set(color, m);

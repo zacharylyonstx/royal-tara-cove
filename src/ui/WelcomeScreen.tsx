@@ -63,6 +63,13 @@ export function WelcomeScreen() {
           }}
         >
           <GameCard
+            emoji="🏘️"
+            title="FREE PLAY"
+            blurb="Just play! Bike and run around the whole block, shoot hoops, and go inside our house. No aliens, no storms — just our neighborhood."
+            accent="#e09028"
+            onPlay={() => pick('freeplay')}
+          />
+          <GameCard
             emoji="👽"
             title="ALIEN INVASION"
             blurb="The Schmorgesblobs crashed in our cul-de-sac! Use the ray gun to save the family."
@@ -93,7 +100,7 @@ export function WelcomeScreen() {
         </div>
 
         <p style={{ fontSize: 13, color: '#5a5040', margin: 0 }}>
-          <strong>WASD</strong> move · <strong>Shift</strong> run · <strong>Space</strong> jump · <strong>E</strong> open doors · <strong>click</strong> look around · <strong>1/2/3</strong> switch character
+          <strong>WASD</strong> move · <strong>Shift</strong> run · <strong>E</strong> ride bike / pick up ball / open door · <strong>click</strong> or <strong>Space</strong> shoot hoops · <strong>1/2/3</strong> switch kid
         </p>
       </div>
     </div>

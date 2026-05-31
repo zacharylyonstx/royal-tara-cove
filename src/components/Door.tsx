@@ -21,6 +21,9 @@ interface DoorProps {
   houseYaw: number;
   /** Hinge side. Default 'left' opens inward to the right. */
   hinge?: 'left' | 'right';
+  /** Decorative: render a normal closed door but don't make it openable
+   *  (used for neighbor houses, which are solid and have no interior). */
+  decorative?: boolean;
 }
 
 /**
@@ -40,12 +43,14 @@ export function Door({
   houseWorldZ,
   houseYaw,
   hinge = 'left',
+  decorative = false,
 }: DoorProps) {
   const panelGroup = useRef<Group>(null);
   const registerDoor = useGameStore((s) => s.registerDoor);
   const doors = useGameStore((s) => s.doors);
 
   useEffect(() => {
+    if (decorative) return; // not openable — skip registration
     // Compute world XZ of the door center.
     const cy = Math.cos(houseYaw);
     const sy = Math.sin(houseYaw);
@@ -67,7 +72,7 @@ export function Door({
       wx,
       wz,
     );
-  }, [id, x, z, width, height, houseWorldX, houseWorldZ, houseYaw, registerDoor]);
+  }, [id, x, z, width, height, houseWorldX, houseWorldZ, houseYaw, registerDoor, decorative]);
 
   useFrame((_, dtRaw) => {
     const dt = Math.min(dtRaw, 0.1);

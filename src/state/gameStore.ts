@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { Vector3 } from 'three';
 import type { CharacterId, Floor, RectCollider } from '../types';
 
-export type GameMode = 'aliens' | 'tornado' | 'munchies' | 'treehouse';
+export type GameMode = 'aliens' | 'tornado' | 'munchies' | 'treehouse' | 'freeplay';
 export type TornadoPhase =
   | 'calm' | 'rain' | 'hail' | 'tornado-approach' | 'tornado-arrived';
 export type MunchiesPhase =
@@ -113,6 +113,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       s.gameMode === 'tornado'   ? 'calm' :
       s.gameMode === 'munchies'  ? 'munchies-intro' :
       s.gameMode === 'treehouse' ? 'treehouse-welcome' :
+      s.gameMode === 'freeplay'  ? 'free-play' :
       'intro',
   })),
   openWelcome: () => set({ welcomeOpen: true }),
