@@ -13,7 +13,9 @@ import { SmokeColumn } from './SmokeColumn';
 // HOUSE_FRONT_RADIUS + depth + HERO_BACKYARD_DEPTH = 30.4 + 16 + 24 = 70.4.
 // Land midway in the backyard at radius ~52.
 const CRASH_X = 0;
-const CRASH_Z = 56;
+// Moved deeper into the backyard (was 56) so the saucer lands BEHIND the trampoline
+// + playhouse, which were pulled forward/together to match the photo.
+const CRASH_Z = 62;
 const SKY_START_Y = 80;
 const HOVER_Y = 14;
 const GROUND_Y = 1.2;

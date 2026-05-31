@@ -43,39 +43,31 @@ export function Playhouse({ position, rotation = 0 }: { position: [number, numbe
       {/* Floor pad */}
       <mesh position={[0, 0.06, 0]} receiveShadow><boxGeometry args={[PLAYHOUSE_W + 0.1, 0.12, PLAYHOUSE_D + 0.1]} /><meshStandardMaterial color="#b08458" roughness={0.95} /></mesh>
 
-      {/* ---- FRONT wall (-Z): two windows + "68" placard between ---- */}
-      <Panel x={0} y={0.4} z={zf} w={PLAYHOUSE_W} h={0.8} />                 {/* base / counter band */}
-      <Panel x={0} y={2.0} z={zf} w={PLAYHOUSE_W} h={0.5} />                 {/* header */}
-      <Panel x={-1.575} y={1.3} z={zf} w={0.45} h={0.9} />                  {/* left edge */}
-      <Panel x={1.575} y={1.3} z={zf} w={0.45} h={0.9} />                   {/* right edge */}
-      <Panel x={0} y={1.3} z={zf} w={0.9} h={0.9} />                        {/* center (placard) */}
+      {/* ---- FRONT wall (-Z): DOOR gap (LEFT, x=0.55..1.45 in local = viewer's left,
+           filled by the openable Door in HeroHouse10600), WINDOW + counter (RIGHT),
+           "68" placard up top — matches the photo from the porch ---- */}
+      <Panel x={1.625} y={H / 2} z={zf} w={0.35} h={H} />                   {/* left edge (viewer left) */}
+      <Panel x={1.0} y={2.07} z={zf} w={0.9} h={0.36} />                    {/* header above the door */}
+      <Panel x={0.1} y={H / 2} z={zf} w={0.9} h={H} />                      {/* pier between door & window */}
+      <Panel x={-0.9} y={0.4} z={zf} w={1.1} h={0.8} />                     {/* counter base under window */}
+      <Panel x={-0.9} y={2.02} z={zf} w={1.1} h={0.46} />                   {/* above window */}
+      <Panel x={-1.625} y={H / 2} z={zf} w={0.35} h={H} />                  {/* right edge */}
       <PlayWindow x={-0.9} y={1.3} z={zf - 0.02} />
-      <PlayWindow x={0.9} y={1.3} z={zf - 0.02} />
-      {/* "68" white circle placard between the windows (disc faces -Z) */}
-      <mesh position={[0, 1.45, zf - 0.06]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.33, 0.33, 0.05, 28]} />
+      {/* "68" white circle placard up top (disc faces -Z) */}
+      <mesh position={[-0.2, 1.92, zf - 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.28, 0.28, 0.05, 28]} />
         <meshStandardMaterial color="#fbfbf8" roughness={0.7} />
       </mesh>
-      <Text position={[0, 1.45, zf - 0.1]} rotation={[0, Math.PI, 0]} fontSize={0.34} color="#3a4654" anchorX="center" anchorY="middle">68</Text>
-      {/* Serving counter ledge under the right window */}
-      <mesh position={[0.9, 0.82, zf - 0.32]} castShadow receiveShadow><boxGeometry args={[1.15, 0.06, 0.55]} /><meshStandardMaterial color="#d8cbb0" roughness={0.85} /></mesh>
+      <Text position={[-0.2, 1.92, zf - 0.1]} rotation={[0, Math.PI, 0]} fontSize={0.3} color="#3a4654" anchorX="center" anchorY="middle">68</Text>
+      {/* Serving counter ledge under the window */}
+      <mesh position={[-0.9, 0.82, zf - 0.34]} castShadow receiveShadow><boxGeometry args={[1.2, 0.06, 0.6]} /><meshStandardMaterial color="#d8cbb0" roughness={0.85} /></mesh>
 
       {/* ---- BACK wall (+Z) ---- */}
       <Panel x={0} y={H / 2} z={hd} w={PLAYHOUSE_W} h={H} />
 
-      {/* ---- LEFT wall (-X): solid ---- */}
-      <Panel x={-hw} y={H / 2} z={0} w={PLAYHOUSE_D} h={H} d={0.1} color={WALL} />
-
-      {/* ---- RIGHT wall (+X): door gap at z=-0.45..0.6 ---- */}
-      <group rotation={[0, Math.PI / 2, 0]} position={[hw, 0, 0]}>
-        {/* now local x runs along the wall (house +Z..-Z); render panels around the door */}
-        <Panel x={-1.05} y={H / 2} z={0} w={0.9} h={H} />                   {/* z=1.5..0.6 side */}
-        <Panel x={0.95} y={H / 2} z={0} w={1.1} h={H} />                    {/* z=-0.45..-1.5 side */}
-        <Panel x={0.05} y={2.05} z={0} w={1.05} h={0.4} />                  {/* header over door */}
-      </group>
-      {/* the actual door leaf in the +X gap */}
-      <mesh position={[hw - 0.02, 0.95, 0.075]} castShadow><boxGeometry args={[0.08, 1.9, 0.95]} /><meshStandardMaterial color="#8a6a4a" roughness={0.7} /></mesh>
-      <mesh position={[hw - 0.06, 0.95, -0.25]}><sphereGeometry args={[0.05, 8, 8]} /><meshStandardMaterial color="#caa14a" metalness={0.7} roughness={0.3} /></mesh>
+      {/* ---- LEFT (-X) + RIGHT (+X) walls: solid (thin in X, running along Z) ---- */}
+      <mesh position={[-hw, H / 2, 0]} castShadow receiveShadow><boxGeometry args={[0.1, H, PLAYHOUSE_D]} /><meshStandardMaterial color={WALL} roughness={0.85} /></mesh>
+      <mesh position={[hw, H / 2, 0]} castShadow receiveShadow><boxGeometry args={[0.1, H, PLAYHOUSE_D]} /><meshStandardMaterial color={WALL} roughness={0.85} /></mesh>
 
       {/* ---- Slanted roof ---- */}
       <mesh position={[0, H + 0.12, 0.1]} rotation={[-0.12, 0, 0]} castShadow>

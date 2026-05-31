@@ -11,10 +11,15 @@ import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
 
 // Backyard play set, in HOUSE-LOCAL coords (must match the <Trampoline>/<Playhouse>
-// placement in the render below). halfD = 9 for the hero.
-const TRAMPOLINE_LOCAL: [number, number] = [7, 17];
+// placement in the render below). halfD = 9 for the hero. Trampoline LEFT (+X) +
+// forward; playhouse pulled IN toward it (matches Zak's photo). The UFO crash was
+// moved deeper (UFOCrash.tsx) so the lane between them stays clear.
+const TRAMPOLINE_LOCAL: [number, number] = [8, 15];
 const TRAMPOLINE_RADIUS = 3.0;
-const PLAYHOUSE_LOCAL: [number, number] = [-7, 16];
+const PLAYHOUSE_LOCAL: [number, number] = [-2, 15.5];
+// Door on the playhouse FRONT, viewer's LEFT (-Z face). House-local = playhouse
+// center (-2) + (+1.0, -hd) with hd=1.5 → (-1.0, 14.0). Faces -Z toward the porch.
+const PLAYHOUSE_DOOR_LOCAL: [number, number] = [-1.0, 14.0];
 
 const STORY_H = 3.0;
 const GARAGE_W = 6.4;
@@ -235,9 +240,10 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
           <mesh position={[-0.16, 0.012, -0.12]}><boxGeometry args={[0.3, 0.02, 0.18]} /><meshStandardMaterial color="#3c3b6e" /></mesh>
         </group>
       </group>
-      {/* Greenbelt: dense trees behind the back fence (the "backs to woods" feel). */}
+      {/* Greenbelt: dense trees at the back of the yard (the "backs to woods" feel).
+          Set back past the relocated UFO crash so the saucer doesn't clip them. */}
       {[-7, -2.5, 2, 6.5].map((gx, i) => (
-        <LiveOak key={`green-${i}`} position={[gx, 0, halfD + 17 + (i % 2) * 3]} scale={1.7} seed={i + 20} />
+        <LiveOak key={`green-${i}`} position={[gx, 0, halfD + 20 + (i % 2) * 3]} scale={1.7} seed={i + 20} />
       ))}
 
       {/* Back deck off the patio slider */}
@@ -246,10 +252,19 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* String lights criss-crossing back deck */}
       <StringLights z={halfD + 2.0} width={config.width - 2.5} />
 
-      {/* Backyard play set — trampoline (left) + the "68" playhouse (right), flanking
-          the UFO crash lane so the alien crash stays clear. */}
-      <Trampoline position={[7, 0, halfD + 8]} radius={3.0} />
-      <Playhouse position={[-7, 0, halfD + 7]} rotation={0} />
+      {/* Backyard play set — trampoline (left) + the "68" playhouse (right). The UFO
+          crash was moved deeper so this front pair stays clear. */}
+      <Trampoline position={[8, 0, 15]} radius={3.0} />
+      <Playhouse position={[-2, 0, 15.5]} rotation={0} />
+      {/* Real openable front door on the playhouse (E to open/close). */}
+      <Door
+        id={`playhouse-68-${config.address}`}
+        x={PLAYHOUSE_DOOR_LOCAL[0]} z={PLAYHOUSE_DOOR_LOCAL[1]}
+        width={0.9} height={1.9}
+        color="#e9e7e3" trimColor="#ffffff"
+        houseWorldX={lot.housePivot[0]} houseWorldZ={lot.housePivot[1]} houseYaw={lot.houseYaw}
+        hinge="left"
+      />
 
       {/* Interior — only rendered when player is within 30m to keep perf tidy */}
       <Interior10600 depth={config.depth} doorCenterX={doorCenterX} garageCenterX={garageCenterX} />
@@ -851,14 +866,16 @@ export function buildPlayhouseColliders(_config: HouseConfig, lot: Lot): RectCol
   const hw = PLAYHOUSE_W / 2;
   const hd = PLAYHOUSE_D / 2;
   const T = 0.1;
-  // Local wall segments {cx, cz, sx, sz} relative to the playhouse center. The +X
-  // wall (x=+hw) is split around a door gap at z=-0.45..0.6.
+  // Local wall segments {cx, cz, sx, sz} relative to the playhouse center. The FRONT
+  // (-Z) wall is split around the door gap at x=-1.45..-0.55 (the openable Door
+  // registers its own collider there); the other three walls are solid.
+  // Door gap at local x=0.55..1.45 (viewer's left). Front segments flank it.
   const walls = [
-    { cx: 0, cz: -hd, sx: PLAYHOUSE_W, sz: T },                 // front (-Z)
+    { cx: 1.625, cz: -hd, sx: 0.35, sz: T },                   // front (-Z), left edge
+    { cx: -0.625, cz: -hd, sx: 2.35, sz: T },                  // front (-Z), right of the door
     { cx: 0, cz: hd, sx: PLAYHOUSE_W, sz: T },                  // back (+Z)
     { cx: -hw, cz: 0, sx: T, sz: PLAYHOUSE_D },                 // left (-X)
-    { cx: hw, cz: 1.05, sx: T, sz: 0.9 },                       // right (+X), back of door
-    { cx: hw, cz: -1.0, sx: T, sz: 1.0 },                       // right (+X), front of door
+    { cx: hw, cz: 0, sx: T, sz: PLAYHOUSE_D },                  // right (+X)
   ];
   return walls.map((w, i) => {
     const lcx = cxL + w.cx;
