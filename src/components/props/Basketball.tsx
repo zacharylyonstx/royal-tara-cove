@@ -6,6 +6,7 @@ import { useNetStore } from '../../state/netStore';
 import { usePlayStore, ballPositions } from '../../state/playStore';
 import { isNearPlayer } from '../../systems/distance';
 import { swishSound } from '../../audio';
+import { isInRoom, broadcastBasket } from '../../net/room';
 import type { CharacterId } from '../../types';
 
 interface BasketballProps {
@@ -94,8 +95,10 @@ export function Basketball({ position, id }: BasketballProps) {
         if (prevY >= h.rimY && pos.current.y < h.rimY) {
           const dd = Math.hypot(pos.current.x - h.x, pos.current.z - h.z);
           if (dd < h.rimR) {
-            play.scoreBasket(shooter.current ?? activeId, performance.now());
+            const who = shooter.current ?? activeId;
+            play.scoreBasket(who, performance.now());
             swishSound();
+            if (isInRoom()) broadcastBasket(who);
             inFlight.current = false;
             break;
           }

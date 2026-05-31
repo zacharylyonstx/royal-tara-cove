@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import { useNetStore } from '../state/netStore';
 import { useGameStore } from '../state/gameStore';
+import { usePlayStore } from '../state/playStore';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { broadcastPlayerState, broadcastWorldState, isInRoom } from '../net/room';
@@ -34,9 +35,11 @@ export function NetSyncController() {
     const net = useNetStore.getState();
     const game = useGameStore.getState();
 
-    // ---- Apply remote players → gameStore positions ----
+    // ---- Apply remote players → gameStore positions (+ their riding state) ----
+    const play = usePlayStore.getState();
     for (const [charId, rp] of Object.entries(net.remotePlayers)) {
       if (!rp) continue;
+      if (charId === net.myCharacterId) continue;
       const pos = game.positions[charId as keyof typeof game.positions];
       const yaws = game.yaws as Record<string, number>;
       if (pos) {
@@ -44,6 +47,15 @@ export function NetSyncController() {
         pos.y = rp.y;
         pos.z = rp.z;
         yaws[charId] = rp.yaw;
+      }
+      // Mirror the peer's riding state so we render the bike under them.
+      const cid = charId as keyof typeof play.riding;
+      const cur = play.riding[cid];
+      if (rp.riding) {
+        if (!cur) play.mount(cid, { bikeId: `${charId}-remote`, bikeColor: rp.riding.bikeColor, heading: rp.riding.heading, speed: 0 });
+        else { cur.heading = rp.riding.heading; cur.bikeColor = rp.riding.bikeColor; }
+      } else if (cur) {
+        play.dismount(cid);
       }
     }
 
@@ -58,11 +70,13 @@ export function NetSyncController() {
         const dy = pos.y - lastYRef.current;
         const jumping = Math.abs(dy) > 0.02;
         lastYRef.current = pos.y;
+        const myRiding = usePlayStore.getState().riding[net.myCharacterId];
         const msg: PlayerStateMsg = {
           characterId: net.myCharacterId,
           x: pos.x, y: pos.y, z: pos.z, yaw,
           running: lastRunningRef.current,
           jumping,
+          riding: myRiding ? { bikeColor: myRiding.bikeColor, heading: myRiding.heading } : null,
           t: Date.now(),
         };
         broadcastPlayerState(msg);

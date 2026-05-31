@@ -10,6 +10,7 @@ import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type W
 import { useTornadoStore } from '../state/tornadoStore';
 import { useChatStore, type ChatMsg } from '../state/chatStore';
 import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
+import { usePlayStore } from '../state/playStore';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -29,7 +30,15 @@ export interface PlayerStateMsg {
   yaw: number;
   running: boolean;
   jumping: boolean;
+  /** Bike-riding state (so peers render the bike under us). */
+  riding?: { bikeColor: string; heading: number } | null;
   t: number; // sender timestamp ms
+}
+
+/** A "someone scored a basket" celebration event. */
+export interface BasketMsg {
+  shooter: CharacterId;
+  t: number;
 }
 
 export interface MunchiesNetSnapshot {
@@ -77,6 +86,7 @@ let sendWhoami: ((data: Whoami, peers?: string | string[]) => Promise<void[]>) |
 let sendPlayer: ((data: PlayerStateMsg) => Promise<void[]>) | null = null;
 let sendWorld: ((data: WorldStateMsg) => Promise<void[]>) | null = null;
 let sendChatAction: ((data: ChatMsg) => Promise<void[]>) | null = null;
+let sendBasketAction: ((data: BasketMsg) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 let chatMsgCounter = 0;
 
@@ -106,10 +116,12 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [playerSender, playerReceiver] = r.makeAction('player');
   const [worldSender, worldReceiver] = r.makeAction('world');
   const [chatSender, chatReceiver] = r.makeAction('chat');
+  const [basketSender, basketReceiver] = r.makeAction('basket');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
   sendChatAction = chatSender as unknown as typeof sendChatAction;
+  sendBasketAction = basketSender as unknown as typeof sendBasketAction;
 
   whoamiReceiver((rawData, peerId) => {
     const data = rawData as unknown as Whoami;
@@ -136,6 +148,13 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   chatReceiver((rawData) => {
     const msg = rawData as unknown as ChatMsg;
     useChatStore.getState().appendMessage(msg);
+  });
+
+  basketReceiver((rawData) => {
+    const m = rawData as unknown as BasketMsg;
+    // A peer scored — celebrate + count it on our side (sender already counted
+    // locally; trystero doesn't echo to the sender, so no double-count).
+    usePlayStore.getState().scoreBasket(m.shooter, performance.now());
   });
 
   r.onPeerJoin((peerId) => {
@@ -171,7 +190,7 @@ export async function leaveRoom(): Promise<void> {
     // ignore
   }
   room = null;
-  sendWhoami = sendPlayer = sendWorld = sendChatAction = null;
+  sendWhoami = sendPlayer = sendWorld = sendChatAction = sendBasketAction = null;
   useNetStore.getState().leftRoom();
 }
 
@@ -206,6 +225,11 @@ export async function broadcastPlayerState(msg: PlayerStateMsg): Promise<void> {
 
 export async function broadcastWorldState(msg: WorldStateMsg): Promise<void> {
   if (sendWorld) await sendWorld(msg).catch(() => {});
+}
+
+/** Tell peers we sank a basket (celebration only; the ball isn't networked). */
+export async function broadcastBasket(shooter: CharacterId): Promise<void> {
+  if (sendBasketAction) await sendBasketAction({ shooter, t: Date.now() }).catch(() => {});
 }
 
 /** Apply a host-broadcasted world snapshot into our local stores. */

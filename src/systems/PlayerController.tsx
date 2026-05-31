@@ -299,8 +299,11 @@ export function PlayerController() {
         else if (bestBike) play.setHover('ride', bestBike, null);
         else play.setHover(null, null, null);
       }
-    } else if (play.hoverPlay) {
-      play.setHover(null, null, null);
+    } else {
+      // Left free-roam (combat started / mode changed): cancel local play.
+      if (play.hoverPlay) play.setHover(null, null, null);
+      if (play.riding[activeId]) play.dismount(activeId);
+      if (play.heldBall && play.heldBall.by === activeId) play.dropBall();
     }
 
     if (interactPressedRef.current) {
