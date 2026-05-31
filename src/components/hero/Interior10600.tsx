@@ -154,9 +154,22 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         );
       })()}
 
-      {/* Brick fireplace on the great-room left wall — the family hearth. Faces
-          +X into the room; visible from the kitchen looking left. */}
+      {/* Family room (great room): olive walls, corner fireplace, ceiling fan —
+          matching the real 10600. */}
       <Fireplace />
+      {/* Olive accent walls (thin panels just inside the great-room perimeter) */}
+      {[
+        { p: [-8.88, 1.45, -4.0] as [number, number, number], a: [0.04, 2.9, 8.0] as [number, number, number] }, // left wall
+        { p: [-5.25, 1.45, -7.88] as [number, number, number], a: [7.5, 2.9, 0.04] as [number, number, number] }, // front wall
+        { p: [-5.25, 1.45, -0.12] as [number, number, number], a: [7.5, 2.9, 0.04] as [number, number, number] }, // back wall
+      ].map((w, i) => (
+        <mesh key={`olive-${i}`} position={w.p}>
+          <boxGeometry args={w.a} />
+          <meshStandardMaterial color="#8a8a4a" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* Ceiling fan over the family room */}
+      <CeilingFan position={[-5.0, 2.85, -3.5]} />
 
       {/* Staircase up to the loft (back-left corner of great room) */}
       <Stairs />
@@ -192,13 +205,12 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
   );
 }
 
-/** Tan-brick fireplace on the great room's left wall (x = -9), facing +X. */
+/** Tan-brick CORNER fireplace in the great room's back-left corner, angled 45°
+    into the room (matching the real 10600 family room). */
 function Fireplace() {
-  const wallX = -8.78;
-  const z = -3.2;
   const brick = mat.brick('#b89270');
   return (
-    <group position={[wallX, 0.13, z]}>
+    <group position={[-8.0, 0.13, -1.0]} rotation={[0, Math.PI / 4, 0]}>
       {/* Brick chimney breast, floor to ceiling */}
       <mesh position={[0.0, 1.45, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.5, 2.74, 1.9]} />
@@ -228,6 +240,27 @@ function Fireplace() {
         <boxGeometry args={[0.72, 0.16, 1.9]} />
         <meshStandardMaterial color="#6e4a2a" roughness={0.7} />
       </mesh>
+    </group>
+  );
+}
+
+/** A simple ceiling fan with a light, like the family room's. */
+function CeilingFan({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* downrod */}
+      <mesh position={[0, 0.08, 0]}><cylinderGeometry args={[0.02, 0.02, 0.16, 6]} /><meshStandardMaterial color="#3a2a1c" /></mesh>
+      {/* motor housing */}
+      <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.1, 0.12, 0.1, 12]} /><meshStandardMaterial color="#4a3526" metalness={0.3} /></mesh>
+      {/* blades */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <mesh key={i} position={[0, -0.02, 0]} rotation={[0, (i * Math.PI * 2) / 5, 0.03]}>
+          <boxGeometry args={[0.62, 0.015, 0.12]} />
+          <meshStandardMaterial color="#6e4a2a" roughness={0.7} />
+        </mesh>
+      ))}
+      {/* light globe */}
+      <mesh position={[0, -0.1, 0]}><sphereGeometry args={[0.08, 10, 10]} /><meshStandardMaterial color="#fff4d6" emissive="#ffe9b0" emissiveIntensity={0.7} /></mesh>
     </group>
   );
 }

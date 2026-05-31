@@ -104,7 +104,7 @@ function Fridge({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 0.95, 0]} castShadow>
         <boxGeometry args={[0.8, 1.9, 0.7]} />
-        <meshStandardMaterial color="#dcd6c8" metalness={0.6} roughness={0.3} />
+        <meshStandardMaterial color="#f2efe8" roughness={0.4} />
       </mesh>
       {/* handle */}
       <mesh position={[0.38, 1.4, 0.36]} castShadow>
@@ -120,7 +120,7 @@ function Stove({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 0.45, 0]} castShadow>
         <boxGeometry args={[0.75, 0.9, 0.6]} />
-        <meshStandardMaterial color="#3a3a3c" metalness={0.5} roughness={0.3} />
+        <meshStandardMaterial color="#f2efe8" roughness={0.4} />
       </mesh>
       {/* burners */}
       {[-0.18, 0.18].map((x) => (
