@@ -28,6 +28,7 @@ import {
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { RiddenBikes } from './props/RiddenBike';
+import { Ramp } from './props/Ramp';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
 import { Hedge } from './vegetation/Hedge';
 import { UFOCrash } from './aliens/UFOCrash';
@@ -141,6 +142,7 @@ export function Game() {
       </mesh>
 
       <Street />
+      <Ramp />
 
       {/* Houses: hero special-cased */}
       {HOUSES.map((h) => {

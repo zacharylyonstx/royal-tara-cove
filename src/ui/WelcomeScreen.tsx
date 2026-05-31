@@ -99,8 +99,10 @@ export function WelcomeScreen() {
           />
         </div>
 
-        <p style={{ fontSize: 13, color: '#5a5040', margin: 0 }}>
+        <p style={{ fontSize: 13, color: '#5a5040', margin: 0, lineHeight: 1.5 }}>
           <strong>WASD</strong> move · <strong>Shift</strong> run · <strong>E</strong> ride bike / pick up ball / open door · <strong>click</strong> or <strong>Space</strong> shoot hoops · <strong>1/2/3</strong> switch kid
+          <br />
+          🚲 On a bike: <strong>Space</strong> bunny-hop · hit the <strong>ramp</strong> for big air · tap <strong>Space</strong> again mid-air + hold <strong>W/S</strong> to flip!
         </p>
       </div>
     </div>

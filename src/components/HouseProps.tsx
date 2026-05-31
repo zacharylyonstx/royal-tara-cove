@@ -67,8 +67,9 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
       // Hoop is drawn with rotation=Math.PI, so its local rim (0,2.85,0.65)
       // sits at house-local (hoopX, 2.85, hoopZ-0.65).
       const rim = toWorld(hoopX, 2.85, hoopZ - 0.65, pivot, yaw);
-      // Forgiving scoring radius so the kids reliably make baskets.
-      usePlayStore.getState().registerHoop(config.address, { x: rim[0], z: rim[2], rimY: rim[1], rimR: 0.5 });
+      // Scoring radius: generous enough for the kids when aimed, tight enough
+      // that a bad-angle / long shot actually clanks.
+      usePlayStore.getState().registerHoop(config.address, { x: rim[0], z: rim[2], rimY: rim[1], rimR: 0.42 });
     }
     if (data.tags.has('bike')) {
       const bx = garageCenterX - (config.garageOnLeft ? 1.6 : -1.6);

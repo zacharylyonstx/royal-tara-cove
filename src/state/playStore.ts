@@ -26,6 +26,22 @@ export interface RidingState {
   bikeColor: string;
   heading: number;    // facing yaw of the bike
   speed: number;      // m/s, signed
+  y: number;          // bike height (0 = on the ground, >0 = airborne)
+  vy: number;         // vertical velocity (m/s)
+  airborne: boolean;  // true while off the ground
+  /** Active trick rotation: dir +1 = front flip, -1 = back flip; angle in rad. */
+  flip: { dir: 1 | -1; angle: number } | null;
+  /** performance.now() timestamp the wipeout tumble ends (0 = not wiping out). */
+  wipeoutUntil: number;
+}
+
+/** The single street launch ramp (registered by the Ramp prop on mount). */
+export interface RampReg {
+  x: number;
+  z: number;
+  heading: number;   // direction you ride UP the ramp (radians)
+  halfLen: number;   // along-heading half length of the trigger zone
+  halfWid: number;   // across-heading half width
 }
 
 /**
@@ -46,8 +62,13 @@ interface PlayStore {
   familyBaskets: number;
   lastBasket: { by: CharacterId; at: number } | null;
 
+  /** Last landed/attempted trick + a session counter, for the trick HUD. */
+  lastTrick: { text: string; at: number } | null;
+  trickCount: number;
+
   hoops: Record<string, HoopReg>;                 // keyed by house address
   bikes: Record<string, BikeReg>;                 // keyed by bike id
+  ramp: RampReg | null;
 
   // Contextual interact hint for the local player.
   hoverPlay: HoverPlay;
@@ -57,6 +78,9 @@ interface PlayStore {
   setHover: (play: HoverPlay, bikeId: string | null, ballId: string | null) => void;
   registerHoop: (address: string, reg: HoopReg) => void;
   registerBike: (reg: BikeReg) => void;
+  registerRamp: (reg: RampReg) => void;
+  /** Record a landed trick (or a wipeout) for the HUD; bumps the counter for real tricks. */
+  setTrick: (text: string, scored: boolean) => void;
 
   mount: (id: CharacterId, s: RidingState) => void;
   dismount: (id: CharacterId) => void;
@@ -80,8 +104,11 @@ export const usePlayStore = create<PlayStore>((set) => ({
   shotImpulse: null,
   familyBaskets: 0,
   lastBasket: null,
+  lastTrick: null,
+  trickCount: 0,
   hoops: {},
   bikes: {},
+  ramp: null,
   hoverPlay: null,
   hoverBikeId: null,
   hoverBallId: null,
@@ -94,13 +121,22 @@ export const usePlayStore = create<PlayStore>((set) => ({
     ),
   registerHoop: (address, reg) => set((s) => ({ hoops: { ...s.hoops, [address]: reg } })),
   registerBike: (reg) => set((s) => ({ bikes: { ...s.bikes, [reg.id]: reg } })),
+  registerRamp: (reg) => set({ ramp: reg }),
+  setTrick: (text, scored) =>
+    set((s) => ({
+      lastTrick: { text, at: performance.now() },
+      trickCount: scored ? s.trickCount + 1 : s.trickCount,
+    })),
 
   mount: (id, st) => set((s) => ({ riding: { ...s.riding, [id]: st } })),
   dismount: (id) => set((s) => ({ riding: { ...s.riding, [id]: null } })),
   setRiding: (id, st) =>
     set((s) => {
       const cur = s.riding[id];
-      if (cur) { cur.heading = st.heading; cur.speed = st.speed; }
+      if (cur) {
+        cur.heading = st.heading; cur.speed = st.speed;
+        cur.y = st.y; cur.vy = st.vy; cur.airborne = st.airborne; cur.flip = st.flip;
+      }
       return {};
     }),
 

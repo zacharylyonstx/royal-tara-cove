@@ -80,6 +80,7 @@ export function PlayerController() {
 
   const interactPressedRef = useRef(false);
   const shootRef = useRef(false);
+  const jumpPressedRef = useRef(false); // edge-triggered Space, for bike hop/flip
   const heroBox = useMemo(() => computeHeroBox(), []);
 
   useEffect(() => {
@@ -88,8 +89,8 @@ export function PlayerController() {
       if (useChatStore.getState().inputOpen) return;
       const k = e.key.toLowerCase();
       keys.current[k] = true;
-      // Space shoots a held ball (edge-triggered so a single press = one shot).
-      if (k === ' ' && !e.repeat) shootRef.current = true;
+      // Space shoots a held ball OR hops/flips on a bike (edge-triggered: one press = one action).
+      if ((k === ' ' || k === 'space') && !e.repeat) { shootRef.current = true; jumpPressedRef.current = true; }
       // 1/2/3 character swap disabled in multiplayer — character is fixed
       // to whatever you claimed in CharacterSelect.
       if (k === 'r') {
@@ -131,6 +132,11 @@ export function PlayerController() {
     // While chat is open, the textbox owns the keyboard.
     if (useChatStore.getState().inputOpen) return;
 
+    // Consume the one-frame Space edge (bike hop/flip). Captured once so it can't
+    // leak across mode branches or fire twice.
+    const jumpedThisFrame = jumpPressedRef.current;
+    jumpPressedRef.current = false;
+
     const modeNow = useGameStore.getState().gameMode;
     if (modeNow === 'munchies') {
       munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors);
@@ -171,7 +177,7 @@ export function PlayerController() {
 
       // Ride movement (replaces walking while mounted).
       if (myRiding) {
-        rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors);
+        rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors, jumpedThisFrame);
       }
 
       // E interaction: play takes priority; otherwise fall through to the
@@ -216,7 +222,7 @@ export function PlayerController() {
     // ---- Riding a bike? Bike movement replaces walking (non-combat only) ----
     const myRiding = usePlayStore.getState().riding[activeId];
     if (myRiding) {
-      rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors);
+      rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors, jumpedThisFrame);
     }
 
     // ---- Tornado wind drag ----
@@ -402,12 +408,26 @@ const BIKE_ACCEL = 14;
 const BIKE_BRAKE = 22;
 const BIKE_FRICTION = 6;
 const BIKE_TURN = 2.4;
+// Air + tricks.
+const BIKE_HOP_V = 4.6;            // bunny-hop launch (m/s)
+const BIKE_AIR_GRAVITY = 20;       // gentler than on-foot so air hangs a beat
+const RAMP_MIN_SPEED = 4;          // need this much speed to launch off the ramp
+const RAMP_LAUNCH_BASE = 4.0;      // base upward launch
+const RAMP_LAUNCH_PER_SPEED = 0.62;// + this per m/s of approach speed
+const FLIP_RATE = 9.0;             // rad/s rotation while flipping
+const FLIP_LAND_TOL = 0.95;        // rad of slop allowed from a full turn to stick it
+const WIPEOUT_MS = 1100;           // tumble duration before you hop back up
+const BIKE_RIDE_BOUND = 145;       // bikes may roam the whole street (walking stays tighter)
 
 type Colliders = import('../types').RectCollider[];
 type Doors = Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>;
 
+function freshRiding(bikeId: string, color: string, heading: number): import('../state/playStore').RidingState {
+  return { bikeId, bikeColor: color, heading, speed: 0, y: 0, vy: 0, airborne: false, flip: null, wipeoutUntil: 0 };
+}
+
 function mountBike(id: import('../types').CharacterId, bikeId: string, color: string, currentYaw: number) {
-  usePlayStore.getState().mount(id, { bikeId, bikeColor: color, heading: currentYaw, speed: 0 });
+  usePlayStore.getState().mount(id, freshRiding(bikeId, color, currentYaw));
 }
 
 function dismountBike(id: import('../types').CharacterId, pos: Vector3, colliders: Colliders) {
@@ -432,23 +452,34 @@ function rideBikeTick(
   dt: number,
   colliders: Colliders,
   doors: Doors,
+  jumpPressed: boolean,
 ) {
-  const fwd = keys['w'] || keys['arrowup'];
-  const back = keys['s'] || keys['arrowdown'];
-  let speed = riding.speed;
-  if (fwd) speed += BIKE_ACCEL * dt;
-  else if (back) speed -= BIKE_BRAKE * dt;
-  else {
-    const f = BIKE_FRICTION * dt;
-    speed = speed > 0 ? Math.max(0, speed - f) : Math.min(0, speed + f);
-  }
-  speed = Math.max(-BIKE_REVERSE_SPEED, Math.min(BIKE_MAX_SPEED, speed));
+  const now = performance.now();
+  const play = usePlayStore.getState();
+  const wipingOut = riding.wipeoutUntil > now;
+  const grounded = !riding.airborne;
+  const fwd = !wipingOut && (keys['w'] || keys['arrowup']);
+  const back = !wipingOut && (keys['s'] || keys['arrowdown']);
 
-  // Steer only while moving; turn rate scales with speed; reverse flips it.
-  const steer = (keys['a'] || keys['arrowleft'] ? 1 : 0) - (keys['d'] || keys['arrowright'] ? 1 : 0);
-  const speedFactor = Math.min(1, Math.abs(speed) / 3);
-  const dir = speed >= 0 ? 1 : -1;
-  riding.heading += steer * BIKE_TURN * speedFactor * dir * dt;
+  // --- Horizontal drive (only steer/throttle on the ground; keep air momentum) ---
+  let speed = riding.speed;
+  if (grounded) {
+    if (wipingOut) {
+      const f = BIKE_FRICTION * 2.4 * dt; // bleed to a stop during a tumble
+      speed = speed > 0 ? Math.max(0, speed - f) : Math.min(0, speed + f);
+    } else if (fwd) speed += BIKE_ACCEL * dt;
+    else if (back) speed -= BIKE_BRAKE * dt;
+    else {
+      const f = BIKE_FRICTION * dt;
+      speed = speed > 0 ? Math.max(0, speed - f) : Math.min(0, speed + f);
+    }
+    speed = Math.max(-BIKE_REVERSE_SPEED, Math.min(BIKE_MAX_SPEED, speed));
+    // Steer only while moving; turn rate scales with speed; reverse flips it.
+    const steer = (keys['a'] || keys['arrowleft'] ? 1 : 0) - (keys['d'] || keys['arrowright'] ? 1 : 0);
+    const speedFactor = Math.min(1, Math.abs(speed) / 3);
+    const dir = speed >= 0 ? 1 : -1;
+    if (!wipingOut) riding.heading += steer * BIKE_TURN * speedFactor * dir * dt;
+  }
   riding.speed = speed;
 
   const fx = -Math.sin(riding.heading);
@@ -458,24 +489,106 @@ function rideBikeTick(
   const all = [...colliders];
   for (const door of Object.values(doors)) { if (!door.open) all.push(door.aabbWhenClosed); }
   const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, all);
-  if (Math.hypot(resolved.x - desiredX, resolved.z - desiredZ) > 0.02) riding.speed *= 0.4; // bumped something
+  // Proportional speed loss: only a real head-on block (made <55% of the step)
+  // bleeds momentum, scaled by how blocked it was. Grazes don't kill the ride.
+  if (grounded && speed !== 0) {
+    const want = Math.hypot(desiredX - pos.x, desiredZ - pos.z);
+    const got = Math.hypot(resolved.x - pos.x, resolved.z - pos.z);
+    if (want > 1e-4 && got / want < 0.55) riding.speed = speed * Math.max(0.25, got / want);
+  }
   pos.x = resolved.x;
   pos.z = resolved.z;
-  pos.y = 0;
+
+  // --- Vertical: bunny-hop / ramp launch / flip / gravity / landing ---
+  if (jumpPressed && !wipingOut) {
+    if (grounded) { riding.vy = BIKE_HOP_V; riding.airborne = true; }
+    else if (!riding.flip) { riding.flip = { dir: back ? -1 : 1, angle: 0 }; } // 2nd tap = flip (S = back)
+  }
+
+  // Ramp launch (a trigger zone, never a wall): rolling up it with speed throws you.
+  const ramp = play.ramp;
+  if (grounded && !wipingOut && ramp && Math.abs(speed) >= RAMP_MIN_SPEED) {
+    const rdx = pos.x - ramp.x;
+    const rdz = pos.z - ramp.z;
+    const rfx = -Math.sin(ramp.heading);
+    const rfz = -Math.cos(ramp.heading);
+    const along = rdx * rfx + rdz * rfz;
+    const across = rdx * Math.cos(ramp.heading) - rdz * Math.sin(ramp.heading);
+    const movingUp = fx * rfx + fz * rfz; // bike heading vs ramp-up direction
+    if (Math.abs(along) <= ramp.halfLen && Math.abs(across) <= ramp.halfWid && movingUp > 0.4) {
+      riding.vy = RAMP_LAUNCH_BASE + Math.abs(speed) * RAMP_LAUNCH_PER_SPEED;
+      riding.airborne = true;
+      riding.speed = speed * 1.04; // tiny forward boost off the lip
+    }
+  }
+
+  if (riding.airborne) {
+    riding.vy -= BIKE_AIR_GRAVITY * dt;
+    riding.y += riding.vy * dt;
+    if (riding.flip) {
+      // Snap the spin to land on a whole number of turns: predict time-to-ground
+      // and steer the rate so a committed flip completes cleanly. Too little air
+      // to finish even one turn → it under-rotates and you wipe out.
+      const g = BIKE_AIR_GRAVITY;
+      const disc = riding.vy * riding.vy + 2 * g * Math.max(0, riding.y);
+      const tLand = disc > 0 ? (riding.vy + Math.sqrt(disc)) / g : 0;
+      const dir = riding.flip.dir;
+      const ang = riding.flip.angle;
+      if (tLand > 0.06) {
+        const reach = Math.abs(ang) + FLIP_RATE * tLand;
+        const targetTurns = Math.max(1, Math.floor(reach / (2 * Math.PI)));
+        const targetAngle = dir * targetTurns * 2 * Math.PI;
+        let rate = (targetAngle - ang) / tLand;
+        rate = dir > 0 ? Math.max(0, Math.min(rate, FLIP_RATE * 1.8)) : Math.min(0, Math.max(rate, -FLIP_RATE * 1.8));
+        riding.flip.angle += rate * dt;
+      } else {
+        riding.flip.angle += FLIP_RATE * dir * dt;
+      }
+    }
+    if (riding.y <= 0) {
+      // Landed.
+      riding.y = 0;
+      riding.vy = 0;
+      riding.airborne = false;
+      if (riding.flip) {
+        const turns = Math.round(riding.flip.angle / (2 * Math.PI));
+        const err = Math.abs(riding.flip.angle - turns * 2 * Math.PI);
+        const dirName = riding.flip.dir > 0 ? 'Front Flip' : 'Back Flip';
+        const n = Math.abs(turns);
+        riding.flip = null;
+        if (n >= 1 && err <= FLIP_LAND_TOL) {
+          play.setTrick(n >= 2 ? `${n}× ${dirName}!` : `${dirName}!`, true);
+        } else if (n >= 1) {
+          // Under/over-rotated: wipe out.
+          riding.wipeoutUntil = now + WIPEOUT_MS;
+          riding.speed = 0;
+          play.setTrick('Wipeout! 💥', false);
+        }
+        // (a bare hop with no started flip just lands clean — no popup)
+      }
+    }
+  } else {
+    riding.y = 0;
+  }
+  pos.y = riding.y; // the rider rises with the bike (Character copies pos.y)
   yaws[activeId] = riding.heading;
 
-  // Soft cove boundary.
+  // Soft cove boundary — wide for bikes so you can ride the whole street.
   const d = Math.hypot(pos.x, pos.z);
-  if (d > COVE_BOUND_RADIUS) {
-    const kk = COVE_BOUND_RADIUS / d;
+  if (d > BIKE_RIDE_BOUND) {
+    const kk = BIKE_RIDE_BOUND / d;
     pos.x *= kk;
     pos.z *= kk;
     riding.speed *= 0.7;
   }
 }
 
-// ---- Basketball shooting (assisted arc to the nearest forward hoop) ----
+// ---- Basketball shooting (you AIM it — a gentle assist, but you can miss) ----
 const BALL_G = 18;
+const AIM_COS = 0.84;    // hoop must be within ~±32° of facing for any assist
+const AIM_RANGE = 12;    // ...and within this many metres
+const AIM_BLEND = 0.6;   // how far the shot is nudged toward the rim (never 100%)
+const AIM_DEFAULT_DIST = 6;
 
 function doShoot(
   play: ReturnType<typeof usePlayStore.getState>,
@@ -491,29 +604,47 @@ function doShoot(
   const z0 = pos.z + fz * 0.5;
   const y0 = 1.3;
 
-  // Pick the nearest hoop, biased toward the one you're facing.
-  let best: import('../state/playStore').HoopReg | null = null;
+  // Aim-assist ONLY for a hoop you're actually facing and near. Otherwise the
+  // ball just flies where you pointed (and clanks).
+  let assist: import('../state/playStore').HoopReg | null = null;
   let bestScore = Infinity;
   for (const h of Object.values(play.hoops)) {
     const dx = h.x - x0;
     const dz = h.z - z0;
     const dist = Math.hypot(dx, dz) || 0.001;
     const fwdDot = (dx / dist) * fx + (dz / dist) * fz; // 1 = directly ahead
-    const score = dist + (1 - fwdDot) * 8;
-    if (score < bestScore) { bestScore = score; best = h; }
+    if (fwdDot >= AIM_COS && dist <= AIM_RANGE) {
+      const score = dist + (1 - fwdDot) * 4;
+      if (score < bestScore) { bestScore = score; assist = h; }
+    }
   }
-  if (!best) { play.dropBall(); return; }
 
-  const dist = Math.hypot(best.x - x0, best.z - z0);
-  const T = Math.max(0.65, Math.min(1.4, dist / 7));
-  const ty = best.rimY + 0.25;
-  let vx = (best.x - x0) / T;
-  let vz = (best.z - z0) / T;
+  let aimX: number, aimZ: number, ty: number, T: number;
+  if (assist) {
+    const dist = Math.hypot(assist.x - x0, assist.z - z0);
+    T = Math.max(0.65, Math.min(1.4, dist / 7));
+    // Blend between "straight ahead at this distance" and the rim — so facing
+    // squarely at it makes it, facing off-angle pulls the shot wide.
+    const straightX = x0 + fx * dist;
+    const straightZ = z0 + fz * dist;
+    aimX = straightX + (assist.x - straightX) * AIM_BLEND;
+    aimZ = straightZ + (assist.z - straightZ) * AIM_BLEND;
+    ty = assist.rimY + 0.25;
+  } else {
+    // No lock — throw straight ahead with a believable arc.
+    T = 1.0;
+    aimX = x0 + fx * AIM_DEFAULT_DIST;
+    aimZ = z0 + fz * AIM_DEFAULT_DIST;
+    ty = 3.0;
+  }
+
+  let vx = (aimX - x0) / T;
+  let vz = (aimZ - z0) / T;
   let vy = (ty - y0 + 0.5 * BALL_G * T * T) / T;
-  // A tiny bit of error so it isn't robotic, but kids reliably make it.
-  vx *= 1 + (Math.random() - 0.5) * 0.03;
-  vz *= 1 + (Math.random() - 0.5) * 0.03;
-  vy += (Math.random() - 0.5) * 0.25;
+  // Real spread so makes depend on aim + distance, not a guarantee.
+  vx *= 1 + (Math.random() - 0.5) * 0.08;
+  vz *= 1 + (Math.random() - 0.5) * 0.08;
+  vy += (Math.random() - 0.5) * 0.3;
 
   play.shoot(ballId, by, vx, vy, vz, performance.now());
 }

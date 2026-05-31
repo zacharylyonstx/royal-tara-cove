@@ -31,7 +31,15 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     const g = groupRef.current;
     if (!g) return;
     g.position.copy(positionRef);
+    g.rotation.order = 'YXZ';
     g.rotation.y = yawRef.current;
+
+    // Bike air tricks: pitch the rider end-over-end with the bike, and tip
+    // sideways during a wipeout. Read live (flip is mutated per-frame, not via set).
+    const live = usePlayStore.getState().riding[def.id];
+    g.rotation.x = live?.flip ? live.flip.angle : 0;
+    const wipeActive = !!live && live.wipeoutUntil > performance.now();
+    g.rotation.z += ((wipeActive ? 1.15 : 0) - g.rotation.z) * Math.min(1, dt * 12);
 
     // Estimate horizontal speed.
     const dx = positionRef.x - lastPos.current.x;
@@ -48,10 +56,18 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     }
     const swing = Math.sin(phase.current) * Math.min(0.5, speed * 0.08);
 
-    if (leftLegRef.current) leftLegRef.current.rotation.x = swing;
-    if (rightLegRef.current) rightLegRef.current.rotation.x = -swing;
-    if (leftArmRef.current) leftArmRef.current.rotation.x = -swing * 0.9;
-    if (rightArmRef.current) rightArmRef.current.rotation.x = swing * 0.9;
+    if (live) {
+      // Seated riding pose (legs to pedals, hands to bars) — no walk swing.
+      if (leftLegRef.current) leftLegRef.current.rotation.x = 0.7;
+      if (rightLegRef.current) rightLegRef.current.rotation.x = 0.7;
+      if (leftArmRef.current) leftArmRef.current.rotation.x = 0.55;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = 0.55;
+    } else {
+      if (leftLegRef.current) leftLegRef.current.rotation.x = swing;
+      if (rightLegRef.current) rightLegRef.current.rotation.x = -swing;
+      if (leftArmRef.current) leftArmRef.current.rotation.x = -swing * 0.9;
+      if (rightArmRef.current) rightArmRef.current.rotation.x = swing * 0.9;
+    }
     if (torsoRef.current) torsoRef.current.position.y = baseTorsoY(def.height) + Math.sin(state.clock.elapsedTime * 1.4) * 0.012;
   });
 

@@ -21,7 +21,7 @@ export interface RemotePlayerState {
   running: boolean;
   jumping: boolean;
   /** Set when this peer is riding a bike (so we render it under them). */
-  riding?: { bikeColor: string; heading: number } | null;
+  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number } | null;
   receivedAt: number;
 }
 

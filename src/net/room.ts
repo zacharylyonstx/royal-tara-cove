@@ -30,8 +30,8 @@ export interface PlayerStateMsg {
   yaw: number;
   running: boolean;
   jumping: boolean;
-  /** Bike-riding state (so peers render the bike under us). */
-  riding?: { bikeColor: string; heading: number } | null;
+  /** Bike-riding state (so peers render the bike under us). y/flipAngle drive air + tricks. */
+  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number } | null;
   t: number; // sender timestamp ms
 }
 

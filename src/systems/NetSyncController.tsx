@@ -52,8 +52,11 @@ export function NetSyncController() {
       const cid = charId as keyof typeof play.riding;
       const cur = play.riding[cid];
       if (rp.riding) {
-        if (!cur) play.mount(cid, { bikeId: `${charId}-remote`, bikeColor: rp.riding.bikeColor, heading: rp.riding.heading, speed: 0 });
-        else { cur.heading = rp.riding.heading; cur.bikeColor = rp.riding.bikeColor; }
+        const ry = rp.riding.y ?? 0;
+        const fa = rp.riding.flipAngle ?? 0;
+        const flip = fa !== 0 ? { dir: (fa >= 0 ? 1 : -1) as 1 | -1, angle: fa } : null;
+        if (!cur) play.mount(cid, { bikeId: `${charId}-remote`, bikeColor: rp.riding.bikeColor, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0 });
+        else { cur.heading = rp.riding.heading; cur.bikeColor = rp.riding.bikeColor; cur.y = ry; cur.airborne = ry > 0.02; cur.flip = flip; }
       } else if (cur) {
         play.dismount(cid);
       }
@@ -76,7 +79,7 @@ export function NetSyncController() {
           x: pos.x, y: pos.y, z: pos.z, yaw,
           running: lastRunningRef.current,
           jumping,
-          riding: myRiding ? { bikeColor: myRiding.bikeColor, heading: myRiding.heading } : null,
+          riding: myRiding ? { bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0 } : null,
           t: Date.now(),
         };
         broadcastPlayerState(msg);

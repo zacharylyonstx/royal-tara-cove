@@ -1,0 +1,92 @@
+import { useEffect, useMemo } from 'react';
+import * as THREE from 'three';
+import { usePlayStore } from '../../state/playStore';
+
+/**
+ * A stylized plywood launch ramp parked midway down the street. It is a pure
+ * visual + a registered launch *trigger* (no blocking collider), so bikes rolling
+ * up it with speed get thrown into the air (see rideBikeTick). On foot you can run
+ * up the deck too.
+ *
+ * Built in a plain world-aligned group (ramp axis = world Z): the deck slopes from
+ * a low foot on the +Z side up to a lip on the -Z side, so riding down-street (-Z)
+ * launches you. The store heading (0 = launch toward -Z) matches that.
+ */
+
+const RAMP_X = 0;
+const RAMP_Z = -48;
+const RAMP_HEADING = 0; // launch direction -Z (ride down-street, up the deck)
+const LEN = 4.6;        // along-street footprint
+const WID = 3.2;        // across-street width
+const LIP_H = 1.2;      // lip height
+
+const DECK = '#c08a4e';   // plywood
+const FRAME = '#6e4a29';  // darker structural
+const STRIPE = '#e8b53a'; // hazard stripe
+
+export function Ramp() {
+  useEffect(() => {
+    usePlayStore.getState().registerRamp({
+      x: RAMP_X,
+      z: RAMP_Z,
+      heading: RAMP_HEADING,
+      halfLen: LEN / 2 + 0.3,
+      halfWid: WID / 2 + 0.3,
+    });
+  }, []);
+
+  const slopeLen = Math.hypot(LEN, LIP_H);
+  const theta = Math.atan2(LIP_H, LEN);
+
+  // Triangular side-cheek profile (in shape XY = local Z,Y), high point at -Z lip.
+  const cheek = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(LEN / 2, 0);    // foot (+Z, low)
+    s.lineTo(-LEN / 2, 0);   // base (-Z, ground)
+    s.lineTo(-LEN / 2, LIP_H); // lip (-Z, high)
+    s.closePath();
+    return s;
+  }, []);
+
+  return (
+    <group position={[RAMP_X, 0, RAMP_Z]}>
+      {/* Two triangular side cheeks (rotated to face ±X). */}
+      {[-1, 1].map((sx) => (
+        <mesh key={sx} position={[sx * (WID / 2), 0, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
+          <shapeGeometry args={[cheek]} />
+          <meshStandardMaterial color={FRAME} roughness={0.9} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+
+      {/* Sloped deck (the ride surface): low foot at +Z, high lip at -Z. */}
+      <mesh position={[0, LIP_H / 2, 0]} rotation={[theta, 0, 0]} castShadow receiveShadow>
+        <boxGeometry args={[WID, 0.16, slopeLen]} />
+        <meshStandardMaterial color={DECK} roughness={0.85} />
+      </mesh>
+
+      {/* Hazard stripes near the lip. */}
+      {[-0.55, 0, 0.55].map((ox) => (
+        <mesh
+          key={ox}
+          position={[ox, LIP_H - 0.18, -LEN / 2 + 0.35]}
+          rotation={[theta, 0, 0]}
+        >
+          <boxGeometry args={[0.32, 0.02, 0.9]} />
+          <meshStandardMaterial color={STRIPE} roughness={0.6} emissive={STRIPE} emissiveIntensity={0.15} />
+        </mesh>
+      ))}
+
+      {/* Rounded coping along the lip edge. */}
+      <mesh position={[0, LIP_H, -LEN / 2]} castShadow>
+        <boxGeometry args={[WID + 0.1, 0.14, 0.18]} />
+        <meshStandardMaterial color={FRAME} roughness={0.7} metalness={0.2} />
+      </mesh>
+
+      {/* Back kicker face under the lip (closes the wedge). */}
+      <mesh position={[0, LIP_H / 2, -LEN / 2 - 0.02]} castShadow>
+        <boxGeometry args={[WID, LIP_H, 0.1]} />
+        <meshStandardMaterial color={FRAME} roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}

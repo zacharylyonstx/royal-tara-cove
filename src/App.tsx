@@ -9,6 +9,7 @@ import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
 import { Scoreboard } from './ui/Scoreboard';
+import { TrickHud } from './ui/TrickHud';
 import { BasketToast } from './ui/BasketToast';
 import { CombatHud } from './ui/CombatHud';
 import { Crosshair } from './ui/Crosshair';
@@ -49,6 +50,7 @@ export default function App() {
       <ControlsHud />
       <InteractPrompt />
       <Scoreboard />
+      <TrickHud />
       <BasketToast />
       <CombatHud />
       <Crosshair />
