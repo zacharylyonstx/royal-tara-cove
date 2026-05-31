@@ -40,6 +40,10 @@ export function WindowUnit({
   facing = 'z',
 }: WindowUnitProps) {
   const yRot = facing === 'x' ? Math.PI / 2 : facing === '-x' ? -Math.PI / 2 : facing === '-z' ? Math.PI : 0;
+  // Per-window glass variant from its position, so neighbouring panes don't all
+  // show the identical sky-glint. Wall depth (±halfD/halfW) differs per house, so
+  // this also varies house-to-house for free.
+  const glassSeed = Math.round(position[0] * 12.9 + position[1] * 7.7 + position[2] * 3.3);
   const fw = 0.06; // frame width
   const muntin = 0.035;
   const vBars = Math.max(0, cols - 1);
@@ -52,10 +56,10 @@ export function WindowUnit({
         <boxGeometry args={[w + fw * 2 + 0.06, h + fw * 2 + 0.06, 0.05]} />
         <meshStandardMaterial color={trimColor} roughness={0.6} />
       </mesh>
-      {/* recessed glass */}
+      {/* recessed glass — self-lit sky/interior pane (z=0.02 is the z-safe depth) */}
       <mesh position={[0, 0, 0.02]}>
         <boxGeometry args={[w, h, 0.02]} />
-        <primitive object={mat.glass()} attach="material" />
+        <primitive object={mat.glassFor(glassSeed)} attach="material" />
       </mesh>
       {/* outer frame (4 thin bars) */}
       {[

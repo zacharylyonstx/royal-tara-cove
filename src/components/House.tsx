@@ -380,7 +380,13 @@ function FacadeDetail({
   garageOnLeft: boolean; garageCenterX: number; doorCenterX: number;
   halfD: number; halfW: number; trimColor: string; shutterColor: string | null; winGrid: number;
 }) {
-  const fz = -halfD - 0.05; // front, glazing faces the street (-Z)
+  // Surface-mount offset. Walls are WALL_T thick and CENTERED on ±halfW/±halfD,
+  // so a wall's outer face sits half a thickness proud of the nominal plane. The
+  // window's white casing sits ~0.045 BEHIND its origin (after the facing flip),
+  // so the origin must clear (WALL_T/2 + casing depth) or the glass renders
+  // *inside* the wall and the panes show brick. 0.16 keeps the whole unit proud.
+  const MOUNT = 0.16;
+  const fz = -halfD - MOUNT; // front, glazing faces the street (-Z)
   const [fc, fr] = winGrid === 2 ? [2, 3] : [3, 2]; // front colonial grid
   const sc = shutterColor; // null = this house has no shutters
   const wins: React.ReactElement[] = [];
@@ -406,7 +412,7 @@ function FacadeDetail({
   // --- SIDE windows: plain glass, no grid, no shutters ---
   const sideZ = [-depth * 0.24, depth * 0.12];
   for (const side of [-1, 1] as const) {
-    const x = side * (halfW + 0.05);
+    const x = side * (halfW + MOUNT);
     const facing: 'x' | '-x' = side === 1 ? 'x' : '-x';
     sideZ.forEach((sz, i) => {
       wins.push(<WindowUnit key={`s${side}_${i}`} position={[x, 1.5, sz]} w={1.0} h={1.3} cols={1} rows={1} trimColor={trimColor} facing={facing} />);
@@ -419,7 +425,7 @@ function FacadeDetail({
   }
 
   // --- REAR: kitchen + family windows + a sliding patio door ---
-  const rz = halfD + 0.05;
+  const rz = halfD + MOUNT;
   wins.push(<WindowUnit key="r1" position={[-width * 0.26, 1.5, rz]} w={1.4} h={1.3} cols={1} rows={1} trimColor={trimColor} facing="z" />);
   wins.push(<WindowUnit key="r2" position={[width * 0.3, 1.5, rz]} w={1.0} h={1.3} cols={1} rows={1} trimColor={trimColor} facing="z" />);
   wins.push(<WindowUnit key="patio" position={[width * 0.02, 1.15, rz]} w={1.9} h={2.1} cols={2} rows={1} trimColor={trimColor} facing="z" />);

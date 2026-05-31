@@ -12,6 +12,7 @@ import {
   sidewalkTexture,
   stuccoTexture,
   tileFloorTexture,
+  windowGlassTexture,
   woodFloorTexture,
   woodPlankTexture,
 } from './textures';
@@ -41,6 +42,31 @@ const stoneCache = new Map<string, THREE.Material>();
 const brickCache = new Map<string, THREE.Material>();
 const sidingCache = new Map<string, THREE.Material>();
 const carCache = new Map<string, THREE.Material>();
+const glassCache = new Map<number, THREE.Material>();
+const GLASS_VARIANTS = 6;
+
+// Inject a view-space Fresnel rim into MeshStandardMaterial's emissive, so glass
+// brightens at grazing angles and "catches the light" as you walk past — the cue
+// a flat self-lit pane otherwise lacks. Needs no environment map. The distinct
+// customProgramCacheKey stops two rim materials from sharing one shader program
+// and mis-binding uniforms.
+function addGlassFresnel(m: THREE.MeshStandardMaterial, rim: string, strength: number) {
+  const rimColor = new THREE.Color(rim);
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uRimColor = { value: rimColor };
+    shader.uniforms.uRimStrength = { value: strength };
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform vec3 uRimColor;\nuniform float uRimStrength;',
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\nfloat _fres = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 2.8);\ntotalEmissiveRadiance += uRimColor * _fres * uRimStrength;',
+      );
+  };
+  m.customProgramCacheKey = () => `glassRim_${rim}_${strength}`;
+}
 
 export const mat = {
   grass(): THREE.Material {
@@ -148,16 +174,34 @@ export const mat = {
     });
     return cached.fenceWood;
   },
-  glass(): THREE.Material {
-    if (cached.glass) return cached.glass;
-    cached.glass = new THREE.MeshStandardMaterial({
-      color: '#3e5a78',
-      metalness: 0.6,
-      roughness: 0.18,
-      emissive: '#0d1620',
-      emissiveIntensity: 0.4,
+  /**
+   * Window glass that reads as reflected sky (or a warm lit room), not a dark
+   * brick recess. Self-lit via emissiveMap with metalness 0 so it never goes
+   * black without an environment map (the same trap that blacked out the cars).
+   * `seed` picks one of a few cached variants so adjacent panes differ.
+   */
+  glassFor(seed: number): THREE.Material {
+    const bucket = ((Math.round(seed) % GLASS_VARIANTS) + GLASS_VARIANTS) % GLASS_VARIANTS;
+    const hit = glassCache.get(bucket);
+    if (hit) return hit;
+    const tex = windowGlassTexture(bucket);
+    const warm = bucket === 4;
+    const dusk = bucket === 5;
+    const m = new THREE.MeshStandardMaterial({
+      map: tex,
+      emissive: '#ffffff',
+      emissiveMap: tex, // same gradient self-lights the pane
+      emissiveIntensity: warm ? 0.6 : dusk ? 0.4 : 0.46,
+      roughness: 0.12,
+      metalness: 0, // CRITICAL: 0 or it renders black with no env map
     });
-    return cached.glass;
+    addGlassFresnel(m, warm ? '#ffe3b0' : '#d6ecff', warm ? 0.5 : 0.6);
+    glassCache.set(bucket, m);
+    return m;
+  },
+  /** Back-compat default (BayWindow + any seedless caller) = a cool sky pane. */
+  glass(): THREE.Material {
+    return this.glassFor(0);
   },
   carPaint(color: string): THREE.Material {
     const c = carCache.get(color);

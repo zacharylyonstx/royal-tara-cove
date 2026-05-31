@@ -404,6 +404,78 @@ export function carPaintTexture(color: string): THREE.Texture {
   return tex;
 }
 
+/**
+ * A single window pane that reads as GLASS (not a dark brick recess), with no
+ * environment map. A vertical "reflected sky" gradient — pale at the top, deeper
+ * teal toward the bottom — plus a diagonal sky-glint streak (the single strongest
+ * "this is glass" cue). Used as BOTH the map and emissiveMap so the pane is
+ * self-lit and can never collapse to black the way a metalness-without-env-map
+ * material does. `variant` (0..5) shifts palette + glint so adjacent windows on a
+ * wall don't repeat: buckets 0-3 = cool sky (daytime-dominant), 4 = warm lit
+ * interior, 5 = cooler dusk sky.
+ */
+export function windowGlassTexture(variant: number): THREE.Texture {
+  const key = `winglass-${variant}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const S = 256;
+  const { ctx, canvas } = makeCanvas(S);
+
+  const kind = variant === 4 ? 'warm' : variant === 5 ? 'dusk' : 'sky';
+  const PAL = {
+    sky: ['#d2eaff', '#93bee2', '#5a87ac', '#37536f'],
+    dusk: ['#a6c6e0', '#7596b6', '#4a6580', '#2c4056'],
+    warm: ['#fff1cb', '#f1c47e', '#bd7a42', '#603b27'],
+  }[kind] as [string, string, string, string];
+
+  // Core vertical gradient (reflected sky meeting reflected ground/trees).
+  const g = ctx.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0.0, PAL[0]);
+  g.addColorStop(0.45, PAL[1]);
+  g.addColorStop(0.72, PAL[2]);
+  g.addColorStop(1.0, PAL[3]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+
+  // Warm rooms get a soft lamp bloom so they read as a lit interior.
+  if (kind === 'warm') {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const cx = S * (0.4 + 0.25 * ((variant % 3) / 2));
+    const rg = ctx.createRadialGradient(cx, S * 0.42, 6, cx, S * 0.42, S * 0.62);
+    rg.addColorStop(0, 'rgba(255,243,206,0.5)');
+    rg.addColorStop(1, 'rgba(255,243,206,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, S, S);
+    ctx.restore();
+  }
+
+  // Diagonal sky-glint streak. Direction + offset vary per variant so a row of
+  // windows doesn't show the same "sticker" in the same spot.
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const flip = variant % 2 === 0;
+  const c = 0.3 + 0.42 * (((variant * 37) % 100) / 100); // streak center 0.30..0.72
+  const streak = ctx.createLinearGradient(flip ? 0 : S, S, flip ? S : 0, 0);
+  streak.addColorStop(Math.max(0, c - 0.1), 'rgba(255,255,255,0)');
+  streak.addColorStop(c, kind === 'warm' ? 'rgba(255,246,222,0.42)' : 'rgba(255,255,255,0.5)');
+  streak.addColorStop(Math.min(1, c + 0.08), 'rgba(255,255,255,0)');
+  ctx.fillStyle = streak;
+  ctx.fillRect(0, 0, S, S);
+  ctx.restore();
+
+  // Very soft edge vignette so the pane reads as set inside its frame.
+  const vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.32, S / 2, S / 2, S * 0.72);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.14)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, S, S);
+
+  const tex = finish(canvas, [1, 1]);
+  cache.set(key, tex);
+  return tex;
+}
+
 export function woodFloorTexture(): THREE.Texture {
   const key = 'wood-floor';
   const cached = cache.get(key);

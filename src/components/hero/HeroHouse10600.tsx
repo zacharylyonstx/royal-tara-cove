@@ -69,7 +69,7 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* Ground-floor great-room window — the big mulled picture window that
           faces the street (this was previously blank brick). */}
       <WindowUnit
-        position={[(doorCenterX + garageCenterX) / 2, 1.65, -halfD - 0.07]}
+        position={[(doorCenterX + garageCenterX) / 2, 1.65, -halfD - 0.18]}
         w={3.4} h={1.9} cols={4} rows={2}
         facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor}
       />
@@ -77,16 +77,16 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* Upper-floor windows on front (visible because we're 2 stories) */}
       {config.stories === 2 && (
         <>
-          <WindowUnit position={[doorCenterX, STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
-          <WindowUnit position={[doorCenterX + (config.garageOnLeft ? -2.5 : 2.5), STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
-          <WindowUnit position={[(doorCenterX + garageCenterX) / 2, STORY_H + 1.55, -halfD - 0.07]} w={1.8} h={1.45} cols={3} rows={3} facing="-z" trimColor={config.trimColor} />
-          <WindowUnit position={[garageCenterX - 1.5, STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
-          <WindowUnit position={[garageCenterX + 1.5, STORY_H + 1.55, -halfD - 0.07]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[doorCenterX, STORY_H + 1.55, -halfD - 0.18]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[doorCenterX + (config.garageOnLeft ? -2.5 : 2.5), STORY_H + 1.55, -halfD - 0.18]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[(doorCenterX + garageCenterX) / 2, STORY_H + 1.55, -halfD - 0.18]} w={1.8} h={1.45} cols={3} rows={3} facing="-z" trimColor={config.trimColor} />
+          <WindowUnit position={[garageCenterX - 1.5, STORY_H + 1.55, -halfD - 0.18]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
+          <WindowUnit position={[garageCenterX + 1.5, STORY_H + 1.55, -halfD - 0.18]} w={1.2} h={1.45} cols={2} rows={3} facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor} />
           {/* Side windows upstairs */}
-          <WindowUnit position={[-halfW - 0.06, STORY_H + 1.55, -halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="-x" trimColor={config.trimColor} />
-          <WindowUnit position={[-halfW - 0.06, STORY_H + 1.55, halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="-x" trimColor={config.trimColor} />
-          <WindowUnit position={[halfW + 0.06, STORY_H + 1.55, -halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="x" trimColor={config.trimColor} />
-          <WindowUnit position={[halfW + 0.06, STORY_H + 1.55, halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="x" trimColor={config.trimColor} />
+          <WindowUnit position={[-halfW - 0.18, STORY_H + 1.55, -halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="-x" trimColor={config.trimColor} />
+          <WindowUnit position={[-halfW - 0.18, STORY_H + 1.55, halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="-x" trimColor={config.trimColor} />
+          <WindowUnit position={[halfW + 0.18, STORY_H + 1.55, -halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="x" trimColor={config.trimColor} />
+          <WindowUnit position={[halfW + 0.18, STORY_H + 1.55, halfD * 0.4]} w={1.0} h={1.3} cols={2} rows={2} facing="x" trimColor={config.trimColor} />
         </>
       )}
 
