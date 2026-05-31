@@ -27,7 +27,7 @@ function Island({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
         <boxGeometry args={[2.2, 0.9, 1.0]} />
-        <meshStandardMaterial color="#dcd2c0" roughness={0.7} />
+        <meshStandardMaterial color="#c1934f" roughness={0.6} />
       </mesh>
       {/* countertop */}
       <mesh position={[0, 0.94, 0]} castShadow>
@@ -75,7 +75,7 @@ function Cabinets({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 0.45, 0]} castShadow>
         <boxGeometry args={[3.0, 0.9, 0.6]} />
-        <meshStandardMaterial color="#dcd2c0" roughness={0.7} />
+        <meshStandardMaterial color="#c1934f" roughness={0.6} />
       </mesh>
       <mesh position={[0, 0.94, 0]} castShadow>
         <boxGeometry args={[3.0, 0.05, 0.65]} />
@@ -84,7 +84,16 @@ function Cabinets({ position }: { position: [number, number, number] }) {
       {/* upper cabinets */}
       <mesh position={[0, 2.1, -0.05]} castShadow>
         <boxGeometry args={[3.0, 0.8, 0.4]} />
-        <meshStandardMaterial color="#dcd2c0" roughness={0.7} />
+        <meshStandardMaterial color="#c1934f" roughness={0.6} />
+      </mesh>
+      {/* warm-yellow wall + backsplash (the "yellow kitchen" the kids remember) */}
+      <mesh position={[0, 1.65, -0.28]}>
+        <boxGeometry args={[3.4, 2.9, 0.04]} />
+        <meshStandardMaterial color="#f0c54e" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 1.45, -0.26]}>
+        <boxGeometry args={[3.0, 0.55, 0.03]} />
+        <meshStandardMaterial color="#e8d7a0" roughness={0.5} />
       </mesh>
     </group>
   );

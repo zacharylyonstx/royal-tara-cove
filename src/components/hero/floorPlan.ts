@@ -41,8 +41,10 @@ export const WALL_THICK = 0.15;
 export const WALL_Y = 1.4;
 
 export const ROOMS: Room[] = [
-  // Front half (z = -8..0)
-  { id: 'great',   minX: -9.0, maxX: -1.5, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: true },
+  // Front half (z = -8..0). The great room is DOUBLE-HEIGHT (no drywall ceiling):
+  // entering the front door you look up into the soaring formal living/dining and
+  // see the upstairs loft railing overhead — the signature memory of 10600.
+  { id: 'great',   minX: -9.0, maxX: -1.5, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: false },
   { id: 'kitchen', minX: -1.5, maxX:  2.0, minZ: -8.0, maxZ:  0.0, floor: 'tile', ceiling: true },
   // Hallway (z = 0..1.5)
   { id: 'hall',    minX: -9.0, maxX:  2.0, minZ:  0.0, maxZ:  1.5, floor: 'wood', ceiling: true },

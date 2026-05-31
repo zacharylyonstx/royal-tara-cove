@@ -154,6 +154,10 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         );
       })()}
 
+      {/* Brick fireplace on the great-room left wall — the family hearth. Faces
+          +X into the room; visible from the kitchen looking left. */}
+      <Fireplace />
+
       {/* Staircase up to the loft (back-left corner of great room) */}
       <Stairs />
       <Loft />
@@ -184,6 +188,42 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
       </group>
 
       {/* Indoor lighting comes from hemisphere + ambient + emissive lamp shades */}
+    </group>
+  );
+}
+
+/** Tan-brick fireplace on the great room's left wall (x = -9), facing +X. */
+function Fireplace() {
+  const wallX = -8.78;
+  const z = -3.2;
+  const brick = mat.brick('#b89270');
+  return (
+    <group position={[wallX, 0.13, z]}>
+      {/* Brick chimney breast floor-to-ceiling */}
+      <mesh position={[0.0, 2.4, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.5, 4.8, 2.4]} />
+        <primitive object={brick} attach="material" />
+      </mesh>
+      {/* Raised hearth slab */}
+      <mesh position={[0.45, 0.18, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.9, 0.36, 2.0]} />
+        <primitive object={mat.brick('#a8835f')} attach="material" />
+      </mesh>
+      {/* Firebox recess (dark) */}
+      <mesh position={[0.46, 0.95, 0]}>
+        <boxGeometry args={[0.5, 1.0, 1.3]} />
+        <meshStandardMaterial color="#1a1410" roughness={1} />
+      </mesh>
+      {/* Warm ember glow */}
+      <mesh position={[0.5, 0.62, 0]}>
+        <boxGeometry args={[0.3, 0.12, 1.0]} />
+        <meshStandardMaterial color="#ff7a2a" emissive="#ff6a1a" emissiveIntensity={0.9} />
+      </mesh>
+      {/* Wood mantle */}
+      <mesh position={[0.5, 1.62, 0]} castShadow>
+        <boxGeometry args={[0.7, 0.16, 2.0]} />
+        <meshStandardMaterial color="#6e4a2a" roughness={0.7} />
+      </mesh>
     </group>
   );
 }

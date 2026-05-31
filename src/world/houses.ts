@@ -79,8 +79,9 @@ export const HOUSES: HouseConfig[] = [
     address: '10600',
     position: { kind: 'bulb', angleDeg: 90 },
     width: 18, depth: 16, stories: 2,
-    brickColor: BRICK.redBrown, sidingColor: SIDING.tan, roofColor: ROOF.gray, doorColor: DOOR.brown,
-    wallColor: SIDING.tan, trimColor: TRIM, hasStone: false, stoneColor: BRICK.redBrown,
+    // The real 10600: tan/beige brick + cream siding (per the family memory spec).
+    brickColor: BRICK.buff, sidingColor: SIDING.cream, roofColor: ROOF.gray, doorColor: DOOR.brown,
+    wallColor: SIDING.cream, trimColor: TRIM, hasStone: false, stoneColor: BRICK.buff,
     garageOnLeft: false, isHero: true, hipped: true, sqft: 2129, yearBuilt: 2004, source: 'verified',
   },
   {

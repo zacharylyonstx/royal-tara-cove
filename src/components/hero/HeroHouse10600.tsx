@@ -3,6 +3,7 @@ import type { Floor, HouseConfig, Lot, RectCollider } from '../../types';
 import { Roof } from '../Roof';
 import { Door } from '../Door';
 import { WindowUnit } from '../houseDetail';
+import { LiveOak } from '../vegetation/LiveOak';
 import { Interior10600 } from './Interior10600';
 import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
@@ -68,11 +69,22 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
 
       {/* Ground-floor great-room window — the big mulled picture window that
           faces the street (this was previously blank brick). */}
+      {/* Tall formal living/dining window — its height hints at the double-height
+          ceiling inside. Topped by a brick arch (the remembered arched window). */}
       <WindowUnit
-        position={[(doorCenterX + garageCenterX) / 2, 1.65, -halfD - 0.18]}
-        w={3.4} h={1.9} cols={4} rows={2}
-        facing="-z" shutters shutterColor="#26352a" trimColor={config.trimColor}
+        position={[(doorCenterX + garageCenterX) / 2, 1.95, -halfD - 0.18]}
+        w={3.0} h={2.7} cols={3} rows={3}
+        facing="-z" trimColor={config.trimColor}
       />
+      <mesh position={[(doorCenterX + garageCenterX) / 2, 3.35, -halfD - 0.13]} rotation={[0, Math.PI, 0]} castShadow>
+        <circleGeometry args={[1.62, 24, 0, Math.PI]} />
+        <primitive object={mat.brick(config.brickColor ?? '#ddb999')} attach="material" />
+      </mesh>
+      {/* white keystone/trim band along the arch base */}
+      <mesh position={[(doorCenterX + garageCenterX) / 2, 3.34, -halfD - 0.2]} castShadow>
+        <boxGeometry args={[3.3, 0.12, 0.1]} />
+        <meshStandardMaterial color={config.trimColor} roughness={0.7} />
+      </mesh>
 
       {/* Upper-floor windows on front (visible because we're 2 stories) */}
       {config.stories === 2 && (
@@ -184,6 +196,42 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         z={-halfD - PORCH_DEPTH + 0.2}
         width={PORCH_WIDTH - 1}
       />
+
+      {/* --- Front-yard memory landmarks --- */}
+      {/* The big live oak on the LEFT front yard with a circular brick ring. */}
+      <LiveOak position={[-halfW + 1.5, 0, -halfD - 5.2]} scale={1.55} seed={4} />
+      <mesh position={[-halfW + 1.5, 0.09, -halfD - 5.2]} receiveShadow>
+        <cylinderGeometry args={[1.5, 1.5, 0.18, 22]} />
+        <meshStandardMaterial color="#a8835f" roughness={0.9} />
+      </mesh>
+      <mesh position={[-halfW + 1.5, 0.16, -halfD - 5.2]} receiveShadow>
+        <cylinderGeometry args={[1.25, 1.25, 0.1, 22]} />
+        <meshStandardMaterial color="#4a3526" roughness={1} />
+      </mesh>
+      {/* Rounded shrub mass along the front, in front of the formal window. */}
+      {[-3.3, -2.2, -1.1, 0.0, 1.1].map((dx, i) => (
+        <mesh key={`shrub-${i}`} position={[(doorCenterX + garageCenterX) / 2 + dx, 0.42, -halfD - 0.95]} castShadow>
+          <icosahedronGeometry args={[0.46 + (i % 2) * 0.07, 0]} />
+          <meshStandardMaterial color={i % 2 ? '#4a7a3a' : '#3f6e34'} roughness={1} flatShading />
+        </mesh>
+      ))}
+      {/* American flag angled off the left porch column. */}
+      <group position={[doorCenterX - PORCH_WIDTH / 2 + 0.25, 2.25, -halfD - PORCH_DEPTH + 0.35]} rotation={[0, 0, -0.9]}>
+        <mesh position={[0, 0.6, 0]} castShadow>
+          <cylinderGeometry args={[0.025, 0.025, 1.4, 8]} />
+          <meshStandardMaterial color="#caa14a" metalness={0.5} roughness={0.4} />
+        </mesh>
+        <group position={[0, 1.05, 0.32]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh><boxGeometry args={[0.62, 0.02, 0.42]} /><meshStandardMaterial color="#b22234" /></mesh>
+          <mesh position={[0, 0.011, 0.06]}><boxGeometry args={[0.62, 0.02, 0.06]} /><meshStandardMaterial color="#ffffff" /></mesh>
+          <mesh position={[0, 0.011, 0.18]}><boxGeometry args={[0.62, 0.02, 0.06]} /><meshStandardMaterial color="#ffffff" /></mesh>
+          <mesh position={[-0.16, 0.012, -0.12]}><boxGeometry args={[0.3, 0.02, 0.18]} /><meshStandardMaterial color="#3c3b6e" /></mesh>
+        </group>
+      </group>
+      {/* Greenbelt: dense trees behind the back fence (the "backs to woods" feel). */}
+      {[-7, -2.5, 2, 6.5].map((gx, i) => (
+        <LiveOak key={`green-${i}`} position={[gx, 0, halfD + 17 + (i % 2) * 3]} scale={1.7} seed={i + 20} />
+      ))}
 
       {/* Back deck off the patio slider */}
       <BackDeck z={halfD + 0.4} width={config.width - 2} depth={3.5} />
