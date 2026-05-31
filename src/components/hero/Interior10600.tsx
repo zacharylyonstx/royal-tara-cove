@@ -34,6 +34,19 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
 
   return (
     <group>
+      {/* Interior lighting — the rooms only got the dim outdoor hemisphere, so they
+          read as caves. Warm point lights make them bright & even, like the photos. */}
+      {[
+        [-5.2, 2.0, -4],   // great room / formal
+        [0.2, 2.0, -4],    // kitchen
+        [-5.2, 2.0, 4.5],  // back / family
+        [0.2, 2.0, 4.5],   // back-right
+      ].map((p, i) => (
+        <pointLight key={`il-${i}`} position={p as [number, number, number]} intensity={5} distance={10} decay={2} color="#fff2dc" />
+      ))}
+      {/* A soft fill so corners aren't black */}
+      <pointLight position={[-3, 1.9, 0]} intensity={4} distance={16} decay={2} color="#fff0d8" />
+
       {/* Per-room floors driven by floorPlan.ts — no overlap by construction */}
       {ROOMS.map((r) => {
         const cx = (r.minX + r.maxX) / 2;
