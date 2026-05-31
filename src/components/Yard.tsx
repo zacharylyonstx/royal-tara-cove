@@ -43,12 +43,35 @@ export function Yard({ config, lot }: YardProps) {
   // radiusOffset) so the driveway/walkway aren't left short of the curb.
   const reach = (lx: number, r: number) =>
     frontStripReach(config.position, lot.housePivot, lot.houseYaw, halfD, lx, r);
-  // Driveway runs all the way to (and a hair onto) the pavement.
-  const driveLen = reach(garageCenterX, STREET_RADIUS) + 0.6;
-  const driveZCenter = -halfD - driveLen / 2;
   // Walkway runs to the sidewalk's lawn edge; the mailbox sits a bit past it (curb).
   const walkLen = reach(doorCenterX, LOT_FRONT_RADIUS);
   const mailboxZ = -halfD - reach(config.garageOnLeft ? halfW - 1.0 : -halfW + 1.0, STREET_RADIUS) - 0.2;
+
+  // Driveway slab as a flat quad whose street edge sits ON the (possibly curved) curb,
+  // so its two corners meet the pavement instead of one of them stabbing into the road.
+  const driveGeom = useMemo(() => {
+    const dw = GARAGE_W - 0.2;
+    const xL = garageCenterX - dw / 2;
+    const xR = garageCenterX + dw / 2;
+    const zH = -halfD;
+    const zL = -halfD - reach(xL, STREET_RADIUS);
+    const zR = -halfD - reach(xR, STREET_RADIUS);
+    // Two triangles: houseL, houseR, streetR / houseL, streetR, streetL.
+    const pos = new Float32Array([
+      xL, 0, zH, xR, 0, zH, xR, 0, zR,
+      xL, 0, zH, xR, 0, zR, xL, 0, zL,
+    ]);
+    const uv = new Float32Array([
+      xL * 0.18, zH * 0.18, xR * 0.18, zH * 0.18, xR * 0.18, zR * 0.18,
+      xL * 0.18, zH * 0.18, xR * 0.18, zR * 0.18, xL * 0.18, zL * 0.18,
+    ]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    return g;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [garageCenterX, halfD, lot.housePivot[0], lot.housePivot[1], lot.houseYaw, config.position.kind]);
 
   return (
     <group>
@@ -59,9 +82,8 @@ export function Yard({ config, lot }: YardProps) {
 
       {/* House-local props (driveway, walkway, mailbox) — these stay relative to the house */}
       <group position={[lot.housePivot[0], 0, lot.housePivot[1]]} rotation={[0, lot.houseYaw, 0]}>
-        {/* Driveway */}
-        <mesh position={[garageCenterX, 0.022, driveZCenter]} receiveShadow>
-          <boxGeometry args={[GARAGE_W - 0.2, 0.04, driveLen]} />
+        {/* Driveway — quad following the curb (no corner punching into the road) */}
+        <mesh geometry={driveGeom} position={[0, 0.022, 0]} receiveShadow>
           <primitive object={mat.concrete()} attach="material" />
         </mesh>
 

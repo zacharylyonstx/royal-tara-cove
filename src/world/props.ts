@@ -68,7 +68,7 @@ export function buildPropsFor(houses: HouseConfig[]): Map<string, HouseProps> {
     if (h.isHero) {
       tags.add('truck');
       tags.add('hoop');
-      tags.add('patio');
+      // (no 'patio' — the backyard is the trampoline + "68" playhouse now)
       tags.add('flagpole');
       tags.add('bayWindow');
       tags.add('kidsBikes');

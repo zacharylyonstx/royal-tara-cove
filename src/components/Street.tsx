@@ -105,6 +105,10 @@ export function Street() {
         <Text position={[0, 2.7, 0.04]} fontSize={0.3} color="#f5ecd9" anchorX="center" anchorY="middle">
           ROYAL TARA CV
         </Text>
+        {/* readable from the other side too */}
+        <Text position={[0, 2.7, -0.04]} rotation={[0, Math.PI, 0]} fontSize={0.3} color="#f5ecd9" anchorX="center" anchorY="middle">
+          ROYAL TARA CV
+        </Text>
       </group>
 
       {/* Stop sign near the entry */}
@@ -113,11 +117,15 @@ export function Street() {
           <cylinderGeometry args={[0.04, 0.04, 2.0, 6]} />
           <meshStandardMaterial color="#2c2c2c" />
         </mesh>
-        <mesh position={[0, 2.1, 0]} rotation={[0, 0, Math.PI / 8]} castShadow>
+        {/* octagon stood UPRIGHT to face the road (was lying flat) */}
+        <mesh position={[0, 2.1, 0]} rotation={[Math.PI / 2, Math.PI / 8, 0]} castShadow>
           <cylinderGeometry args={[0.32, 0.32, 0.04, 8]} />
           <meshStandardMaterial color="#c8392a" />
         </mesh>
-        <Text position={[0, 2.1, 0.025]} fontSize={0.18} color="#f5ecd9" anchorX="center" anchorY="middle">
+        <Text position={[0, 2.1, 0.04]} fontSize={0.18} color="#f5ecd9" anchorX="center" anchorY="middle">
+          STOP
+        </Text>
+        <Text position={[0, 2.1, -0.04]} rotation={[0, Math.PI, 0]} fontSize={0.18} color="#f5ecd9" anchorX="center" anchorY="middle">
           STOP
         </Text>
       </group>

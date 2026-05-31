@@ -69,6 +69,7 @@ interface PlayStore {
   hoops: Record<string, HoopReg>;                 // keyed by house address
   bikes: Record<string, BikeReg>;                 // keyed by bike id
   ramp: RampReg | null;
+  trampoline: { x: number; z: number; half: number; padY: number } | null;
 
   // Contextual interact hint for the local player.
   hoverPlay: HoverPlay;
@@ -79,6 +80,7 @@ interface PlayStore {
   registerHoop: (address: string, reg: HoopReg) => void;
   registerBike: (reg: BikeReg) => void;
   registerRamp: (reg: RampReg) => void;
+  registerTrampoline: (reg: { x: number; z: number; half: number; padY: number }) => void;
   /** Record a landed trick (or a wipeout) for the HUD; bumps the counter for real tricks. */
   setTrick: (text: string, scored: boolean) => void;
 
@@ -108,6 +110,7 @@ export const usePlayStore = create<PlayStore>((set) => ({
   trickCount: 0,
   hoops: {},
   bikes: {},
+  trampoline: null,
   ramp: null,
   hoverPlay: null,
   hoverBikeId: null,
@@ -121,6 +124,7 @@ export const usePlayStore = create<PlayStore>((set) => ({
     ),
   registerHoop: (address, reg) => set((s) => ({ hoops: { ...s.hoops, [address]: reg } })),
   registerBike: (reg) => set((s) => ({ bikes: { ...s.bikes, [reg.id]: reg } })),
+  registerTrampoline: (reg) => set(() => ({ trampoline: reg })),
   registerRamp: (reg) => set({ ramp: reg }),
   setTrick: (text, scored) =>
     set((s) => ({

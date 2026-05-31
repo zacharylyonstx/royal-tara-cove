@@ -14,6 +14,7 @@ import { HOUSES } from '../world/houses';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
+import { usePlayStore } from '../state/playStore';
 import { FRONT_YARD_DEPTH } from '../world/streetLayout';
 import { buildLots } from '../world/lots';
 import { buildColliders, buildPropColliders } from '../world/colliders';
@@ -26,6 +27,8 @@ import {
   buildPorchColliders,
   buildHeroFloors,
   buildHeroExteriorColliders,
+  buildPlayhouseColliders,
+  buildTrampolineZone,
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { RiddenBikes } from './props/RiddenBike';
@@ -124,8 +127,10 @@ export function Game() {
         ...buildHeroUpstairsColliders(hero, heroLot),
         ...buildPorchColliders(hero, heroLot),
         ...buildHeroExteriorColliders(hero, heroLot),
+        ...buildPlayhouseColliders(hero, heroLot),
       ];
       setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor()]);
+      usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
     setStaticColliders([...base, ...extra, ...propColliders, ...buildRampColliders()]);

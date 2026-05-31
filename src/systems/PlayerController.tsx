@@ -61,6 +61,7 @@ export function PlayerController() {
   const { camera } = useThree();
   const keys = useRef<Record<string, boolean>>({});
   const yVel = useRef(0);
+  const trampCharge = useRef(0); // builds while jumping on the trampoline → higher bounces
 
   // In multiplayer the local browser only controls its claimed character.
   // Fallback to gameStore.activeCharacterId only if no net character is set
@@ -309,16 +310,41 @@ export function PlayerController() {
     // Floor + jump + gravity (skipped while riding — the bike stays grounded).
     if (!myRiding) {
       const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
-      // Jump (only when on the floor under us). Space also shoots a held ball,
-      // but you can't hold a ball and jump at the same time, so no conflict.
-      if ((k[' '] || k['space']) && pos.y - standingFloorY < 0.05 && !usePlayStore.getState().heldBall) {
-        yVel.current = JUMP_VELOCITY;
-      }
-      yVel.current -= GRAVITY * dt;
-      pos.y += yVel.current * dt;
-      if (pos.y < standingFloorY) {
-        pos.y = standingFloorY;
-        yVel.current = 0;
+      const jumpHeld = (k[' '] || k['space']) && !usePlayStore.getState().heldBall;
+      const tramp = usePlayStore.getState().trampoline;
+      const onTramp = !!tramp && Math.abs(pos.x - tramp.x) < tramp.half && Math.abs(pos.z - tramp.z) < tramp.half;
+
+      if (onTramp && tramp) {
+        // Trampoline: press jump to bounce higher and higher; auto-springs otherwise.
+        const grounded = pos.y - tramp.padY < 0.12;
+        if (jumpHeld && grounded) {
+          trampCharge.current = Math.min(1, trampCharge.current + 0.34);
+          yVel.current = JUMP_VELOCITY * (1.5 + trampCharge.current * 1.1);
+        }
+        yVel.current -= GRAVITY * dt;
+        pos.y += yVel.current * dt;
+        if (pos.y < tramp.padY) {
+          const impact = -yVel.current;
+          pos.y = tramp.padY;
+          if (impact > 2.5 && !jumpHeld) {
+            yVel.current = impact * 0.68; // bouncy auto-spring (decays without input)
+          } else {
+            yVel.current = 0;
+            trampCharge.current = Math.max(0, trampCharge.current - 0.25);
+          }
+        }
+      } else {
+        trampCharge.current = 0;
+        // Normal jump (only when on the floor under us).
+        if (jumpHeld && pos.y - standingFloorY < 0.05) {
+          yVel.current = JUMP_VELOCITY;
+        }
+        yVel.current -= GRAVITY * dt;
+        pos.y += yVel.current * dt;
+        if (pos.y < standingFloorY) {
+          pos.y = standingFloorY;
+          yVel.current = 0;
+        }
       }
     }
 

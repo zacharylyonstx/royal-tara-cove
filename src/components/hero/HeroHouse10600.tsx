@@ -5,8 +5,16 @@ import { Door } from '../Door';
 import { WindowUnit } from '../houseDetail';
 import { LiveOak } from '../vegetation/LiveOak';
 import { Interior10600 } from './Interior10600';
+import { Trampoline, TRAMPOLINE_PAD_Y, trampolinePadHalf } from './Trampoline';
+import { Playhouse, PLAYHOUSE_W, PLAYHOUSE_D, PLAYHOUSE_H } from './Playhouse';
 import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
+
+// Backyard play set, in HOUSE-LOCAL coords (must match the <Trampoline>/<Playhouse>
+// placement in the render below). halfD = 9 for the hero.
+const TRAMPOLINE_LOCAL: [number, number] = [7, 17];
+const TRAMPOLINE_RADIUS = 3.0;
+const PLAYHOUSE_LOCAL: [number, number] = [-7, 16];
 
 const STORY_H = 3.0;
 const GARAGE_W = 6.4;
@@ -238,8 +246,10 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* String lights criss-crossing back deck */}
       <StringLights z={halfD + 2.0} width={config.width - 2.5} />
 
-      {/* Pool in the backyard */}
-      <Pool x={2} z={halfD + 9} width={5} depth={3.5} />
+      {/* Backyard play set — trampoline (left) + the "68" playhouse (right), flanking
+          the UFO crash lane so the alien crash stays clear. */}
+      <Trampoline position={[7, 0, halfD + 8]} radius={3.0} />
+      <Playhouse position={[-7, 0, halfD + 7]} rotation={0} />
 
       {/* Interior — only rendered when player is within 30m to keep perf tidy */}
       <Interior10600 depth={config.depth} doorCenterX={doorCenterX} garageCenterX={garageCenterX} />
@@ -652,38 +662,6 @@ function StringLights({ z, width }: { z: number; width: number }) {
   );
 }
 
-function Pool({ x, z, width, depth }: { x: number; z: number; width: number; depth: number }) {
-  return (
-    <group position={[x, 0, z]}>
-      {/* coping (brick rim) */}
-      <mesh position={[0, 0.06, 0]} receiveShadow>
-        <boxGeometry args={[width + 0.4, 0.12, depth + 0.4]} />
-        <meshStandardMaterial color="#a07050" roughness={0.85} />
-      </mesh>
-      {/* water */}
-      <mesh position={[0, 0.13, 0]} receiveShadow>
-        <boxGeometry args={[width, 0.02, depth]} />
-        <meshStandardMaterial color="#2aa6e6" roughness={0.15} metalness={0.4} emissive="#0a3a5a" emissiveIntensity={0.2} transparent opacity={0.85} />
-      </mesh>
-      {/* lounge chairs */}
-      {[-width / 2 - 0.6, width / 2 + 0.6].map((lx, i) => (
-        <group key={i} position={[lx, 0, 0]}>
-          <mesh position={[0, 0.22, 0]} castShadow>
-            <boxGeometry args={[0.5, 0.06, 1.6]} />
-            <meshStandardMaterial color="#dcd6c8" />
-          </mesh>
-          {[-0.18, 0.18].flatMap((bx) => [-0.7, 0.7].map((bz) => [bx, 0.11, bz] as const)).map(([bx, by, bz], j) => (
-            <mesh key={j} position={[bx, by, bz]} castShadow>
-              <boxGeometry args={[0.04, 0.22, 0.04]} />
-              <meshStandardMaterial color="#3a3a3c" />
-            </mesh>
-          ))}
-        </group>
-      ))}
-    </group>
-  );
-}
-
 // --- Collider builders for the interior — exported so Game.tsx can include them in staticColliders ---
 
 export function buildInteriorColliders(config: HouseConfig, lot: Lot): RectCollider[] {
@@ -832,6 +810,12 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
   const stairs = toWorldRect(-3.9, -7.3, -2.3, -4.0);
   const columnFloor = toWorldRect(-12.0, -9.0, -4.0, 9.0);   // master + hall + Penny + Luke
   const gameFloor = toWorldRect(-4.0, -4.0, 12.0, 9.0);      // game room over kitchen + back of great room
+  // Trampoline jump mat — a flat floor at pad height you can stand/bounce on.
+  const th = trampolinePadHalf(TRAMPOLINE_RADIUS);
+  const trampPad = toWorldRect(
+    TRAMPOLINE_LOCAL[0] - th, TRAMPOLINE_LOCAL[1] - th,
+    TRAMPOLINE_LOCAL[0] + th, TRAMPOLINE_LOCAL[1] + th,
+  );
 
   return [
     // Staircase ramp: climbs as z INCREASES (front -7.3 → back -4.0).
@@ -839,7 +823,62 @@ export function buildHeroFloors(_config: HouseConfig, lot: Lot): Floor[] {
     // Flat second floor.
     { ...columnFloor, baseY: STORY_H, topY: STORY_H },
     { ...gameFloor, baseY: STORY_H, topY: STORY_H },
+    // Backyard trampoline mat.
+    { ...trampPad, baseY: TRAMPOLINE_PAD_Y, topY: TRAMPOLINE_PAD_Y },
   ];
+}
+
+/** World-space trampoline bounce zone (center + half-extent + pad height) for the
+ *  jump mechanic in PlayerController. */
+export function buildTrampolineZone(_config: HouseConfig, lot: Lot): { x: number; z: number; half: number; padY: number } {
+  const cy = Math.cos(lot.houseYaw);
+  const sy = Math.sin(lot.houseYaw);
+  const [lx, lz] = TRAMPOLINE_LOCAL;
+  return {
+    x: lot.housePivot[0] + lx * cy + lz * sy,
+    z: lot.housePivot[1] - lx * sy + lz * cy,
+    half: trampolinePadHalf(TRAMPOLINE_RADIUS),
+    padY: TRAMPOLINE_PAD_Y,
+  };
+}
+
+/** Wall colliders for the backyard "68" playhouse (with the +X-side door gap open),
+ *  so it's a real little structure you walk into. minY 0 / maxY = playhouse height. */
+export function buildPlayhouseColliders(_config: HouseConfig, lot: Lot): RectCollider[] {
+  const cy = Math.cos(lot.houseYaw);
+  const sy = Math.sin(lot.houseYaw);
+  const [cxL, czL] = PLAYHOUSE_LOCAL;
+  const hw = PLAYHOUSE_W / 2;
+  const hd = PLAYHOUSE_D / 2;
+  const T = 0.1;
+  // Local wall segments {cx, cz, sx, sz} relative to the playhouse center. The +X
+  // wall (x=+hw) is split around a door gap at z=-0.45..0.6.
+  const walls = [
+    { cx: 0, cz: -hd, sx: PLAYHOUSE_W, sz: T },                 // front (-Z)
+    { cx: 0, cz: hd, sx: PLAYHOUSE_W, sz: T },                  // back (+Z)
+    { cx: -hw, cz: 0, sx: T, sz: PLAYHOUSE_D },                 // left (-X)
+    { cx: hw, cz: 1.05, sx: T, sz: 0.9 },                       // right (+X), back of door
+    { cx: hw, cz: -1.0, sx: T, sz: 1.0 },                       // right (+X), front of door
+  ];
+  return walls.map((w, i) => {
+    const lcx = cxL + w.cx;
+    const lcz = czL + w.cz;
+    const hX = w.sx / 2;
+    const hZ = w.sz / 2;
+    const corners: [number, number][] = [
+      [lcx - hX, lcz - hZ], [lcx + hX, lcz - hZ], [lcx + hX, lcz + hZ], [lcx - hX, lcz + hZ],
+    ];
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [lx, lz] of corners) {
+      const wx = lot.housePivot[0] + lx * cy + lz * sy;
+      const wz = lot.housePivot[1] - lx * sy + lz * cy;
+      if (wx < minX) minX = wx;
+      if (wx > maxX) maxX = wx;
+      if (wz < minZ) minZ = wz;
+      if (wz > maxZ) maxZ = wz;
+    }
+    return { minX, maxX, minZ, maxZ, minY: 0, maxY: PLAYHOUSE_H, tag: `playhouse-${i}` };
+  });
 }
 
 // Upstairs bedroom/hall walls (must mirror the UpWall calls in StairsAndLoft.tsx).
