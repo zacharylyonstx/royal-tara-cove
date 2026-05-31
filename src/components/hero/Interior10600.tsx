@@ -1,8 +1,6 @@
 import { mat } from '../../world/materials';
 import { LivingRoom } from './LivingRoom';
 import { Kitchen } from './Kitchen';
-import { Bedroom } from './Bedroom';
-import { Bathroom } from './Bathroom';
 import { Stairs, Loft } from './StairsAndLoft';
 import { ProjectorScreen } from './ProjectorScreen';
 import { ROOMS, INTERIOR_WALLS, WALL_HEIGHT, WALL_THICK, WALL_Y, roomCenter } from './floorPlan';
@@ -138,56 +136,36 @@ export function Interior10600({ depth, doorCenterX, garageCenterX }: InteriorPro
         return meshes;
       })}
 
-      {/* Rooms — origins derived from the manifest so they can't drift. */}
+      {/* Open flow: great room (front) → kitchen (straight back) → family room. */}
       {(() => {
         const greatC = roomCenter('great');
         const kitchenR = ROOMS.find((r) => r.id === 'kitchen')!;
-        const masterC = roomCenter('master');
-        const pennyC = roomCenter('penny');
-        const lukeC = roomCenter('luke');
-        const bathC = roomCenter('bath');
-        const masterR = ROOMS.find((r) => r.id === 'master')!;
-        const pennyR = ROOMS.find((r) => r.id === 'penny')!;
-        const lukeR = ROOMS.find((r) => r.id === 'luke')!;
-        // Kitchen origin offset south of room center so cabinets/fridge/stove/sink
-        // (which the component places at origin.z + 1..1.4) land against the back wall.
-        const kitchenOriginZ = kitchenR.maxZ - 1.7;
+        const familyR = ROOMS.find((r) => r.id === 'family')!;
+        const kitchenOriginZ = kitchenR.maxZ - 1.7;   // cabinets against the back wall
         const kitchenOriginX = (kitchenR.minX + kitchenR.maxX) / 2;
         return (
           <>
             <LivingRoom origin={[greatC[0], 0.13, greatC[1]]} doorCenterX={doorCenterX} />
             <ProjectorScreen />
             <Kitchen origin={[kitchenOriginX, 0.13, kitchenOriginZ]} />
-            <Bedroom
-              origin={[masterC[0], 0.13, masterC[1]]}
-              size={[masterR.maxX - masterR.minX, masterR.maxZ - masterR.minZ]}
-              kid="dad"
-            />
-            <Bedroom
-              origin={[pennyC[0], 0.13, pennyC[1]]}
-              size={[pennyR.maxX - pennyR.minX, pennyR.maxZ - pennyR.minZ]}
-              kid="penny"
-            />
-            <Bedroom
-              origin={[lukeC[0], 0.13, lukeC[1]]}
-              size={[lukeR.maxX - lukeR.minX, lukeR.maxZ - lukeR.minZ]}
-              kid="luke"
-            />
-            <Bathroom origin={[bathC[0], 0.13, bathC[1]]} />
+            <FamilyRoom minX={familyR.minX} maxX={familyR.maxX} minZ={familyR.minZ} maxZ={familyR.maxZ} />
           </>
         );
       })()}
 
-      {/* Great room = open two-story formal living/DINING: a dining table under a
-          chandelier (the fireplace lives in the family room, not here). */}
+      {/* Great room = open two-story formal living/DINING: dining table + chandelier. */}
       <DiningSet position={[-5.6, 0.13, -3.2]} />
-      {/* Cream drywall lining the great room's exterior walls (which otherwise show
-          brick/siding inside), full two-story height so the open space reads clean. */}
-      <mesh position={[-8.9, 2.75, -4]}><boxGeometry args={[0.06, 5.5, 8]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
-      <mesh position={[-5.25, 4.2, -7.9]}><boxGeometry args={[7.5, 2.6, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
-      {/* upper band over the great-room/back boundary so the two-story void above the
-          loft reads as cream wall, not open roof */}
-      <mesh position={[-1.6, 4.2, -4]}><boxGeometry args={[0.06, 2.6, 8]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* Cream drywall lining the great room (full two-story height) so the open
+          volume reads clean instead of showing brick/siding inside. */}
+      {/* Left + right interior drywall lining the full depth (in FRONT of the wall
+          faces so it covers the exterior siding/brick that shows inside otherwise). */}
+      <mesh position={[-8.78, 2.4, 0]}><boxGeometry args={[0.06, 5.5, 16]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[1.82, 2.4, 0]}><boxGeometry args={[0.06, 5.5, 16]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* back wall (z=8) drywall behind the family room */}
+      <mesh position={[-3.5, 2.4, 7.78]}><boxGeometry args={[11.0, 5.5, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      <mesh position={[-3.5, 4.55, -7.88]}><boxGeometry args={[11.0, 1.9, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
+      {/* upper band over the kitchen so the two-story void reads as cream wall */}
+      <mesh position={[-3.5, 4.2, 0.05]}><boxGeometry args={[11.0, 2.6, 0.06]} /><meshStandardMaterial color="#efe8d8" roughness={0.95} /></mesh>
 
       {/* Staircase up to the loft (back-left corner of great room) */}
       <Stairs />
@@ -253,6 +231,59 @@ function DiningSet({ position }: { position: [number, number, number] }) {
       <mesh position={[0, 1.95, 0]} castShadow><boxGeometry args={[0.52, 0.3, 0.52]} /><meshStandardMaterial color="#34343a" metalness={0.3} roughness={0.5} /></mesh>
       <mesh position={[0, 1.93, 0]}><boxGeometry args={[0.4, 0.22, 0.4]} /><meshStandardMaterial color="#fff0c0" emissive="#ffe6a0" emissiveIntensity={0.9} /></mesh>
       <pointLight position={[0, 1.9, 0]} intensity={4} distance={7} decay={2} color="#fff0d0" />
+    </group>
+  );
+}
+
+/** The family room behind the kitchen (through the kitchen, on the right): olive
+    walls, a corner brick fireplace, a ceiling fan, a sofa — the real 10600 den. */
+function FamilyRoom({ minX, maxX, minZ, maxZ }: { minX: number; maxX: number; minZ: number; maxZ: number }) {
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  return (
+    <group>
+      {/* olive accent walls (in front of the cream drywall): back + right (-X) wall */}
+      <mesh position={[cx, 1.45, maxZ - 0.32]}><boxGeometry args={[maxX - minX, 2.8, 0.04]} /><meshStandardMaterial color="#8a8a4a" roughness={0.95} /></mesh>
+      <mesh position={[minX + 0.32, 1.45, cz]}><boxGeometry args={[0.04, 2.8, maxZ - minZ]} /><meshStandardMaterial color="#8a8a4a" roughness={0.95} /></mesh>
+      {/* Corner brick fireplace in the back-right corner (world -X), angled into the room */}
+      <Fireplace position={[minX + 1.0, 0.13, maxZ - 1.0]} rotation={Math.PI / 4} />
+      {/* ceiling fan */}
+      <CeilingFan position={[cx, 2.82, cz]} />
+      {/* sofa facing the fireplace */}
+      <mesh position={[cx + 1.6, 0.5, cz + 0.5]} castShadow receiveShadow>
+        <boxGeometry args={[0.9, 0.7, 2.0]} /><meshStandardMaterial color="#7a6a55" roughness={0.95} />
+      </mesh>
+      <mesh position={[cx + 2.0, 0.85, cz + 0.5]} castShadow><boxGeometry args={[0.2, 0.7, 2.0]} /><meshStandardMaterial color="#7a6a55" roughness={0.95} /></mesh>
+    </group>
+  );
+}
+
+/** Tan-brick corner fireplace with hearth, firebox glow, and a wood mantel. */
+function Fireplace({ position, rotation }: { position: [number, number, number]; rotation: number }) {
+  const brick = mat.brick('#b89270');
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <mesh position={[0, 1.45, 0]} castShadow receiveShadow><boxGeometry args={[0.5, 2.74, 1.9]} /><primitive object={brick} attach="material" /></mesh>
+      <mesh position={[0.42, 0.16, 0]} castShadow receiveShadow><boxGeometry args={[0.85, 0.32, 1.7]} /><primitive object={mat.brick('#a8835f')} attach="material" /></mesh>
+      <mesh position={[0.34, 0.82, 0]}><boxGeometry args={[0.18, 0.78, 1.0]} /><meshStandardMaterial color="#3a2418" roughness={1} /></mesh>
+      <mesh position={[0.42, 0.55, 0]}><boxGeometry args={[0.14, 0.14, 0.78]} /><meshStandardMaterial color="#ff8a3a" emissive="#ff5a14" emissiveIntensity={1.1} /></mesh>
+      <mesh position={[0.5, 1.5, 0]} castShadow><boxGeometry args={[0.72, 0.16, 1.9]} /><meshStandardMaterial color="#6e4a2a" roughness={0.7} /></mesh>
+      <pointLight position={[0.6, 0.8, 0]} intensity={1.5} distance={4} decay={2} color="#ff7a30" />
+    </group>
+  );
+}
+
+/** A simple ceiling fan with a light. */
+function CeilingFan({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.1, 0.12, 0.1, 12]} /><meshStandardMaterial color="#4a3526" metalness={0.3} /></mesh>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <mesh key={i} position={[0, -0.02, 0]} rotation={[0, (i * Math.PI * 2) / 5, 0.03]}>
+          <boxGeometry args={[0.62, 0.015, 0.12]} /><meshStandardMaterial color="#6e4a2a" roughness={0.7} />
+        </mesh>
+      ))}
+      <mesh position={[0, -0.1, 0]}><sphereGeometry args={[0.08, 10, 10]} /><meshStandardMaterial color="#fff4d6" emissive="#ffe9b0" emissiveIntensity={0.7} /></mesh>
     </group>
   );
 }

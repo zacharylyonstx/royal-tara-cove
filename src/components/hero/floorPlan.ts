@@ -8,8 +8,7 @@
 export type FloorMaterial = 'wood' | 'tile' | 'concrete';
 
 export type RoomId =
-  | 'great' | 'kitchen' | 'hall'
-  | 'master' | 'penny' | 'luke' | 'bath'
+  | 'great' | 'kitchen' | 'family'
   | 'garage';
 
 export interface Room {
@@ -41,40 +40,19 @@ export const WALL_THICK = 0.15;
 export const WALL_Y = 1.4;
 
 export const ROOMS: Room[] = [
-  // Front half (z = -8..0). Great room: the TWO-STORY open living/dining you enter
-  // into. ceiling:false so it's open all the way up — you see the loft railing above.
-  { id: 'great',   minX: -9.0, maxX: -1.5, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: false },
-  { id: 'kitchen', minX: -1.5, maxX:  2.0, minZ: -8.0, maxZ:  0.0, floor: 'tile', ceiling: true },
-  // Hallway (z = 0..1.5)
-  { id: 'hall',    minX: -9.0, maxX:  2.0, minZ:  0.0, maxZ:  1.5, floor: 'wood', ceiling: true },
-  // Back row (z = 1.5..8)
-  { id: 'master',  minX: -9.0, maxX: -5.5, minZ:  1.5, maxZ:  8.0, floor: 'wood', ceiling: true },
-  { id: 'penny',   minX: -5.5, maxX: -2.5, minZ:  1.5, maxZ:  8.0, floor: 'wood', ceiling: true },
-  { id: 'bath',    minX: -2.5, maxX: -1.0, minZ:  1.5, maxZ:  8.0, floor: 'tile', ceiling: true },
-  { id: 'luke',    minX: -1.0, maxX:  2.0, minZ:  1.5, maxZ:  8.0, floor: 'wood', ceiling: true },
+  // Open flow front-to-back, full interior width: you enter the TWO-STORY great room
+  // (ceiling:false = open up to the loft), the kitchen is straight back, the family
+  // room (with the fireplace) is behind that. Very few interior walls.
+  { id: 'great',   minX: -9.0, maxX:  2.0, minZ: -8.0, maxZ:  0.0, floor: 'wood', ceiling: false },
+  { id: 'kitchen', minX: -9.0, maxX:  2.0, minZ:  0.0, maxZ:  4.0, floor: 'tile', ceiling: true },
+  { id: 'family',  minX: -9.0, maxX:  2.0, minZ:  4.0, maxZ:  8.0, floor: 'wood', ceiling: true },
   // Garage (no ceiling = open rafters)
   { id: 'garage',  minX:  2.0, maxX:  8.4, minZ: -8.0, maxZ:  8.0, floor: 'concrete', ceiling: false },
 ];
 
 export const INTERIOR_WALLS: InteriorWall[] = [
-  // Front half: great-room ↔ kitchen divider
-  { axis: 'z', at: -1.5, from: -8.0, to: 0.0, openings: [{ from: -3.0, to: -2.0 }], tag: 'great-kitchen' },
-  // Front half ↔ hall (split by the great-kitchen divider, so two segments)
-  { axis: 'x', at:  0.0, from: -9.0, to: -1.5, openings: [{ from: -5.0, to: -4.0 }], tag: 'great-hall' },
-  { axis: 'x', at:  0.0, from: -1.5, to:  2.0, openings: [{ from:  0.5, to:  1.5 }], tag: 'kitchen-hall' },
-  // Garage wall, split into three vertical segments
-  { axis: 'z', at:  2.0, from: -8.0, to:  0.0, openings: [{ from: -1.0, to:  0.0 }], tag: 'kitchen-garage' },
-  { axis: 'z', at:  2.0, from:  0.0, to:  1.5, openings: [], tag: 'hall-garage' },
-  { axis: 'z', at:  2.0, from:  1.5, to:  8.0, openings: [], tag: 'luke-garage' },
-  // Hall ↔ back row (one wall per bedroom segment so openings stay local)
-  { axis: 'x', at:  1.5, from: -9.0, to: -5.5, openings: [{ from: -7.5, to: -6.5 }], tag: 'hall-back-master' },
-  { axis: 'x', at:  1.5, from: -5.5, to: -2.5, openings: [{ from: -4.5, to: -3.5 }], tag: 'hall-back-penny' },
-  { axis: 'x', at:  1.5, from: -2.5, to: -1.0, openings: [{ from: -2.0, to: -1.0 }], tag: 'hall-back-bath' },
-  { axis: 'x', at:  1.5, from: -1.0, to:  2.0, openings: [{ from: -0.5, to:  0.5 }], tag: 'hall-back-luke' },
-  // Back-row dividers (solid)
-  { axis: 'z', at: -5.5, from: 1.5, to: 8.0, openings: [], tag: 'master-penny' },
-  { axis: 'z', at: -2.5, from: 1.5, to: 8.0, openings: [], tag: 'penny-bath' },
-  { axis: 'z', at: -1.0, from: 1.5, to: 8.0, openings: [], tag: 'bath-luke' },
+  // Garage wall (the only real interior partition) with a door into the kitchen/family.
+  { axis: 'z', at: 2.0, from: -8.0, to: 8.0, openings: [{ from: 4.5, to: 5.5 }], tag: 'garage-wall' },
 ];
 
 /**
