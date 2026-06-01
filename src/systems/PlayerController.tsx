@@ -14,6 +14,7 @@ import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
 import { treehousePickup } from '../audio';
+import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -82,6 +83,7 @@ export function PlayerController() {
   const interactPressedRef = useRef(false);
   const shootRef = useRef(false);
   const jumpPressedRef = useRef(false); // edge-triggered Space, for bike hop/flip
+  const touchWasActive = useRef(false); // tracks joystick engagement for clean release
   const heroBox = useMemo(() => computeHeroBox(), []);
 
   useEffect(() => {
@@ -132,6 +134,29 @@ export function PlayerController() {
     if (spectator) return;
     // While chat is open, the textbox owns the keyboard.
     if (useChatStore.getState().inputOpen) return;
+
+    // Fold on-screen touch controls into the SAME signals the keyboard drives,
+    // so every movement path below (walk / munchies / treehouse / bike) works on
+    // touch with no extra plumbing. Writes only while engaged, then clears once
+    // on release so it never clobbers keyboard play on hybrid devices. Must run
+    // before jumpedThisFrame is captured so the jump edge lands this frame.
+    {
+      const ti = touchInput;
+      if (ti.active) {
+        keys.current['w'] = ti.moveY < -TOUCH_DIR_THRESHOLD;
+        keys.current['s'] = ti.moveY > TOUCH_DIR_THRESHOLD;
+        keys.current['a'] = ti.moveX < -TOUCH_DIR_THRESHOLD;
+        keys.current['d'] = ti.moveX > TOUCH_DIR_THRESHOLD;
+        keys.current['shift'] = Math.hypot(ti.moveX, ti.moveY) > TOUCH_RUN_THRESHOLD;
+        touchWasActive.current = true;
+      } else if (touchWasActive.current) {
+        keys.current['w'] = keys.current['s'] = keys.current['a'] = keys.current['d'] = false;
+        keys.current['shift'] = false;
+        touchWasActive.current = false;
+      }
+      if (ti.jumpQueued) { ti.jumpQueued = false; jumpPressedRef.current = true; shootRef.current = true; }
+      if (ti.actionQueued) { ti.actionQueued = false; interactPressedRef.current = true; }
+    }
 
     // Consume the one-frame Space edge (bike hop/flip). Captured once so it can't
     // leak across mode branches or fire twice.
@@ -310,7 +335,9 @@ export function PlayerController() {
     // Floor + jump + gravity (skipped while riding — the bike stays grounded).
     if (!myRiding) {
       const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
-      const jumpHeld = (k[' '] || k['space']) && !usePlayStore.getState().heldBall;
+      // jumpedThisFrame folds in the touch Jump button (edge-triggered): one tap
+      // = one jump/bounce, alongside held Space on keyboard.
+      const jumpHeld = (k[' '] || k['space'] || jumpedThisFrame) && !usePlayStore.getState().heldBall;
       const tramp = usePlayStore.getState().trampoline;
       const onTramp = !!tramp && Math.abs(pos.x - tramp.x) < tramp.half && Math.abs(pos.z - tramp.z) < tramp.half;
 

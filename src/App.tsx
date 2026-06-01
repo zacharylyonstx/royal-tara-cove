@@ -35,6 +35,7 @@ import { TreehouseWelcomeOverlay } from './ui/TreehouseWelcomeOverlay';
 import { TreehouseLetterOverlay } from './ui/TreehouseLetterOverlay';
 import { TreehouseHud } from './ui/TreehouseHud';
 import { TreehouseMissionCompleteToast } from './ui/TreehouseMissionCompleteToast';
+import { TouchControls } from './ui/TouchControls';
 
 export default function App() {
   return (
@@ -81,6 +82,7 @@ export default function App() {
       <ChatInput />
       <VictoryScreen />
       <DefeatScreen />
+      <TouchControls />
     </>
   );
 }

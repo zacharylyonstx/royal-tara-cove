@@ -181,11 +181,16 @@ export function resolveMotion(
       if (outOfY(c)) continue;
       const result = pushOutOfOBB(c, x, z);
       if (result.hit) {
+        // Capture the pre-push position so we can attribute the collision to
+        // the axis that actually moved more. (Reading after the assignment
+        // would always compare result.x against itself → delta 0.)
+        const prevX = x;
+        const prevZ = z;
         x = result.x;
         z = result.z;
         pushed = true;
         // Treat the OBB push as a collision on whichever axis moved more.
-        if (Math.abs(result.x - x) >= Math.abs(result.z - z)) collidedX = true;
+        if (Math.abs(result.x - prevX) >= Math.abs(result.z - prevZ)) collidedX = true;
         else collidedZ = true;
       }
     }

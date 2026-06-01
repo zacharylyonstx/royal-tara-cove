@@ -1,7 +1,12 @@
 import { useGameStore } from '../state/gameStore';
+import { isTouchDevice } from '../systems/touchInput';
 
 export function ControlsHud() {
   const gameMode = useGameStore((s) => s.gameMode);
+
+  // On touch devices the on-screen joystick + buttons replace these keyboard
+  // hints (which would also collide with the joystick in the bottom-left).
+  if (isTouchDevice()) return null;
 
   return (
     <div

@@ -90,6 +90,30 @@ let sendBasketAction: ((data: BasketMsg) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 let chatMsgCounter = 0;
 
+// --- Inbound payload validation -------------------------------------------
+// Net data arrives over open P2P (public WebTorrent trackers) and is untyped at
+// runtime. trystero invokes receivers synchronously from the RTCDataChannel
+// message handler with no try/catch of its own, so a throw here (e.g. a
+// malformed/partial packet, or a peer on a slightly different build) would
+// propagate out uncaught and silently break state application. Every receiver
+// is therefore wrapped in netGuard() and reads fields through these helpers.
+type Json = Record<string, unknown>;
+const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null;
+const num = (v: unknown, fallback = 0): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
+const bool = (v: unknown): boolean => v === true;
+const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const obj = (v: unknown): Json => (isObj(v) ? v : {});
+
+function netGuard(kind: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (e) {
+    if (import.meta.env.DEV) console.warn(`[net] dropped malformed "${kind}" packet`, e);
+  }
+}
+
 export function getSelfId(): string {
   return selfId;
 }
@@ -123,39 +147,62 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendChatAction = chatSender as unknown as typeof sendChatAction;
   sendBasketAction = basketSender as unknown as typeof sendBasketAction;
 
-  whoamiReceiver((rawData, peerId) => {
-    const data = rawData as unknown as Whoami;
+  whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
+    if (!isObj(rawData)) return;
     useNetStore.getState().upsertPeer(peerId, {
-      characterId: data.characterId,
-      joinedAt: data.joinedAt,
+      characterId: (typeof rawData.characterId === 'string'
+        ? rawData.characterId
+        : null) as CharacterId | null,
+      joinedAt: num(rawData.joinedAt, Date.now()),
     });
-  });
+  }));
 
-  playerReceiver((rawData) => {
-    const data = rawData as unknown as PlayerStateMsg;
+  playerReceiver((rawData) => netGuard('player', () => {
+    if (!isObj(rawData) || typeof rawData.characterId !== 'string') return;
+    const r = rawData.riding;
+    const riding = isObj(r)
+      ? {
+          bikeColor: str(r.bikeColor, '#888'),
+          heading: num(r.heading),
+          y: num(r.y),
+          flipAngle: num(r.flipAngle),
+        }
+      : null;
     useNetStore.getState().setRemotePlayerState({
-      ...data,
+      characterId: rawData.characterId as CharacterId,
+      x: num(rawData.x), y: num(rawData.y), z: num(rawData.z), yaw: num(rawData.yaw),
+      running: bool(rawData.running), jumping: bool(rawData.jumping),
+      riding,
       receivedAt: performance.now(),
     });
-  });
+  }));
 
-  worldReceiver((rawData) => {
+  worldReceiver((rawData) => netGuard('world', () => {
     // Only apply if I'm NOT the host (avoid overwriting our own sim).
     if (useNetStore.getState().isHost) return;
-    applyWorldSnapshot(rawData as unknown as WorldStateMsg);
-  });
+    if (!isObj(rawData)) return;
+    applyWorldSnapshot(rawData);
+  }));
 
-  chatReceiver((rawData) => {
-    const msg = rawData as unknown as ChatMsg;
-    useChatStore.getState().appendMessage(msg);
-  });
+  chatReceiver((rawData, peerId) => netGuard('chat', () => {
+    if (!isObj(rawData)) return;
+    const text = str(rawData.text).slice(0, 120);
+    const characterId = rawData.characterId;
+    if (!text || typeof characterId !== 'string') return;
+    useChatStore.getState().appendMessage({
+      id: str(rawData.id, `${peerId}-${num(rawData.sentAt)}`),
+      characterId: characterId as CharacterId,
+      text,
+      sentAt: num(rawData.sentAt, Date.now()),
+    });
+  }));
 
-  basketReceiver((rawData) => {
-    const m = rawData as unknown as BasketMsg;
+  basketReceiver((rawData) => netGuard('basket', () => {
+    if (!isObj(rawData) || typeof rawData.shooter !== 'string') return;
     // A peer scored — celebrate + count it on our side (sender already counted
     // locally; trystero doesn't echo to the sender, so no double-count).
-    usePlayStore.getState().scoreBasket(m.shooter, performance.now());
-  });
+    usePlayStore.getState().scoreBasket(rawData.shooter as CharacterId, performance.now());
+  }));
 
   r.onPeerJoin((peerId) => {
     // Greet new peer with our identity so they learn about us.
@@ -232,76 +279,85 @@ export async function broadcastBasket(shooter: CharacterId): Promise<void> {
   if (sendBasketAction) await sendBasketAction({ shooter, t: Date.now() }).catch(() => {});
 }
 
-/** Apply a host-broadcasted world snapshot into our local stores. */
-function applyWorldSnapshot(s: WorldStateMsg): void {
+/**
+ * Apply a host-broadcasted world snapshot into our local stores. Reads every
+ * field defensively (missing collections default to {}/[]) so a partial packet
+ * can never throw on Object.keys/.map/index access.
+ */
+function applyWorldSnapshot(s: Json): void {
   // Game store: phase, hp, destroyed houses.
   const gs = useGameStore.getState();
-  if (gs.phase !== s.phase) gs.setPhase(s.phase);
-  if (gs.playerHp !== s.playerHp) {
+  if (typeof s.phase === 'string' && gs.phase !== s.phase) gs.setPhase(s.phase as GamePhase);
+  const playerHp = num(s.playerHp, gs.playerHp);
+  if (gs.playerHp !== playerHp) {
     // Use direct set via the store's set fn — simpler than damage/heal deltas.
-    useGameStore.setState({ playerHp: s.playerHp });
+    useGameStore.setState({ playerHp });
   }
   // destroyedHouses: replace wholesale (small map).
-  if (Object.keys(s.destroyedHouses).length !== Object.keys(gs.destroyedHouses).length) {
-    useGameStore.setState({ destroyedHouses: s.destroyedHouses });
+  const destroyedHouses = obj(s.destroyedHouses) as Record<string, number>;
+  if (Object.keys(destroyedHouses).length !== Object.keys(gs.destroyedHouses).length) {
+    useGameStore.setState({ destroyedHouses });
   }
 
   // Combat store: blobs, wave state, power-ups, score.
   useCombatStore.setState({
-    blobs: s.blobs,
-    waveIndex: s.waveIndex,
-    waveState: s.waveState,
-    intermissionEndsAt: s.intermissionEndsAt,
-    powerUpDrops: s.powerUpDrops,
-    activePowerUps: s.activePowerUps,
-    score: s.score,
-    kills: s.kills,
+    blobs: arr(s.blobs) as Blob[],
+    waveIndex: num(s.waveIndex),
+    waveState: s.waveState as WaveState,
+    intermissionEndsAt: num(s.intermissionEndsAt),
+    powerUpDrops: arr(s.powerUpDrops) as PowerUpDrop[],
+    activePowerUps: arr(s.activePowerUps) as ActivePowerUp[],
+    score: num(s.score),
+    kills: num(s.kills),
   });
 
   // Tornado store: phase timing + visible fields.
   useTornadoStore.setState({
-    phaseEnteredAt: s.tornadoPhaseEnteredAt,
-    tornadoZ: s.tornadoZ,
-    tornadoX: s.tornadoX,
-    stormIntensity: s.stormIntensity,
-    windStrength: s.windStrength,
-    tornadoOpacity: s.tornadoOpacity,
+    phaseEnteredAt: num(s.tornadoPhaseEnteredAt),
+    tornadoZ: num(s.tornadoZ),
+    tornadoX: num(s.tornadoX),
+    stormIntensity: num(s.stormIntensity),
+    windStrength: num(s.windStrength),
+    tornadoOpacity: num(s.tornadoOpacity),
   });
 
   // Munchies — only when host's snapshot includes it.
-  if (s.munchies) {
+  if (isObj(s.munchies)) {
     applyMunchiesSnapshot(s.munchies);
   }
 }
 
-function applyMunchiesSnapshot(m: MunchiesNetSnapshot): void {
+function applyMunchiesSnapshot(m: Json): void {
   const ms = useMunchiesStore.getState();
+  const pellets = arr(m.pellets) as { id: string; x: number; z: number }[];
+  const milks = arr(m.milks) as { id: string; x: number; z: number }[];
 
   // Replace pellets/milks if sizes differ (cheap signal).
-  if (Object.keys(ms.pellets).length !== m.pellets.length) {
+  if (Object.keys(ms.pellets).length !== pellets.length) {
     useMunchiesStore.setState({
-      pellets: Object.fromEntries(m.pellets.map((p) => [p.id, p])),
+      pellets: Object.fromEntries(pellets.map((p) => [p.id, p])),
     });
   }
-  if (Object.keys(ms.milks).length !== m.milks.length) {
+  if (Object.keys(ms.milks).length !== milks.length) {
     useMunchiesStore.setState({
-      milks: Object.fromEntries(m.milks.map((mm) => [mm.id, mm])),
+      milks: Object.fromEntries(milks.map((mm) => [mm.id, mm])),
     });
   }
 
   // Sleepwalkers — mutate live x/z/yaw directly; update mode through setState only if changed.
+  const srcWalkers = obj(m.sleepwalkers);
   let sleepwalkersChanged = false;
   const updated = { ...ms.sleepwalkers };
-  for (const id of Object.keys(m.sleepwalkers)) {
+  for (const id of Object.keys(srcWalkers)) {
     const swId = id as SleepwalkerId;
-    const src = m.sleepwalkers[id];
+    const src = obj(srcWalkers[id]);
     const target = updated[swId];
     if (!target) continue;
-    target.x = src.x;
-    target.z = src.z;
-    target.yaw = src.yaw;
-    if (target.mode !== src.mode) {
-      updated[swId] = { ...target, mode: src.mode as SleepwalkerMode, tuckedAt: src.tuckedAt };
+    target.x = num(src.x, target.x);
+    target.z = num(src.z, target.z);
+    target.yaw = num(src.yaw, target.yaw);
+    if (typeof src.mode === 'string' && target.mode !== src.mode) {
+      updated[swId] = { ...target, mode: src.mode as SleepwalkerMode, tuckedAt: num(src.tuckedAt) };
       sleepwalkersChanged = true;
     }
   }
@@ -311,13 +367,18 @@ function applyMunchiesSnapshot(m: MunchiesNetSnapshot): void {
 
   // Scalars
   useMunchiesStore.setState({
-    level: m.level,
-    score: m.score,
-    lives: m.lives,
-    bonus: m.bonus,
-    poweredUntil: m.poweredUntil,
+    level: num(m.level, ms.level),
+    score: num(m.score, ms.score),
+    lives: num(m.lives, ms.lives),
+    bonus: isObj(m.bonus)
+      ? {
+          x: num(m.bonus.x), z: num(m.bonus.z),
+          spawnedAt: num(m.bonus.spawnedAt), eaten: bool(m.bonus.eaten),
+        }
+      : null,
+    poweredUntil: num(m.poweredUntil),
     difficulty: (m.difficulty === 'awake' ? 'awake' : 'sleepy'),
-    activeRoster: m.roster.filter(isSleepwalkerId),
+    activeRoster: arr(m.roster).filter((s2): s2 is string => typeof s2 === 'string').filter(isSleepwalkerId),
   });
 }
 

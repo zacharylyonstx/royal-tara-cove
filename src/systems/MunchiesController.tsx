@@ -178,12 +178,17 @@ function MunchiesControllerInner() {
         // Catch / tuck-in detection — per-character catch radius, iterate roster.
         const catchR = stats?.catchRadius ?? CATCH_RADIUS;
         const invincibleUntil = ms.invincibleUntil;
+        // Read powered state LIVE (not from the frame-start `phase`/`ms` snapshot):
+        // if this player grabbed milk earlier this same frame, poweredUntil was
+        // just bumped into the future — so contacting a sleepwalker now must tuck
+        // them in, not get the player caught (which would cost a life unfairly).
+        const powered = useMunchiesStore.getState().poweredUntil > now;
         for (const id of ms.activeRoster) {
           const sw = ms.sleepwalkers[id];
           if (!sw || sw.mode === 'tucked') continue;
           const d = Math.hypot(sw.x - pl.x, sw.z - pl.z);
           if (d < catchR) {
-            if (phase === 'munchies-powered') {
+            if (powered) {
               useMunchiesStore.getState().tuckIn(id, now);
               munchiesTuckIn();
             } else if (now > invincibleUntil) {
@@ -199,14 +204,17 @@ function MunchiesControllerInner() {
 
       maybeSpawnBonus(now);
 
-      // Powered timer expiry
-      if (phase === 'munchies-powered' && ms.poweredUntil > 0 && now > ms.poweredUntil) {
+      // Powered timer expiry — read poweredUntil live so a same-frame re-grab
+      // that extends the window isn't expired against a stale snapshot.
+      const livePoweredUntil = useMunchiesStore.getState().poweredUntil;
+      if (phase === 'munchies-powered' && livePoweredUntil > 0 && now > livePoweredUntil) {
         useMunchiesStore.getState().endPowered();
         gs.setPhase('munchies-play');
       }
 
-      // Level clear
-      if (Object.keys(ms.pellets).length === 0) {
+      // Level clear — read pellets live so clearing the final pellet this frame
+      // is detected immediately rather than one frame late.
+      if (Object.keys(useMunchiesStore.getState().pellets).length === 0) {
         gs.setPhase('munchies-level-clear');
         munchiesLevelClear();
         phaseChangeAt.current = now;

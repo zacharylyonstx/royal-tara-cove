@@ -63,8 +63,8 @@ export function TornadoHud() {
 }
 
 function VictoryOverlay() {
-  const replay = useReplay();
-  const backToMenu = useBackToMenu();
+  const replay = makeReplay();
+  const backToMenu = makeBackToMenu();
   return (
     <FullscreenOverlay accent="#5a8a3e">
       <div style={{ fontSize: 70, lineHeight: 1 }}>🌈</div>
@@ -91,8 +91,8 @@ function DefeatOverlay() {
     return () => clearTimeout(t);
   }, [ragdoll]);
   if (!show) return null;
-  const replay = useReplay();
-  const backToMenu = useBackToMenu();
+  const replay = makeReplay();
+  const backToMenu = makeBackToMenu();
   return (
     <FullscreenOverlay accent="#8a3a3a">
       <div style={{ fontSize: 70, lineHeight: 1 }}>🌪️</div>
@@ -184,7 +184,7 @@ function ButtonRow({
   );
 }
 
-function useReplay() {
+function makeReplay() {
   return () => {
     resetTornadoAudio();
     useTornadoStore.getState().reset();
@@ -194,7 +194,7 @@ function useReplay() {
   };
 }
 
-function useBackToMenu() {
+function makeBackToMenu() {
   return () => {
     resetTornadoAudio();
     useTornadoStore.getState().reset();

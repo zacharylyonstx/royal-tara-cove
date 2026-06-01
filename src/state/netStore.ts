@@ -52,6 +52,11 @@ interface NetStore {
   setMyCharacter: (id: CharacterId | null) => void;
   setSpectator: (v: boolean) => void;
   setRemotePlayerState: (s: RemotePlayerState) => void;
+  /** Drop remote players we haven't heard from in `staleMs` (silently-stalled
+   *  tab / dropped connection that never fired onPeerLeave). Leaves `peers`
+   *  intact (no host re-election); a pruned character is handed back to NPC
+   *  wandering on the host and re-adopted the moment fresh packets resume. */
+  pruneStalePlayers: (now: number, staleMs: number) => void;
   setConnectionStatus: (s: ConnectionStatus) => void;
 }
 
@@ -168,6 +173,18 @@ export const useNetStore = create<NetStore>((set, get) => ({
     set((cur) => ({
       remotePlayers: { ...cur.remotePlayers, [s.characterId]: s },
     }));
+  },
+
+  pruneStalePlayers: (now, staleMs) => {
+    const cur = get().remotePlayers;
+    let changed = false;
+    const next: typeof cur = {};
+    for (const key of Object.keys(cur) as CharacterId[]) {
+      const rp = cur[key];
+      if (rp && now - rp.receivedAt <= staleMs) next[key] = rp;
+      else changed = true;
+    }
+    if (changed) set({ remotePlayers: next });
   },
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),

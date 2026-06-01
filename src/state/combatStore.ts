@@ -601,6 +601,12 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
     waveIndex: 0, waveState: 'pre-waves', intermissionEndsAt: 0,
     timeOfDay: 0.15, slowMo: 1, slowMoEndsAt: 0, dialogue: [],
     shotsFired: 0, shotsHit: 0, gameStartedAt: 0,
+    // Transient gameplay/visual arrays + scoring — cleared so a non-reload
+    // re-entry into combat never inherits a prior run's projectiles, popups,
+    // power-ups, or score (startGame() re-zeros scoring too, belt-and-braces).
+    projectiles: [], floatingTexts: [], fireworks: [],
+    powerUpDrops: [], activePowerUps: [],
+    score: 0, comboCount: 0, lastKillAt: -999,
   }),
 }));
 

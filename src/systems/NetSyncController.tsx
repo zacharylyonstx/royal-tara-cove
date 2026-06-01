@@ -14,6 +14,23 @@ const WORLD_RATE_HZ = 10;
 const PLAYER_INTERVAL = 1 / PLAYER_RATE_HZ;
 const WORLD_INTERVAL = 1 / WORLD_RATE_HZ;
 
+// Remote-player smoothing: at 15 Hz, raw assignment teleports peers ~4 frames
+// at a time (visible stutter). We exponentially damp the rendered transform
+// toward the received target instead. Large deltas (first sight, teleports,
+// mode changes) snap so we never see a long slide across the map.
+const REMOTE_SMOOTH = 14; // higher = snappier, lower = floatier
+const REMOTE_SNAP_DIST = 5; // metres — beyond this, snap rather than lerp
+// Drop a remote player we haven't heard from in this long (silently-stalled
+// tab that never fired onPeerLeave) so it doesn't sit frozen forever.
+const STALE_MS = 6000;
+
+function shortestAngle(from: number, to: number): number {
+  let d = to - from;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
 /**
  * Owns the network sync loop. Sits inside the R3F tree so it can tick via
  * useFrame. Three responsibilities:
@@ -35,7 +52,9 @@ export function NetSyncController() {
     const net = useNetStore.getState();
     const game = useGameStore.getState();
 
-    // ---- Apply remote players → gameStore positions (+ their riding state) ----
+    // ---- Drop silently-stalled peers, then apply remote players (smoothed) ----
+    net.pruneStalePlayers(performance.now(), STALE_MS);
+    const k = 1 - Math.exp(-REMOTE_SMOOTH * dt); // frame-rate-independent damping
     const play = usePlayStore.getState();
     for (const [charId, rp] of Object.entries(net.remotePlayers)) {
       if (!rp) continue;
@@ -43,10 +62,17 @@ export function NetSyncController() {
       const pos = game.positions[charId as keyof typeof game.positions];
       const yaws = game.yaws as Record<string, number>;
       if (pos) {
-        pos.x = rp.x;
-        pos.y = rp.y;
-        pos.z = rp.z;
-        yaws[charId] = rp.yaw;
+        const far = Math.hypot(rp.x - pos.x, rp.y - pos.y, rp.z - pos.z) > REMOTE_SNAP_DIST;
+        if (far) {
+          // First sight / teleport / mode change — snap, don't slide.
+          pos.x = rp.x; pos.y = rp.y; pos.z = rp.z;
+          yaws[charId] = rp.yaw;
+        } else {
+          pos.x += (rp.x - pos.x) * k;
+          pos.y += (rp.y - pos.y) * k;
+          pos.z += (rp.z - pos.z) * k;
+          yaws[charId] = (yaws[charId] ?? rp.yaw) + shortestAngle(yaws[charId] ?? rp.yaw, rp.yaw) * k;
+        }
       }
       // Mirror the peer's riding state so we render the bike under them.
       const cid = charId as keyof typeof play.riding;
@@ -56,7 +82,14 @@ export function NetSyncController() {
         const fa = rp.riding.flipAngle ?? 0;
         const flip = fa !== 0 ? { dir: (fa >= 0 ? 1 : -1) as 1 | -1, angle: fa } : null;
         if (!cur) play.mount(cid, { bikeId: `${charId}-remote`, bikeColor: rp.riding.bikeColor, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0 });
-        else { cur.heading = rp.riding.heading; cur.bikeColor = rp.riding.bikeColor; cur.y = ry; cur.airborne = ry > 0.02; cur.flip = flip; }
+        else {
+          // Smooth heading + hop height; snap discrete fields (color/flip).
+          cur.heading = cur.heading + shortestAngle(cur.heading, rp.riding.heading) * k;
+          cur.y += (ry - cur.y) * k;
+          cur.bikeColor = rp.riding.bikeColor;
+          cur.airborne = ry > 0.02;
+          cur.flip = flip;
+        }
       } else if (cur) {
         play.dismount(cid);
       }

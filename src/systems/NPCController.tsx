@@ -65,6 +65,11 @@ export function NPCController() {
       // Don't wander characters that any peer (including self) claims —
       // those are driven by their owner's input / network broadcasts.
       if (claimed.has(id)) continue;
+      // Also defer to any peer with a LIVE remote-player entry: this prevents a
+      // tug-of-war with NetSyncController if a peer's whoami hasn't (re)arrived
+      // but their position packets have. When a peer goes stale its entry is
+      // pruned, so the character gracefully falls back to wandering here.
+      if (net.remotePlayers[id]) continue;
       // Single-player fallback: if no one claims a character but we ARE the
       // local active player by gameStore, skip too.
       if (id === activeId && net.peers && Object.keys(net.peers).length === 0) continue;
