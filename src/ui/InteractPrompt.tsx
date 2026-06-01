@@ -1,5 +1,6 @@
 import { useGameStore } from '../state/gameStore';
 import { usePlayStore } from '../state/playStore';
+import { useWardrobeStore } from '../state/wardrobeStore';
 
 const PLAY_LABELS: Record<string, string> = {
   ride: 'ride bike',
@@ -11,11 +12,14 @@ export function InteractPrompt() {
   const hover = useGameStore((s) => s.hoverDoorId);
   const doors = useGameStore((s) => s.doors);
   const hoverPlay = usePlayStore((s) => s.hoverPlay);
+  const hoverDresser = useWardrobeStore((s) => s.hoverDresser);
 
-  // Free-roam play cues take precedence over doors.
+  // Wardrobe dresser first, then free-roam play cues, then doors.
   let label: string | null = null;
   let key = 'E';
-  if (hoverPlay === 'shoot') {
+  if (hoverDresser) {
+    label = 'open wardrobe 👗';
+  } else if (hoverPlay === 'shoot') {
     label = 'shoot';
     key = 'click';
   } else if (hoverPlay && PLAY_LABELS[hoverPlay]) {

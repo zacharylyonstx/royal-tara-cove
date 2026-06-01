@@ -11,6 +11,8 @@ import { useTornadoStore } from '../state/tornadoStore';
 import { useChatStore, type ChatMsg } from '../state/chatStore';
 import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
 import { usePlayStore } from '../state/playStore';
+import { useWardrobeStore } from '../state/wardrobeStore';
+import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -39,6 +41,12 @@ export interface PlayerStateMsg {
 export interface BasketMsg {
   shooter: CharacterId;
   t: number;
+}
+
+/** A character's chosen dress-up look (low-frequency: only on change + join). */
+export interface WardrobeMsg {
+  characterId: CharacterId;
+  appearance: Appearance;
 }
 
 export interface MunchiesNetSnapshot {
@@ -87,6 +95,7 @@ let sendPlayer: ((data: PlayerStateMsg) => Promise<void[]>) | null = null;
 let sendWorld: ((data: WorldStateMsg) => Promise<void[]>) | null = null;
 let sendChatAction: ((data: ChatMsg) => Promise<void[]>) | null = null;
 let sendBasketAction: ((data: BasketMsg) => Promise<void[]>) | null = null;
+let sendWardrobe: ((data: WardrobeMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 let chatMsgCounter = 0;
 
@@ -141,11 +150,13 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [worldSender, worldReceiver] = r.makeAction('world');
   const [chatSender, chatReceiver] = r.makeAction('chat');
   const [basketSender, basketReceiver] = r.makeAction('basket');
+  const [wardrobeSender, wardrobeReceiver] = r.makeAction('wardrobe');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
   sendChatAction = chatSender as unknown as typeof sendChatAction;
   sendBasketAction = basketSender as unknown as typeof sendBasketAction;
+  sendWardrobe = wardrobeSender as unknown as typeof sendWardrobe;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
@@ -204,6 +215,13 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     usePlayStore.getState().scoreBasket(rawData.shooter as CharacterId, performance.now());
   }));
 
+  wardrobeReceiver((rawData) => netGuard('wardrobe', () => {
+    if (!isObj(rawData) || typeof rawData.characterId !== 'string') return;
+    const id = rawData.characterId;
+    if (id !== 'dad' && id !== 'penny' && id !== 'luke') return;
+    useWardrobeStore.getState().setRemoteAppearance(id, safeAppearance(id, rawData.appearance));
+  }));
+
   r.onPeerJoin((peerId) => {
     // Greet new peer with our identity so they learn about us.
     if (sendWhoami) {
@@ -212,6 +230,11 @@ export async function joinRoom(mode: GameMode): Promise<void> {
         { characterId: cur.myCharacterId, joinedAt: myJoinedAt },
         peerId,
       ).catch(() => {});
+    }
+    // Tell the new peer what our character is wearing.
+    const myId = useNetStore.getState().myCharacterId;
+    if (sendWardrobe && myId) {
+      sendWardrobe({ characterId: myId, appearance: useWardrobeStore.getState().appearances[myId] }, peerId).catch(() => {});
     }
   });
 
@@ -237,7 +260,7 @@ export async function leaveRoom(): Promise<void> {
     // ignore
   }
   room = null;
-  sendWhoami = sendPlayer = sendWorld = sendChatAction = sendBasketAction = null;
+  sendWhoami = sendPlayer = sendWorld = sendChatAction = sendBasketAction = sendWardrobe = null;
   useNetStore.getState().leftRoom();
 }
 
@@ -277,6 +300,25 @@ export async function broadcastWorldState(msg: WorldStateMsg): Promise<void> {
 /** Tell peers we sank a basket (celebration only; the ball isn't networked). */
 export async function broadcastBasket(shooter: CharacterId): Promise<void> {
   if (sendBasketAction) await sendBasketAction({ shooter, t: Date.now() }).catch(() => {});
+}
+
+/** Broadcast our character's chosen dress-up look to all peers. */
+export async function broadcastWardrobe(msg: WardrobeMsg): Promise<void> {
+  if (sendWardrobe) await sendWardrobe(msg).catch(() => {});
+}
+
+/** Build a validated Appearance from an untrusted P2P payload (catalog-checked). */
+function safeAppearance(id: CharacterId, raw: unknown): Appearance {
+  const base = defaultAppearance(id);
+  if (!isObj(raw)) return base;
+  for (const slot of SLOTS) {
+    const c = raw[slot];
+    if (isObj(c) && typeof c.item === 'string') {
+      const it = getItem(slot, c.item);
+      base[slot] = { item: it.id, color: typeof c.color === 'string' ? c.color : (it.colors[0] ?? '') };
+    }
+  }
+  return base;
 }
 
 /**

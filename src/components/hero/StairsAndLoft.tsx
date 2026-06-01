@@ -1,4 +1,5 @@
 import { mat } from '../../world/materials';
+import { Dresser } from './Dresser';
 
 const STORY_H = 3.0;
 
@@ -220,6 +221,13 @@ export function Upstairs() {
       <YardWindow x={-9.9} />
       <Bed position={[-5.9, 0, 6.2]} color="#2f8f4f" />       {/* Luke (green) */}
       <YardWindow x={-5.9} />
+
+      {/* ---- Wardrobe dressers (one per bedroom, against a wall facing in) ----
+          y = UP_Y because Bed/FloorPiece add the upstairs height internally but
+          Dresser builds from its own origin, so the GROUP must sit on the loft. */}
+      <Dresser owner="dad" position={[-11.4, UP_Y, -6.5]} yaw={Math.PI / 2} accent="#3a6db0" />
+      <Dresser owner="penny" position={[-11.4, UP_Y, 4.3]} yaw={Math.PI / 2} accent="#e26aa1" />
+      <Dresser owner="luke" position={[-4.6, UP_Y, 4.3]} yaw={-Math.PI / 2} accent="#5cb85c" />
 
       {/* ---- Game-room props on the open loft (over the kitchen) ---- */}
       <mesh position={[7, UP_Y + 0.25, 0]} castShadow>

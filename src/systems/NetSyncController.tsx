@@ -5,9 +5,10 @@ import { useGameStore } from '../state/gameStore';
 import { usePlayStore } from '../state/playStore';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
-import { broadcastPlayerState, broadcastWorldState, isInRoom } from '../net/room';
+import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom } from '../net/room';
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
+import { useWardrobeStore } from '../state/wardrobeStore';
 
 const PLAYER_RATE_HZ = 15;
 const WORLD_RATE_HZ = 10;
@@ -45,11 +46,22 @@ export function NetSyncController() {
   const worldAccum = useRef(0);
   const lastRunningRef = useRef(false);
   const lastYRef = useRef(0);
+  const lastWardrobeRev = useRef(-1);
 
   useFrame((_, dtRaw) => {
     if (!isInRoom()) return;
     const dt = Math.min(dtRaw, 0.1);
     const net = useNetStore.getState();
+
+    // ---- Broadcast our outfit when it changes (or once after we claim) ----
+    if (net.myCharacterId) {
+      const ws = useWardrobeStore.getState();
+      const rev = ws.rev[net.myCharacterId];
+      if (rev !== lastWardrobeRev.current) {
+        lastWardrobeRev.current = rev;
+        broadcastWardrobe({ characterId: net.myCharacterId, appearance: ws.appearances[net.myCharacterId] });
+      }
+    }
     const game = useGameStore.getState();
 
     // ---- Drop silently-stalled peers, then apply remote players (smoothed) ----

@@ -15,6 +15,7 @@ import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
 import { treehousePickup } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
+import { useWardrobeStore } from '../state/wardrobeStore';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -134,6 +135,8 @@ export function PlayerController() {
     if (spectator) return;
     // While chat is open, the textbox owns the keyboard.
     if (useChatStore.getState().inputOpen) return;
+    // The dress-up overlay owns input while open.
+    if (useWardrobeStore.getState().open) return;
 
     // Fold on-screen touch controls into the SAME signals the keyboard drives,
     // so every movement path below (walk / munchies / treehouse / bike) works on
@@ -164,6 +167,29 @@ export function PlayerController() {
     jumpPressedRef.current = false;
 
     const modeNow = useGameStore.getState().gameMode;
+
+    // Wardrobe dressers: when exploring the house (freeplay/treehouse), offer
+    // "open wardrobe" near a dresser and open the owner's dress-up UI on E/Action.
+    if (modeNow === 'freeplay' || modeNow === 'treehouse') {
+      const p = positions[activeId];
+      const ws = useWardrobeStore.getState();
+      let near: typeof ws.dressers[number] | null = null;
+      let nd = 1.9;
+      for (const dr of ws.dressers) {
+        if (Math.abs(p.y - dr.y) > 1.6) continue; // must be on the same floor
+        const dist = Math.hypot(dr.x - p.x, dr.z - p.z);
+        if (dist < nd) { nd = dist; near = dr; }
+      }
+      ws.setHoverDresser(near ? near.owner : null);
+      if (near && interactPressedRef.current) {
+        interactPressedRef.current = false;
+        ws.openWardrobe(near.owner);
+        return;
+      }
+    } else if (useWardrobeStore.getState().hoverDresser) {
+      useWardrobeStore.getState().setHoverDresser(null);
+    }
+
     if (modeNow === 'munchies') {
       munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors);
       return;

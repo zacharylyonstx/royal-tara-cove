@@ -36,6 +36,7 @@ import { TreehouseLetterOverlay } from './ui/TreehouseLetterOverlay';
 import { TreehouseHud } from './ui/TreehouseHud';
 import { TreehouseMissionCompleteToast } from './ui/TreehouseMissionCompleteToast';
 import { TouchControls } from './ui/TouchControls';
+import { WardrobeOverlay } from './ui/WardrobeOverlay';
 import { ACESFilmicToneMapping } from 'three';
 import { isTouchDevice } from './systems/touchInput';
 
@@ -90,6 +91,7 @@ export default function App() {
       <VictoryScreen />
       <DefeatScreen />
       <TouchControls />
+      <WardrobeOverlay />
     </>
   );
 }
