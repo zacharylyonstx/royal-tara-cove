@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useWardrobeStore } from '../state/wardrobeStore';
@@ -31,6 +31,14 @@ export function WardrobeOverlay() {
   const setColor = useWardrobeStore((s) => s.setColor);
   const close = useWardrobeStore((s) => s.close);
   const [tab, setTab] = useState<Slot>('top');
+  // One re-render a frame after open so the preview Canvas paints even if its
+  // flex container measured 0px on the first layout pass (was blank-until-click).
+  const [, nudge] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const r = requestAnimationFrame(() => nudge((n) => n + 1));
+    return () => cancelAnimationFrame(r);
+  }, [open]);
   // Subscribe to appearances so cards/swatches reflect current selection.
   const appearance = useWardrobeStore((s) => (openFor ? s.appearances[openFor] : null));
 
@@ -73,12 +81,12 @@ export function WardrobeOverlay() {
       <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 16, padding: '0 18px 8px', minHeight: 0 }}>
         {/* Live 3D preview */}
         <div style={{
-          flex: '1 1 320px', minWidth: 260, minHeight: 240,
+          flex: '1 1 320px', minWidth: 260, height: 'min(56vh, 600px)',
           borderRadius: 22, overflow: 'hidden',
           background: `linear-gradient(160deg, ${accent}33, #1a1626)`,
           border: `3px solid ${accent}aa`, position: 'relative',
         }}>
-          <Canvas camera={{ position: [0, 1.05, 3.5], fov: 38 }} dpr={[1, 2]}>
+          <Canvas camera={{ position: [0, 0.15, 3.4], fov: 36 }} dpr={[1, 2]}>
             <ambientLight intensity={0.7} />
             <directionalLight position={[3, 5, 4]} intensity={1.4} color="#fff3da" />
             <directionalLight position={[-4, 2, -2]} intensity={0.5} color="#cfe6ff" />

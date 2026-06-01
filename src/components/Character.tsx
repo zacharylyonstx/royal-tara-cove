@@ -38,7 +38,11 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     if (!g) return;
     g.position.copy(positionRef);
     g.rotation.order = 'YXZ';
-    g.rotation.y = yawRef.current;
+    // The model's front (face) is built on local +Z, but the game's yaw
+    // convention is -Z-forward (yaw=π faces +Z, matching the -Z-default camera).
+    // So add π to face travel/look direction — otherwise the body faces backward
+    // (most visible riding a bike). Purely visual; aiming reads `yaws` directly.
+    g.rotation.y = yawRef.current + Math.PI;
 
     const live = usePlayStore.getState().riding[def.id];
     g.rotation.x = live?.flip ? live.flip.angle : 0;
