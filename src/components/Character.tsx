@@ -85,66 +85,66 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
       <group position={[-h * 0.06, legsH, 0]}>
         <mesh ref={leftLegRef} position={[0, -legsH / 2, 0]} castShadow>
           <boxGeometry args={[h * 0.1, legsH, h * 0.12]} />
-          <meshStandardMaterial color={def.pantsColor} />
+          <meshStandardMaterial color={def.pantsColor} roughness={0.84} metalness={0} />
         </mesh>
       </group>
       <group position={[h * 0.06, legsH, 0]}>
         <mesh ref={rightLegRef} position={[0, -legsH / 2, 0]} castShadow>
           <boxGeometry args={[h * 0.1, legsH, h * 0.12]} />
-          <meshStandardMaterial color={def.pantsColor} />
+          <meshStandardMaterial color={def.pantsColor} roughness={0.84} metalness={0} />
         </mesh>
       </group>
 
       {/* shoes */}
       <mesh position={[-h * 0.06, 0.05, h * 0.05]} castShadow>
         <boxGeometry args={[h * 0.11, 0.1, h * 0.18]} />
-        <meshStandardMaterial color={def.shoeColor} />
+        <meshStandardMaterial color={def.shoeColor} roughness={0.7} metalness={0} />
       </mesh>
       <mesh position={[h * 0.06, 0.05, h * 0.05]} castShadow>
         <boxGeometry args={[h * 0.11, 0.1, h * 0.18]} />
-        <meshStandardMaterial color={def.shoeColor} />
+        <meshStandardMaterial color={def.shoeColor} roughness={0.7} metalness={0} />
       </mesh>
 
       {/* torso */}
       <mesh ref={torsoRef} position={[0, torsoY, 0]} castShadow>
         <boxGeometry args={[h * 0.3, torsoH, h * 0.18]} />
-        <meshStandardMaterial color={def.bodyColor} />
+        <meshStandardMaterial color={def.bodyColor} roughness={0.82} metalness={0} />
       </mesh>
 
       {/* arms (pivot from shoulder) */}
       <group position={[-h * 0.21, torsoY + torsoH * 0.4, 0]}>
         <mesh ref={leftArmRef} position={[0, -armH / 2, 0]} castShadow>
           <boxGeometry args={[h * 0.085, armH, h * 0.1]} />
-          <meshStandardMaterial color={def.bodyColor} />
+          <meshStandardMaterial color={def.bodyColor} roughness={0.82} metalness={0} />
         </mesh>
       </group>
       <group position={[h * 0.21, torsoY + torsoH * 0.4, 0]}>
         <mesh ref={rightArmRef} position={[0, -armH / 2, 0]} castShadow>
           <boxGeometry args={[h * 0.085, armH, h * 0.1]} />
-          <meshStandardMaterial color={def.bodyColor} />
+          <meshStandardMaterial color={def.bodyColor} roughness={0.82} metalness={0} />
         </mesh>
       </group>
 
       {/* hands (don't swing — keeps things readable) */}
       <mesh position={[-h * 0.215, legsH + armH * 0.3, 0]} castShadow>
         <sphereGeometry args={[h * 0.052, 10, 10]} />
-        <meshStandardMaterial color={def.skinTone} />
+        <meshStandardMaterial color={def.skinTone} roughness={0.62} metalness={0} />
       </mesh>
       <mesh position={[h * 0.215, legsH + armH * 0.3, 0]} castShadow>
         <sphereGeometry args={[h * 0.052, 10, 10]} />
-        <meshStandardMaterial color={def.skinTone} />
+        <meshStandardMaterial color={def.skinTone} roughness={0.62} metalness={0} />
       </mesh>
 
       {/* neck */}
       <mesh position={[0, legsH + torsoH + h * 0.015, 0]} castShadow>
         <cylinderGeometry args={[h * 0.05, h * 0.05, h * 0.04, 8]} />
-        <meshStandardMaterial color={def.skinTone} />
+        <meshStandardMaterial color={def.skinTone} roughness={0.62} metalness={0} />
       </mesh>
 
       {/* head */}
       <mesh position={[0, headY, 0]} castShadow>
         <sphereGeometry args={[headR, 16, 16]} />
-        <meshStandardMaterial color={def.skinTone} />
+        <meshStandardMaterial color={def.skinTone} roughness={0.62} metalness={0} />
       </mesh>
 
       {/* hair cap */}

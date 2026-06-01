@@ -94,6 +94,12 @@ import { Fireflies } from './celebration/Fireflies';
 import { BackyardPortal } from './celebration/BackyardPortal';
 import { useCombatStore } from '../state/combatStore';
 import { CameraExposer } from '../ui/Dialogue';
+import { Atmosphere } from './Atmosphere';
+import { NeighborhoodWildflowers } from './vegetation/Wildflowers';
+import { isTouchDevice } from '../systems/touchInput';
+
+// Crisper shadows on desktop; lighter on touch to protect iPad framerate.
+const SHADOW_RES = isTouchDevice() ? 1024 : 2048;
 
 export function Game() {
   // Hide ONLY the character this peer claimed (so we don't see our own body in FPS view).
@@ -139,6 +145,8 @@ export function Game() {
   return (
     <>
       <DynamicSky />
+      <Atmosphere />
+      <SceneFog />
       <Stars />
       <DynamicLights />
 
@@ -181,6 +189,9 @@ export function Game() {
       ].map((p, i) => (
         <LiveOak key={`bgtree-${i}`} position={[p.x, 0, p.z]} scale={1.05} seed={i + 99} />
       ))}
+
+      {/* Texas wildflowers along the greenbelt — a little Austin authenticity. */}
+      <NeighborhoodWildflowers />
 
       {/* Characters */}
       {CHARACTER_ORDER.map((id) => (
@@ -269,7 +280,6 @@ function TornadoModeSystems() {
       <Lightning />
       <LightningBoltRenderer />
       <RagdollComedy />
-      <StormFog />
     </>
   );
 }
@@ -305,12 +315,26 @@ function AliensModeSystems() {
   );
 }
 
-function StormFog() {
+// Unified scene fog (one <fog> for the whole scene). Storm murk overrides
+// everything; daytime gets a warm pale haze that only touches the distant tree
+// line for depth while keeping the play area crisp; munchies night stays clear.
+function SceneFog() {
   const stormIntensity = useTornadoStore((s) => s.stormIntensity);
-  if (stormIntensity < 0.1) return null;
-  const near = 25 - stormIntensity * 8;
-  const far = 130 - stormIntensity * 75;
-  return <fog attach="fog" args={['#3a3a40', near, far]} />;
+  const timeOfDay = useCombatStore((s) => s.timeOfDay);
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (stormIntensity >= 0.1) {
+    const near = 25 - stormIntensity * 8;
+    const far = 130 - stormIntensity * 75;
+    return <fog attach="fog" args={['#3a3a40', near, far]} />;
+  }
+  if (gameMode === 'munchies') return null;
+  const dusk = Math.min(1, Math.max(0, timeOfDay) * 1.5);
+  const r = Math.round((0.81 - dusk * 0.33) * 255);
+  const g = Math.round((0.86 - dusk * 0.34) * 255);
+  const b = Math.round((0.9 - dusk * 0.3) * 255);
+  const near = 70;
+  const far = 330 - dusk * 140;
+  return <fog attach="fog" args={[`rgb(${r},${g},${b})`, near, far]} />;
 }
 
 function DynamicSky() {
@@ -384,8 +408,9 @@ function DynamicLights() {
         intensity={1.5}
         color="#fff0d0"
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
+        shadow-mapSize-width={SHADOW_RES}
+        shadow-mapSize-height={SHADOW_RES}
+        shadow-radius={4}
         shadow-bias={-0.0008}
         shadow-camera-near={1}
         shadow-camera-far={300}

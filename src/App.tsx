@@ -36,13 +36,20 @@ import { TreehouseLetterOverlay } from './ui/TreehouseLetterOverlay';
 import { TreehouseHud } from './ui/TreehouseHud';
 import { TreehouseMissionCompleteToast } from './ui/TreehouseMissionCompleteToast';
 import { TouchControls } from './ui/TouchControls';
+import { ACESFilmicToneMapping } from 'three';
+import { isTouchDevice } from './systems/touchInput';
 
 export default function App() {
+  // Cap pixel ratio so retina/iPad screens don't render at 3x (kills FPS for no
+  // visible gain). Touch devices get a tighter cap to protect the framerate.
+  const maxDpr = isTouchDevice() ? 1.75 : 2;
   return (
     <>
       <Canvas
         camera={{ position: [0, 8, -100], fov: 80, near: 0.1, far: 600 }}
         shadows
+        dpr={[1, maxDpr]}
+        gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, toneMappingExposure: 1.08 }}
         style={{ width: '100vw', height: '100vh', display: 'block' }}
       >
         <Game />
