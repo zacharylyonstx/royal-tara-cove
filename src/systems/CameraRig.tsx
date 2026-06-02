@@ -140,6 +140,17 @@ export function CameraRig() {
     // When riding, pull the camera behind+above the heading (Mario-Kart feel).
     // Keep the FPS yaw ref synced to the heading so dismount hands back cleanly.
     const riding = usePlayStore.getState().riding[activeId];
+
+    // Speed-reactive FOV: subtly widen the lens as you pick up speed (a real
+    // sense of "fast"), and ease back to normal on foot. Cheap + big game-feel.
+    const cam = camera as unknown as { isPerspectiveCamera?: boolean; fov: number; updateProjectionMatrix: () => void };
+    if (cam.isPerspectiveCamera) {
+      const spd = riding ? Math.abs(riding.speed) : 0;
+      const targetFov = 80 + Math.min(10, spd * 0.5);
+      const nf = cam.fov + (targetFov - cam.fov) * Math.min(1, dt * 5);
+      if (Math.abs(nf - cam.fov) > 0.01) { cam.fov = nf; cam.updateProjectionMatrix(); }
+    }
+
     if (riding) {
       const fx = -Math.sin(riding.heading);
       const fz = -Math.cos(riding.heading);
@@ -150,6 +161,16 @@ export function CameraRig() {
       const up = isCar ? 3.1 : 2.4;
       camera.position.lerp(new Vector3(pos.x - fx * back, pos.y + up, pos.z - fz * back), k);
       camera.lookAt(pos.x + fx * 3, pos.y + (isCar ? 1.0 : 0.8), pos.z + fz * 3);
+      // Landing thump: a quick decaying jolt right after a jump touchdown.
+      const lf = usePlayStore.getState().landingFx;
+      if (lf) {
+        const age = (performance.now() - lf.at) / 1000;
+        if (age >= 0 && age < 0.28) {
+          const amp = 0.4 * lf.power * (1 - age / 0.28);
+          camera.position.x += Math.sin(age * 95) * amp;
+          camera.position.y += Math.cos(age * 78) * amp * 0.7;
+        }
+      }
       yaw.current = riding.heading;
       pitch.current = 0;
       return;

@@ -42,9 +42,13 @@ export function CrepeMyrtle({ position, scale = 1, bloomColor = '#d985b3', seed 
         trunk.rotation.x = (awayZ / dist) * amp * -1;
         trunk.rotation.z = (awayX / dist) * amp;
       }
-    } else if (trunk.rotation.x !== 0 || trunk.rotation.z !== 0) {
-      trunk.rotation.x *= 0.9;
-      trunk.rotation.z *= 0.9;
+    } else {
+      // Gentle everyday breeze — a slow sway so the tree isn't dead-still.
+      const t = state.clock.elapsedTime;
+      const swayZ = Math.sin(t * 1.1 + position[0] * 0.2) * 0.03;
+      const swayX = Math.sin(t * 0.8 + position[2] * 0.2) * 0.018;
+      trunk.rotation.z += (swayZ - trunk.rotation.z) * 0.08;
+      trunk.rotation.x += (swayX - trunk.rotation.x) * 0.08;
     }
   });
 

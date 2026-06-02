@@ -52,6 +52,8 @@ function SkyClouds() {
       <Cloud seed={11} position={[-46, 40, -55]} bounds={[26, 5, 12]} volume={9} segments={26} opacity={0.42 * fade} speed={0.16} color="#ffffff" growth={5} />
       <Cloud seed={29} position={[40, 46, -85]} bounds={[30, 6, 14]} volume={11} segments={28} opacity={0.36 * fade} speed={0.12} color="#fbf7ef" growth={6} />
       <Cloud seed={47} position={[6, 52, -120]} bounds={[34, 6, 16]} volume={12} segments={30} opacity={0.30 * fade} speed={0.1} color="#eef4ff" growth={6} />
+      <Cloud seed={63} position={[-30, 58, -165]} bounds={[38, 6, 16]} volume={12} segments={28} opacity={0.26 * fade} speed={0.09} color="#f4f8ff" growth={6} />
+      <Cloud seed={81} position={[58, 44, 12]} bounds={[24, 5, 12]} volume={9} segments={24} opacity={0.3 * fade} speed={0.13} color="#fffaf0" growth={5} />
     </Clouds>
   );
 }

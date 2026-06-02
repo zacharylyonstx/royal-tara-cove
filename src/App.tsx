@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { Game } from './components/Game';
+import { PostFX } from './components/PostFX';
 import { WelcomeScreen } from './ui/WelcomeScreen';
 import { CharacterSelect } from './ui/CharacterSelect';
 import { RoomBadge } from './ui/RoomBadge';
@@ -62,6 +63,7 @@ export default function App() {
         style={{ width: '100vw', height: '100vh', display: 'block' }}
       >
         <Game />
+        <PostFX />
       </Canvas>
       <CharacterIndicator />
       <ControlsHud />

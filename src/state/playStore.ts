@@ -91,6 +91,11 @@ interface PlayStore {
   hoverBallId: string | null;
   hoverCarId: string | null;
 
+  /** One-shot landing-impact event (ramp/jump touchdown): drives the dust puff,
+   *  camera shake, and vehicle squash. Consumers compare `at` to performance.now(). */
+  landingFx: { x: number; z: number; at: number; power: number } | null;
+  triggerLandingFx: (x: number, z: number, power: number) => void;
+
   setHover: (play: HoverPlay, bikeId: string | null, ballId: string | null, carId?: string | null) => void;
   registerHoop: (address: string, reg: HoopReg) => void;
   registerBike: (reg: BikeReg) => void;
@@ -135,6 +140,9 @@ export const usePlayStore = create<PlayStore>((set) => ({
   hoverBikeId: null,
   hoverBallId: null,
   hoverCarId: null,
+  landingFx: null,
+
+  triggerLandingFx: (x, z, power) => set({ landingFx: { x, z, at: performance.now(), power } }),
 
   setHover: (play, bikeId, ballId, carId = null) =>
     set((s) =>

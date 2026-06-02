@@ -746,7 +746,10 @@ function rideBikeTick(
       }
     }
     if (riding.y <= 0) {
-      // Landed.
+      // Landed. Fire a one-shot impact (dust puff + camera shake + squash) scaled
+      // by how hard the touchdown was — a real jump thumps, a tiny hop doesn't.
+      const impact = -riding.vy; // downward speed at touchdown (m/s)
+      if (impact > 3.5) play.triggerLandingFx(pos.x, pos.z, Math.min(1, impact / 14));
       riding.y = 0;
       riding.vy = 0;
       riding.airborne = false;

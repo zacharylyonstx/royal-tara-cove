@@ -32,6 +32,8 @@ import {
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { RiddenBikes } from './props/RiddenBike';
+import { VehicleFX } from './VehicleFX';
+import { DistantScenery } from './DistantScenery';
 import { Ramp, buildRampFloor, buildRampColliders } from './props/Ramp';
 import { CrepeMyrtle } from './vegetation/CrepeMyrtle';
 import { Hedge } from './vegetation/Hedge';
@@ -186,6 +188,9 @@ export function Game() {
       {/* Texas wildflowers along the greenbelt — a little Austin authenticity. */}
       <NeighborhoodWildflowers />
 
+      {/* Hazy distant treeline framing the neighborhood (depth backdrop). */}
+      <DistantScenery />
+
       {/* Characters */}
       {CHARACTER_ORDER.map((id) => (
         <Character
@@ -201,6 +206,7 @@ export function Game() {
       ))}
 
       <RiddenBikes />
+      <VehicleFX />
 
       <AliensModeSystems />
 

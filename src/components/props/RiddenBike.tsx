@@ -25,6 +25,8 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
   const flipRef = useRef<Group>(null);
   const riding = usePlayStore((s) => s.riding[id]);
   const isCar = riding?.vehicle === 'car';
+  const prevAir = useRef(false);
+  const squashAt = useRef(-1);
 
   useFrame(() => {
     const g = ref.current;
@@ -35,6 +37,16 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
     g.visible = true;
     const p = useGameStore.getState().positions[id];
     g.position.set(p.x, r.y, p.z);
+    // Suspension squash on touchdown: compress briefly, then spring back.
+    if (prevAir.current && !r.airborne) squashAt.current = performance.now();
+    prevAir.current = r.airborne;
+    const sage = (performance.now() - squashAt.current) / 1000;
+    if (squashAt.current > 0 && sage < 0.2) {
+      const amt = 0.13 * (1 - sage / 0.2);
+      g.scale.set(1 + amt * 0.6, 1 - amt, 1 + amt * 0.6);
+    } else {
+      g.scale.set(1, 1, 1);
+    }
     if (r.vehicle === 'car') {
       // Car nose (headlights/grille) is modelled at local -Z; heading with no
       // offset points the nose along the travel direction. Cars never flip/tip.
