@@ -98,7 +98,10 @@ const PATCHES: { center: [number, number]; radius: number; count: number; seed: 
   { center: [41, -74], radius: 5, count: 52, seed: 21 },
   { center: [-41, -110], radius: 5, count: 50, seed: 26 },
   { center: [41, -110], radius: 5, count: 50, seed: 33 },
-  { center: [0, -158], radius: 6, count: 64, seed: 40 },
+  // Continue the greenbelt ladder along the tree line — NOT on the road. (The
+  // old [0,-158] patch sat dead-center on the driving lane.)
+  { center: [-41, -146], radius: 5, count: 52, seed: 40 },
+  { center: [41, -146], radius: 5, count: 52, seed: 41 },
 ];
 
 export function NeighborhoodWildflowers() {

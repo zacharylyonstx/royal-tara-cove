@@ -10,6 +10,7 @@ import { useChatStore } from '../state/chatStore';
 import { usePlayStore, ballPositions } from '../state/playStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
+import { STREET_RADIUS, STRAIGHT_START_Z, STRAIGHT_END_Z, STRAIGHT_HOUSE_FRONT_X } from '../world/streetLayout';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
@@ -517,15 +518,40 @@ const RAMP_LAUNCH_PER_SPEED = 0.62;// + this per m/s of approach speed
 const FLIP_RATE = 9.0;             // rad/s rotation while flipping
 const FLIP_LAND_TOL = 0.95;        // rad of slop allowed from a full turn to stick it
 const WIPEOUT_MS = 1100;           // tumble duration before you hop back up
-const BIKE_RIDE_BOUND = 145;       // bikes may roam the whole street (walking stays tighter)
-// Cars: faster top speed, gentler accel, wider turns, no hops/flips/ramps.
+// Cars: faster top speed, gentler accel, wider turns; ramp jumps OK, no flips.
 const CAR_MAX_SPEED = 20;
 const CAR_REVERSE_SPEED = 5;
 const CAR_ACCEL = 11;
 const CAR_BRAKE = 26;
 const CAR_FRICTION = 5;
 const CAR_TURN = 1.7;
+const CAR_RAMP_MAX_VY = 12;        // cap the car's ramp launch so it's a big hop, not a moon-jump
 const UNSTICK_TURN = 1.2;          // rad/s auto-steer when wedged head-on (bike + car) so you never get stuck
+
+// --- Drivable region = the whole "lollipop" street: bulb (cul-de-sac) ∪ stick.
+// A single radial clamp can't describe a lollipop, so the old one cut the stick
+// off ~34 m early. This region lets vehicles traverse the entire map (bulb +
+// full stick to the entrance) while still keeping them out of the void. Houses,
+// fences, and props remain hard colliders — this is only the outer backstop.
+const RIDE_BULB_R = STREET_RADIUS + 12.5;            // bulb pavement + ring driveways/front yards (~27)
+const RIDE_STICK_HALF_X = STRAIGHT_HOUSE_FRONT_X + 2; // road + front yards, small margin (~15.4)
+const RIDE_STICK_END_Z = STRAIGHT_END_Z - 6;          // a touch past the street entrance (~-185.5)
+
+/** If (x,z) is outside the drivable street, return the nearest valid point; else null. */
+function clampToStreet(x: number, z: number): { x: number; z: number } | null {
+  const inStick = Math.abs(x) <= RIDE_STICK_HALF_X && z <= STRAIGHT_START_Z && z >= RIDE_STICK_END_Z;
+  const inBulb = x * x + z * z <= RIDE_BULB_R * RIDE_BULB_R;
+  if (inStick || inBulb) return null;
+  // Outside both: clamp to whichever region edge is nearer.
+  const sx = Math.max(-RIDE_STICK_HALF_X, Math.min(RIDE_STICK_HALF_X, x));
+  const sz = Math.max(RIDE_STICK_END_Z, Math.min(STRAIGHT_START_Z, z));
+  const dStick = (x - sx) ** 2 + (z - sz) ** 2;
+  const dd = Math.hypot(x, z) || 1;
+  const bx = (x / dd) * RIDE_BULB_R;
+  const bz = (z / dd) * RIDE_BULB_R;
+  const dBulb = (x - bx) ** 2 + (z - bz) ** 2;
+  return dStick <= dBulb ? { x: sx, z: sz } : { x: bx, z: bz };
+}
 
 type Colliders = import('../types').RectCollider[];
 type Doors = Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>;
@@ -610,12 +636,32 @@ function rideBikeTick(
   const fz = -Math.cos(riding.heading);
   const desiredX = pos.x + fx * speed * dt;
   const desiredZ = pos.z + fz * speed * dt;
-  // Exclude ramp faces from the bike's collider set — the bike has its own
-  // Y-aware ramp handling below, so the airborne launch flies over cleanly.
-  const all = colliders.filter((c) => !c.tag || !c.tag.startsWith('ramp'));
+
+  // Ramp launch detection (bikes + cars): rolling UP the deck with enough speed
+  // throws you airborne. Decided BEFORE collision so the launch arc — and any
+  // airborne vehicle — flies cleanly OVER the ramp walls, while a grounded
+  // approach from the back/side instead hits them as a solid wall that the
+  // auto-unstick steers around (so you never pin on the ramp's back).
+  const ramp = play.ramp;
+  let launching = false;
+  let rampVy = 0;
+  if (grounded && !wipingOut && ramp) {
+    const rfx = -Math.sin(ramp.heading);
+    const rfz = -Math.cos(ramp.heading);
+    const along = (pos.x - ramp.x) * rfx + (pos.z - ramp.z) * rfz;
+    const across = (pos.x - ramp.x) * Math.cos(ramp.heading) - (pos.z - ramp.z) * Math.sin(ramp.heading);
+    const movingUp = fx * rfx + fz * rfz; // heading vs ramp-up direction
+    if (Math.abs(along) <= ramp.halfLen && Math.abs(across) <= ramp.halfWid && Math.abs(speed) >= RAMP_MIN_SPEED && movingUp > 0.4) {
+      launching = true;
+      const launch = RAMP_LAUNCH_BASE + Math.abs(speed) * RAMP_LAUNCH_PER_SPEED;
+      rampVy = isCar ? Math.min(CAR_RAMP_MAX_VY, launch) : launch; // cars get a big but capped hop
+    }
+  }
+  // Ramp walls block only a grounded, non-launching vehicle (you can't bulldoze
+  // through the deck); a launch or an airborne fly-over ignores them.
+  const skipRamp = launching || riding.airborne;
+  const all = colliders.filter((c) => (c.tag && c.tag.startsWith('ramp') ? !skipRamp : true));
   for (const door of Object.values(doors)) { if (!door.open) all.push(door.aabbWhenClosed); }
-  const px0 = pos.x;
-  const pz0 = pos.z;
   const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, all, pos.y);
   // Proportional speed loss: only a real head-on block (made <55% of the step)
   // bleeds momentum, scaled by how blocked it was. Grazes don't kill the ride.
@@ -651,36 +697,19 @@ function rideBikeTick(
   pos.x = resolved.x;
   pos.z = resolved.z;
 
-  // --- Vertical: bunny-hop / ramp launch / flip / gravity / landing (bikes only;
-  //     cars stay planted — no hops, flips, or ramp launches). ---
+  // --- Vertical: bunny-hop / ramp launch / flip / gravity / landing.
+  //     Bunny-hop + flips are bike-only; cars launch off the ramp too (just no
+  //     flips — a flipping truck would look broken). ---
   if (!isCar && jumpPressed && !wipingOut) {
     if (grounded) { riding.vy = BIKE_HOP_V; riding.airborne = true; }
     else if (!riding.flip) { riding.flip = { dir: back ? -1 : 1, angle: 0 }; } // 2nd tap = flip (S = back)
   }
 
-  // Ramp: rolling UP the slope with speed launches you; approaching from the
-  // back or sides treats it as a solid wall (you can't ride through it).
-  const ramp = play.ramp;
-  if (!isCar && grounded && !wipingOut && ramp) {
-    const rdx = pos.x - ramp.x;
-    const rdz = pos.z - ramp.z;
-    const rfx = -Math.sin(ramp.heading);
-    const rfz = -Math.cos(ramp.heading);
-    const along = rdx * rfx + rdz * rfz;
-    const across = rdx * Math.cos(ramp.heading) - rdz * Math.sin(ramp.heading);
-    if (Math.abs(along) <= ramp.halfLen && Math.abs(across) <= ramp.halfWid) {
-      const movingUp = fx * rfx + fz * rfz; // bike heading vs ramp-up direction
-      if (Math.abs(speed) >= RAMP_MIN_SPEED && movingUp > 0.4) {
-        riding.vy = RAMP_LAUNCH_BASE + Math.abs(speed) * RAMP_LAUNCH_PER_SPEED;
-        riding.airborne = true;
-        riding.speed = speed * 1.04; // tiny forward boost off the lip
-      } else if (movingUp < 0.2) {
-        // Solid from behind/sides: cancel the move into the ramp.
-        pos.x = px0;
-        pos.z = pz0;
-        riding.speed = speed * 0.2;
-      }
-    }
+  // Apply the ramp launch decided before collision (cars get a capped hop; never a flip).
+  if (launching) {
+    riding.vy = rampVy;
+    riding.airborne = true;
+    riding.speed = speed * 1.04; // tiny forward boost off the lip
   }
 
   if (riding.airborne) {
@@ -734,13 +763,13 @@ function rideBikeTick(
   pos.y = riding.y; // the rider rises with the bike (Character copies pos.y)
   yaws[activeId] = riding.heading;
 
-  // Soft cove boundary — wide for bikes so you can ride the whole street.
-  const d = Math.hypot(pos.x, pos.z);
-  if (d > BIKE_RIDE_BOUND) {
-    const kk = BIKE_RIDE_BOUND / d;
-    pos.x *= kk;
-    pos.z *= kk;
-    riding.speed *= 0.7;
+  // Soft street boundary: keep vehicles on the lollipop (bulb + full stick) so
+  // you can traverse the whole map but never sail off into the void.
+  const clamped = clampToStreet(pos.x, pos.z);
+  if (clamped) {
+    pos.x = clamped.x;
+    pos.z = clamped.z;
+    riding.speed *= 0.6;
   }
 }
 
