@@ -32,6 +32,20 @@ function toWorld(lx: number, ly: number, lz: number, pivot: [number, number], ya
   return [pivot[0] + lx * cy + lz * sy, ly, pivot[1] - lx * sy + lz * cy];
 }
 
+/** The parked car — rendered in WORLD space from its live registered spot, so it
+ *  stays wherever the last driver left it. Hidden while someone is driving it
+ *  (the driven copy follows the driver via RiddenBikes). */
+function ParkedCar({ carId }: { carId: string }) {
+  const car = usePlayStore((s) => s.cars[carId]);
+  const driven = usePlayStore((s) =>
+    Object.values(s.riding).some((r) => r && r.vehicle === 'car' && r.bikeId === carId));
+  if (!car || driven) return null;
+  const position: [number, number, number] = [car.x, 0, car.z];
+  return car.kind === 'truck'
+    ? <Truck position={position} rotation={car.yaw} color={car.color} />
+    : <Sedan position={position} rotation={car.yaw} color={car.color} />;
+}
+
 export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProps) {
   const halfW = config.width / 2;
   const halfD = config.depth / 2;
@@ -85,19 +99,24 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
       usePlayStore.getState().registerBike({ id: `${config.address}-kbike-0`, x: a[0], z: a[2], color: '#e26aa1' });
       usePlayStore.getState().registerBike({ id: `${config.address}-kbike-1`, x: b[0], z: b[2], color: '#5cb85c' });
     }
-  }, [config.address, config.garageOnLeft, garageCenterX, ballSide, sidewalkZ, halfD, lot, data]);
+    // Register the parked car (truck/sedan) so the player can hop in and drive it.
+    const carKind: 'truck' | 'sedan' | null = data.tags.has('truck') ? 'truck' : (data.tags.has('sedan') ? 'sedan' : null);
+    if (carKind) {
+      const w = toWorld(garageCenterX, 0, driveZCenter, pivot, yaw);
+      usePlayStore.getState().registerCar({
+        id: `${config.address}-car`,
+        x: w[0], z: w[2],
+        color: data.vehicleColor ?? '#3f72c4',
+        kind: carKind,
+        yaw: yaw + Math.PI,
+      });
+    }
+  }, [config.address, config.garageOnLeft, garageCenterX, ballSide, sidewalkZ, halfD, driveZCenter, lot, data]);
 
   return (
     <>
       {/* House-local group: all decoration that should rotate with the house. */}
       <group position={[lot.housePivot[0], 0, lot.housePivot[1]]} rotation={[0, lot.houseYaw, 0]}>
-        {data.tags.has('truck') && (
-          <Truck position={[garageCenterX, 0, driveZCenter]} rotation={Math.PI} color={data.vehicleColor} />
-        )}
-        {!data.tags.has('truck') && data.tags.has('sedan') && (
-          <Sedan position={[garageCenterX, 0, driveZCenter]} rotation={Math.PI} color={data.vehicleColor} />
-        )}
-
         {data.tags.has('hoop') && (
           <BasketballHoop
             position={[
@@ -192,6 +211,10 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
       </group>
 
       {/* World-space sibling group for physics-driven / player-aware props. */}
+      {/* Parked car lives in world space so it stays where the last driver left it. */}
+      {(data.tags.has('truck') || data.tags.has('sedan')) && (
+        <ParkedCar carId={`${config.address}-car`} />
+      )}
       {/* A few basketballs in the driveway so the whole family can play together. */}
       {data.tags.has('hoop') && [
         [ballLocal[0], 0, ballLocal[2]],

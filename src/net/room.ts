@@ -32,8 +32,8 @@ export interface PlayerStateMsg {
   yaw: number;
   running: boolean;
   jumping: boolean;
-  /** Bike-riding state (so peers render the bike under us). y/flipAngle drive air + tricks. */
-  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number } | null;
+  /** Vehicle-riding state (so peers render the bike/car under us). y/flipAngle drive air + tricks. */
+  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
   t: number; // sender timestamp ms
 }
 
@@ -177,6 +177,8 @@ export async function joinRoom(mode: GameMode): Promise<void> {
           heading: num(r.heading),
           y: num(r.y),
           flipAngle: num(r.flipAngle),
+          vehicle: r.vehicle === 'car' ? ('car' as const) : ('bike' as const),
+          carKind: r.carKind === 'truck' ? ('truck' as const) : ('sedan' as const),
         }
       : null;
     useNetStore.getState().setRemotePlayerState({

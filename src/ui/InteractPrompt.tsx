@@ -4,6 +4,7 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 
 const PLAY_LABELS: Record<string, string> = {
   ride: 'ride bike',
+  drive: 'drive 🚗',
   getoff: 'get off',
   pickup: 'pick up ball',
 };

@@ -20,8 +20,8 @@ export interface RemotePlayerState {
   yaw: number;
   running: boolean;
   jumping: boolean;
-  /** Set when this peer is riding a bike (so we render it under them). */
-  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number } | null;
+  /** Set when this peer is riding a vehicle (so we render it under them). */
+  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
   receivedAt: number;
 }
 

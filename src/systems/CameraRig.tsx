@@ -144,8 +144,12 @@ export function CameraRig() {
       const fx = -Math.sin(riding.heading);
       const fz = -Math.cos(riding.heading);
       const k = Math.min(1, 6 * dt);
-      camera.position.lerp(new Vector3(pos.x - fx * 4.2, pos.y + 2.4, pos.z - fz * 4.2), k);
-      camera.lookAt(pos.x + fx * 3, pos.y + 0.8, pos.z + fz * 3);
+      // Cars are bigger + faster — pull the chase cam back and up a touch.
+      const isCar = riding.vehicle === 'car';
+      const back = isCar ? 6.4 : 4.2;
+      const up = isCar ? 3.1 : 2.4;
+      camera.position.lerp(new Vector3(pos.x - fx * back, pos.y + up, pos.z - fz * back), k);
+      camera.lookAt(pos.x + fx * 3, pos.y + (isCar ? 1.0 : 0.8), pos.z + fz * 3);
       yaw.current = riding.heading;
       pitch.current = 0;
       return;

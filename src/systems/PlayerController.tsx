@@ -447,8 +447,15 @@ export function PlayerController() {
           const d = Math.hypot(bp.x - pos.x, bp.z - pos.z);
           if (d < bestBallD) { bestBallD = d; bestBall = bid; }
         }
+        let bestCar: string | null = null;
+        let bestCarD = 3.4; // cars are big — generous reach so kids can hop in easily
+        for (const c of Object.values(play.cars)) {
+          const d = Math.hypot(c.x - pos.x, c.z - pos.z);
+          if (d < bestCarD) { bestCarD = d; bestCar = c.id; }
+        }
         if (bestBall && (!bestBike || bestBallD <= bestBikeD)) play.setHover('pickup', null, bestBall);
         else if (bestBike) play.setHover('ride', bestBike, null);
+        else if (bestCar) play.setHover('drive', null, null, bestCar);
         else play.setHover(null, null, null);
       }
     } else {
@@ -468,7 +475,13 @@ export function PlayerController() {
         ph.pickUpBall(ph.hoverBallId, activeId);
       } else if (playActive && ph.hoverPlay === 'ride' && ph.hoverBikeId) {
         mountBike(activeId, ph.hoverBikeId, ph.bikes[ph.hoverBikeId]?.color ?? '#3a6db0', yaws[activeId]);
+      } else if (playActive && ph.hoverPlay === 'drive' && ph.hoverCarId) {
+        mountCar(activeId, ph.hoverCarId, yaws[activeId]);
       } else if (playActive && ph.hoverPlay === 'getoff') {
+        const cur = ph.riding[activeId];
+        // Leave a car parked exactly where it was (centered on the driver) before
+        // the rider steps out, so it doesn't snap back to its driveway.
+        if (cur && cur.vehicle === 'car') ph.parkCar(cur.bikeId, pos.x, pos.z, cur.heading);
         dismountBike(activeId, pos, staticColliders);
       } else if (nearestId) {
         toggleDoor(nearestId);
@@ -505,6 +518,14 @@ const FLIP_RATE = 9.0;             // rad/s rotation while flipping
 const FLIP_LAND_TOL = 0.95;        // rad of slop allowed from a full turn to stick it
 const WIPEOUT_MS = 1100;           // tumble duration before you hop back up
 const BIKE_RIDE_BOUND = 145;       // bikes may roam the whole street (walking stays tighter)
+// Cars: faster top speed, gentler accel, wider turns, no hops/flips/ramps.
+const CAR_MAX_SPEED = 20;
+const CAR_REVERSE_SPEED = 5;
+const CAR_ACCEL = 11;
+const CAR_BRAKE = 26;
+const CAR_FRICTION = 5;
+const CAR_TURN = 1.7;
+const UNSTICK_TURN = 1.2;          // rad/s auto-steer when wedged head-on (bike + car) so you never get stuck
 
 type Colliders = import('../types').RectCollider[];
 type Doors = Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>;
@@ -515,6 +536,15 @@ function freshRiding(bikeId: string, color: string, heading: number): import('..
 
 function mountBike(id: import('../types').CharacterId, bikeId: string, color: string, currentYaw: number) {
   usePlayStore.getState().mount(id, freshRiding(bikeId, color, currentYaw));
+}
+
+function mountCar(id: import('../types').CharacterId, carId: string, currentYaw: number) {
+  const car = usePlayStore.getState().cars[carId];
+  if (!car) return;
+  usePlayStore.getState().mount(id, {
+    bikeId: carId, bikeColor: car.color, vehicle: 'car', carKind: car.kind,
+    heading: currentYaw, speed: 0, y: 0, vy: 0, airborne: false, flip: null, wipeoutUntil: 0,
+  });
 }
 
 function dismountBike(id: import('../types').CharacterId, pos: Vector3, colliders: Colliders) {
@@ -545,6 +575,13 @@ function rideBikeTick(
   const play = usePlayStore.getState();
   const wipingOut = riding.wipeoutUntil > now;
   const grounded = !riding.airborne;
+  const isCar = riding.vehicle === 'car';
+  const MAXSP = isCar ? CAR_MAX_SPEED : BIKE_MAX_SPEED;
+  const REVSP = isCar ? CAR_REVERSE_SPEED : BIKE_REVERSE_SPEED;
+  const ACCEL = isCar ? CAR_ACCEL : BIKE_ACCEL;
+  const BRAKE = isCar ? CAR_BRAKE : BIKE_BRAKE;
+  const FRICTION = isCar ? CAR_FRICTION : BIKE_FRICTION;
+  const TURN = isCar ? CAR_TURN : BIKE_TURN;
   const fwd = !wipingOut && (keys['w'] || keys['arrowup']);
   const back = !wipingOut && (keys['s'] || keys['arrowdown']);
 
@@ -552,20 +589,20 @@ function rideBikeTick(
   let speed = riding.speed;
   if (grounded) {
     if (wipingOut) {
-      const f = BIKE_FRICTION * 2.4 * dt; // bleed to a stop during a tumble
+      const f = FRICTION * 2.4 * dt; // bleed to a stop during a tumble
       speed = speed > 0 ? Math.max(0, speed - f) : Math.min(0, speed + f);
-    } else if (fwd) speed += BIKE_ACCEL * dt;
-    else if (back) speed -= BIKE_BRAKE * dt;
+    } else if (fwd) speed += ACCEL * dt;
+    else if (back) speed -= BRAKE * dt;
     else {
-      const f = BIKE_FRICTION * dt;
+      const f = FRICTION * dt;
       speed = speed > 0 ? Math.max(0, speed - f) : Math.min(0, speed + f);
     }
-    speed = Math.max(-BIKE_REVERSE_SPEED, Math.min(BIKE_MAX_SPEED, speed));
+    speed = Math.max(-REVSP, Math.min(MAXSP, speed));
     // Steer only while moving; turn rate scales with speed; reverse flips it.
     const steer = (keys['a'] || keys['arrowleft'] ? 1 : 0) - (keys['d'] || keys['arrowright'] ? 1 : 0);
     const speedFactor = Math.min(1, Math.abs(speed) / 3);
     const dir = speed >= 0 ? 1 : -1;
-    if (!wipingOut) riding.heading += steer * BIKE_TURN * speedFactor * dir * dt;
+    if (!wipingOut) riding.heading += steer * TURN * speedFactor * dir * dt;
   }
   riding.speed = speed;
 
@@ -586,12 +623,37 @@ function rideBikeTick(
     const want = Math.hypot(desiredX - pos.x, desiredZ - pos.z);
     const got = Math.hypot(resolved.x - pos.x, resolved.z - pos.z);
     if (want > 1e-4 && got / want < 0.55) riding.speed = speed * Math.max(0.25, got / want);
+    // Kid-friendly auto-unstick: when a move is meaningfully blocked, steer the
+    // heading toward the direction you can ACTUALLY slide (the resolved motion),
+    // so the bike/car peels off along the wall, builds speed, and drives free —
+    // instead of pinning head-on. Steering toward the real opening (not a fixed
+    // bias) keeps turning until you're genuinely cruising, avoiding the wedge
+    // equilibrium where a fixed nudge stalls right at the threshold. No min-speed
+    // guard: it must keep working after a block has bled speed to a crawl, which
+    // is exactly when you're stuck. Throttle must be engaged (speed !== 0 above).
+    if (want > 1e-4 && got / want < 0.6) {
+      const sx = resolved.x - pos.x;
+      const sz = resolved.z - pos.z;
+      let targetH: number;
+      if (Math.hypot(sx, sz) > 0.02) {
+        targetH = Math.atan2(-sx, -sz); // face the open slide direction
+      } else {
+        // Fully wedged (e.g. into a corner): bias toward the open street center.
+        targetH = riding.heading + (pos.x >= 0 ? -1 : 1);
+      }
+      let diff = targetH - riding.heading;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      const step = UNSTICK_TURN * dt;
+      riding.heading += Math.max(-step, Math.min(step, diff));
+    }
   }
   pos.x = resolved.x;
   pos.z = resolved.z;
 
-  // --- Vertical: bunny-hop / ramp launch / flip / gravity / landing ---
-  if (jumpPressed && !wipingOut) {
+  // --- Vertical: bunny-hop / ramp launch / flip / gravity / landing (bikes only;
+  //     cars stay planted — no hops, flips, or ramp launches). ---
+  if (!isCar && jumpPressed && !wipingOut) {
     if (grounded) { riding.vy = BIKE_HOP_V; riding.airborne = true; }
     else if (!riding.flip) { riding.flip = { dir: back ? -1 : 1, angle: 0 }; } // 2nd tap = flip (S = back)
   }
@@ -599,7 +661,7 @@ function rideBikeTick(
   // Ramp: rolling UP the slope with speed launches you; approaching from the
   // back or sides treats it as a solid wall (you can't ride through it).
   const ramp = play.ramp;
-  if (grounded && !wipingOut && ramp) {
+  if (!isCar && grounded && !wipingOut && ramp) {
     const rdx = pos.x - ramp.x;
     const rdz = pos.z - ramp.z;
     const rfx = -Math.sin(ramp.heading);

@@ -45,6 +45,9 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     g.rotation.y = yawRef.current + Math.PI;
 
     const live = usePlayStore.getState().riding[def.id];
+    // Sink the driver into the seat so they sit inside the cabin (head clears
+    // the roof) instead of standing through it. Bikes keep ground level.
+    if (live?.vehicle === 'car') g.position.y -= 0.45;
     g.rotation.x = live?.flip ? live.flip.angle : 0;
     const wipeActive = !!live && live.wipeoutUntil > performance.now();
     g.rotation.z += ((wipeActive ? 1.15 : 0) - g.rotation.z) * Math.min(1, dt * 12);

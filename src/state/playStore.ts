@@ -19,11 +19,24 @@ export interface BikeReg {
   color: string;
 }
 
-export type HoverPlay = 'ride' | 'getoff' | 'pickup' | 'shoot' | null;
+/** A parked, drivable car (truck/sedan) registered by HouseProps. */
+export interface CarReg {
+  id: string;
+  x: number;
+  z: number;
+  color: string;
+  kind: 'sedan' | 'truck';
+  yaw: number; // parked facing
+}
+
+export type HoverPlay = 'ride' | 'drive' | 'getoff' | 'pickup' | 'shoot' | null;
 
 export interface RidingState {
   bikeId: string;
   bikeColor: string;
+  /** undefined/'bike' = bicycle; 'car' = driving a registered car. */
+  vehicle?: 'bike' | 'car';
+  carKind?: 'sedan' | 'truck';
   heading: number;    // facing yaw of the bike
   speed: number;      // m/s, signed
   y: number;          // bike height (0 = on the ground, >0 = airborne)
@@ -68,6 +81,7 @@ interface PlayStore {
 
   hoops: Record<string, HoopReg>;                 // keyed by house address
   bikes: Record<string, BikeReg>;                 // keyed by bike id
+  cars: Record<string, CarReg>;                   // keyed by car id
   ramp: RampReg | null;
   trampoline: { x: number; z: number; half: number; padY: number } | null;
 
@@ -75,10 +89,14 @@ interface PlayStore {
   hoverPlay: HoverPlay;
   hoverBikeId: string | null;
   hoverBallId: string | null;
+  hoverCarId: string | null;
 
-  setHover: (play: HoverPlay, bikeId: string | null, ballId: string | null) => void;
+  setHover: (play: HoverPlay, bikeId: string | null, ballId: string | null, carId?: string | null) => void;
   registerHoop: (address: string, reg: HoopReg) => void;
   registerBike: (reg: BikeReg) => void;
+  registerCar: (reg: CarReg) => void;
+  /** Update a car's parked spot (called when a driver gets out) so it stays put. */
+  parkCar: (id: string, x: number, z: number, yaw: number) => void;
   registerRamp: (reg: RampReg) => void;
   registerTrampoline: (reg: { x: number; z: number; half: number; padY: number }) => void;
   /** Record a landed trick (or a wipeout) for the HUD; bumps the counter for real tricks. */
@@ -110,20 +128,25 @@ export const usePlayStore = create<PlayStore>((set) => ({
   trickCount: 0,
   hoops: {},
   bikes: {},
+  cars: {},
   trampoline: null,
   ramp: null,
   hoverPlay: null,
   hoverBikeId: null,
   hoverBallId: null,
+  hoverCarId: null,
 
-  setHover: (play, bikeId, ballId) =>
+  setHover: (play, bikeId, ballId, carId = null) =>
     set((s) =>
-      s.hoverPlay === play && s.hoverBikeId === bikeId && s.hoverBallId === ballId
+      s.hoverPlay === play && s.hoverBikeId === bikeId && s.hoverBallId === ballId && s.hoverCarId === carId
         ? s
-        : { hoverPlay: play, hoverBikeId: bikeId, hoverBallId: ballId },
+        : { hoverPlay: play, hoverBikeId: bikeId, hoverBallId: ballId, hoverCarId: carId },
     ),
   registerHoop: (address, reg) => set((s) => ({ hoops: { ...s.hoops, [address]: reg } })),
   registerBike: (reg) => set((s) => ({ bikes: { ...s.bikes, [reg.id]: reg } })),
+  registerCar: (reg) => set((s) => ({ cars: { ...s.cars, [reg.id]: reg } })),
+  parkCar: (id, x, z, yaw) =>
+    set((s) => (s.cars[id] ? { cars: { ...s.cars, [id]: { ...s.cars[id], x, z, yaw } } } : s)),
   registerTrampoline: (reg) => set(() => ({ trampoline: reg })),
   registerRamp: (reg) => set({ ramp: reg }),
   setTrick: (text, scored) =>
