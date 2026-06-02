@@ -13,7 +13,7 @@ import { buildLots } from '../world/lots';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
-import { treehousePickup } from '../audio';
+import { treehousePickup, hopSound, trampolineBoing } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
 import { useWardrobeStore } from '../state/wardrobeStore';
 
@@ -89,8 +89,10 @@ export function PlayerController() {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      // Don't react to typing in the chat input.
+      // Don't react to typing in the chat input or while the dress-up overlay
+      // owns the screen (else stale shoot/interact edges fire on close).
       if (useChatStore.getState().inputOpen) return;
+      if (useWardrobeStore.getState().open) return;
       const k = e.key.toLowerCase();
       keys.current[k] = true;
       // Space shoots a held ball OR hops/flips on a bike (edge-triggered: one press = one action).
@@ -118,7 +120,10 @@ export function PlayerController() {
       keys.current[e.key.toLowerCase()] = false;
     };
     // Mouse click also shoots a held ball (only acted on when holding).
-    const onMouseDown = () => { shootRef.current = true; };
+    const onMouseDown = () => {
+      if (useWardrobeStore.getState().open) return; // overlay clicks must not arm a shot
+      shootRef.current = true;
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('mousedown', onMouseDown);
@@ -373,6 +378,7 @@ export function PlayerController() {
         if (jumpHeld && grounded) {
           trampCharge.current = Math.min(1, trampCharge.current + 0.34);
           yVel.current = JUMP_VELOCITY * (1.5 + trampCharge.current * 1.1);
+          trampolineBoing(trampCharge.current);
         }
         yVel.current -= GRAVITY * dt;
         pos.y += yVel.current * dt;
@@ -381,6 +387,7 @@ export function PlayerController() {
           pos.y = tramp.padY;
           if (impact > 2.5 && !jumpHeld) {
             yVel.current = impact * 0.68; // bouncy auto-spring (decays without input)
+            trampolineBoing(trampCharge.current);
           } else {
             yVel.current = 0;
             trampCharge.current = Math.max(0, trampCharge.current - 0.25);
@@ -391,6 +398,7 @@ export function PlayerController() {
         // Normal jump (only when on the floor under us).
         if (jumpHeld && pos.y - standingFloorY < 0.05) {
           yVel.current = JUMP_VELOCITY;
+          hopSound();
         }
         yVel.current -= GRAVITY * dt;
         pos.y += yVel.current * dt;

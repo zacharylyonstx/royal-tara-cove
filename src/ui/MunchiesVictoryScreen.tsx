@@ -35,6 +35,7 @@ export function MunchiesVictoryScreen() {
         background: 'linear-gradient(135deg, #3a5a8a, #2a8aaa, #5fa86a)',
         borderRadius: 22, padding: '28px 36px', color: '#fff7e6', textAlign: 'center',
         border: '3px solid #fff7e6', boxShadow: '0 14px 32px rgba(0,0,0,0.5)',
+        animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
       }}>
         <div style={{ fontSize: 64 }}>🍪🥛🍪</div>
         <h2 style={{ margin: '6px 0', fontSize: 30 }}>You ate everything!</h2>

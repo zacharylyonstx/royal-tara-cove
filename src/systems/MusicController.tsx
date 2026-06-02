@@ -1,40 +1,33 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
-import { startMusic, setMusicMix } from '../audio';
+import { startMusic, stopMusic, setMusicMix } from '../audio';
 
 const MAX_BLOBS_FOR_INTENSITY = 8;
 
+// Adaptive layered music for the Aliens + Free Play modes. Munchies and Treehouse
+// run their own themes (lullaby / treehouse), so this stops when those start.
 export function MusicController() {
-  const phase = useGameStore((s) => s.phase);
   const startedRef = useRef(false);
 
-  // Kick off music as soon as combat starts (audio context is unlocked)
-  useEffect(() => {
-    const _mode = useGameStore.getState().gameMode;
-    if (_mode === 'munchies' || _mode === 'treehouse') return;
-    if ((phase === 'combat' || phase === 'intro' || phase === 'victory') && !startedRef.current) {
-      startedRef.current = true;
-      startMusic();
-    }
-  }, [phase]);
-
-  // Adjust mix based on phase + combat intensity
   useFrame(() => {
-    const _mode = useGameStore.getState().gameMode;
-    if (_mode === 'munchies' || _mode === 'treehouse') return;
-    if (!startedRef.current) return;
-    const gameMode = useGameStore.getState().gameMode;
-    if (phase === 'victory') {
-      setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.6 });
+    const mode = useGameStore.getState().gameMode;
+    const phase = useGameStore.getState().phase;
+
+    // Hand off to the mode-specific themes — stop the neighborhood/combat music.
+    if (mode === 'munchies' || mode === 'treehouse') {
+      if (startedRef.current) { stopMusic(); startedRef.current = false; }
       return;
     }
-    if (phase === 'defeat') {
-      setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.0 });
-      return;
-    }
-    if (phase === 'combat' && gameMode === 'aliens') {
+
+    // Aliens + Free Play: ensure the layered music is running (ctx is unlocked
+    // by now — you clicked through the welcome to get here).
+    if (!startedRef.current) { startMusic(); startedRef.current = true; }
+
+    if (phase === 'victory') { setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.6 }); return; }
+    if (phase === 'defeat') { setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.0 }); return; }
+    if (mode === 'aliens' && phase === 'combat') {
       const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
       const intensity = Math.min(1, blobs.length / MAX_BLOBS_FOR_INTENSITY);
       setMusicMix({
@@ -44,7 +37,7 @@ export function MusicController() {
       });
       return;
     }
-    // intro / pre-combat / wandering
+    // Free Play + aliens intro/free-roam → calm neighborhood music.
     setMusicMix({ peaceful: 0.3, combat: 0.0, victory: 0.0 });
   });
 

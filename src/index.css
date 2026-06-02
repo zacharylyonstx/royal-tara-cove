@@ -23,6 +23,22 @@ canvas {
   outline: none;
 }
 
+/* Bouncy entrance for victory/defeat/game-over cards. */
+@keyframes pop-in {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 kbd {
   display: inline-block;
   padding: 2px 6px;

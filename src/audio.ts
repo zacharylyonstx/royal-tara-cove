@@ -15,6 +15,29 @@ function ensureCtx(): AudioContext | null {
   return ctx;
 }
 
+// --- Master output (mute / volume) ---
+// Every node routes through this single gain, so one control mutes/ducks the
+// whole game (music + SFX + tornado ambience). Driven by src/state/audioStore.
+let masterGainNode: GainNode | null = null;
+let gMasterMul = 1; // 0 = muted, 1 = full; updated by applyMasterOutput()
+function master(c: AudioContext): GainNode {
+  if (!masterGainNode || masterGainNode.context !== c) {
+    masterGainNode = c.createGain();
+    masterGainNode.gain.value = gMasterMul;
+    masterGainNode.connect(c.destination);
+  }
+  return masterGainNode;
+}
+/** Set the overall output multiplier (0 = muted). Smoothly ramped. */
+export function applyMasterOutput(mul: number) {
+  gMasterMul = Math.max(0, Math.min(1, mul));
+  const c = ctx;
+  if (c && masterGainNode) {
+    masterGainNode.gain.cancelScheduledValues(c.currentTime);
+    masterGainNode.gain.linearRampToValueAtTime(gMasterMul, c.currentTime + 0.08);
+  }
+}
+
 export function unlockAudio() {
   const c = ensureCtx();
   if (!c) return;
@@ -41,9 +64,71 @@ export function swishSound() {
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
   g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
-  src.connect(bp).connect(g).connect(c.destination);
+  src.connect(bp).connect(g).connect(master(c));
   src.start(t0);
   src.stop(t0 + 0.35);
+}
+
+/** Short rising 'hop' on jump. */
+export function hopSound() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(290, t0);
+  osc.frequency.exponentialRampToValueAtTime(560, t0 + 0.09);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.13, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
+  osc.connect(g).connect(master(c));
+  osc.start(t0);
+  osc.stop(t0 + 0.17);
+}
+
+/** Bouncy 'boing' on a trampoline bounce; pitch rises with charge (0..1). */
+export function trampolineBoing(charge = 0) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const base = 170 + Math.max(0, Math.min(1, charge)) * 230;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(base * 1.7, t0);
+  osc.frequency.exponentialRampToValueAtTime(base, t0 + 0.2);
+  const lfo = c.createOscillator();
+  const lfoG = c.createGain();
+  lfo.frequency.value = 17;
+  lfoG.gain.value = base * 0.28;
+  lfo.connect(lfoG).connect(osc.frequency);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.2, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.34);
+  osc.connect(g).connect(master(c));
+  osc.start(t0);
+  lfo.start(t0);
+  osc.stop(t0 + 0.36);
+  lfo.stop(t0 + 0.36);
+}
+
+/** Soft UI blip when picking a dress-up item. */
+export function wardrobeBlip() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(680, t0);
+  osc.frequency.exponentialRampToValueAtTime(1010, t0 + 0.06);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.1, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+  osc.connect(g).connect(master(c));
+  osc.start(t0);
+  osc.stop(t0 + 0.14);
 }
 
 /** A little kids' cheer: three rising tones + a sparkle. */
@@ -62,7 +147,7 @@ export function cheerSound() {
     g.gain.setValueAtTime(0.0001, ts);
     g.gain.linearRampToValueAtTime(0.12, ts + 0.03);
     g.gain.exponentialRampToValueAtTime(0.001, ts + 0.4);
-    osc.connect(g).connect(c.destination);
+    osc.connect(g).connect(master(c));
     osc.start(ts);
     osc.stop(ts + 0.45);
   });
@@ -75,7 +160,7 @@ export function cheerSound() {
   const g2 = c.createGain();
   g2.gain.setValueAtTime(0.08, t0);
   g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
-  src.connect(hp).connect(g2).connect(c.destination);
+  src.connect(hp).connect(g2).connect(master(c));
   src.start(t0);
   src.stop(t0 + 0.5);
 }
@@ -93,7 +178,7 @@ export function laserZap() {
   osc.frequency.exponentialRampToValueAtTime(160, t0 + 0.18);
   gain.gain.setValueAtTime(0.18, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.2);
-  osc.connect(gain).connect(c.destination);
+  osc.connect(gain).connect(master(c));
   osc.start(t0);
   osc.stop(t0 + 0.22);
   // little high "twang" overlay
@@ -104,7 +189,7 @@ export function laserZap() {
   osc2.frequency.exponentialRampToValueAtTime(900, t0 + 0.06);
   gain2.gain.setValueAtTime(0.06, t0);
   gain2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06);
-  osc2.connect(gain2).connect(c.destination);
+  osc2.connect(gain2).connect(master(c));
   osc2.start(t0);
   osc2.stop(t0 + 0.07);
 }
@@ -128,7 +213,7 @@ export function blobSquish() {
   const gain = c.createGain();
   gain.gain.setValueAtTime(0.28, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
-  src.connect(filter).connect(gain).connect(c.destination);
+  src.connect(filter).connect(gain).connect(master(c));
   src.start(t0);
   // Pitched "blop"
   const osc = c.createOscillator();
@@ -138,7 +223,7 @@ export function blobSquish() {
   osc.frequency.exponentialRampToValueAtTime(80, t0 + 0.22);
   g2.gain.setValueAtTime(0.2, t0);
   g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
-  osc.connect(g2).connect(c.destination);
+  osc.connect(g2).connect(master(c));
   osc.start(t0);
   osc.stop(t0 + 0.24);
 }
@@ -173,7 +258,7 @@ export function ufoDescend() {
   descendGain.gain.linearRampToValueAtTime(0.16, t0 + 3.8);
   descendOsc.connect(descendGain);
   descendOsc2.connect(descendGain);
-  descendGain.connect(c.destination);
+  descendGain.connect(master(c));
   descendOsc.start(t0);
   descendOsc2.start(t0);
   lfo.start(t0);
@@ -215,7 +300,7 @@ export function ufoCrash() {
   const gain = c.createGain();
   gain.gain.setValueAtTime(0.65, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 1.8);
-  src.connect(filter).connect(gain).connect(c.destination);
+  src.connect(filter).connect(gain).connect(master(c));
   src.start(t0);
 
   // Primary sub-thump
@@ -236,7 +321,7 @@ function thumpAt(t: number, fStart: number, fEnd: number, vol: number) {
   osc.frequency.exponentialRampToValueAtTime(fEnd, t + 0.5);
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-  osc.connect(g).connect(c.destination);
+  osc.connect(g).connect(master(c));
   osc.start(t);
   osc.stop(t + 0.65);
 }
@@ -269,7 +354,7 @@ export function startCrackleLoop() {
   filter.Q.value = 0.7;
   const gain = c.createGain();
   gain.gain.value = 0.18;
-  src.connect(filter).connect(gain).connect(c.destination);
+  src.connect(filter).connect(gain).connect(master(c));
   src.start();
   crackleSrc = src;
   crackleGain = gain;
@@ -300,7 +385,7 @@ export function blobAttack() {
   osc.frequency.exponentialRampToValueAtTime(55, t0 + 0.14);
   gain.gain.setValueAtTime(0.22, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.14);
-  osc.connect(gain).connect(c.destination);
+  osc.connect(gain).connect(master(c));
   osc.start(t0);
   osc.stop(t0 + 0.16);
 }
@@ -323,7 +408,7 @@ export function damageHit() {
   osc.frequency.exponentialRampToValueAtTime(140, t0 + 0.18);
   gain.gain.setValueAtTime(0.28, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.2);
-  osc.connect(distort).connect(gain).connect(c.destination);
+  osc.connect(distort).connect(gain).connect(master(c));
   osc.start(t0);
   osc.stop(t0 + 0.22);
 }
@@ -340,7 +425,7 @@ export function gunWind() {
   gain.gain.setValueAtTime(0.0, t0);
   gain.gain.linearRampToValueAtTime(0.14, t0 + 0.05);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.45);
-  osc.connect(gain).connect(c.destination);
+  osc.connect(gain).connect(master(c));
   osc.start(t0);
   osc.stop(t0 + 0.5);
 }
@@ -359,7 +444,7 @@ export function victoryFanfare() {
     osc.frequency.setValueAtTime(f, t);
     gain.gain.setValueAtTime(0.25, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(t);
     osc.stop(t + 0.4);
   });
@@ -393,7 +478,7 @@ export function bossRoar() {
   osc1.connect(filter);
   osc2.connect(filter);
   sub.connect(filter);
-  filter.connect(gain).connect(c.destination);
+  filter.connect(gain).connect(master(c));
   osc1.start(t0); osc2.start(t0); sub.start(t0);
   osc1.stop(t0 + 1.4); osc2.stop(t0 + 1.4); sub.stop(t0 + 1.4);
 }
@@ -410,7 +495,7 @@ export function bossSlam() {
   osc.frequency.exponentialRampToValueAtTime(35, t0 + 0.5);
   og.gain.setValueAtTime(0.6, t0);
   og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
-  osc.connect(og).connect(c.destination);
+  osc.connect(og).connect(master(c));
   osc.start(t0); osc.stop(t0 + 0.6);
   // noise burst
   const bufSize = Math.floor(c.sampleRate * 0.4);
@@ -426,7 +511,7 @@ export function bossSlam() {
   const ng = c.createGain();
   ng.gain.setValueAtTime(0.45, t0);
   ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
-  src.connect(filter).connect(ng).connect(c.destination);
+  src.connect(filter).connect(ng).connect(master(c));
   src.start(t0);
 }
 
@@ -443,7 +528,7 @@ export function waveAlarm() {
     osc.frequency.setValueAtTime(660 + i * 220, t);
     gain.gain.setValueAtTime(0.18, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(t);
     osc.stop(t + 0.16);
   }
@@ -490,7 +575,7 @@ function ensureMusicMaster(): GainNode | null {
   if (!musicMaster) {
     musicMaster = c.createGain();
     musicMaster.gain.value = 0.0;
-    musicMaster.connect(c.destination);
+    musicMaster.connect(master(c));
   }
   return musicMaster;
 }
@@ -691,7 +776,7 @@ export function defeatSting() {
     osc.frequency.setValueAtTime(f, t);
     gain.gain.setValueAtTime(0.2, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(t);
     osc.stop(t + 0.6);
   });
@@ -709,7 +794,7 @@ function ensureTornadoGroup(): GainNode | null {
   if (!tornadoGroup) {
     tornadoGroup = c.createGain();
     tornadoGroup.gain.value = 1;
-    tornadoGroup.connect(c.destination);
+    tornadoGroup.connect(master(c));
   }
   return tornadoGroup;
 }
@@ -1065,7 +1150,7 @@ export function wilhelmScream() {
   gain.gain.setValueAtTime(0.32, t0 + 0.55);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
 
-  osc.connect(filter).connect(gain).connect(c.destination);
+  osc.connect(filter).connect(gain).connect(master(c));
   osc.start(t0);
   lfo.start(t0);
   osc.stop(t0 + 0.95);
@@ -1082,7 +1167,7 @@ export function wilhelmScream() {
   nGain.gain.setValueAtTime(0.0001, t0);
   nGain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.06);
   nGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
-  noise.connect(nFilter).connect(nGain).connect(c.destination);
+  noise.connect(nFilter).connect(nGain).connect(master(c));
   noise.start(t0);
   noise.stop(t0 + 0.95);
 }
@@ -1116,7 +1201,7 @@ export function cowMoo() {
   gain.gain.setValueAtTime(0.28, t0 + 0.75);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.15);
 
-  osc.connect(filter).connect(gain).connect(c.destination);
+  osc.connect(filter).connect(gain).connect(master(c));
   osc.start(t0);
   lfo.start(t0);
   osc.stop(t0 + 1.2);
@@ -1145,7 +1230,7 @@ export function munchiesCrunch() {
   bp.type = 'bandpass';
   bp.frequency.value = 1800;
   bp.Q.value = 1.0;
-  src.connect(bp).connect(gain).connect(c.destination);
+  src.connect(bp).connect(gain).connect(master(c));
   src.start(t0);
   src.stop(t0 + 0.16);
 
@@ -1157,7 +1242,7 @@ export function munchiesCrunch() {
   sub.frequency.exponentialRampToValueAtTime(50, t0 + 0.09);
   subGain.gain.setValueAtTime(0.18, t0);
   subGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1);
-  sub.connect(subGain).connect(c.destination);
+  sub.connect(subGain).connect(master(c));
   sub.start(t0);
   sub.stop(t0 + 0.11);
 }
@@ -1177,7 +1262,7 @@ export function munchiesGlug() {
     gain.gain.setValueAtTime(0.0001, tStart);
     gain.gain.exponentialRampToValueAtTime(0.24, tStart + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, tStart + 0.16);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(tStart);
     osc.stop(tStart + 0.17);
   }
@@ -1190,7 +1275,7 @@ export function munchiesGlug() {
   pop.frequency.exponentialRampToValueAtTime(80, tEnd + 0.08);
   popGain.gain.setValueAtTime(0.22, tEnd);
   popGain.gain.exponentialRampToValueAtTime(0.0001, tEnd + 0.1);
-  pop.connect(popGain).connect(c.destination);
+  pop.connect(popGain).connect(master(c));
   pop.start(tEnd);
   pop.stop(tEnd + 0.11);
 }
@@ -1214,7 +1299,7 @@ export function munchiesShh() {
   gain.gain.setValueAtTime(0.0001, t0);
   gain.gain.linearRampToValueAtTime(0.22, t0 + 0.05);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
-  src.connect(bp).connect(gain).connect(c.destination);
+  src.connect(bp).connect(gain).connect(master(c));
   src.start(t0);
   src.stop(t0 + 0.57);
 
@@ -1227,7 +1312,7 @@ export function munchiesShh() {
   sadGain.gain.setValueAtTime(0.0001, t0 + 0.15);
   sadGain.gain.exponentialRampToValueAtTime(0.16, t0 + 0.2);
   sadGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.58);
-  sad.connect(sadGain).connect(c.destination);
+  sad.connect(sadGain).connect(master(c));
   sad.start(t0 + 0.15);
   sad.stop(t0 + 0.6);
 }
@@ -1243,7 +1328,7 @@ export function startMunchiesLullaby() {
 
   const baseGain = c.createGain();
   baseGain.gain.value = 0.06;
-  baseGain.connect(c.destination);
+  baseGain.connect(master(c));
 
   const playNote = (freq: number, when: number, dur = 0.6, type: OscillatorType = 'triangle') => {
     const osc = c.createOscillator();
@@ -1298,7 +1383,7 @@ export function munchiesPowerUp() {
   wGain.gain.setValueAtTime(0.001, t0);
   wGain.gain.linearRampToValueAtTime(0.18, t0 + 0.15);
   wGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
-  woosh.connect(wBp).connect(wGain).connect(c.destination);
+  woosh.connect(wBp).connect(wGain).connect(master(c));
   woosh.start(t0);
   woosh.stop(t0 + 0.42);
 
@@ -1313,7 +1398,7 @@ export function munchiesPowerUp() {
     gain.gain.setValueAtTime(0.0001, tn);
     gain.gain.exponentialRampToValueAtTime(0.22, tn + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.4);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(tn);
     osc.stop(tn + 0.42);
   });
@@ -1334,7 +1419,7 @@ export function munchiesTuckIn() {
     gain.gain.setValueAtTime(0.0001, tn);
     gain.gain.exponentialRampToValueAtTime(0.26, tn + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.35);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(tn);
     osc.stop(tn + 0.37);
   });
@@ -1355,7 +1440,7 @@ export function munchiesLevelClear() {
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 1.2);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(t0);
     osc.stop(t0 + 1.25);
   });
@@ -1370,7 +1455,7 @@ export function munchiesLevelClear() {
     gain.gain.setValueAtTime(0.0001, tn);
     gain.gain.exponentialRampToValueAtTime(0.14, tn + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.3);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(tn);
     osc.stop(tn + 0.32);
   });
@@ -1392,7 +1477,7 @@ export function munchiesVictoryFanfare() {
     gain.gain.setValueAtTime(0.0001, tn);
     gain.gain.exponentialRampToValueAtTime(0.2, tn + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.3);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(tn);
     osc.stop(tn + 0.32);
   });
@@ -1407,7 +1492,7 @@ export function munchiesVictoryFanfare() {
     gain.gain.setValueAtTime(0.0001, finaleT);
     gain.gain.exponentialRampToValueAtTime(0.22, finaleT + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, finaleT + 2.0);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(finaleT);
     osc.stop(finaleT + 2.05);
   });
@@ -1419,7 +1504,7 @@ export function munchiesVictoryFanfare() {
   bassGain.gain.setValueAtTime(0.0001, finaleT);
   bassGain.gain.exponentialRampToValueAtTime(0.3, finaleT + 0.05);
   bassGain.gain.exponentialRampToValueAtTime(0.001, finaleT + 2.0);
-  bass.connect(bassGain).connect(c.destination);
+  bass.connect(bassGain).connect(master(c));
   bass.start(finaleT);
   bass.stop(finaleT + 2.05);
 }
@@ -1435,7 +1520,7 @@ export function startTreehouseTheme() {
   let cancelled = false;
   const baseGain = c.createGain();
   baseGain.gain.value = 0.06;
-  baseGain.connect(c.destination);
+  baseGain.connect(master(c));
 
   const playNote = (freq: number, when: number, dur = 0.7, type: OscillatorType = 'triangle') => {
     const osc = c.createOscillator();
@@ -1484,7 +1569,7 @@ export function treehouseChime() {
     gain.gain.setValueAtTime(0.0001, tn);
     gain.gain.exponentialRampToValueAtTime(0.26, tn + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, tn + 0.6);
-    osc.connect(gain).connect(c.destination);
+    osc.connect(gain).connect(master(c));
     osc.start(tn);
     osc.stop(tn + 0.62);
   });
@@ -1502,7 +1587,7 @@ export function treehousePickup() {
   gain.gain.setValueAtTime(0.0001, t0);
   gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
-  osc.connect(gain).connect(c.destination);
+  osc.connect(gain).connect(master(c));
   osc.start(t0);
   osc.stop(t0 + 0.14);
 }

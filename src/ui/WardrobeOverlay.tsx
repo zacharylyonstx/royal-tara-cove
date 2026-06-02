@@ -5,6 +5,7 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 import { CHARACTERS } from '../world/characters';
 import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, type Slot } from '../world/wardrobe';
 import { CharacterModel } from '../components/CharacterModel';
+import { wardrobeBlip } from '../audio';
 import type { CharacterId } from '../types';
 
 const ACCENT: Record<CharacterId, string> = { dad: '#3a6db0', penny: '#e26aa1', luke: '#5cb85c' };
@@ -37,8 +38,11 @@ export function WardrobeOverlay() {
   useEffect(() => {
     if (!open) return;
     const r = requestAnimationFrame(() => nudge((n) => n + 1));
-    return () => cancelAnimationFrame(r);
-  }, [open]);
+    // Escape closes the wardrobe (matches the "esc close menus" hint).
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    return () => { cancelAnimationFrame(r); window.removeEventListener('keydown', onKey); };
+  }, [open, close]);
   // Subscribe to appearances so cards/swatches reflect current selection.
   const appearance = useWardrobeStore((s) => (openFor ? s.appearances[openFor] : null));
 
@@ -115,7 +119,7 @@ export function WardrobeOverlay() {
             {items.map((it) => {
               const on = it.id === choice.item;
               return (
-                <button key={it.id} onClick={() => equip(openFor, tab, it.id)} style={card(on, accent)}>
+                <button key={it.id} onClick={() => { equip(openFor, tab, it.id); wardrobeBlip(); }} style={card(on, accent)}>
                   <div style={{ fontSize: 34, lineHeight: 1 }}>{it.emoji}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{it.label}</div>
                 </button>
@@ -128,7 +132,7 @@ export function WardrobeOverlay() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 2px 4px', alignItems: 'center' }}>
               <span style={{ fontSize: 14, opacity: 0.85, marginRight: 4 }}>🎨</span>
               {selItem.colors.map((c) => (
-                <button key={c} onClick={() => setColor(openFor, tab, c)} style={swatch(c, choice.color === c)} aria-label={c} />
+                <button key={c} onClick={() => { setColor(openFor, tab, c); wardrobeBlip(); }} style={swatch(c, choice.color === c)} aria-label={c} />
               ))}
             </div>
           )}

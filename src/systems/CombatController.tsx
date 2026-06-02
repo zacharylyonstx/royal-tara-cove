@@ -18,6 +18,8 @@ const PREFER_LOW_HP_DELTA = 4;        // prefer finishing if within 4m of neares
 
 const BOMB_COOLDOWN = 0.6;
 const LEGO_COOLDOWN = 0.4;
+const REGEN_HP_PER_SEC = 3;           // gentle heal once out of danger (kid-friendly)
+const REGEN_AFTER_S = 4;              // seconds since last hit before regen kicks in
 
 export function CombatController() {
   const { gl } = useThree();
@@ -71,6 +73,17 @@ export function CombatController() {
     if (useChatStore.getState().inputOpen) return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
     cooldown.current = Math.max(0, cooldown.current - dt);
+
+    // Gentle health regen: if you haven't been hit for a few seconds, slowly heal
+    // back up. Keeps Aliens from feeling unfair for a 6-year-old without any
+    // difficulty menu — recover during a lull, never while under fire.
+    {
+      const gs = useGameStore.getState();
+      const lastHit = useCombatStore.getState().damageFlashAt;
+      if (gs.playerHp > 0 && gs.playerHp < gs.maxHp && performance.now() / 1000 - lastHit > REGEN_AFTER_S) {
+        gs.healPlayer(REGEN_HP_PER_SEC * Math.min(dtRaw, 0.1));
+      }
+    }
 
     // --- Passive aim assist ---
     {

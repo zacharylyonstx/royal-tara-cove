@@ -136,6 +136,13 @@ export function BlobController() {
           const splatScale = b.kind === 'boss' ? 3.5 : 1;
           spawnSplat(b.x, b.z, b.variant, splatScale);
           registerKill(b.kind, b.x, b.y, b.z);
+          // Tactile kill feedback for regular blobs (boss gets its big slam below):
+          // a tiny shake every kill + a brief slow-mo punch on combo milestones.
+          if (b.kind !== 'boss') {
+            addShake(0.12);
+            const combo = useCombatStore.getState().comboCount;
+            if (combo > 0 && combo % 3 === 0) triggerSlowMo(0.4, 0.08);
+          }
           // Power-up drop chance (boss always drops)
           const dropRate = b.kind === 'boss' ? 1 : POWERUP_BASE_DROP_RATE;
           if (Math.random() < dropRate) {

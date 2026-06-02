@@ -33,6 +33,7 @@ export function DefeatScreen() {
           color: '#f5ecd9',
           boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
         }}
       >
         <div style={{ fontSize: 64 }}>👽</div>

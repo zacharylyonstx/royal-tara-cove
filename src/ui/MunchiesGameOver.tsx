@@ -40,6 +40,7 @@ export function MunchiesGameOver() {
         background: 'linear-gradient(135deg, #3a2f4a, #5a3a6c)', borderRadius: 22,
         padding: '28px 36px', color: '#fff7e6', textAlign: 'center',
         border: '3px solid #c8a8ff', boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
+        animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
       }}>
         <div style={{ fontSize: 64 }}>😴</div>
         <h2 style={{ margin: '6px 0', fontSize: 28 }}>Caught!</h2>

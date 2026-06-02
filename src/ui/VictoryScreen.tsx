@@ -40,6 +40,7 @@ export function VictoryScreen() {
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           backdropFilter: 'blur(8px)',
           pointerEvents: 'auto',
+          animation: 'pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both',
         }}
       >
         <div style={{ fontSize: 64 }}>🛸 💥</div>
