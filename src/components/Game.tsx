@@ -15,9 +15,9 @@ import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
 import { usePlayStore } from '../state/playStore';
-import { FRONT_YARD_DEPTH } from '../world/streetLayout';
 import { buildLots } from '../world/lots';
 import { buildColliders, buildPropColliders } from '../world/colliders';
+import { GREENBELT_TREES, lotTrees, buildTreeColliders } from '../world/vegetation';
 import { buildPropsFor } from '../world/props';
 import { mat } from '../world/materials';
 import {
@@ -139,7 +139,7 @@ export function Game() {
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders, ...buildRampColliders()]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders()]);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors]);
 
   return (
@@ -177,16 +177,9 @@ export function Game() {
         );
       })}
 
-      {/* Common-area / greenbelt tree line behind the lots, spanning the
-          ~165 m street from the bulb up to the Avery Ranch Blvd entry. */}
-      {[
-        { x: -42, z: -35 }, { x: 42, z: -35 },
-        { x: -44, z: -72 }, { x: 44, z: -72 },
-        { x: -44, z: -108 }, { x: 44, z: -108 },
-        { x: -42, z: -144 }, { x: 42, z: -144 },
-        { x: -40, z: -172 }, { x: 40, z: -172 },
-        { x: -12, z: -179 }, { x: 12, z: -179 },
-      ].map((p, i) => (
+      {/* Common-area / greenbelt tree line behind the lots (world coords shared
+          with the collider builder so you can't drive through them). */}
+      {GREENBELT_TREES.map((p, i) => (
         <LiveOak key={`bgtree-${i}`} position={[p.x, 0, p.z]} scale={1.05} seed={i + 99} />
       ))}
 
@@ -464,50 +457,16 @@ function SplatRenderer() {
 }
 
 function LotVegetation({ address, lot, depth, width, garageOnLeft }: { address: string; lot: ReturnType<typeof buildLots>[number]; depth: number; width: number; garageOnLeft: boolean }) {
-  // The hero house (10600) plants its own memory oak + backyard trees, so skip
-  // the generic lot vegetation there (it would double up / fight the layout).
-  if (address === '10600') return null;
-  // Place 1-2 live oaks in the backyard region (centroid + offset toward back)
-  // and a crepe myrtle near the front sidewalk.
-  const seed = address.charCodeAt(0) * 131 + address.charCodeAt(2) * 7;
-  const cx = lot.housePivot[0];
-  const cz = lot.housePivot[1];
-  const yawCos = Math.cos(lot.houseYaw);
-  const yawSin = Math.sin(lot.houseYaw);
-
-  const halfD = depth / 2;
-  const halfW = width / 2;
-  // backyard offset: well behind the back wall + any back deck/pool
-  const backLocalX = (((seed % 7) - 3) * 0.7);
-  const backLocalZ = halfD + 4 + (seed % 3);
-  const backWX = cx + backLocalX * yawCos + backLocalZ * yawSin;
-  const backWZ = cz - backLocalX * yawSin + backLocalZ * yawCos;
-
-  // Crepe myrtle at the FRONT-GARAGE-SIDE corner of the yard — clear of the front
-  // door/walkway (which sits on the opposite, non-garage side) and outboard of the
-  // driveway, so it never blocks the entry or grows through a parked car.
-  const sideLocalX = (garageOnLeft ? -1 : 1) * (halfW + 1.0);
-  const sideLocalZ = -halfD - FRONT_YARD_DEPTH * 0.72;
-  const sideWX = cx + sideLocalX * yawCos + sideLocalZ * yawSin;
-  const sideWZ = cz - sideLocalX * yawSin + sideLocalZ * yawCos;
-
-  // Hedge against the front foundation (outside, hugging the front wall)
-  const showHedge = (seed % 3) === 0;
-  const hedgeLocalZ = -halfD - 0.7;
-  const hedgeWX = cx + 0 * yawCos + hedgeLocalZ * yawSin;
-  const hedgeWZ = cz - 0 * yawSin + hedgeLocalZ * yawCos;
-
+  // Positions come from the shared world/vegetation module (single source of
+  // truth with the collider builder). The hero house plants its own trees → null.
+  const t = lotTrees(address, lot, depth, width, garageOnLeft);
+  if (!t) return null;
   return (
     <>
-      <LiveOak position={[backWX, 0, backWZ]} scale={1.15 + (seed % 5) * 0.05} seed={seed} />
-      <CrepeMyrtle
-        position={[sideWX, 0, sideWZ]}
-        scale={0.9 + (seed % 3) * 0.07}
-        bloomColor={(seed % 2) === 0 ? '#d985b3' : '#c66ea4'}
-        seed={seed}
-      />
-      {showHedge && (
-        <Hedge position={[hedgeWX, 0, hedgeWZ]} rotation={lot.houseYaw} length={3.5} />
+      <LiveOak position={[t.oak[0], 0, t.oak[1]]} scale={t.oakScale} seed={t.seed} />
+      <CrepeMyrtle position={[t.myrtle[0], 0, t.myrtle[1]]} scale={t.myrtleScale} bloomColor={t.myrtleBloom} seed={t.seed} />
+      {t.hedge && (
+        <Hedge position={[t.hedge.x, 0, t.hedge.z]} rotation={t.hedge.rotation} length={3.5} />
       )}
     </>
   );

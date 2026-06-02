@@ -10,7 +10,7 @@ import { useChatStore } from '../state/chatStore';
 import { usePlayStore, ballPositions } from '../state/playStore';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
-import { STREET_RADIUS, STRAIGHT_START_Z, STRAIGHT_END_Z, STRAIGHT_HOUSE_FRONT_X } from '../world/streetLayout';
+import { STRAIGHT_START_Z, STRAIGHT_END_Z } from '../world/streetLayout';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
@@ -528,29 +528,39 @@ const CAR_TURN = 1.7;
 const CAR_RAMP_MAX_VY = 12;        // cap the car's ramp launch so it's a big hop, not a moon-jump
 const UNSTICK_TURN = 1.2;          // rad/s auto-steer when wedged head-on (bike + car) so you never get stuck
 
-// --- Drivable region = the whole "lollipop" street: bulb (cul-de-sac) ∪ stick.
-// A single radial clamp can't describe a lollipop, so the old one cut the stick
-// off ~34 m early. This region lets vehicles traverse the entire map (bulb +
-// full stick to the entrance) while still keeping them out of the void. Houses,
-// fences, and props remain hard colliders — this is only the outer backstop.
-const RIDE_BULB_R = STREET_RADIUS + 12.5;            // bulb pavement + ring driveways/front yards (~27)
-const RIDE_STICK_HALF_X = STRAIGHT_HOUSE_FRONT_X + 2; // road + front yards, small margin (~15.4)
-const RIDE_STICK_END_Z = STRAIGHT_END_Z - 6;          // a touch past the street entrance (~-185.5)
+// --- Drivable region = the whole neighborhood: the bulb (cul-de-sac), the full
+// stick PLUS the greenbelt behind the houses, AND Avery Ranch Blvd at the entry.
+// A single radial clamp can't describe this shape, so we union three regions and
+// clamp to the nearest edge when outside all of them. Houses, fences, props, and
+// trees stay hard colliders — this is only the outer "don't sail into the void"
+// backstop, sized so you can roam everywhere there's actually something to see.
+const RIDE_BULB_R = 50;                       // bulb + ring houses + the greenbelt behind them
+const RIDE_STICK_HALF_X = 48;                 // road + yards + house backs + greenbelt either side
+const RIDE_BLVD_Z = STRAIGHT_END_Z - 4;       // Avery Ranch Blvd centerline (~-183.5)
+const RIDE_BLVD_HALF_X = 74;                  // half the 140 m blvd + a little margin
+const RIDE_BLVD_HALF_Z = 9;                   // blvd lanes + sidewalks + margin
 
-/** If (x,z) is outside the drivable street, return the nearest valid point; else null. */
+/** If (x,z) is outside the drivable area, return the nearest valid point; else null. */
 function clampToStreet(x: number, z: number): { x: number; z: number } | null {
-  const inStick = Math.abs(x) <= RIDE_STICK_HALF_X && z <= STRAIGHT_START_Z && z >= RIDE_STICK_END_Z;
+  const inStick = Math.abs(x) <= RIDE_STICK_HALF_X && z <= STRAIGHT_START_Z && z >= STRAIGHT_END_Z;
   const inBulb = x * x + z * z <= RIDE_BULB_R * RIDE_BULB_R;
-  if (inStick || inBulb) return null;
-  // Outside both: clamp to whichever region edge is nearer.
+  const inBlvd = Math.abs(x) <= RIDE_BLVD_HALF_X && Math.abs(z - RIDE_BLVD_Z) <= RIDE_BLVD_HALF_Z;
+  if (inStick || inBulb || inBlvd) return null;
+  // Outside all three: clamp to whichever region edge is nearest.
   const sx = Math.max(-RIDE_STICK_HALF_X, Math.min(RIDE_STICK_HALF_X, x));
-  const sz = Math.max(RIDE_STICK_END_Z, Math.min(STRAIGHT_START_Z, z));
+  const sz = Math.max(STRAIGHT_END_Z, Math.min(STRAIGHT_START_Z, z));
   const dStick = (x - sx) ** 2 + (z - sz) ** 2;
+  const vx = Math.max(-RIDE_BLVD_HALF_X, Math.min(RIDE_BLVD_HALF_X, x));
+  const vz = Math.max(RIDE_BLVD_Z - RIDE_BLVD_HALF_Z, Math.min(RIDE_BLVD_Z + RIDE_BLVD_HALF_Z, z));
+  const dBlvd = (x - vx) ** 2 + (z - vz) ** 2;
   const dd = Math.hypot(x, z) || 1;
   const bx = (x / dd) * RIDE_BULB_R;
   const bz = (z / dd) * RIDE_BULB_R;
   const dBulb = (x - bx) ** 2 + (z - bz) ** 2;
-  return dStick <= dBulb ? { x: sx, z: sz } : { x: bx, z: bz };
+  const best = Math.min(dStick, dBlvd, dBulb);
+  if (best === dStick) return { x: sx, z: sz };
+  if (best === dBlvd) return { x: vx, z: vz };
+  return { x: bx, z: bz };
 }
 
 type Colliders = import('../types').RectCollider[];
