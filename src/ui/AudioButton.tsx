@@ -1,10 +1,14 @@
 import { useAudioStore } from '../state/audioStore';
+import { useWardrobeStore } from '../state/wardrobeStore';
 
 // Always-available mute toggle (parents will use this constantly). Sits top-right
-// just below the character chip / wardrobe close, above all overlays.
+// just below the character chip. Hidden while the dress-up modal is open so it
+// doesn't overlap that panel's tabs.
 export function AudioButton() {
   const muted = useAudioStore((s) => s.muted);
   const toggle = useAudioStore((s) => s.toggleMute);
+  const wardrobeOpen = useWardrobeStore((s) => s.open);
+  if (wardrobeOpen) return null;
   return (
     <button
       onClick={toggle}

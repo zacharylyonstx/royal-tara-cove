@@ -569,3 +569,18 @@ export function rugTexture(): THREE.Texture {
   cache.set(key, tex);
   return tex;
 }
+
+/** Subtle neutral grain — used as a bumpMap on characters so skin/clothing reads
+ *  as fabric/skin instead of flat plastic. Tiled small. */
+export function fabricGrainTexture(): THREE.Texture {
+  const key = 'fabric-grain';
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const { ctx, canvas } = makeCanvas(64);
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, 64, 64);
+  noise(ctx, 64, 64, 0.6, 1);
+  const tex = finish(canvas, [4, 4]);
+  cache.set(key, tex);
+  return tex;
+}

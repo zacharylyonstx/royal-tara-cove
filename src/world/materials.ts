@@ -71,8 +71,11 @@ function addGlassFresnel(m: THREE.MeshStandardMaterial, rim: string, strength: n
 export const mat = {
   grass(): THREE.Material {
     if (cached.grass) return cached.grass;
+    const tex = grassTexture();
     cached.grass = new THREE.MeshStandardMaterial({
-      map: grassTexture(),
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 0.5,
       roughness: 0.95,
       metalness: 0,
     });
@@ -80,8 +83,11 @@ export const mat = {
   },
   asphalt(): THREE.Material {
     if (cached.asphalt) return cached.asphalt;
+    const tex = asphaltTexture();
     cached.asphalt = new THREE.MeshStandardMaterial({
-      map: asphaltTexture(),
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 0.6,
       roughness: 0.92,
       metalness: 0.02,
     });
@@ -89,16 +95,22 @@ export const mat = {
   },
   concrete(): THREE.Material {
     if (cached.concrete) return cached.concrete;
+    const tex = concreteTexture();
     cached.concrete = new THREE.MeshStandardMaterial({
-      map: concreteTexture(),
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 0.4,
       roughness: 0.88,
     });
     return cached.concrete;
   },
   sidewalk(): THREE.Material {
     if (cached.sidewalk) return cached.sidewalk;
+    const tex = sidewalkTexture();
     cached.sidewalk = new THREE.MeshStandardMaterial({
-      map: sidewalkTexture(),
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 0.5,
       roughness: 0.85,
     });
     return cached.sidewalk;
@@ -106,9 +118,12 @@ export const mat = {
   brick(color: string): THREE.Material {
     const c = brickCache.get(color);
     if (c) return c;
+    const tex = brickTexture(color);
     const m = new THREE.MeshStandardMaterial({
-      map: brickTexture(color),
-      roughness: 0.9,
+      map: tex,
+      bumpMap: tex, // mortar lines read as recessed grout → real brick relief
+      bumpScale: 1.4,
+      roughness: 0.92,
       metalness: 0,
     });
     brickCache.set(color, m);
@@ -117,8 +132,11 @@ export const mat = {
   lapSiding(color: string): THREE.Material {
     const c = sidingCache.get(color);
     if (c) return c;
+    const tex = lapSidingTexture(color);
     const m = new THREE.MeshStandardMaterial({
-      map: lapSidingTexture(color),
+      map: tex,
+      bumpMap: tex, // lap shadow lines → board grooves
+      bumpScale: 1.2,
       roughness: 0.9,
       metalness: 0,
     });
@@ -129,9 +147,12 @@ export const mat = {
     const k = color;
     const c = stuccoCache.get(k);
     if (c) return c;
+    const tex = stuccoTexture(color);
     const m = new THREE.MeshStandardMaterial({
-      map: stuccoTexture(color),
-      roughness: 0.88,
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 0.7,
+      roughness: 0.9,
     });
     stuccoCache.set(k, m);
     return m;
@@ -140,9 +161,12 @@ export const mat = {
     const k = color;
     const c = stoneCache.get(k);
     if (c) return c;
+    const tex = limestoneTexture(color);
     const m = new THREE.MeshStandardMaterial({
-      map: limestoneTexture(color),
-      roughness: 0.82,
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 1.1,
+      roughness: 0.84,
       metalness: 0,
     });
     stoneCache.set(k, m);
@@ -158,9 +182,12 @@ export const mat = {
     };
     const exists = all[k];
     if (exists) return exists;
+    const tex = shingleTexture(color);
     const m = new THREE.MeshStandardMaterial({
-      map: shingleTexture(color),
-      roughness: 0.92,
+      map: tex,
+      bumpMap: tex, // shingle row gaps → layered roof depth
+      bumpScale: 1.3,
+      roughness: 0.93,
       metalness: 0,
       color,
     });
@@ -168,8 +195,11 @@ export const mat = {
   },
   fenceWood(): THREE.Material {
     if (cached.fenceWood) return cached.fenceWood;
+    const tex = woodPlankTexture('#a08560');
     cached.fenceWood = new THREE.MeshStandardMaterial({
-      map: woodPlankTexture('#a08560'),
+      map: tex,
+      bumpMap: tex,
+      bumpScale: 0.6,
       roughness: 0.92,
     });
     return cached.fenceWood;

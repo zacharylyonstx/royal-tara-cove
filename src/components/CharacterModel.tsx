@@ -3,6 +3,12 @@ import type { Group } from 'three';
 import type { CharacterDef } from '../types';
 import type { Appearance } from '../world/wardrobe';
 import { getItem } from '../world/wardrobe';
+import { fabricGrainTexture } from '../world/textures';
+
+// Shared subtle grain (cached) so skin/clothing reads as fabric/skin, not plastic.
+const GRAIN = fabricGrainTexture();
+const GRAIN_SKIN = 0.06;
+const GRAIN_CLOTH = 0.1;
 
 // Presentational, appearance-driven character mesh — shared by the in-world
 // Character (which adds the animation rig + position) and the dress-up preview.
@@ -133,7 +139,7 @@ export function CharacterModel({ def, appearance, rig }: { def: CharacterDef; ap
       <group position={[0, d.headY, 0]}>
         <mesh castShadow>
           <sphereGeometry args={[d.headR, 24, 20]} />
-          <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} />
+          <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} bumpMap={GRAIN} bumpScale={GRAIN_SKIN} />
         </mesh>
         {/* ears */}
         {[-1, 1].map((s) => (
@@ -175,7 +181,7 @@ function Leg({ d, skin, botKind, botColor, shoeKind, shoeColor }: {
   const tube = (yc: number, h: number, rt: number, rb: number, color: string, rough: number) => (
     <mesh position={[0, yc, 0]} castShadow>
       <cylinderGeometry args={[rt, rb, h, 14]} />
-      <meshStandardMaterial color={color} roughness={rough} />
+      <meshStandardMaterial color={color} roughness={rough} bumpMap={GRAIN} bumpScale={GRAIN_CLOTH} />
     </mesh>
   );
   return (
@@ -261,7 +267,7 @@ function Torso({ d, skin, topKind, topColor, isDress }: {
       {/* shaped body (chest → waist taper) */}
       <mesh castShadow>
         <cylinderGeometry args={[d.torsoRTop, d.torsoRBot, th, 18]} />
-        <meshStandardMaterial color={color} roughness={covered ? CLOTH_ROUGH : SKIN_ROUGH} />
+        <meshStandardMaterial color={color} roughness={covered ? CLOTH_ROUGH : SKIN_ROUGH} bumpMap={GRAIN} bumpScale={covered ? GRAIN_CLOTH : GRAIN_SKIN} />
       </mesh>
       {/* rounded shoulders */}
       <mesh position={[0, th * 0.46, 0]} castShadow>
