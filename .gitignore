@@ -21,6 +21,10 @@ dist-ssr
 lerna-debug.log*
 logs
 node_modules
+# Local env / secrets
+.env
+.env.*
+!.env.example
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*

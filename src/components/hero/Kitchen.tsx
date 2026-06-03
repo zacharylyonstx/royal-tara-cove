@@ -1,3 +1,6 @@
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
+
 interface KitchenProps {
   origin: [number, number, number];
 }
@@ -102,15 +105,7 @@ function Cabinets({ position }: { position: [number, number, number] }) {
 function Fridge({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      <mesh position={[0, 0.95, 0]} castShadow>
-        <boxGeometry args={[0.8, 1.9, 0.7]} />
-        <meshStandardMaterial color="#f2efe8" roughness={0.4} />
-      </mesh>
-      {/* handle */}
-      <mesh position={[0.38, 1.4, 0.36]} castShadow>
-        <boxGeometry args={[0.04, 0.5, 0.04]} />
-        <meshStandardMaterial color="#3a3a3c" metalness={0.7} roughness={0.3} />
-      </mesh>
+      <GLBModel url={MODELS.fridge.url} fitHeight={MODELS.fridge.fitHeight} rotationY={Math.PI} />
     </group>
   );
 }
@@ -118,19 +113,7 @@ function Fridge({ position }: { position: [number, number, number] }) {
 function Stove({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      <mesh position={[0, 0.45, 0]} castShadow>
-        <boxGeometry args={[0.75, 0.9, 0.6]} />
-        <meshStandardMaterial color="#f2efe8" roughness={0.4} />
-      </mesh>
-      {/* burners */}
-      {[-0.18, 0.18].map((x) => (
-        [-0.13, 0.13].map((z) => (
-          <mesh key={`${x}-${z}`} position={[x, 0.92, z]}>
-            <cylinderGeometry args={[0.07, 0.07, 0.02, 12]} />
-            <meshStandardMaterial color="#1a1a1c" />
-          </mesh>
-        ))
-      ))}
+      <GLBModel url={MODELS.stove.url} fitHeight={MODELS.stove.fitHeight} rotationY={Math.PI} />
     </group>
   );
 }

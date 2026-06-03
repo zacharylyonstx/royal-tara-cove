@@ -1,9 +1,10 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
 import type { Group } from 'three';
 import { isNearPlayer } from '../../systems/distance';
 import { useTornadoStore } from '../../state/tornadoStore';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 
 interface LiveOakProps {
   position: [number, number, number];
@@ -13,59 +14,16 @@ interface LiveOakProps {
 }
 
 /**
- * A big Texas live oak: thick trunk, several spreading branches,
- * each branch terminating in a foliage cluster. Foliage clusters
- * gently bob in the wind.
+ * A big Texas live oak (real GLB model). The model is wrapped in `trunkGroup` so
+ * the existing storm-wind lean still bends the whole tree from its base. Per-seed
+ * spin + size jitter keep the ~39 instances from reading as identical clones.
  */
 export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
-  const group = useRef<Group>(null);
   const trunkGroup = useRef<Group>(null);
 
-  const { branches, clusters } = useMemo(() => {
+  const { spin, jitter } = useMemo(() => {
     const rng = mulberry32(seed * 9301 + 1);
-    const branches: { rot: [number, number, number]; len: number; tilt: number; pos: [number, number, number] }[] = [];
-    const clusters: { pos: [number, number, number]; r: number; color: string; phase: number }[] = [];
-
-    const trunkH = 3.2;
-
-    // Crown clusters (large central canopy)
-    const crownColors = ['#3d6e34', '#4a7a3e', '#356333', '#588a44', '#436b35'];
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + rng() * 0.4;
-      const r = 1.6 + rng() * 1.6;
-      const h = trunkH + 1.2 + rng() * 1.4;
-      clusters.push({
-        pos: [Math.cos(a) * r, h, Math.sin(a) * r],
-        r: 1.4 + rng() * 0.7,
-        color: crownColors[Math.floor(rng() * crownColors.length)],
-        phase: rng() * Math.PI * 2,
-      });
-    }
-    // Top dome
-    clusters.push({
-      pos: [0, trunkH + 2.2 + rng() * 0.5, 0],
-      r: 1.9,
-      color: crownColors[0],
-      phase: rng() * Math.PI * 2,
-    });
-
-    // A couple of side spreading branches with foliage at the tips
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + rng() * 0.6;
-      const len = 1.6 + rng() * 0.7;
-      const tilt = -Math.PI / 2.5 + rng() * 0.3;
-      const branchY = trunkH * (0.5 + rng() * 0.3);
-      branches.push({ rot: [tilt, a, 0], len, tilt, pos: [0, branchY, 0] });
-      const tipR = len * 0.95;
-      clusters.push({
-        pos: [Math.cos(a) * tipR * 1.05, branchY + Math.sin(-tilt) * len * 0.6, Math.sin(a) * tipR * 1.05],
-        r: 1.0 + rng() * 0.5,
-        color: crownColors[Math.floor(rng() * crownColors.length)],
-        phase: rng() * Math.PI * 2,
-      });
-    }
-
-    return { branches, clusters };
+    return { spin: rng() * Math.PI * 2, jitter: 0.85 + rng() * 0.3 };
   }, [seed]);
 
   useFrame((state) => {
@@ -78,7 +36,6 @@ export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
       const ts = useTornadoStore.getState();
       const windStrength = ts.windStrength;
       if (windStrength > 0.05 && ts.tornadoOpacity > 0.05) {
-        // Direction AWAY from tornado in world XZ
         const awayX = position[0] - ts.tornadoX;
         const awayZ = position[2] - ts.tornadoZ;
         const dist = Math.hypot(awayX, awayZ);
@@ -86,8 +43,7 @@ export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
           const falloff = 1 / Math.max(1, dist / 15);
           const gust = 0.85 + Math.sin(t * 2.4 + position[0] * 0.1) * 0.25;
           const amp = windStrength * falloff * 0.4 * gust;
-          // bend around X = lean forward/back (Z component), around Z = lean side (X component)
-          trunk.rotation.x = (awayZ / dist) * amp * -1; // tilt toward +Z when wind blows player +Z
+          trunk.rotation.x = (awayZ / dist) * amp * -1;
           trunk.rotation.z = (awayX / dist) * amp;
         } else {
           trunk.rotation.x = 0;
@@ -98,63 +54,14 @@ export function LiveOak({ position, scale = 1, seed = 0 }: LiveOakProps) {
         trunk.rotation.z *= 0.9;
       }
     }
-
-    const g = group.current;
-    if (!g) return;
-    g.children.forEach((c, i) => {
-      if (c.userData.cluster) {
-        const phase = c.userData.phase as number;
-        c.position.y = c.userData.baseY + Math.sin(t * 0.9 + phase) * 0.04;
-        c.rotation.z = Math.sin(t * 0.6 + phase) * 0.03;
-      }
-      void i;
-    });
   });
 
   return (
-    <group position={position} scale={scale}>
-      {/* base flare — stays put on the ground, doesn't bend */}
-      <mesh position={[0, 0.18, 0]} castShadow>
-        <coneGeometry args={[0.62, 0.5, 10]} />
-        <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
-      </mesh>
-
-      {/* Trunk group — bends from base under storm wind */}
+    <group position={position} scale={scale * jitter}>
       <group ref={trunkGroup}>
-        <mesh position={[0, 1.6, 0]} castShadow>
-          <cylinderGeometry args={[0.32, 0.46, 3.2, 10]} />
-          <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
-        </mesh>
-
-        {branches.map((b, i) => (
-          <group key={`b${i}`} position={b.pos} rotation={b.rot}>
-            <mesh position={[0, 0, b.len / 2]} castShadow>
-              <cylinderGeometry args={[0.07, 0.16, b.len, 8]} />
-              <meshStandardMaterial color="#5a3d22" roughness={0.92} flatShading />
-            </mesh>
-          </group>
-        ))}
-
-        <group ref={group}>
-          {clusters.map((c, i) => (
-            <ClusterMesh key={`c${i}`} cluster={c} />
-          ))}
-        </group>
+        <GLBModel url={MODELS.oak.url} fitHeight={MODELS.oak.fitHeight} rotationY={spin} />
       </group>
     </group>
-  );
-}
-
-function ClusterMesh({ cluster }: { cluster: { pos: [number, number, number]; r: number; color: string; phase: number } }) {
-  return (
-    <mesh
-      position={cluster.pos}
-      castShadow
-      userData={{ cluster: true, baseY: cluster.pos[1], phase: cluster.phase }}
-    >
-      <icosahedronGeometry args={[cluster.r, 1]} />
-      <meshStandardMaterial color={cluster.color} flatShading roughness={0.9} />
-    </mesh>
   );
 }
 
@@ -168,6 +75,3 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-// suppress unused warning for THREE
-void THREE;

@@ -6,6 +6,8 @@ import { useGameStore } from '../../state/gameStore';
 import { useCombatStore } from '../../state/combatStore';
 import { ufoCrash, ufoDescend, startCrackleLoop, gunWind } from '../../audio';
 import { CrashFX, Debris } from './CrashFX';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 import { SmokeColumn } from './SmokeColumn';
 
 // Crash target — middle of 10600's expanded backyard. House pivot is at
@@ -181,37 +183,9 @@ function UFOMesh({
 }) {
   return (
     <group>
-      {/* Saucer body — flattened ellipsoid */}
-      <mesh castShadow scale={[1, 0.3, 1]}>
-        <sphereGeometry args={[3.4, 32, 18]} />
-        <meshStandardMaterial color="#9ea8b8" metalness={0.85} roughness={0.22} />
-      </mesh>
-      {/* Belt of vents around the rim */}
-      <mesh position={[0, -0.05, 0]}>
-        <torusGeometry args={[3.05, 0.18, 12, 36]} />
-        <meshStandardMaterial color="#3a3a40" metalness={0.5} roughness={0.4} />
-      </mesh>
-      {/* Dome */}
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <sphereGeometry args={[1.5, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshPhysicalMaterial color="#4a8aa6" metalness={0.5} roughness={0.18} transmission={0.4} thickness={0.3} ior={1.4} />
-      </mesh>
-      {/* Pilot silhouette inside the dome */}
-      <mesh position={[0, 0.65, 0]}>
-        <sphereGeometry args={[0.45, 12, 12]} />
-        <meshStandardMaterial color="#2d4a2d" emissive="#3a8a3a" emissiveIntensity={0.5} />
-      </mesh>
-      {/* Three landing struts */}
-      {[0, (2 * Math.PI) / 3, (4 * Math.PI) / 3].map((a, i) => (
-        <mesh
-          key={i}
-          position={[Math.cos(a) * 2.4, -0.5, Math.sin(a) * 2.4]}
-          rotation={[0, -a, 0]}
-        >
-          <boxGeometry args={[0.18, 0.6, 0.18]} />
-          <meshStandardMaterial color="#3a3a40" metalness={0.6} roughness={0.4} />
-        </mesh>
-      ))}
+      {/* Saucer body shell (real GLB) — wide flat disc, centered to sit level with
+          the rotating ring. Dome, legs, rim-lights and pilot are baked into the model. */}
+      <GLBModel url={MODELS.ufo.url} fitWidth={6.6} centerY />
       {/* Rotating ring of lights */}
       <mesh ref={ringRef} position={[0, -0.1, 0]}>
         <torusGeometry args={[3.0, 0.14, 10, 32]} />

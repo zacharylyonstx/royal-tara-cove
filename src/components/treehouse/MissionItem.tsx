@@ -1,6 +1,8 @@
 import { useTreehouseStore } from '../../state/treehouseStore';
 import { useGameStore } from '../../state/gameStore';
 import { Dog } from '../munchies/Dog';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 
 export function MissionItem() {
   const item = useTreehouseStore((s) => s.missionItem);
@@ -26,32 +28,11 @@ export function MissionItem() {
 }
 
 function GnomeMesh({ x, y, z }: { x: number; y: number; z: number }) {
+  // Original gnome was centered on its group origin; ground the GLB then shift
+  // down by half its height so the carry (y=1.4) / grounded (y=0.3) offsets still read.
   return (
     <group position={[x, y, z]}>
-      <mesh position={[0, 0.4, 0]} castShadow>
-        <coneGeometry args={[0.18, 0.42, 10]} />
-        <meshStandardMaterial color="#c83030" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.18, 0]} castShadow>
-        <sphereGeometry args={[0.13, 12, 10]} />
-        <meshStandardMaterial color="#f0c8a3" roughness={0.85} />
-      </mesh>
-      <mesh position={[0, 0.07, 0.07]} castShadow>
-        <sphereGeometry args={[0.11, 12, 10]} />
-        <meshStandardMaterial color="#fafaf0" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, -0.16, 0]} castShadow>
-        <coneGeometry args={[0.2, 0.4, 10]} />
-        <meshStandardMaterial color="#3a5a8a" roughness={0.85} />
-      </mesh>
-      <mesh position={[-0.06, -0.38, 0.06]} castShadow>
-        <boxGeometry args={[0.08, 0.06, 0.14]} />
-        <meshStandardMaterial color="#2a1a0a" />
-      </mesh>
-      <mesh position={[0.06, -0.38, 0.06]} castShadow>
-        <boxGeometry args={[0.08, 0.06, 0.14]} />
-        <meshStandardMaterial color="#2a1a0a" />
-      </mesh>
+      <GLBModel url={MODELS.gnome.url} fitHeight={MODELS.gnome.fitHeight} position={[0, -0.22, 0]} />
     </group>
   );
 }

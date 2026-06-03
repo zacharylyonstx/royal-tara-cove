@@ -3,7 +3,11 @@ import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { isNearPlayer } from '../systems/distance';
 import { mat } from '../world/materials';
+import { GLBModel } from './GLBModel';
+import { MODELS } from '../world/models';
 
+// Top of the inset wood floor (y 0.13 center, 0.06 thick) — furniture sits here.
+const FLOOR_Y = 0.16;
 const SOFA_COLORS = ['#5f7184', '#8a6a58', '#6f8466', '#86708f', '#9a8a64', '#558486'];
 const RUG_COLORS = ['#9c4a4a', '#46689c', '#9c8a46', '#468c6a', '#7a4a8c', '#b06a3a'];
 const WALLART = ['#c2603a', '#3a6ec2', '#3aa06a', '#c2a03a'];
@@ -58,84 +62,47 @@ export function HouseInterior({
         <meshStandardMaterial color={rug} roughness={0.95} />
       </mesh>
 
-      {/* Sofa: base + back + two arms */}
-      <group position={[0, 0, sofaZ]}>
-        <mesh position={[0, 0.4, 0]} castShadow>
-          <boxGeometry args={[2.4, 0.5, 0.95]} />
-          <meshStandardMaterial color={sofa} roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.75, 0.42]} castShadow>
-          <boxGeometry args={[2.4, 0.6, 0.2]} />
-          <meshStandardMaterial color={sofa} roughness={0.9} />
-        </mesh>
-        {[-1.2, 1.2].map((x) => (
-          <mesh key={x} position={[x, 0.55, 0]} castShadow>
-            <boxGeometry args={[0.22, 0.55, 0.95]} />
-            <meshStandardMaterial color={sofa} roughness={0.9} />
-          </mesh>
-        ))}
-        {/* cushions */}
-        {[-0.6, 0.6].map((x) => (
-          <mesh key={`c${x}`} position={[x, 0.7, -0.05]}>
-            <boxGeometry args={[1.0, 0.16, 0.8]} />
-            <meshStandardMaterial color={sofa} roughness={0.85} />
-          </mesh>
-        ))}
-      </group>
+      {/* Sofa (GLB) against the back wall, facing the front (-Z); tinted per house. */}
+      <GLBModel
+        url={MODELS.sofa.url}
+        fitHeight={MODELS.sofa.fitHeight}
+        rotationY={Math.PI}
+        position={[0, FLOOR_Y, sofaZ]}
+        tint={sofa}
+      />
 
-      {/* Coffee table */}
-      <group position={[0, 0, halfD - 2.5]}>
-        <mesh position={[0, 0.42, 0]} castShadow>
-          <boxGeometry args={[1.3, 0.08, 0.7]} />
-          <meshStandardMaterial color="#6a4a30" roughness={0.6} />
-        </mesh>
-        {[[-0.55, -0.28], [0.55, -0.28], [-0.55, 0.28], [0.55, 0.28]].map(([x, z], i) => (
-          <mesh key={i} position={[x, 0.2, z]}>
-            <boxGeometry args={[0.08, 0.4, 0.08]} />
-            <meshStandardMaterial color="#4a3422" roughness={0.6} />
-          </mesh>
-        ))}
-      </group>
+      {/* Coffee table (GLB) */}
+      <GLBModel
+        url={MODELS.coffeetable.url}
+        fitHeight={MODELS.coffeetable.fitHeight}
+        position={[0, FLOOR_Y, halfD - 2.5]}
+      />
 
-      {/* TV console + TV against the front wall, facing the sofa */}
-      <group position={[0, 0, tvZ]}>
-        <mesh position={[0, 0.3, 0]} castShadow>
-          <boxGeometry args={[1.8, 0.55, 0.4]} />
-          <meshStandardMaterial color="#3a2c20" roughness={0.55} />
-        </mesh>
-        <mesh position={[0, 1.05, 0.02]} castShadow>
-          <boxGeometry args={[1.5, 0.85, 0.07]} />
-          <meshStandardMaterial color="#141416" roughness={0.4} />
-        </mesh>
-        <mesh position={[0, 1.05, 0.06]}>
-          <boxGeometry args={[1.4, 0.76, 0.01]} />
+      {/* TV + console (GLB) against the front wall, facing the sofa (+Z). */}
+      <group position={[0, FLOOR_Y, tvZ]}>
+        <GLBModel url={MODELS.tv.url} fitHeight={MODELS.tv.fitHeight} />
+        {/* keep the warm screen glow the box TV had */}
+        <mesh position={[0, 1.0, 0.16]}>
+          <planeGeometry args={[1.25, 0.7]} />
           <meshStandardMaterial color="#26323e" emissive="#1a2630" emissiveIntensity={0.5} />
         </mesh>
       </group>
 
-      {/* Floor lamp in a back corner — gives the room a warm glow */}
-      <group position={[-halfW + 0.7, 0, halfD - 0.7]}>
-        <mesh position={[0, 0.85, 0]}>
-          <cylinderGeometry args={[0.035, 0.05, 1.7, 8]} />
-          <meshStandardMaterial color="#3a3a3c" />
-        </mesh>
-        <mesh position={[0, 1.78, 0]}>
-          <coneGeometry args={[0.26, 0.34, 12, 1, true]} />
-          <meshStandardMaterial color="#fff0c0" emissive="#ffdf90" emissiveIntensity={0.7} side={2} />
+      {/* Floor lamp (GLB) in a back corner + a warm emissive bulb for the glow. */}
+      <group position={[-halfW + 0.7, FLOOR_Y, halfD - 0.7]}>
+        <GLBModel url={MODELS.floorlamp.url} fitHeight={MODELS.floorlamp.fitHeight} />
+        <mesh position={[0, 1.5, 0]}>
+          <sphereGeometry args={[0.11, 8, 8]} />
+          <meshStandardMaterial color="#fff0c0" emissive="#ffdf90" emissiveIntensity={0.8} />
         </mesh>
       </group>
 
-      {/* A potted plant in the other corner */}
-      <group position={[halfW - 0.7, 0, halfD - 0.7]}>
-        <mesh position={[0, 0.2, 0]}>
-          <cylinderGeometry args={[0.22, 0.16, 0.4, 10]} />
-          <meshStandardMaterial color="#b06a4a" roughness={0.8} />
-        </mesh>
-        <mesh position={[0, 0.7, 0]}>
-          <icosahedronGeometry args={[0.45, 0]} />
-          <meshStandardMaterial color="#3f7a3f" roughness={0.9} />
-        </mesh>
-      </group>
+      {/* Potted plant (GLB) in the other corner */}
+      <GLBModel
+        url={MODELS.houseplant.url}
+        fitHeight={MODELS.houseplant.fitHeight}
+        position={[halfW - 0.7, FLOOR_Y, halfD - 0.7]}
+      />
 
       {/* Framed wall art on the back wall, above the sofa */}
       <mesh position={[0, 1.9, halfD - 0.18]}>

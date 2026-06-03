@@ -1,3 +1,6 @@
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
+
 interface LivingRoomProps {
   origin: [number, number, number];
   doorCenterX: number;
@@ -21,39 +24,10 @@ export function LivingRoom({ origin }: LivingRoomProps) {
 }
 
 function Couch({ position, rotation = 0 }: { position: [number, number, number]; rotation?: number }) {
+  // Keep the group's rotation so the couch still faces the projector screen (+X).
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* base */}
-      <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
-        <boxGeometry args={[2.2, 0.4, 0.85]} />
-        <meshStandardMaterial color="#5a4a3a" roughness={0.95} />
-      </mesh>
-      {/* back */}
-      <mesh position={[0, 0.7, -0.3]} castShadow>
-        <boxGeometry args={[2.2, 0.6, 0.25]} />
-        <meshStandardMaterial color="#5a4a3a" roughness={0.95} />
-      </mesh>
-      {/* arms */}
-      <mesh position={[-1.05, 0.55, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.45, 0.85]} />
-        <meshStandardMaterial color="#5a4a3a" roughness={0.95} />
-      </mesh>
-      <mesh position={[1.05, 0.55, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.45, 0.85]} />
-        <meshStandardMaterial color="#5a4a3a" roughness={0.95} />
-      </mesh>
-      {/* cushions */}
-      {[-0.6, 0, 0.6].map((x, i) => (
-        <mesh key={i} position={[x, 0.55, 0.1]} castShadow>
-          <boxGeometry args={[0.55, 0.18, 0.65]} />
-          <meshStandardMaterial color="#7a6a4a" roughness={0.95} />
-        </mesh>
-      ))}
-      {/* throw pillow */}
-      <mesh position={[-0.7, 0.7, 0.2]} castShadow>
-        <boxGeometry args={[0.32, 0.18, 0.32]} />
-        <meshStandardMaterial color="#a83a3a" />
-      </mesh>
+      <GLBModel url={MODELS.sofa.url} fitHeight={MODELS.sofa.fitHeight} tint="#5a4a3a" />
     </group>
   );
 }
@@ -107,30 +81,7 @@ function FloorLamp({ position }: { position: [number, number, number] }) {
 function Bookshelf({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <boxGeometry args={[1.0, 1.8, 0.3]} />
-        <meshStandardMaterial color="#5a3a22" />
-      </mesh>
-      {/* shelves */}
-      {[0.4, 0.8, 1.2, 1.6].map((y) => (
-        <mesh key={y} position={[0, y, 0.01]}>
-          <boxGeometry args={[0.92, 0.04, 0.28]} />
-          <meshStandardMaterial color="#3a2a1c" />
-        </mesh>
-      ))}
-      {/* books */}
-      {[0.45, 0.85, 1.25].flatMap((y, row) => (
-        Array.from({ length: 6 }, (_, i) => {
-          const x = -0.4 + i * 0.16;
-          const colors = ['#a83a3a', '#3a5aa6', '#5cb85c', '#e6b94a', '#9a3aa6', '#3a3a3c'];
-          return (
-            <mesh key={`${row}-${i}`} position={[x, y + 0.18, 0.05]} castShadow>
-              <boxGeometry args={[0.14, 0.32, 0.18]} />
-              <meshStandardMaterial color={colors[i]} />
-            </mesh>
-          );
-        })
-      ))}
+      <GLBModel url={MODELS.bookshelf.url} fitHeight={MODELS.bookshelf.fitHeight} />
     </group>
   );
 }

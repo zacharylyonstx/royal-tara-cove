@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useMunchiesStore } from '../../state/munchiesStore';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 
 export function MilkPickupsLive() {
   const milks = useMunchiesStore((s) => s.milks);
@@ -24,11 +26,7 @@ function MilkPickup({ x, z }: { x: number; z: number }) {
   });
   return (
     <group ref={ref} position={[x, 0.4, z]}>
-      {/* glass cylinder */}
-      <mesh castShadow>
-        <cylinderGeometry args={[0.16, 0.18, 0.45, 16]} />
-        <meshStandardMaterial color="#ffffff" emissive="#d0e0ff" emissiveIntensity={0.7} roughness={0.4} transparent opacity={0.92} />
-      </mesh>
+      <GLBModel url={MODELS.milk.url} fitHeight={MODELS.milk.fitHeight} position={[0, -0.3, 0]} />
       {/* glow halo */}
       <pointLight color="#c8d8ff" intensity={1.2} distance={2.5} decay={2} />
     </group>

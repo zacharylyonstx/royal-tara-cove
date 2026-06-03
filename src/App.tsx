@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Game } from './components/Game';
 import { PostFX } from './components/PostFX';
@@ -62,7 +63,9 @@ export default function App() {
         gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, toneMappingExposure: 1.08 }}
         style={{ width: '100vw', height: '100vh', display: 'block' }}
       >
-        <Game />
+        <Suspense fallback={null}>
+          <Game />
+        </Suspense>
         <PostFX />
       </Canvas>
       <CharacterIndicator />

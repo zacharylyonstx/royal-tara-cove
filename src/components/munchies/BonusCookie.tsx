@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useMunchiesStore } from '../../state/munchiesStore';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 
 export function BonusCookieLive() {
   const bonus = useMunchiesStore((s) => s.bonus);
@@ -23,17 +25,7 @@ function BonusCookie({ x, z, spawnedAt }: { x: number; z: number; spawnedAt: num
   });
   return (
     <group ref={ref} position={[x, 0.35, z]}>
-      <mesh castShadow>
-        <cylinderGeometry args={[0.35, 0.35, 0.08, 24]} />
-        <meshStandardMaterial color="#b87842" emissive="#a04018" emissiveIntensity={0.9} roughness={0.65} />
-      </mesh>
-      {/* many chips */}
-      {[[0.1, 0.08], [-0.12, 0.05], [0.05, -0.15], [-0.18, -0.04], [0.18, 0.18], [0, 0]].map(([cx, cz], i) => (
-        <mesh key={i} position={[cx, 0.045, cz]}>
-          <sphereGeometry args={[0.05, 8, 8]} />
-          <meshStandardMaterial color="#2a1a0a" />
-        </mesh>
-      ))}
+      <GLBModel url={MODELS.bonuscookie.url} fitHeight={MODELS.bonuscookie.fitHeight} position={[0, -0.1, 0]} />
       <pointLight color="#ffd080" intensity={2.5} distance={4} decay={2} />
     </group>
   );

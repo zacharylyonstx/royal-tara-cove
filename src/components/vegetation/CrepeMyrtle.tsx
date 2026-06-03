@@ -3,25 +3,28 @@ import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useTornadoStore } from '../../state/tornadoStore';
 import { isNearPlayer } from '../../systems/distance';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 
 interface CrepeMyrtleProps {
   position: [number, number, number];
   scale?: number;
+  /** Retained for API compatibility; the GLB ships its own pink blooms. */
   bloomColor?: string;
   seed?: number;
 }
 
-export function CrepeMyrtle({ position, scale = 1, bloomColor = '#d985b3', seed = 0 }: CrepeMyrtleProps) {
+/**
+ * Crepe myrtle (real GLB model) wrapped in `trunkGroup` so the existing breeze /
+ * storm-wind sway still bends it. Per-seed spin keeps instances from matching.
+ */
+export function CrepeMyrtle({ position, scale = 1, seed = 0 }: CrepeMyrtleProps) {
   const trunkGroup = useRef<Group>(null);
 
-  const blooms = useMemo(() => {
+  const { spin, jitter } = useMemo(() => {
     const rng = mulberry32(seed * 31 + 7);
-    return Array.from({ length: 12 }, () => ({
-      pos: [(rng() - 0.5) * 1.4, 1.8 + rng() * 0.9, (rng() - 0.5) * 1.4] as [number, number, number],
-      r: 0.32 + rng() * 0.18,
-      color: bloomColor,
-    }));
-  }, [bloomColor, seed]);
+    return { spin: rng() * Math.PI * 2, jitter: 0.88 + rng() * 0.24 };
+  }, [seed]);
 
   useFrame((state) => {
     if (!isNearPlayer(position[0], position[2], 60)) return;
@@ -53,26 +56,9 @@ export function CrepeMyrtle({ position, scale = 1, bloomColor = '#d985b3', seed 
   });
 
   return (
-    <group position={position} scale={scale}>
+    <group position={position} scale={scale * jitter}>
       <group ref={trunkGroup}>
-        {/* multiple slim trunks */}
-        {[
-          { x: -0.05, z: -0.02, h: 1.7 },
-          { x: 0.06, z: 0.01, h: 1.6 },
-          { x: 0.0, z: 0.07, h: 1.8 },
-        ].map((t, i) => (
-          <mesh key={i} position={[t.x, t.h / 2, t.z]} castShadow>
-            <cylinderGeometry args={[0.04, 0.06, t.h, 6]} />
-            <meshStandardMaterial color="#7a6044" roughness={0.92} />
-          </mesh>
-        ))}
-        {/* bloom clusters */}
-        {blooms.map((b, i) => (
-          <mesh key={`bl${i}`} position={b.pos} castShadow>
-            <icosahedronGeometry args={[b.r, 0]} />
-            <meshStandardMaterial color={b.color} roughness={0.85} />
-          </mesh>
-        ))}
+        <GLBModel url={MODELS.crepemyrtle.url} fitHeight={MODELS.crepemyrtle.fitHeight} rotationY={spin} />
       </group>
     </group>
   );

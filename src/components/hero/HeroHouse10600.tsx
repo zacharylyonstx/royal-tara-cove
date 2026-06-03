@@ -4,6 +4,8 @@ import { Roof } from '../Roof';
 import { Door } from '../Door';
 import { WindowUnit } from '../houseDetail';
 import { LiveOak } from '../vegetation/LiveOak';
+import { GLBModel } from '../GLBModel';
+import { MODELS } from '../../world/models';
 import { Interior10600 } from './Interior10600';
 import { Trampoline, TRAMPOLINE_PAD_Y, trampolinePadHalf } from './Trampoline';
 import { Playhouse, PLAYHOUSE_W, PLAYHOUSE_D, PLAYHOUSE_H } from './Playhouse';
@@ -220,12 +222,15 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
         <cylinderGeometry args={[1.05, 1.05, 0.1, 22]} />
         <meshStandardMaterial color="#4a3526" roughness={1} />
       </mesh>
-      {/* Rounded shrub mass along the front, in front of the formal window. */}
+      {/* Rounded foundation shrubs (GLB) along the front, below the formal window. */}
       {[-3.3, -2.2, -1.1, 0.0, 1.1].map((dx, i) => (
-        <mesh key={`shrub-${i}`} position={[(doorCenterX + garageCenterX) / 2 + dx, 0.42, -halfD - 0.95]} castShadow>
-          <icosahedronGeometry args={[0.46 + (i % 2) * 0.07, 0]} />
-          <meshStandardMaterial color={i % 2 ? '#4a7a3a' : '#3f6e34'} roughness={1} flatShading />
-        </mesh>
+        <GLBModel
+          key={`shrub-${i}`}
+          url={MODELS.shrub.url}
+          fitHeight={MODELS.shrub.fitHeight * (0.9 + (i % 2) * 0.2)}
+          rotationY={i * 1.7}
+          position={[(doorCenterX + garageCenterX) / 2 + dx, 0, -halfD - 0.95]}
+        />
       ))}
       {/* American flag angled off the left porch column. */}
       <group position={[doorCenterX - PORCH_WIDTH / 2 + 0.25, 2.25, -halfD - PORCH_DEPTH + 0.35]} rotation={[0, 0, -0.9]}>

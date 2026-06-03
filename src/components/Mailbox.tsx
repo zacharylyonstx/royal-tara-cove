@@ -1,4 +1,6 @@
 import { Text } from '@react-three/drei';
+import { GLBModel } from './GLBModel';
+import { MODELS } from '../world/models';
 
 interface MailboxProps {
   position: [number, number, number];
@@ -8,24 +10,14 @@ interface MailboxProps {
 }
 
 export function Mailbox({ position, rotation = 0, name }: MailboxProps) {
+  const cfg = MODELS.mailbox;
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      <mesh position={[0, 0.55, 0]} castShadow>
-        <cylinderGeometry args={[0.05, 0.06, 1.1, 6]} />
-        <meshStandardMaterial color="#2a2a2a" />
-      </mesh>
-      <mesh position={[0, 1.18, 0]} castShadow>
-        <boxGeometry args={[0.5, 0.3, 0.36]} />
-        <meshStandardMaterial color="#1a1a1a" />
-      </mesh>
-      <mesh position={[0.22, 1.18, 0]} castShadow>
-        <boxGeometry args={[0.06, 0.1, 0.1]} />
-        <meshStandardMaterial color="#c8392a" />
-      </mesh>
+      <GLBModel url={cfg.url} fitHeight={cfg.fitHeight} rotationY={cfg.rotationY} />
       {name && (
         <Text
-          position={[0, 1.18, 0.19]}
-          fontSize={0.09}
+          position={[0, 1.0, 0.22]}
+          fontSize={0.085}
           color="#f0f0f0"
           anchorX="center"
           anchorY="middle"
