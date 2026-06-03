@@ -16,6 +16,8 @@ import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/war
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
+// Reliable WebTorrent signaling trackers (probed live — both open in <800ms).
+const RELAY_URLS = ['wss://tracker.webtorrent.dev', 'wss://tracker.openwebtorrent.com'];
 
 /** Identity broadcast: who am I and what character do I claim. */
 interface Whoami {
@@ -138,7 +140,11 @@ export async function joinRoom(mode: GameMode): Promise<void> {
 
   myJoinedAt = Date.now();
   const r = trysteroJoin(
-    { appId: APP_ID },
+    // Pin known-working WebTorrent trackers (the signaling servers that introduce
+    // peers). The old default `tracker.btorrent.xyz` is dead (connection timeout =
+    // the "API error" in console) — verified live 2026-06-03. redundancy:2 keeps
+    // both connected so one going down doesn't stop kids from finding each other.
+    { appId: APP_ID, relayConfig: { urls: RELAY_URLS, redundancy: 2 } },
     `room-${mode}`,
   );
   room = r;
