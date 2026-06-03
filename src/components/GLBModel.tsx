@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { Component, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { ThreeElements } from '@react-three/fiber';
@@ -43,7 +44,33 @@ type Props = {
   receiveShadow?: boolean;
 } & Omit<ThreeElements['group'], 'scale' | 'position' | 'rotation'>;
 
-export function GLBModel({
+/**
+ * If a GLB fails to load (404, bad network, decode error), render nothing for
+ * just that model instead of letting the thrown error unmount the whole Canvas.
+ * Critical for a live multiplayer session — one missing asset must not black-screen.
+ */
+class ModelErrorBoundary extends Component<{ url: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.warn(`[GLBModel] failed to load ${this.props.url} — rendering without it`, err);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+export function GLBModel(props: Props) {
+  return (
+    <ModelErrorBoundary url={props.url}>
+      <GLBModelInner {...props} />
+    </ModelErrorBoundary>
+  );
+}
+
+function GLBModelInner({
   url,
   fitHeight,
   fitWidth,

@@ -32,8 +32,9 @@ export interface PlayerStateMsg {
   yaw: number;
   running: boolean;
   jumping: boolean;
-  /** Vehicle-riding state (so peers render the bike/car under us). y/flipAngle drive air + tricks. */
-  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
+  /** Vehicle-riding state (so peers render the bike/car under us). y/flipAngle drive air + tricks.
+   *  bikeId is the real registered prop id so observers hide the right parked vehicle. */
+  riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
   t: number; // sender timestamp ms
 }
 
@@ -173,6 +174,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     const r = rawData.riding;
     const riding = isObj(r)
       ? {
+          bikeId: str(r.bikeId, ''),
           bikeColor: str(r.bikeColor, '#888'),
           heading: num(r.heading),
           y: num(r.y),

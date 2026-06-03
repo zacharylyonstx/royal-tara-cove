@@ -28,6 +28,8 @@ interface WardrobeStore {
   setHoverDresser: (owner: CharacterId | null) => void;
   equip: (id: CharacterId, slot: Slot, itemId: string) => void;
   setColor: (id: CharacterId, slot: Slot, color: string) => void;
+  /** Apply a one-tap preset look (merges over current; keeps omitted slots like hair). */
+  applyOutfit: (id: CharacterId, look: Partial<Appearance>) => void;
   resetLook: (id: CharacterId) => void;
   registerDresser: (reg: DresserReg) => void;
   /** Apply a peer's appearance (no persist, no rev bump → no echo). */
@@ -68,6 +70,21 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   setColor: (id, slot, color) => {
     const cur = get().appearances;
     const next = { ...cur, [id]: { ...cur[id], [slot]: { ...cur[id][slot], color } } };
+    persist(next);
+    set((s) => ({ appearances: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
+  },
+
+  applyOutfit: (id, look) => {
+    const cur = get().appearances;
+    const merged = { ...cur[id] };
+    (Object.keys(look) as Slot[]).forEach((slot) => {
+      const choice = look[slot];
+      if (!choice) return;
+      const item = getItem(slot, choice.item);
+      const color = item.colors.includes(choice.color) ? choice.color : (item.colors[0] ?? choice.color ?? '');
+      merged[slot] = { item: item.id, color };
+    });
+    const next = { ...cur, [id]: merged };
     persist(next);
     set((s) => ({ appearances: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
   },

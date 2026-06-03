@@ -58,6 +58,7 @@ export const CATALOG: Record<Slot, WardrobeItem[]> = {
     { id: 'plaid', label: 'Flannel', emoji: '🧶', kind: 'plaid', colors: ['#b5532a', '#3a6db0', '#5cb85c', '#7a52c8', '#2c2f3a'] },
     { id: 'stripe', label: 'Stripes', emoji: '🌈', kind: 'stripe', colors: C },
     { id: 'longsleeve', label: 'Long Sleeve', emoji: '👚', kind: 'longsleeve', colors: C },
+    { id: 'suit', label: 'Suit', emoji: '🤵', kind: 'suit', colors: ['#8a93a8', '#3a4254', '#2c2f3a', '#5a4a3a', '#7a6a8c'] },
   ],
   bottom: [
     { id: 'jeans', label: 'Jeans', emoji: '👖', kind: 'jeans', colors: DENIM },
@@ -100,10 +101,28 @@ export function getItem(slot: Slot, id: string): WardrobeItem {
   return list.find((i) => i.id === id) ?? list[0];
 }
 
+// One-tap full looks for the dresser. Each omits `hair` so it keeps the kid's own
+// hair (Penny stays red, etc.). Applied via wardrobeStore.applyOutfit → syncs.
+export interface Outfit { id: string; label: string; emoji: string; look: Partial<Appearance> }
+const sc = (item: string, color: string): SlotChoice => ({ item, color });
+
+export const OUTFITS: Outfit[] = [
+  { id: 'super', label: 'Superhero', emoji: '🦸', look: { top: sc('jersey', '#e8463f'), bottom: sc('leggings', '#3a6db0'), shoes: sc('boots', '#e8463f'), accessory: sc('cape', '#e8463f'), hat: sc('none', '') } },
+  { id: 'soccer', label: 'Soccer Star', emoji: '⚽', look: { top: sc('jersey', '#5cb85c'), bottom: sc('athletic', '#f6f2e8'), shoes: sc('cleats', '#1a1a1a'), hat: sc('headband', '#e8463f'), accessory: sc('none', '') } },
+  { id: 'suit', label: 'Sharp Suit', emoji: '🤵', look: { top: sc('suit', '#8a93a8'), bottom: sc('jeans', '#3a4254'), shoes: sc('boots', '#2c2f3a'), hat: sc('none', ''), accessory: sc('none', '') } },
+  { id: 'fancy', label: 'Fancy Dress', emoji: '💃', look: { top: sc('dress', '#3f8f4a'), bottom: sc('leggings', '#f6f2e8'), shoes: sc('sandals', '#ffffff'), hat: sc('headband', '#f6f2e8'), accessory: sc('none', '') } },
+  { id: 'cowpoke', label: 'Cowpoke', emoji: '🤠', look: { top: sc('plaid', '#b5532a'), bottom: sc('jeans', '#3a4d6b'), shoes: sc('boots', '#5a3a1a'), hat: sc('cowboy', '#8a5a2a'), accessory: sc('none', '') } },
+  { id: 'ninja', label: 'Ninja', emoji: '🥷', look: { top: sc('longsleeve', '#2c2f3a'), bottom: sc('leggings', '#2c2f3a'), shoes: sc('boots', '#1f1f1f'), accessory: sc('bandana', '#2c2f3a'), hat: sc('none', '') } },
+  { id: 'astro', label: 'Astronaut', emoji: '🚀', look: { top: sc('hoodie', '#f6f2e8'), bottom: sc('cargo', '#3a4d6b'), shoes: sc('boots', '#f6f2e8'), accessory: sc('backpack', '#d4d4d4'), hat: sc('none', '') } },
+  { id: 'rockstar', label: 'Rockstar', emoji: '🎸', look: { top: sc('jersey', '#2c2f3a'), bottom: sc('jeans', '#1f1f1f'), shoes: sc('hightops', '#e8463f'), accessory: sc('sunglasses', '#1a1a1a'), hat: sc('none', '') } },
+  { id: 'beach', label: 'Beach Day', emoji: '🏖️', look: { top: sc('tank', '#3aa6a0'), bottom: sc('shorts', '#f0883a'), shoes: sc('sandals', '#f6c945'), accessory: sc('sunglasses', '#1a1a1a'), hat: sc('none', '') } },
+  { id: 'fairy', label: 'Fairy', emoji: '🧚', look: { top: sc('dress', '#e26aa1'), bottom: sc('leggings', '#f6f2e8'), shoes: sc('sandals', '#f6f2e8'), accessory: sc('wings', '#f6f2e8'), hat: sc('headband', '#e26aa1') } },
+];
+
 /** Per-character starting looks (preserve the established pink/green/blue family). */
 export const DEFAULT_APPEARANCE: Record<CharacterId, Appearance> = {
   dad: {
-    hair: { item: 'short', color: '#5a3216' },
+    hair: { item: 'short', color: '#4a3320' }, // medium brown
     top: { item: 'tee', color: '#3a6db0' },
     bottom: { item: 'jeans', color: '#2b2f3a' },
     shoes: { item: 'sneakers', color: '#1f1f1f' },
@@ -111,7 +130,7 @@ export const DEFAULT_APPEARANCE: Record<CharacterId, Appearance> = {
     accessory: { item: 'none', color: '' },
   },
   penny: {
-    hair: { item: 'long', color: '#cf8a4e' }, // long reddish-blonde
+    hair: { item: 'long', color: '#b04e26' }, // long auburn / red (her signature)
     top: { item: 'dress', color: '#e26aa1' },
     bottom: { item: 'leggings', color: '#5a3aa6' },
     shoes: { item: 'sneakers', color: '#ffffff' },
@@ -119,7 +138,7 @@ export const DEFAULT_APPEARANCE: Record<CharacterId, Appearance> = {
     accessory: { item: 'none', color: '' },
   },
   luke: {
-    hair: { item: 'tousled', color: '#5a3216' }, // short tousled brown
+    hair: { item: 'tousled', color: '#5a3a1f' }, // short tousled brown
     top: { item: 'tee', color: '#5cb85c' },
     bottom: { item: 'shorts', color: '#324e6c' },
     shoes: { item: 'sneakers', color: '#d4d4d4' },

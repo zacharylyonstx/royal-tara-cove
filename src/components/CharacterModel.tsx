@@ -148,8 +148,8 @@ export function CharacterModel({ def, appearance, rig }: { def: CharacterDef; ap
             <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} />
           </mesh>
         ))}
-        <Face d={d} />
-        {def.id === 'dad' && <Beard d={d} color="#6b4a2c" />}
+        <Face d={d} skin={skin} freckles={def.id === 'penny'} />
+        {def.id === 'dad' && <Beard d={d} color="#5a3e28" />}
         <Hair kind={hairKind} color={hairColor} d={d} />
         {(accKind === 'glasses' || accKind === 'sunglasses') && (
           <Glasses d={d} color={accColor} shaded={accKind === 'sunglasses'} />
@@ -168,7 +168,7 @@ export function CharacterModel({ def, appearance, rig }: { def: CharacterDef; ap
 
 function topSleeve(kind: string): 'none' | 'short' | 'long' {
   if (kind === 'tank' || kind === 'dress') return 'none';
-  if (kind === 'hoodie' || kind === 'longsleeve' || kind === 'plaid') return 'long';
+  if (kind === 'hoodie' || kind === 'longsleeve' || kind === 'plaid' || kind === 'suit') return 'long';
   return 'short';
 }
 
@@ -335,6 +335,29 @@ function Torso({ d, skin, topKind, topColor, isDress }: {
           <meshStandardMaterial color="#f6f2e8" roughness={CLOTH_ROUGH} side={2} />
         </mesh>
       ))}
+      {/* suit: white dress shirt + tie + lapels over the jacket-colored body */}
+      {topKind === 'suit' && (
+        <>
+          <mesh position={[0, -th * 0.04, d.torsoRTop * 0.99]}>
+            <boxGeometry args={[d.torsoRTop * 0.5, th * 0.82, d.torsoRTop * 0.06]} />
+            <meshStandardMaterial color="#f4f1ea" roughness={CLOTH_ROUGH} />
+          </mesh>
+          <mesh position={[0, -th * 0.02, d.torsoRTop * 1.02]}>
+            <boxGeometry args={[d.torsoRTop * 0.16, th * 0.6, d.torsoRTop * 0.05]} />
+            <meshStandardMaterial color="#b5246a" roughness={0.55} />
+          </mesh>
+          <mesh position={[0, th * 0.34, d.torsoRTop * 1.02]}>
+            <boxGeometry args={[d.torsoRTop * 0.17, th * 0.1, d.torsoRTop * 0.07]} />
+            <meshStandardMaterial color="#9a1e5a" roughness={0.55} />
+          </mesh>
+          {[-1, 1].map((s) => (
+            <mesh key={s} position={[s * d.torsoRTop * 0.33, th * 0.16, d.torsoRTop * 0.9]} rotation={[0, s * -0.4, s * 0.5]} castShadow>
+              <boxGeometry args={[d.torsoRTop * 0.44, th * 0.52, d.torsoRTop * 0.05]} />
+              <meshStandardMaterial color={topColor} roughness={CLOTH_ROUGH} />
+            </mesh>
+          ))}
+        </>
+      )}
       {/* plaid: button placket + collar flaps */}
       {topKind === 'plaid' && (
         <>
@@ -393,29 +416,45 @@ function Arm({ d, skin, sleeve, topColor }: { d: ReturnType<typeof charDims>; sk
   );
 }
 
-function Face({ d }: { d: ReturnType<typeof charDims> }) {
+function Face({ d, skin, freckles }: { d: ReturnType<typeof charDims>; skin: string; freckles?: boolean }) {
   const r = d.headR;
   return (
     <group>
       {[-1, 1].map((s) => (
         <group key={s} position={[s * r * 0.33, r * 0.06, r * 0.85]}>
-          <mesh><sphereGeometry args={[r * 0.16, 14, 14]} /><meshStandardMaterial color="#ffffff" roughness={0.35} /></mesh>
-          <mesh position={[0, 0, r * 0.1]}><sphereGeometry args={[r * 0.085, 12, 12]} /><meshStandardMaterial color="#2a1d12" roughness={0.25} /></mesh>
+          {/* slightly almond eye white (wider than tall reads less "googly") */}
+          <mesh scale={[1.15, 0.88, 1]}><sphereGeometry args={[r * 0.15, 16, 14]} /><meshStandardMaterial color="#fbfbf8" roughness={0.3} /></mesh>
+          {/* brown iris + dark pupil */}
+          <mesh position={[0, 0, r * 0.1]}><sphereGeometry args={[r * 0.075, 12, 12]} /><meshStandardMaterial color="#5a3a22" roughness={0.3} /></mesh>
+          <mesh position={[0, 0, r * 0.13]}><sphereGeometry args={[r * 0.04, 10, 10]} /><meshStandardMaterial color="#1a120a" roughness={0.2} /></mesh>
+          {/* upper lid (skin) — sits the eye into the face */}
+          <mesh position={[0, r * 0.09, r * 0.02]} rotation={[0.55, 0, 0]}><sphereGeometry args={[r * 0.17, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.42]} /><meshStandardMaterial color={skin} roughness={SKIN_ROUGH} /></mesh>
           {/* eyebrow */}
-          <mesh position={[0, r * 0.22, r * 0.02]} rotation={[0, 0, s * -0.15]}><boxGeometry args={[r * 0.26, r * 0.05, r * 0.05]} /><meshStandardMaterial color="#3a2a1a" roughness={0.8} /></mesh>
+          <mesh position={[0, r * 0.24, r * 0.03]} rotation={[0, 0, s * -0.13]}><boxGeometry args={[r * 0.28, r * 0.045, r * 0.05]} /><meshStandardMaterial color="#3a2a1a" roughness={0.85} /></mesh>
         </group>
       ))}
       {/* nose */}
-      <mesh position={[0, -r * 0.05, r * 0.97]} castShadow><sphereGeometry args={[r * 0.1, 10, 10]} /><meshStandardMaterial color="#e8b48f" roughness={0.6} /></mesh>
+      <mesh position={[0, -r * 0.05, r * 0.97]} castShadow><sphereGeometry args={[r * 0.095, 10, 10]} /><meshStandardMaterial color="#e8b48f" roughness={0.6} /></mesh>
       {/* smile */}
       <mesh position={[0, -r * 0.36, r * 0.82]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[r * 0.26, r * 0.04, 8, 18, Math.PI]} />
+        <torusGeometry args={[r * 0.26, r * 0.038, 8, 18, Math.PI]} />
         <meshStandardMaterial color="#bb5742" roughness={0.6} />
       </mesh>
+      {/* cheek blush */}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[s * r * 0.52, -r * 0.16, r * 0.74]}>
           <sphereGeometry args={[r * 0.12, 8, 8]} />
-          <meshStandardMaterial color="#f2a3a0" transparent opacity={0.45} roughness={0.8} />
+          <meshStandardMaterial color="#f2a3a0" transparent opacity={0.4} roughness={0.8} />
+        </mesh>
+      ))}
+      {/* freckles across the nose + cheeks (Penny) */}
+      {freckles && [
+        [-0.28, -0.02], [-0.14, 0.04], [0.0, -0.04], [0.14, 0.04], [0.28, -0.02],
+        [-0.2, -0.12], [0.2, -0.12],
+      ].map(([fx, fy], i) => (
+        <mesh key={i} position={[fx * r, fy * r - r * 0.08, r * 0.95]}>
+          <sphereGeometry args={[r * 0.022, 6, 6]} />
+          <meshStandardMaterial color="#b06a44" roughness={0.85} />
         </mesh>
       ))}
     </group>

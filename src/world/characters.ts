@@ -8,8 +8,8 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     height: 1.85,
     bodyColor: '#3a6db0',
     pantsColor: '#262834',
-    hairColor: '#3a2818',
-    skinTone: '#e8c39d',
+    hairColor: '#4a3320', // medium brown
+    skinTone: '#e9c39c',
     shoeColor: '#1f1f1f',
   },
   penny: {
@@ -19,8 +19,8 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     height: 1.38,
     bodyColor: '#e26aa1',
     pantsColor: '#5d3aa6',
-    hairColor: '#6b3a1a',
-    skinTone: '#f0c8a3',
+    hairColor: '#b04e26', // signature auburn / red
+    skinTone: '#f4d0ab',
     shoeColor: '#ffffff',
   },
   luke: {
@@ -30,8 +30,8 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     height: 1.22,
     bodyColor: '#5cb85c',
     pantsColor: '#324e6c',
-    hairColor: '#5a2f15',
-    skinTone: '#eec8a3',
+    hairColor: '#5a3a1f', // brown
+    skinTone: '#f1cca4',
     shoeColor: '#d4d4d4',
   },
 };

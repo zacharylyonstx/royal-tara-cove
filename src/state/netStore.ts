@@ -21,7 +21,7 @@ export interface RemotePlayerState {
   running: boolean;
   jumping: boolean;
   /** Set when this peer is riding a vehicle (so we render it under them). */
-  riding?: { bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
+  riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
   receivedAt: number;
 }
 

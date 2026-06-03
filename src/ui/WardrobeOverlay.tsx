@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { CHARACTERS } from '../world/characters';
-import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, type Slot } from '../world/wardrobe';
+import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, OUTFITS, type Slot } from '../world/wardrobe';
 import { CharacterModel } from '../components/CharacterModel';
 import { wardrobeBlip } from '../audio';
 import type { CharacterId } from '../types';
@@ -30,6 +30,7 @@ export function WardrobeOverlay() {
   const openFor = useWardrobeStore((s) => s.openFor);
   const equip = useWardrobeStore((s) => s.equip);
   const setColor = useWardrobeStore((s) => s.setColor);
+  const applyOutfit = useWardrobeStore((s) => s.applyOutfit);
   const close = useWardrobeStore((s) => s.close);
   const [tab, setTab] = useState<Slot>('top');
   // One re-render a frame after open so the preview Canvas paints even if its
@@ -105,6 +106,19 @@ export function WardrobeOverlay() {
 
         {/* Controls */}
         <div style={{ flex: '1 1 360px', minWidth: 280, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {/* One-tap full looks */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6, fontWeight: 800, letterSpacing: 0.3 }}>✨ QUICK LOOKS</div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
+              {OUTFITS.map((o) => (
+                <button key={o.id} onClick={() => { applyOutfit(openFor, o.look); wardrobeBlip(); }} style={lookBtn(accent)}>
+                  <span style={{ fontSize: 24, lineHeight: 1 }}>{o.emoji}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{o.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Category tabs */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
             {SLOTS.map((s) => (
@@ -152,6 +166,13 @@ function btn(bg: string, color: string, size: number): React.CSSProperties {
   return {
     minWidth: size, height: size, borderRadius: 14, border: 'none', background: bg, color,
     cursor: 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  };
+}
+function lookBtn(accent: string): React.CSSProperties {
+  return {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+    minWidth: 70, padding: '8px 8px', borderRadius: 14, cursor: 'pointer', color: '#fff', flex: '0 0 auto',
+    background: `linear-gradient(160deg, ${accent}55, #ffffff14)`, border: `2px solid ${accent}66`,
   };
 }
 function tabBtn(on: boolean, accent: string): React.CSSProperties {

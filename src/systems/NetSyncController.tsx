@@ -95,7 +95,7 @@ export function NetSyncController() {
         const flip = fa !== 0 ? { dir: (fa >= 0 ? 1 : -1) as 1 | -1, angle: fa } : null;
         const vehicle = rp.riding.vehicle === 'car' ? 'car' : 'bike';
         const carKind = rp.riding.carKind === 'truck' ? 'truck' : 'sedan';
-        if (!cur) play.mount(cid, { bikeId: `${charId}-remote`, bikeColor: rp.riding.bikeColor, vehicle, carKind, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0 });
+        if (!cur) play.mount(cid, { bikeId: rp.riding.bikeId || `${charId}-remote`, bikeColor: rp.riding.bikeColor, vehicle, carKind, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0 });
         else {
           // Smooth heading + hop height; snap discrete fields (color/flip/vehicle).
           cur.heading = cur.heading + shortestAngle(cur.heading, rp.riding.heading) * k;
@@ -128,7 +128,7 @@ export function NetSyncController() {
           x: pos.x, y: pos.y, z: pos.z, yaw,
           running: lastRunningRef.current,
           jumping,
-          riding: myRiding ? { bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind } : null,
+          riding: myRiding ? { bikeId: myRiding.bikeId, bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind } : null,
           t: Date.now(),
         };
         broadcastPlayerState(msg);

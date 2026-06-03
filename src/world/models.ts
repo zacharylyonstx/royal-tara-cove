@@ -19,9 +19,11 @@ export const MODELS = {
   oak: { url: `${base}/oak.glb`, fitHeight: 5.5 },
   crepemyrtle: { url: `${base}/crepemyrtle.glb`, fitHeight: 4.0 },
   shrub: { url: `${base}/shrub.glb`, fitHeight: 0.7 },
-  // vehicles (tinted per-instance at runtime)
-  truck: { url: `${base}/truck.glb`, fitHeight: 1.9, rotationY: 0 },
-  sedan: { url: `${base}/sedan.glb`, fitHeight: 1.5, rotationY: 0 },
+  // vehicles (tinted per-instance at runtime). Cars: GLB length is along X but the
+  // drive controller expects the nose at local -Z, so rotate 90° (sign verified
+  // in-game). Bike forward is +X to match RiddenBike's +PI/2 offset → no rotation.
+  truck: { url: `${base}/truck.glb`, fitHeight: 1.9, rotationY: -Math.PI / 2 },
+  sedan: { url: `${base}/sedan.glb`, fitHeight: 1.5, rotationY: -Math.PI / 2 },
   bike: { url: `${base}/bike.glb`, fitHeight: 1.0, rotationY: 0 },
   // outdoor props
   mailbox: { url: `${base}/mailbox.glb`, fitHeight: 1.3, rotationY: 0 },
