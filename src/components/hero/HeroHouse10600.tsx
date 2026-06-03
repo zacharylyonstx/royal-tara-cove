@@ -12,16 +12,16 @@ import { Playhouse, PLAYHOUSE_W, PLAYHOUSE_D, PLAYHOUSE_H } from './Playhouse';
 import { mat } from '../../world/materials';
 import { INTERIOR_WALLS, WALL_THICK } from './floorPlan';
 
-// Backyard play set, in HOUSE-LOCAL coords (must match the <Trampoline>/<Playhouse>
-// placement in the render below). halfD = 9 for the hero. Trampoline LEFT (+X) +
-// forward; playhouse pulled IN toward it (matches Zak's photo). The UFO crash was
-// moved deeper (UFOCrash.tsx) so the lane between them stays clear.
-const TRAMPOLINE_LOCAL: [number, number] = [4, 15];
+// Backyard play set, in HOUSE-LOCAL coords. The render below reads these directly,
+// so visuals + colliders/floors/door can never desync. halfD = 9; the back deck
+// spans z 9.4–12.9 across the full width (x ±11). Both pieces sit OFF the deck
+// (z ≥ 16, fronts clear of the deck's back edge) and out to the LEFT (+X = the
+// viewer's left when standing on the deck), on the open grass.
+const TRAMPOLINE_LOCAL: [number, number] = [8, 19];
 const TRAMPOLINE_RADIUS = 3.0;
-const PLAYHOUSE_LOCAL: [number, number] = [-3, 13.5];
-// Door on the playhouse FRONT, viewer's LEFT (-Z face). House-local = playhouse
-// center (-3) + (+1.0, -hd) with hd=1.5 → (-2.0, 12.0). Faces -Z toward the porch.
-const PLAYHOUSE_DOOR_LOCAL: [number, number] = [-2.0, 12.0];
+const PLAYHOUSE_LOCAL: [number, number] = [3, 17];
+// Door on the playhouse FRONT (-Z face), facing the deck: center + (+1.0, -hd=1.5).
+const PLAYHOUSE_DOOR_LOCAL: [number, number] = [PLAYHOUSE_LOCAL[0] + 1.0, PLAYHOUSE_LOCAL[1] - 1.5];
 
 const STORY_H = 3.0;
 const GARAGE_W = 6.4;
@@ -257,10 +257,10 @@ export function HeroHouse10600({ config, lot }: HeroHouseProps) {
       {/* String lights criss-crossing back deck */}
       <StringLights z={halfD + 2.0} width={config.width - 2.5} />
 
-      {/* Backyard play set — trampoline (left) + the "68" playhouse (right). The UFO
-          crash was moved deeper so this front pair stays clear. */}
-      <Trampoline position={[4, 0, 15]} radius={3.0} />
-      <Playhouse position={[-3, 0, 13.5]} rotation={0} />
+      {/* Backyard play set — off the deck, out on the left grass. Positions come
+          from the *_LOCAL constants so the colliders/floors/door stay in sync. */}
+      <Trampoline position={[TRAMPOLINE_LOCAL[0], 0, TRAMPOLINE_LOCAL[1]]} radius={TRAMPOLINE_RADIUS} />
+      <Playhouse position={[PLAYHOUSE_LOCAL[0], 0, PLAYHOUSE_LOCAL[1]]} rotation={0} />
       {/* Real openable front door on the playhouse (E to open/close). */}
       <Door
         id={`playhouse-68-${config.address}`}
