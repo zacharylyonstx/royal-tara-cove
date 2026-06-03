@@ -132,19 +132,30 @@ export function CharacterModel({ def, appearance, rig }: { def: CharacterDef; ap
       </group>
 
       {/* ---- Neck + head ---- */}
-      <mesh position={[0, d.legsH + d.torsoH + d.neckH * 0.4, 0]} castShadow>
-        <cylinderGeometry args={[d.headR * 0.32, d.headR * 0.36, d.neckH, 12]} />
+      <mesh position={[0, d.legsH + d.torsoH + d.neckH * 0.5, 0]} castShadow>
+        <cylinderGeometry args={[d.headR * 0.36, d.headR * 0.42, d.neckH * 1.4, 14]} />
         <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} />
       </mesh>
       <group position={[0, d.headY, 0]}>
-        <mesh castShadow>
-          <sphereGeometry args={[d.headR, 24, 20]} />
+        {/* cranium — egg-shaped (taller, slightly shallower); hair anchors here */}
+        <mesh castShadow scale={[1, 1.07, 0.96]}>
+          <sphereGeometry args={[d.headR, 32, 26]} />
           <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} bumpMap={GRAIN} bumpScale={GRAIN_SKIN} />
+        </mesh>
+        {/* cheeks + jaw — a fuller lower face nudged down & forward */}
+        <mesh castShadow position={[0, -d.headR * 0.4, d.headR * 0.12]} scale={[0.88, 0.94, 0.92]}>
+          <sphereGeometry args={[d.headR, 26, 22]} />
+          <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} bumpMap={GRAIN} bumpScale={GRAIN_SKIN} />
+        </mesh>
+        {/* chin */}
+        <mesh castShadow position={[0, -d.headR * 0.82, d.headR * 0.3]} scale={[0.52, 0.58, 0.55]}>
+          <sphereGeometry args={[d.headR, 18, 16]} />
+          <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} />
         </mesh>
         {/* ears */}
         {[-1, 1].map((s) => (
-          <mesh key={s} position={[s * d.headR * 0.96, -d.headR * 0.05, 0]} castShadow>
-            <sphereGeometry args={[d.headR * 0.2, 10, 10]} />
+          <mesh key={s} position={[s * d.headR * 0.92, -d.headR * 0.06, -d.headR * 0.02]} rotation={[0, 0, s * -0.2]} castShadow>
+            <sphereGeometry args={[d.headR * 0.18, 12, 12]} />
             <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} />
           </mesh>
         ))}
@@ -421,39 +432,45 @@ function Face({ d, skin, freckles }: { d: ReturnType<typeof charDims>; skin: str
   return (
     <group>
       {[-1, 1].map((s) => (
-        <group key={s} position={[s * r * 0.33, r * 0.06, r * 0.85]}>
-          {/* slightly almond eye white (wider than tall reads less "googly") */}
-          <mesh scale={[1.15, 0.88, 1]}><sphereGeometry args={[r * 0.15, 16, 14]} /><meshStandardMaterial color="#fbfbf8" roughness={0.3} /></mesh>
-          {/* brown iris + dark pupil */}
-          <mesh position={[0, 0, r * 0.1]}><sphereGeometry args={[r * 0.075, 12, 12]} /><meshStandardMaterial color="#5a3a22" roughness={0.3} /></mesh>
-          <mesh position={[0, 0, r * 0.13]}><sphereGeometry args={[r * 0.04, 10, 10]} /><meshStandardMaterial color="#1a120a" roughness={0.2} /></mesh>
-          {/* upper lid (skin) — sits the eye into the face */}
-          <mesh position={[0, r * 0.09, r * 0.02]} rotation={[0.55, 0, 0]}><sphereGeometry args={[r * 0.17, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.42]} /><meshStandardMaterial color={skin} roughness={SKIN_ROUGH} /></mesh>
+        <group key={s} position={[s * r * 0.32, r * 0.05, r * 0.88]}>
+          {/* almond eye set into the face */}
+          <mesh scale={[1.18, 0.82, 1]}><sphereGeometry args={[r * 0.145, 18, 16]} /><meshStandardMaterial color="#fbfbf8" roughness={0.3} /></mesh>
+          {/* brown iris + dark pupil + catchlight */}
+          <mesh position={[0, 0, r * 0.08]}><sphereGeometry args={[r * 0.07, 14, 14]} /><meshStandardMaterial color="#5a3a22" roughness={0.3} /></mesh>
+          <mesh position={[0, 0, r * 0.11]}><sphereGeometry args={[r * 0.038, 10, 10]} /><meshStandardMaterial color="#140d07" roughness={0.2} /></mesh>
+          <mesh position={[r * 0.02, r * 0.03, r * 0.13]}><sphereGeometry args={[r * 0.015, 6, 6]} /><meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.5} /></mesh>
+          {/* upper lid (skin) — sits the eye into the socket */}
+          <mesh position={[0, r * 0.085, r * 0.02]} rotation={[0.6, 0, 0]}><sphereGeometry args={[r * 0.165, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.4]} /><meshStandardMaterial color={skin} roughness={SKIN_ROUGH} /></mesh>
           {/* eyebrow */}
-          <mesh position={[0, r * 0.24, r * 0.03]} rotation={[0, 0, s * -0.13]}><boxGeometry args={[r * 0.28, r * 0.045, r * 0.05]} /><meshStandardMaterial color="#3a2a1a" roughness={0.85} /></mesh>
+          <mesh position={[0, r * 0.22, r * 0.04]} rotation={[0, 0, s * -0.12]}><boxGeometry args={[r * 0.3, r * 0.045, r * 0.06]} /><meshStandardMaterial color="#3a2a1a" roughness={0.85} /></mesh>
         </group>
       ))}
-      {/* nose */}
-      <mesh position={[0, -r * 0.05, r * 0.97]} castShadow><sphereGeometry args={[r * 0.095, 10, 10]} /><meshStandardMaterial color="#e8b48f" roughness={0.6} /></mesh>
-      {/* smile */}
-      <mesh position={[0, -r * 0.36, r * 0.82]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[r * 0.26, r * 0.038, 8, 18, Math.PI]} />
-        <meshStandardMaterial color="#bb5742" roughness={0.6} />
+      {/* nose — bridge + tip (real profile, not a blob) */}
+      <mesh position={[0, -r * 0.04, r * 0.92]} rotation={[0.25, 0, 0]} castShadow>
+        <cylinderGeometry args={[r * 0.045, r * 0.08, r * 0.34, 10]} />
+        <meshStandardMaterial color={skin} roughness={SKIN_ROUGH} />
       </mesh>
+      <mesh position={[0, -r * 0.17, r * 1.0]} castShadow><sphereGeometry args={[r * 0.085, 12, 12]} /><meshStandardMaterial color={skin} roughness={SKIN_ROUGH} /></mesh>
+      {/* mouth — upper-lip arc + lower lip, low on the jaw */}
+      <mesh position={[0, -r * 0.45, r * 0.86]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[r * 0.2, r * 0.032, 8, 18, Math.PI]} />
+        <meshStandardMaterial color="#bf6a58" roughness={0.5} />
+      </mesh>
+      <mesh position={[0, -r * 0.42, r * 0.88]}><boxGeometry args={[r * 0.32, r * 0.035, r * 0.04]} /><meshStandardMaterial color="#b05a48" roughness={0.5} /></mesh>
       {/* cheek blush */}
       {[-1, 1].map((s) => (
-        <mesh key={s} position={[s * r * 0.52, -r * 0.16, r * 0.74]}>
-          <sphereGeometry args={[r * 0.12, 8, 8]} />
-          <meshStandardMaterial color="#f2a3a0" transparent opacity={0.4} roughness={0.8} />
+        <mesh key={s} position={[s * r * 0.5, -r * 0.22, r * 0.78]}>
+          <sphereGeometry args={[r * 0.11, 8, 8]} />
+          <meshStandardMaterial color="#f2a3a0" transparent opacity={0.35} roughness={0.8} />
         </mesh>
       ))}
       {/* freckles across the nose + cheeks (Penny) */}
       {freckles && [
-        [-0.28, -0.02], [-0.14, 0.04], [0.0, -0.04], [0.14, 0.04], [0.28, -0.02],
-        [-0.2, -0.12], [0.2, -0.12],
+        [-0.28, -0.05], [-0.14, 0.0], [0.0, -0.06], [0.14, 0.0], [0.28, -0.05],
+        [-0.2, -0.14], [0.2, -0.14],
       ].map(([fx, fy], i) => (
-        <mesh key={i} position={[fx * r, fy * r - r * 0.08, r * 0.95]}>
-          <sphereGeometry args={[r * 0.022, 6, 6]} />
+        <mesh key={i} position={[fx * r, fy * r - r * 0.1, r * 0.96]}>
+          <sphereGeometry args={[r * 0.02, 6, 6]} />
           <meshStandardMaterial color="#b06a44" roughness={0.85} />
         </mesh>
       ))}
