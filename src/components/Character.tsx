@@ -86,7 +86,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
         <GLBCharacterModel
           baseUrl={`/assets/models/${def.id}-base.glb`}
           height={def.height}
-          rotationY={Math.PI}
+          rotationY={0}
           speedRef={speedRef}
           riding={!!riding}
         />
