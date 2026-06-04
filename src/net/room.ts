@@ -46,10 +46,12 @@ export interface BasketMsg {
   t: number;
 }
 
-/** A character's chosen dress-up look (low-frequency: only on change + join). */
+/** A character's chosen dress-up look + real-vs-avatar mode (low-frequency: only
+ *  on change + join). */
 export interface WardrobeMsg {
   characterId: CharacterId;
   appearance: Appearance;
+  realMode?: boolean;
 }
 
 export interface MunchiesNetSnapshot {
@@ -229,7 +231,8 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     if (!isObj(rawData) || typeof rawData.characterId !== 'string') return;
     const id = rawData.characterId;
     if (id !== 'dad' && id !== 'penny' && id !== 'luke') return;
-    useWardrobeStore.getState().setRemoteAppearance(id, safeAppearance(id, rawData.appearance));
+    const real = typeof rawData.realMode === 'boolean' ? rawData.realMode : undefined;
+    useWardrobeStore.getState().setRemoteAppearance(id, safeAppearance(id, rawData.appearance), real);
   }));
 
   r.onPeerJoin((peerId) => {
@@ -244,7 +247,8 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     // Tell the new peer what our character is wearing.
     const myId = useNetStore.getState().myCharacterId;
     if (sendWardrobe && myId) {
-      sendWardrobe({ characterId: myId, appearance: useWardrobeStore.getState().appearances[myId] }, peerId).catch(() => {});
+      const ws = useWardrobeStore.getState();
+      sendWardrobe({ characterId: myId, appearance: ws.appearances[myId], realMode: ws.realMode[myId] }, peerId).catch(() => {});
     }
   });
 

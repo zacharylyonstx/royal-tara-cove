@@ -5,6 +5,7 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 import { CHARACTERS } from '../world/characters';
 import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, OUTFITS, type Slot } from '../world/wardrobe';
 import { CharacterModel } from '../components/CharacterModel';
+import { GLBCharacterModel } from '../components/GLBCharacterModel';
 import { wardrobeBlip } from '../audio';
 import type { CharacterId } from '../types';
 
@@ -13,6 +14,7 @@ const ACCENT: Record<CharacterId, string> = { dad: '#3a6db0', penny: '#e26aa1', 
 function PreviewModel({ id }: { id: CharacterId }) {
   const ref = useRef<Group>(null);
   const appearance = useWardrobeStore((s) => s.appearances[id]);
+  const real = useWardrobeStore((s) => s.realMode[id]);
   const def = CHARACTERS[id];
   const norm = 1.7 / def.height; // normalize so all three frame similarly
   useFrame((_, dt) => {
@@ -20,10 +22,16 @@ function PreviewModel({ id }: { id: CharacterId }) {
   });
   return (
     <group ref={ref} scale={norm} position={[0, 0, 0]}>
-      <CharacterModel def={def} appearance={appearance} />
+      {real ? (
+        <GLBCharacterModel baseUrl={`/assets/models/${id}-base.glb`} height={def.height} rotationY={Math.PI} speedRef={ZERO} riding={false} />
+      ) : (
+        <CharacterModel def={def} appearance={appearance} />
+      )}
     </group>
   );
 }
+
+const ZERO = { current: 0 };
 
 export function WardrobeOverlay() {
   const open = useWardrobeStore((s) => s.open);
@@ -31,6 +39,8 @@ export function WardrobeOverlay() {
   const equip = useWardrobeStore((s) => s.equip);
   const setColor = useWardrobeStore((s) => s.setColor);
   const applyOutfit = useWardrobeStore((s) => s.applyOutfit);
+  const setRealMode = useWardrobeStore((s) => s.setRealMode);
+  const realMode = useWardrobeStore((s) => s.realMode);
   const close = useWardrobeStore((s) => s.close);
   const [tab, setTab] = useState<Slot>('top');
   // One re-render a frame after open so the preview Canvas paints even if its
@@ -106,6 +116,21 @@ export function WardrobeOverlay() {
 
         {/* Controls */}
         <div style={{ flex: '1 1 360px', minWidth: 280, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {/* Real-you vs dress-up toggle */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button onClick={() => { setRealMode(openFor, true); wardrobeBlip(); }} style={toggleBtn(realMode[openFor], accent)}>🧍 Real Me</button>
+            <button onClick={() => { setRealMode(openFor, false); wardrobeBlip(); }} style={toggleBtn(!realMode[openFor], accent)}>👗 Dress Up</button>
+          </div>
+          {realMode[openFor] ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12, opacity: 0.95 }}>
+              <div style={{ fontSize: 44 }}>✨</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>This is the real {name}!</div>
+              <div style={{ fontSize: 14, opacity: 0.82, maxWidth: 300, lineHeight: 1.5 }}>
+                Everyone playing online sees you as <b>you</b>. Tap <b>👗 Dress Up</b> to put on fun costumes and mix-and-match outfits.
+              </div>
+            </div>
+          ) : (
+          <>
           {/* One-tap full looks */}
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6, fontWeight: 800, letterSpacing: 0.3 }}>✨ QUICK LOOKS</div>
@@ -150,6 +175,8 @@ export function WardrobeOverlay() {
               ))}
             </div>
           )}
+          </>
+          )}
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 12, paddingTop: 12 }}>
@@ -166,6 +193,13 @@ function btn(bg: string, color: string, size: number): React.CSSProperties {
   return {
     minWidth: size, height: size, borderRadius: 14, border: 'none', background: bg, color,
     cursor: 'pointer', fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  };
+}
+function toggleBtn(on: boolean, accent: string): React.CSSProperties {
+  return {
+    flex: 1, padding: '12px 10px', borderRadius: 14, cursor: 'pointer', color: '#fff',
+    fontSize: 16, fontWeight: 800, border: on ? `2px solid #fff` : '2px solid #ffffff22',
+    background: on ? accent : '#ffffff14', boxShadow: on ? `0 4px 14px ${accent}88` : 'none',
   };
 }
 function lookBtn(accent: string): React.CSSProperties {

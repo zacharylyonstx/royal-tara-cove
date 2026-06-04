@@ -59,7 +59,7 @@ export function NetSyncController() {
       const rev = ws.rev[net.myCharacterId];
       if (rev !== lastWardrobeRev.current) {
         lastWardrobeRev.current = rev;
-        broadcastWardrobe({ characterId: net.myCharacterId, appearance: ws.appearances[net.myCharacterId] });
+        broadcastWardrobe({ characterId: net.myCharacterId, appearance: ws.appearances[net.myCharacterId], realMode: ws.realMode[net.myCharacterId] });
       }
     }
     const game = useGameStore.getState();
