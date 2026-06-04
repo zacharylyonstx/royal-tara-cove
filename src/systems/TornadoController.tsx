@@ -8,6 +8,8 @@ import type { CharacterId } from '../types';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import { rampHouseDamage, resetHouseDamage, DAMAGE_RADIUS } from '../world/tornadoDamage';
+import { throwCar, resetCarThrow, CAR_THROW_RADIUS } from '../world/tornadoCarThrow';
+import { usePlayStore } from '../state/playStore';
 import {
   startRainLoop,
   startWindLoop,
@@ -47,7 +49,7 @@ const SLOWMO_EXIT_RADIUS = 7.5;
 // Tornado path
 const TORNADO_START_Z = -130;
 const TORNADO_END_Z = 15; // ~2m short of 10600's front wall
-const TORNADO_KILL_RADIUS = 6; // crossing this close to a house pivot destroys it
+const TORNADO_KILL_RADIUS = 9; // crossing this close to a house pivot destroys it
 
 // Hero check uses the hero house AABB from world data
 const HERO_AABB_PADDING = 0.2;
@@ -120,10 +122,12 @@ export function TornadoController() {
     startSirenLoop();
     startRoarLoop();
     resetHouseDamage(); // fresh storm — every house starts intact
+    resetCarThrow();
     startedHere.current = true;
     return () => {
       resetTornadoAudio();
       resetHouseDamage();
+      resetCarThrow();
     };
   }, []);
 
@@ -222,13 +226,23 @@ export function TornadoController() {
       setTornadoOpacity(1);
       const t = Math.min(1, elapsed / APPROACH_DURATION);
       const z = TORNADO_START_Z + (TORNADO_END_Z - TORNADO_START_Z) * t;
-      // Wobble: multi-frequency sway, decays as we approach 10600 so it
-      // lands roughly centered.
-      const wobbleAmp = 5 * (1 - Math.pow(t, 2));
-      const x = Math.sin(t * 4 * Math.PI) * wobbleAmp +
-                Math.sin(t * 9.3 * Math.PI + 1.7) * wobbleAmp * 0.3;
+      // WEAVE the full width of the street so the funnel actually crosses over
+      // the houses + driveways on BOTH sides as it comes down — scoring direct
+      // hits on some and grazing others — instead of staying on the centerline
+      // where it never touches anything. Houses sit at x≈±18, so we sweep to
+      // ±20. The sweep eases out over the last 15% so it still lands centered
+      // on 10600 for the arrival/shelter check.
+      const settle = t < 0.85 ? 1 : Math.max(0, 1 - (t - 0.85) / 0.15);
+      const sweepAmp = 20 * settle;
+      const x = Math.sin(t * 6.6 * Math.PI) * sweepAmp +
+                Math.sin(t * 13.0 * Math.PI + 1.3) * sweepAmp * 0.18;
       setTornadoZ(z);
       setTornadoX(x);
+
+      // Rip any parked car the funnel reaches off its driveway and fling it.
+      for (const car of Object.values(usePlayStore.getState().cars)) {
+        if (Math.hypot(car.x - x, car.z - z) < CAR_THROW_RADIUS) throwCar(car.id, now);
+      }
 
       // Ramp progressive damage on EVERY house the funnel comes near, so houses
       // shed pieces (roof/siding/brick fly into the vortex) as it passes — not

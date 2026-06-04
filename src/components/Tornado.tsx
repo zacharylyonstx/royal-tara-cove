@@ -53,12 +53,32 @@ interface YeetItem {
 // suggests swirling vapor texture on the surface, but the SHAPE is
 // driven by the LatheGeometry, not the shader.
 const CONE_VERT = `
+uniform float time;
 varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+float vnoise(vec2 p){
+  vec2 i=floor(p); vec2 f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x), u.y);
+}
 void main() {
   vUv = uv;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vec3 p = position;
+  float h = uv.y;                       // 0 at the rope base, 1 at the bell
+  float ang = atan(p.z, p.x);
+  // Ragged, churning surface — radial noise that scrolls UP and spins, heavier
+  // toward the top. This breaks the stiff perfect-cone silhouette so the funnel
+  // reads as a living, turbulent column.
+  float n = vnoise(vec2(ang * 2.6 + time * 1.6, h * 5.0 - time * 2.2))
+          + 0.5 * vnoise(vec2(ang * 5.3 - time * 1.2, h * 9.0 - time * 3.1));
+  float disp = (n - 0.75) * (0.7 + h * 2.1);
+  vec2 rad = normalize(p.xz + vec2(1e-4));
+  p.xz += rad * disp;
+  // Sinuous sway so the whole funnel leans + writhes instead of standing stiff.
+  p.x += sin(h * 1.6 + time * 0.9) * h * 1.0 + sin(time * 0.5) * h * 0.7;
+  p.z += cos(h * 1.3 + time * 0.7) * h * 0.8;
+  vec4 wp = modelMatrix * vec4(p, 1.0);
   vWorldPos = wp.xyz;
   vNormal = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * viewMatrix * wp;
@@ -154,11 +174,11 @@ float noise(vec2 p){
 void main(){
   vec2 sUv = vec2(vUv.x * 5.0 - time * 0.5, vUv.y * 3.0 - time * 1.15);
   float n = noise(sUv) * 0.6 + noise(sUv * 2.3) * 0.4;
-  vec3 col = mix(vec3(0.55,0.57,0.62), vec3(0.84,0.86,0.9), vUv.y); // brighter toward cloud base
-  col = mix(col, vec3(0.97), flashFlare * 0.7);                      // lightning
+  vec3 col = mix(vec3(0.32,0.32,0.34), vec3(0.58,0.58,0.6), vUv.y);  // dirty grey, not white
+  col = mix(col, vec3(0.95), flashFlare * 0.7);                      // lightning
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float a = smoothstep(0.18, 1.0, fres) * (0.22 + n * 0.4);
+  float a = smoothstep(0.2, 1.0, fres) * (0.16 + n * 0.34);
   a *= smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.78, vUv.y);  // fade top + bottom
   gl_FragColor = vec4(col, a * opacity);
 }
@@ -406,7 +426,7 @@ export function Tornado() {
 
         {/* Translucent condensation sleeve — the pale outer funnel wrapping the
             dark core, slightly wider so it reads as a soft two-tone vortex. */}
-        <mesh ref={sleeveMeshRef} geometry={coneGeom} scale={[1.16, 1.02, 1.16]} renderOrder={3}>
+        <mesh ref={sleeveMeshRef} geometry={coneGeom} scale={[1.08, 1.02, 1.08]} renderOrder={3}>
           <primitive object={sleeveMaterial} attach="material" />
         </mesh>
 

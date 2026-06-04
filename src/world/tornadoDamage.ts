@@ -4,10 +4,12 @@
 // singleton pattern. Damage ratchets UP only (a house never heals mid-storm) and
 // is cleared on tornado start / replay.
 
+// The funnel weaves the full width of the street (houses sit ~18m off the
+// centerline), so the reach has to span that or houses it passes never feel it.
 /** How close (m) the funnel center must come for a house to start shedding. */
-export const DAMAGE_RADIUS = 18;
+export const DAMAGE_RADIUS = 26;
 /** Within this radius the house takes a direct hit → full collapse. */
-export const DIRECT_HIT_RADIUS = 6;
+export const DIRECT_HIT_RADIUS = 9;
 
 /** address → 0..1 accumulated damage (1 = funnel core passed through it). */
 const damage = new Map<string, number>();

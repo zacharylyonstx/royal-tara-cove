@@ -1,7 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import type { Group } from 'three';
 import type { HouseConfig, Lot } from '../types';
 import type { HouseProps as HousePropsData } from '../world/props';
 import { usePlayStore } from '../state/playStore';
+import { useTornadoStore } from '../state/tornadoStore';
+import { getCarThrow } from '../world/tornadoCarThrow';
 import { Truck } from './props/Truck';
 import { Sedan } from './props/Sedan';
 import { BBQGrill } from './props/BBQGrill';
@@ -34,16 +38,76 @@ function toWorld(lx: number, ly: number, lz: number, pivot: [number, number], ya
 
 /** The parked car — rendered in WORLD space from its live registered spot, so it
  *  stays wherever the last driver left it. Hidden while someone is driving it
- *  (the driven copy follows the driver via RiddenBikes). */
+ *  (the driven copy follows the driver via RiddenBikes). In tornado mode, when
+ *  the funnel reaches it the car is RIPPED off the driveway: sucked up, spun,
+ *  tumbled through the vortex, then flung out and gone. */
 function ParkedCar({ carId }: { carId: string }) {
   const car = usePlayStore((s) => s.cars[carId]);
   const driven = usePlayStore((s) =>
     Object.values(s.riding).some((r) => r && r.vehicle === 'car' && r.bikeId === carId));
+  const ref = useRef<Group>(null);
+  const st = useRef({
+    inited: false, done: false, ejected: false,
+    x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
+    rx: 0, ry: 0, rz: 0, spinX: 0, spinY: 0, spinZ: 0,
+  });
+
+  useFrame((_, dtRaw) => {
+    const g = ref.current;
+    if (!g || !car) return;
+    const throwAt = getCarThrow(carId);
+    if (throwAt == null) {
+      // Resting on the driveway (every mode except a tornado that's reached it).
+      g.visible = true;
+      g.position.set(car.x, 0, car.z);
+      g.rotation.set(0, car.yaw, 0);
+      const s = st.current; s.inited = false; s.done = false; s.ejected = false;
+      return;
+    }
+    const s = st.current;
+    if (s.done) { g.visible = false; return; }
+    const dt = Math.min(dtRaw, 0.05);
+    if (!s.inited) {
+      s.inited = true; g.visible = true;
+      s.x = car.x; s.y = 0; s.z = car.z;
+      s.vx = 0; s.vy = 4; s.vz = 0;
+      s.rx = 0; s.ry = car.yaw; s.rz = 0;
+      s.spinX = (Math.random() - 0.5) * 5;
+      s.spinY = (Math.random() - 0.5) * 4;
+      s.spinZ = (Math.random() - 0.5) * 5;
+    }
+    const t = useTornadoStore.getState();
+    const dx = t.tornadoX - s.x;
+    const dz = t.tornadoZ - s.z;
+    const d = Math.hypot(dx, dz) || 0.001;
+    if (!s.ejected) {
+      const k = Math.min(1, 20 / d);
+      s.vx += (dx / d) * 26 * dt - (dz / d) * 22 * dt * k; // suck inward + swirl
+      s.vz += (dz / d) * 26 * dt + (dx / d) * 22 * dt * k;
+      s.vy += 20 * dt;                                      // ripped skyward
+      if (s.vy > 20) s.vy = 20;
+      if (s.y > 20) {                                       // flung out the top
+        s.ejected = true;
+        const out = 12 + Math.random() * 8;
+        s.vx = (dx / d) * -out - (dz / d) * out * 0.5;
+        s.vz = (dz / d) * -out + (dx / d) * out * 0.5;
+        s.vy = 6;
+      }
+    } else {
+      s.vy -= 18 * dt; s.vx *= 0.99; s.vz *= 0.99;           // gravity
+    }
+    s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
+    s.rx += s.spinX * dt; s.ry += s.spinY * dt; s.rz += s.spinZ * dt;
+    if ((s.ejected && s.y < -3) || d > 130) { s.done = true; g.visible = false; return; }
+    g.position.set(s.x, s.y, s.z);
+    g.rotation.set(s.rx, s.ry, s.rz);
+  });
+
   if (!car || driven) return null;
-  const position: [number, number, number] = [car.x, 0, car.z];
-  return car.kind === 'truck'
-    ? <Truck position={position} rotation={car.yaw} color={car.color} />
-    : <Sedan position={position} rotation={car.yaw} color={car.color} />;
+  const body = car.kind === 'truck'
+    ? <Truck position={[0, 0, 0]} rotation={0} color={car.color} />
+    : <Sedan position={[0, 0, 0]} rotation={0} color={car.color} />;
+  return <group ref={ref}>{body}</group>;
 }
 
 export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProps) {
