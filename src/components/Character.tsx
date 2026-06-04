@@ -84,7 +84,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     <group ref={groupRef} visible={!isActive || !!riding}>
       {real ? (
         <GLBCharacterModel
-          id={def.id}
+          baseUrl={`/assets/models/${def.id}-base.glb`}
           height={def.height}
           rotationY={0}
           speedRef={speedRef}
