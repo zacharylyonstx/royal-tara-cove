@@ -231,6 +231,9 @@ export function TornadoController() {
             ? Math.hypot(hostPlayer.x - h.x, hostPlayer.z - h.z)
             : 30;
           houseCollapse(Math.min(1, distToPlayer / 60));
+          // Ground-jolt: a building coming apart nearby should rattle the
+          // camera. Scales hard with proximity, capped so it never nauseates.
+          addShake(Math.max(0.08, Math.min(0.5, 0.5 * (1 - distToPlayer / 55))));
           break; // one per frame to keep audio uncluttered
         }
       }

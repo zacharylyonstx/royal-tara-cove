@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../../../state/tornadoStore';
+import { isTouchDevice } from '../../../systems/touchInput';
 import { makeRadialGradientTexture } from './vortex';
 
 // Wide low brown dome at the funnel base — the F5 "debris cloud" that
@@ -9,9 +10,9 @@ import { makeRadialGradientTexture } from './vortex';
 // tall fountain) so the funnel reads as if its base disappears into a
 // churning cloud of dirt + debris.
 
-const DUST_COUNT = 90;
-const DOME_RADIUS = 10;
-const DOME_HEIGHT = 4;
+const DUST_COUNT = isTouchDevice() ? 95 : 170; // denser ground cloud on desktop
+const DOME_RADIUS = 14; // wider skirt of churned ground
+const DOME_HEIGHT = 5;
 
 interface Particle {
   x: number; y: number; z: number;
@@ -94,7 +95,7 @@ export function DebrisDome() {
       fragmentShader: FRAG,
       uniforms: {
         gradientTex: { value: gradient },
-        tint: { value: new THREE.Color('#5a4a3a') },
+        tint: { value: new THREE.Color('#473a2b') },
         globalOpacity: { value: 0 },
       },
       transparent: true,
@@ -119,7 +120,7 @@ export function DebrisDome() {
       return;
     }
     mesh.visible = true;
-    mat.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.55;
+    mat.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.72;
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];

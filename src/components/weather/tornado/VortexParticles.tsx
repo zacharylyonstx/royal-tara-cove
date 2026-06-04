@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../../../state/tornadoStore';
+import { isTouchDevice } from '../../../systems/touchInput';
 import {
   FUNNEL_HEIGHT,
   funnelRadiusAt,
@@ -14,7 +15,9 @@ import {
 // cluster — that's the whole trick. They render as normal-blended dark
 // billboards so they OCCLUDE light to form mass (not additive glow).
 
-const PARTICLE_COUNT = 600;
+// Denser on desktop for a thicker, more solid wedge; trimmed on touch to
+// protect the iPad framerate.
+const PARTICLE_COUNT = isTouchDevice() ? 560 : 920;
 
 interface VaporParticle {
   // Position relative to tornado axis
@@ -117,8 +120,8 @@ export function VortexParticles() {
       uniforms: {
         gradientTex: { value: gradient },
         // tintHigh: kept for future per-height tint (currently unused)
-        tintHigh: { value: new THREE.Color('#181818') },
-        tintLow:  { value: new THREE.Color('#2c2826') },
+        tintHigh: { value: new THREE.Color('#121110') },
+        tintLow:  { value: new THREE.Color('#1d1a18') },
         globalOpacity: { value: 0 },
         flashFlare: { value: 0 },
       },

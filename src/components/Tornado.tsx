@@ -93,11 +93,12 @@ void main() {
   vec2 sUv = vec2(vUv.x * 6.0 + time * 0.7, vUv.y * 4.0 - time * 1.3);
   float n = noise(sUv) * 0.55 + noise(sUv * 2.4) * 0.3 + noise(sUv * 5.7) * 0.15;
 
-  // Color palette — warm grey body so cone reads distinct from the cool
-  // grey storm sky. Body kept medium-ish so the SILHOUETTE is visible.
-  vec3 baseCol = vec3(0.55, 0.46, 0.36);   // warm mid-grey at bottom
-  vec3 midCol  = vec3(0.38, 0.33, 0.32);   // mid warm-grey
-  vec3 topCol  = vec3(0.22, 0.20, 0.20);   // dark warm-grey at bell
+  // Color palette — darker, more menacing F5 wedge. Dirt-warm at the base
+  // where it's chewing up the ground, crushing to near-charcoal at the bell.
+  // Kept just light enough that the rim light still reads the silhouette.
+  vec3 baseCol = vec3(0.42, 0.34, 0.26);   // churned-dirt warm grey at bottom
+  vec3 midCol  = vec3(0.26, 0.23, 0.22);   // dark warm-grey
+  vec3 topCol  = vec3(0.12, 0.11, 0.12);   // near-charcoal at the bell
 
   vec3 color;
   if (vUv.y < 0.35) {
@@ -115,8 +116,10 @@ void main() {
   // sky behind.
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float rim = smoothstep(0.35, 1.0, fres);
-  color = mix(color, vec3(0.75, 0.70, 0.62), rim * 0.65);
+  float rim = smoothstep(0.45, 1.0, fres);
+  // Dimmer, cooler rim so the wedge reads as a DARK menacing column against
+  // the storm sky instead of a bright white cone.
+  color = mix(color, vec3(0.52, 0.49, 0.46), rim * 0.42);
 
   // Lightning flash
   color = mix(color, vec3(0.95), flashFlare * 0.6);

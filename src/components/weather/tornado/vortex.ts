@@ -7,7 +7,7 @@ import * as THREE from 'three';
 // Also exports the funnel profile (radius as a function of height) so
 // particles know where the "skin" of the funnel lives.
 
-export const FUNNEL_HEIGHT = 26;
+export const FUNNEL_HEIGHT = 32;
 export const FUNNEL_TOP_Y = FUNNEL_HEIGHT;
 
 // Tornado profile — radius at height y (in meters).
@@ -37,11 +37,11 @@ export function funnelRadiusAt(y: number): number {
 //   - updraft:    vertical lift (stronger near core)
 //
 // Tuned to feel chaotic but coherent. Reuses a passed Vector3 for zero alloc.
-const ROTATION_OMEGA = 5.5;       // rad/s at the solid-core boundary
+const ROTATION_OMEGA = 6.6;       // rad/s at the solid-core boundary — angrier spin
 const SOLID_CORE_R   = 2.0;       // inside this radius = solid-body rotation
-const RADIAL_PULL    = 1.4;       // m/s² baseline inward
-const UPDRAFT_BASE   = 3.0;       // m/s baseline updraft
-const UPDRAFT_CORE   = 7.0;       // additional m/s at axis
+const RADIAL_PULL    = 1.7;       // m/s² baseline inward (tighter suction)
+const UPDRAFT_BASE   = 3.4;       // m/s baseline updraft
+const UPDRAFT_CORE   = 8.5;       // additional m/s at axis — violent core lift
 
 export function vortexVelocity(
   out: THREE.Vector3,

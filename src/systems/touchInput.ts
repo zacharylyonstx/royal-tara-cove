@@ -19,6 +19,11 @@ export const touchInput = {
 export const TOUCH_RUN_THRESHOLD = 0.92;
 /** Axis deadzone before a direction key is considered pressed. */
 export const TOUCH_DIR_THRESHOLD = 0.35;
+/** Radians of camera rotation per screen pixel dragged (look sensitivity).
+ *  The first-person modes (aliens / tornado / freeplay) are otherwise
+ *  mouse-pointer-lock only, so on touch this drag-to-look is the ONLY way to
+ *  turn and aim. Tuned a touch higher than mouse for finger-scale gestures. */
+export const TOUCH_LOOK_SENS = 0.005;
 
 /** True on primarily-touch devices (iPad/phone). Used to show the on-screen
  *  controls and hide the keyboard-only hint legend. */

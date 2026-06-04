@@ -1,7 +1,10 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useCombatStore } from '../../state/combatStore';
+
+// Shared up-axis reused by every beam's orientation math (zero per-beam alloc).
+const BEAM_UP = new THREE.Vector3(0, 1, 0);
 
 /** Renders all active beam visuals. Each fades out over ~0.14s. */
 export function Beams() {
@@ -17,14 +20,20 @@ export function Beams() {
 
 function BeamMesh({ beam }: { beam: ReturnType<typeof useCombatStore.getState>['beams'][number] }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const start = new THREE.Vector3(beam.fromX, beam.fromY, beam.fromZ);
-  const end = new THREE.Vector3(beam.toX, beam.toY, beam.toZ);
-  const mid = start.clone().add(end).multiplyScalar(0.5);
-  const dir = end.clone().sub(start);
-  const len = dir.length();
-  dir.normalize();
-  // Orient cylinder along Y axis then point it from start to end.
-  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  // A beam's endpoints are fixed for its (very short) life, so compute the
+  // midpoint / orientation / length ONCE per beam instead of allocating three
+  // Vector3s + a Quaternion on every reconcile (the beams array re-renders
+  // each time a shot is fired/expired).
+  const { mid, quat, len } = useMemo(() => {
+    const start = new THREE.Vector3(beam.fromX, beam.fromY, beam.fromZ);
+    const end = new THREE.Vector3(beam.toX, beam.toY, beam.toZ);
+    const m = start.clone().add(end).multiplyScalar(0.5);
+    const dir = end.clone().sub(start);
+    const l = dir.length();
+    dir.normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(BEAM_UP, dir);
+    return { mid: m, quat: q, len: l };
+  }, [beam.fromX, beam.fromY, beam.fromZ, beam.toX, beam.toY, beam.toZ]);
 
   useFrame(() => {
     const age = performance.now() / 1000 - beam.spawnedAt;

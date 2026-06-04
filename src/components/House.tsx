@@ -9,6 +9,7 @@ import { HouseInterior } from './HouseInterior';
 import { WindowUnit, EntryPortico, GableAccent, CoachLight } from './houseDetail';
 import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
+import { useTornadoStore } from '../state/tornadoStore';
 
 const STORY_H = 3.0;
 const GARAGE_W = 5.6;
@@ -82,8 +83,8 @@ export function House({ config, lot }: HouseProps) {
 
   // Pre-compute debris launch velocities (stable per house instance)
   const debrisLaunch = useMemo(() => {
-    const n = 40;
-    const arr: { vx: number; vy: number; vz: number; spinX: number; spinY: number; spinZ: number; offsetX: number; offsetZ: number; size: number }[] = [];
+    const n = 58; // more wreckage for a meatier blow-apart
+    const arr: { vx: number; vy: number; vz: number; spinX: number; spinY: number; spinZ: number; offsetX: number; offsetZ: number; size: number; suck: number }[] = [];
     for (let i = 0; i < n; i++) {
       const ang = Math.random() * Math.PI * 2;
       const speed = 4 + Math.random() * 8;
@@ -97,6 +98,9 @@ export function House({ config, lot }: HouseProps) {
         offsetX: (Math.random() - 0.5) * 2,
         offsetZ: (Math.random() - 0.5) * 2,
         size: 0.18 + Math.random() * 0.32,
+        // How strongly this piece gets drawn UP into the passing funnel
+        // (0 = flies free and falls, 1 = sucked skyward toward the vortex).
+        suck: 0.25 + Math.random() * 0.75,
       });
     }
     return arr;
@@ -127,6 +131,17 @@ export function House({ config, lot }: HouseProps) {
     }
     const ph = destructionPhases(p);
 
+    // Funnel position in this house's LOCAL space, so flying wreckage can be
+    // drawn toward (and up into) the vortex as it tears past. The house group
+    // is at lot.housePivot rotated by lot.houseYaw.
+    const ts = useTornadoStore.getState();
+    const relWX = ts.tornadoX - lot.housePivot[0];
+    const relWZ = ts.tornadoZ - lot.housePivot[1];
+    const cy = Math.cos(-lot.houseYaw);
+    const sy = Math.sin(-lot.houseYaw);
+    const funnelLocalX = relWX * cy - relWZ * sy;
+    const funnelLocalZ = relWX * sy + relWZ * cy;
+
     // Roof: launches up + tumbles + shrinks
     if (roof) {
       const liftP = Math.min(1, p * 1.8); // launches faster than the rest
@@ -148,12 +163,19 @@ export function House({ config, lot }: HouseProps) {
     if (debris) {
       debris.visible = true;
       const dragP = Math.min(1, p * 1.3);
+      const pull = p * p; // suction ramps in as the house comes apart
       for (let i = 0; i < debrisLaunch.length; i++) {
         const d = debrisLaunch[i];
         const t = p * 1.4; // seconds-ish since destruction
-        const x = d.offsetX + d.vx * t;
-        const y = Math.max(0.2, d.vy * t - 12 * t * t); // gravity
-        const z = d.offsetZ + d.vz * t;
+        const bx = d.offsetX + d.vx * t;
+        const bz = d.offsetZ + d.vz * t;
+        const by = Math.max(0.2, d.vy * t - 12 * t * t); // gravity
+        // Draw the piece toward the funnel axis and lift it skyward — the
+        // wreckage gets eaten by the passing tornado instead of just falling.
+        const s = pull * d.suck;
+        const x = bx + (funnelLocalX - bx) * s * 0.6;
+        const z = bz + (funnelLocalZ - bz) * s * 0.6;
+        const y = by + s * 22; // streamed up into the vortex
         tmpDebrisObj.position.set(x, y, z);
         tmpDebrisObj.rotation.set(d.spinX * t, d.spinY * t, d.spinZ * t);
         tmpDebrisObj.scale.setScalar(d.size * (1 - dragP * 0.3));
@@ -167,9 +189,9 @@ export function House({ config, lot }: HouseProps) {
     if (dust && dustMat) {
       dust.visible = true;
       const dustP = Math.min(1, p * 1.2);
-      const radius = 1 + dustP * 11;
+      const radius = 1 + dustP * 16; // bigger blast cloud
       dust.scale.setScalar(radius);
-      dustMat.opacity = 0.45 * (1 - dustP);
+      dustMat.opacity = 0.5 * (1 - dustP);
     }
 
     if (rubble) {

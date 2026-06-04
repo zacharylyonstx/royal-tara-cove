@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { touchInput, isTouchDevice } from '../systems/touchInput';
 import { useGameStore } from '../state/gameStore';
@@ -7,10 +7,21 @@ import { useGameStore } from '../state/gameStore';
 // joystick for movement and right-hand Jump + Action buttons. Hidden on
 // mouse/keyboard devices via a coarse-pointer media query. Writes into the
 // touchInput singleton, which PlayerController folds into its keyboard inputs.
+//
+// Sizes scale with the screen so the controls feel right on both a small phone
+// and a 12" iPad (a fixed 132px stick looks tiny on a big tablet, huge on a
+// phone).
 
-const BASE = 132; // joystick base diameter (px)
-const THUMB = 58; // thumb diameter (px)
-const RADIUS = (BASE - THUMB) / 2; // max thumb travel from centre
+const BASE_AT_1X = 132; // joystick base diameter (px) at scale 1
+const THUMB_AT_1X = 58;
+
+/** UI scale from the shorter screen dimension. ~0.9 on a phone, up to 1.45 on
+ *  a big iPad. */
+function uiScale(): number {
+  if (typeof window === 'undefined') return 1;
+  const vmin = Math.min(window.innerWidth, window.innerHeight);
+  return Math.max(0.9, Math.min(1.45, vmin / 430));
+}
 
 export function TouchControls() {
   // Detect once; touch capability doesn't change within a session.
@@ -21,7 +32,35 @@ export function TouchControls() {
   const dragId = useRef<number | null>(null);
   const [thumb, setThumb] = useState({ x: 0, y: 0 });
 
+  // Recompute control sizing on rotate / resize.
+  const [scale, setScale] = useState(uiScale);
+  useEffect(() => {
+    if (!enabled) return;
+    const onResize = () => setScale(uiScale());
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, [enabled]);
+
+  // One-time "drag to look" coaching pill — the FPS modes have no other way to
+  // turn the camera on touch, so make the gesture discoverable. Auto-hides.
+  const [showHint, setShowHint] = useState(true);
+  useEffect(() => {
+    if (!enabled) return;
+    const t = setTimeout(() => setShowHint(false), 6000);
+    return () => clearTimeout(t);
+  }, [enabled]);
+
   if (!enabled || welcomeOpen) return null;
+
+  const BASE = Math.round(BASE_AT_1X * scale);
+  const THUMB = Math.round(THUMB_AT_1X * scale);
+  const RADIUS = (BASE - THUMB) / 2; // max thumb travel from centre
+  const gameMode = useGameStore.getState().gameMode;
+  const fpsMode = gameMode !== 'munchies' && gameMode !== 'treehouse';
 
   const updateFromPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
     const base = baseRef.current;
@@ -112,9 +151,34 @@ export function TouchControls() {
           pointerEvents: 'auto',
         }}
       >
-        <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; }} size={78} />
-        <ActionButton label="⤴" sub="Jump" color="#3a6db0" onPress={() => { touchInput.jumpQueued = true; }} size={92} />
+        <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; }} size={Math.round(78 * scale)} />
+        <ActionButton label="⤴" sub="Jump" color="#3a6db0" onPress={() => { touchInput.jumpQueued = true; }} size={Math.round(92 * scale)} />
       </div>
+
+      {/* One-time look-gesture coach (FPS modes only). */}
+      {showHint && fpsMode && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top, 0px) + 14px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(20,28,38,0.62)',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 999,
+            fontSize: Math.round(13 * scale),
+            fontWeight: 700,
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            border: '1px solid rgba(255,255,255,0.25)',
+            boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
+            whiteSpace: 'nowrap',
+            letterSpacing: 0.2,
+          }}
+        >
+          🕹️ Joystick to move · 👆 drag to look
+        </div>
+      )}
     </div>
   );
 }

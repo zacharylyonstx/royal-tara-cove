@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Group, Mesh } from 'three';
@@ -9,6 +9,12 @@ import { useNetStore } from '../../state/netStore';
 interface BlobProps {
   blob: Blob;
 }
+
+// Damage-flash tint per kind — module constants so we don't allocate a fresh
+// THREE.Color each time a blob's subtree reconciles (spawn / death).
+const DAMAGE_HOPPER = new THREE.Color('#ff3a3a');
+const DAMAGE_SPRINTER = new THREE.Color('#ffd83a');
+const DAMAGE_SPLITTER = new THREE.Color('#ff4040');
 
 export function Schmorgesblob({ blob }: BlobProps) {
   if (blob.kind === 'sprinter') return <Sprinter blob={blob} />;
@@ -30,8 +36,8 @@ function Hopper({ blob }: BlobProps) {
   const fallbackActive = useGameStore((s) => s.activeCharacterId);
   const activeId = myCharacterId ?? fallbackActive;
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
-  const baseColor = new THREE.Color(color.body);
-  const damageColor = new THREE.Color('#ff3a3a');
+  const baseColor = useMemo(() => new THREE.Color(color.body), [color.body]);
+  const damageColor = DAMAGE_HOPPER;
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -252,8 +258,8 @@ function Sprinter({ blob }: BlobProps) {
   const fallbackActive = useGameStore((s) => s.activeCharacterId);
   const activeId = myCharacterId ?? fallbackActive;
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
-  const baseColor = new THREE.Color(color.body);
-  const damageColor = new THREE.Color('#ffd83a');
+  const baseColor = useMemo(() => new THREE.Color(color.body), [color.body]);
+  const damageColor = DAMAGE_SPRINTER;
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -333,8 +339,8 @@ function Splitter({ blob }: BlobProps) {
   const body = useRef<Mesh>(null);
   const pustules = useRef<Mesh[]>([]);
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
-  const baseColor = new THREE.Color(color.body);
-  const damageColor = new THREE.Color('#ff4040');
+  const baseColor = useMemo(() => new THREE.Color(color.body), [color.body]);
+  const damageColor = DAMAGE_SPLITTER;
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;

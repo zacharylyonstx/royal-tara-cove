@@ -7,6 +7,7 @@ import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
 import { usePlayStore } from '../state/playStore';
 import { CHARACTER_ORDER } from '../world/characters';
+import { isTouchDevice, TOUCH_LOOK_SENS } from './touchInput';
 
 // First-person camera.
 // - Camera sits at the active character's eye height (1.7m).
@@ -56,6 +57,8 @@ export function CameraRig() {
 
     const onClick = () => {
       if (locked.current) return;
+      // Pointer Lock is a mouse concept — touch devices look via drag instead.
+      if (isTouchDevice()) return;
       // Don't grab the cursor while the welcome screen is open or when
       // spectating (no input to capture).
       const _camMode = useGameStore.getState().gameMode;
@@ -83,16 +86,70 @@ export function CameraRig() {
 
     const onContextMenu = (e: Event) => e.preventDefault();
 
+    // --- Touch drag-to-look ---
+    // The FPS modes (aliens / tornado / freeplay) are mouse-pointer-lock only,
+    // so on touch this is the ONLY way to turn and aim. A finger dragging on
+    // empty screen (anything NOT on the joystick/buttons, which capture their
+    // own touches) rotates yaw/pitch. We track one look-finger by identifier so
+    // it coexists with the movement thumb. munchies/treehouse use their own
+    // follow cams, so we ignore look there.
+    const lookTouchId = { current: null as number | null };
+    let lastX = 0;
+    let lastY = 0;
+    const lookActiveMode = () => {
+      const m = useGameStore.getState().gameMode;
+      if (m === 'munchies' || m === 'treehouse') return false;
+      if (useGameStore.getState().welcomeOpen) return false;
+      if (useNetStore.getState().spectator) return false;
+      if (usePlayStore.getState().riding[useNetStore.getState().myCharacterId ?? useGameStore.getState().activeCharacterId]) return false;
+      return true;
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      if (lookTouchId.current !== null || !lookActiveMode()) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      lookTouchId.current = t.identifier;
+      lastX = t.clientX;
+      lastY = t.clientY;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (lookTouchId.current === null) return;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier !== lookTouchId.current) continue;
+        yaw.current -= (t.clientX - lastX) * TOUCH_LOOK_SENS;
+        pitch.current -= (t.clientY - lastY) * TOUCH_LOOK_SENS;
+        if (pitch.current < -PITCH_LIMIT) pitch.current = -PITCH_LIMIT;
+        if (pitch.current > PITCH_LIMIT) pitch.current = PITCH_LIMIT;
+        lastX = t.clientX;
+        lastY = t.clientY;
+        e.preventDefault();
+      }
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === lookTouchId.current) lookTouchId.current = null;
+      }
+    };
+
     canvas.addEventListener('click', onClick);
     canvas.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('pointerlockchange', onLockChange);
     document.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
+    canvas.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     return () => {
       canvas.removeEventListener('click', onClick);
       canvas.removeEventListener('contextmenu', onContextMenu);
       document.removeEventListener('pointerlockchange', onLockChange);
       document.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
+      canvas.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [gl]);
 
