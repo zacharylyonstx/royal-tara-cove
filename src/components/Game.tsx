@@ -87,6 +87,7 @@ import { WallCloud } from './weather/WallCloud';
 import { RagdollComedy } from './weather/RagdollComedy';
 import { GroundScar } from './weather/tornado/GroundScar';
 import { WindDebris } from './weather/tornado/WindDebris';
+import { FlyingCow } from './weather/tornado/FlyingCow';
 import { useTornadoStore } from '../state/tornadoStore';
 import { PickupRenderer } from './pickups/Pickup';
 import { Projectiles } from './projectiles/Projectiles';
@@ -277,6 +278,7 @@ function TornadoModeSystems() {
       <Tornado />
       <GroundScar />
       <WindDebris />
+      <FlyingCow />
       <WallCloud />
       <Rain />
       <Hail />

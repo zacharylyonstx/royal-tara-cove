@@ -45,6 +45,8 @@ export const MODELS = {
   milk: { url: `${base}/milk.glb`, fitHeight: 0.6 },
   bonuscookie: { url: `${base}/bonuscookie.glb`, fitHeight: 0.5 },
   ufo: { url: `${base}/ufo.glb`, fitHeight: 3.2 },
+  // tornado easter-egg — the classic Twister flying cow
+  cow: { url: `${base}/cow.glb`, fitHeight: 2.2 },
 } as const satisfies Record<string, ModelConfig>;
 
 export type ModelKey = keyof typeof MODELS;

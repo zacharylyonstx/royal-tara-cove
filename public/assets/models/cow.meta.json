@@ -1,0 +1,20 @@
+{
+  "slug": "cow",
+  "prompt": "a cute cartoon cow, black and white spots, full body, standing, low poly stylized game asset",
+  "previewId": "019e9480-97de-7191-a0d4-47689d57f60e",
+  "finalId": "019e9481-8e19-71b9-a7d3-e024f5c40315",
+  "polycount": 6000,
+  "lowpoly": false,
+  "pbr": true,
+  "texturePrompt": "",
+  "model_urls": {
+    "glb": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/model.glb?Expires=4934131200&Signature=bjChG9uw0a~Od1APOEoJwMisDJQmOz0MITEPL6Pte3Rqp4RLCPLSYQAHk~9HjUm-XCdPTe5WKxieruIshE7vbCnswhrm-ZL9OaFuFUcLmnDuVFbJaVRD6GsaWPcexqq7KuEF4Uw5OJjWDdmc6yygoNhOmnFlzwa9SFMNfaaBpeaKwW8zMrOF13nPP331oxzzCyIgoeWJZQ41woXDDJ0v6W~79kj42yzoHcxhtHTqJGsyQqBQP9fse3f6lHNqmwV0FGKVdyJAmnSUHP4by8V3AFxnln~jgRzyTbjx2EbKmpy~BiJSAfuQFuspvxcuGHuhUdNeFxAxmFAhMmujgakJwA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "fbx": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/model.fbx?Expires=4934131200&Signature=QEhwkI0m0cdC40swGCpUmQo-3JSyIw20iKzwgbhr5t39Q73QwtIveIgGTZLKZAnFitRhYyvooS1GDgDTzxC-BIoN3Jh3sIEEOuXUTDkGDm6sGHcAxL~LaE8XSPH-q0mTN27scuk3o5P8xSmr0xqp-lFsoLg3BaBQpVDIwrvq5fPHBmqYgM100alNufpNp5vzDyVuQ1jvIXGTMEjMNTX3GIkYinlpYg0VQ~Dbq8c2I6iLWEjITro2uM3YLWTFl38HWNXErI8F-WGfepRYyTHjYgQ1h3jf5oZSW~pywtIX2bKTwpB~T1p5NKWs6zWmk4A3U-GAi0DFRaorK4ug2n7RLg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "usdz": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/model.usdz?Expires=4934131200&Signature=BUa6yu2XAD2rSEzgJj6rh-ZDzKJmFu~ycx-vAtMBS25yrodwa8my1kiyMj8A1Ww5w51AT6tmf5eikf4CVnYxGuDBWkxzvE1p0daglxjqkPRPBsQgtTC3joAnd-WwRS6Zpe45UQUbsFKa5sdJ0y6dNBUkPVwsEs59L9MdrWvgV5SUI2yFGBsfW1aSPFJoYsOrLSwskTxvTUYWOXmPMf1y3pXTPyba5d0QdxYTnIuGlz-f59RPS7f0p1MTuiTPL7JTRR1D0h~VazLqe1z-koU4R6gs7l4ZhtuOiS-nV8PHepWY~TJSgs8QDOUY-I~-rRG8OySsMCdy4R7--GCAsUY~gQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "obj": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/model.obj?Expires=4934131200&Signature=JyhTfbDHRW3IrTj~xhwa6Vt6nEQfpGh7ZkCBx0YQAWMM2DvQE8bI5fwnLMSNaaajb-arrMRLHg-WJsVxphd6Ni4fRVjSzaPehVo3YsH89tenSWfigPPoMH46hOFDHkhQT3KeDErUkrLizzbbJoDvD4F30BKCpVGt5nKne~n6jbj6AnX64JqQp6UFRczoBkHWu4lFi0zyLuw7bce~utqIYZt5obIi2ie4eqseypBEnDSKXRr2hjonyNGv~cqhCzjJM1JcUBLIQIwJ1ivkbqs~jbQRgCvqeIBLWWHA33H19i65~-HvSQwy9rRvfzTInBzVGxlXkr2rJBRT8mB6xI1sMQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "mtl": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/model.mtl?Expires=4934131200&Signature=hXjC49pUX2pmZg6mM~BNj7gCNPx3D-pkuvHLc3QMn03sbFiaOPJJWw0Zo~HRy938XDjCXVp~Z9H8EeGVu1qkCJD42bUcaXhn30gLScrMOm871CwgLB93zVLb1oeabXg4WZtslgXd3-cW-Bl75UG64Dyjc1xaEZfcikEYjd9I~atYlKbsqTOXAio4eECZVORs26j6B6lQpITssoTkVlBaEgR6QUDeX~KJPPnFEesG0ofAtlp3YOyidvQT8NR1pmqCD3P~8-YCP3~iys-WS3I6ASNeZShEVoYEdWHknGnQYDuw3rK7fMQ34EODJ8gk0iIVaMiksR7reUupPdaBgjqVqQ__&Key-Pair-Id=K1VGYTHIYLM9UM",
+    "stl": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/model.stl?Expires=4934131200&Signature=iaRUL9lTaepgFkPFEvc9LVM35HZZkC9tDyBBTlnd7GyDK4a~2exRQm~Q4Zcc4o34Y-pJAqyycUU7HjKp4~oYSs0UE6~W8qf~AMyGY51jKP5aPCWfuHRToaRLTPGAILskWkmj2raZ-du6Fj9nxqfmmSLqlecw1ATeOgvP-Gk23Tje6tdjYkbQgSObEe08gi4Qr7XGSShXiypZ8uc4oruR2cQCwS8WdVY7fiLBnuK67liCpqzApHZwX1DNmbphsJNITD1yu1OvPQCdf~auWFigVSQugbYME24SSb8L~lBLWoq741f~LRF6u3UrT9F7OCfvtc7b1sGTETRJNp2tsinrxQ__&Key-Pair-Id=K1VGYTHIYLM9UM"
+  },
+  "thumbnail_url": "https://assets.meshy.ai/3a862303-7e49-4a23-985c-e70bbdbe5a22/tasks/019e9481-8e19-71b9-a7d3-e024f5c40315/output/preview.png?Expires=4934131200&Signature=Tk92ZZNWt8W2S41oshuOZ1JwSQfo53H9xTQwkwPRjBCfVD6sKcdaOP2GpD7RTWo6rCLOS~q0oTqJ4YKzF~RvZxNdWxEcby4FDPBEyI7aB5xhRCUOPKeggpiF7gf6Z-ycAaL0TjNh2~3Xq2zUK1-Gnt-nxv17hbUQtmLrgFSca2CoPnZnbveUMweblrwPzHcEzEFSijFUDEKf4P61hBUOUtUITdw0JMER6htVoyzzo5K6k7ufmUW6BvC0yTQHvc5JKZzqWcR9t9OJ1KLbFKyx0OoogvHeSdRdNj2mbrFE4j97xKHNkNN8wipAdOqceEFDUTgkoLTXbsEgWRpw2fiAUg__&Key-Pair-Id=K1VGYTHIYLM9UM",
+  "generatedAt": "2026-06-04T21:21:31.916Z"
+}
