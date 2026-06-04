@@ -5,7 +5,7 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 import { CHARACTERS } from '../world/characters';
 import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, OUTFITS, type Slot } from '../world/wardrobe';
 import { CharacterModel } from '../components/CharacterModel';
-import { GLBCharacterModel } from '../components/GLBCharacterModel';
+import { GLBPortrait } from '../components/GLBCharacterModel';
 import { wardrobeBlip } from '../audio';
 import type { CharacterId } from '../types';
 
@@ -23,15 +23,13 @@ function PreviewModel({ id }: { id: CharacterId }) {
   return (
     <group ref={ref} scale={norm} position={[0, 0, 0]}>
       {real ? (
-        <GLBCharacterModel baseUrl={`/assets/models/${id}-base.glb`} height={def.height} rotationY={Math.PI} speedRef={ZERO} riding={false} />
+        <GLBPortrait id={id} height={def.height} rotationY={Math.PI} />
       ) : (
         <CharacterModel def={def} appearance={appearance} />
       )}
     </group>
   );
 }
-
-const ZERO = { current: 0 };
 
 export function WardrobeOverlay() {
   const open = useWardrobeStore((s) => s.open);
