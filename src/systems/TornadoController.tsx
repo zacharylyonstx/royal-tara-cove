@@ -7,6 +7,7 @@ import { useNetStore } from '../state/netStore';
 import type { CharacterId } from '../types';
 import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
+import { rampHouseDamage, resetHouseDamage, DAMAGE_RADIUS } from '../world/tornadoDamage';
 import {
   startRainLoop,
   startWindLoop,
@@ -85,6 +86,14 @@ export function TornadoController() {
     return items;
   }, []);
 
+  // DEV-only: expose house world positions so screenshot verification can place
+  // the funnel on a real house and damage it.
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __housePath?: unknown }).__housePath = housePath;
+    }
+  }, [housePath]);
+
   // Hero house AABB for inside check
   const heroBox = useMemo(() => {
     const hero = HOUSES.find((h) => h.isHero);
@@ -110,9 +119,11 @@ export function TornadoController() {
     startWindLoop();
     startSirenLoop();
     startRoarLoop();
+    resetHouseDamage(); // fresh storm — every house starts intact
     startedHere.current = true;
     return () => {
       resetTornadoAudio();
+      resetHouseDamage();
     };
   }, []);
 
@@ -218,6 +229,15 @@ export function TornadoController() {
                 Math.sin(t * 9.3 * Math.PI + 1.7) * wobbleAmp * 0.3;
       setTornadoZ(z);
       setTornadoX(x);
+
+      // Ramp progressive damage on EVERY house the funnel comes near, so houses
+      // shed pieces (roof/siding/brick fly into the vortex) as it passes — not
+      // just the ones it scores a direct hit on. Damage ratchets up; House.tsx
+      // reads it each frame to drive the shedding + structural deformation.
+      for (const h of housePath) {
+        const dd = Math.hypot(h.x - x, h.z - z);
+        if (dd < DAMAGE_RADIUS) rampHouseDamage(h.address, Math.min(1, 1 - dd / DAMAGE_RADIUS));
+      }
 
       // Trigger destruction on houses near the funnel center (not just Z-pass)
       for (const h of housePath) {

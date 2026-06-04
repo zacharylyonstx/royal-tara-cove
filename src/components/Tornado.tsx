@@ -132,15 +132,58 @@ void main() {
 }
 `;
 
+// ---- Condensation sleeve shader ----
+// A lighter, wispy, TRANSLUCENT shell wrapping the dark dirt core. Real
+// tornadoes show a pale condensation funnel over a darker debris column — this
+// layer adds exactly that, so the funnel reads as a real two-tone vortex
+// instead of one solid cone. Fresnel makes it a soft edge-lit shell; vertical
+// fades blend it into the wall cloud (top) and the dirt base (bottom).
+const SLEEVE_FRAG = `
+precision highp float;
+uniform float time;
+uniform float opacity;
+uniform float flashFlare;
+varying vec2 vUv;
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+float noise(vec2 p){
+  vec2 i=floor(p); vec2 f=fract(p); vec2 u=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x), u.y);
+}
+void main(){
+  vec2 sUv = vec2(vUv.x * 5.0 - time * 0.5, vUv.y * 3.0 - time * 1.15);
+  float n = noise(sUv) * 0.6 + noise(sUv * 2.3) * 0.4;
+  vec3 col = mix(vec3(0.55,0.57,0.62), vec3(0.84,0.86,0.9), vUv.y); // brighter toward cloud base
+  col = mix(col, vec3(0.97), flashFlare * 0.7);                      // lightning
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
+  float a = smoothstep(0.18, 1.0, fres) * (0.22 + n * 0.4);
+  a *= smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.78, vUv.y);  // fade top + bottom
+  gl_FragColor = vec4(col, a * opacity);
+}
+`;
+
 export function Tornado() {
   const rootRef = useRef<THREE.Group>(null);
   // Mesh ref — we read the material off the mesh each frame instead of
   // caching a ref inside useMemo (Strict Mode double-invokes useMemo,
   // creating a 2nd material that the rendered mesh DOESN'T use).
   const coneMeshRef = useRef<THREE.Mesh>(null);
+  const sleeveMeshRef = useRef<THREE.Mesh>(null);
 
   // ---- Solid cone funnel mesh ----
   const coneGeom = useMemo(() => buildConeGeometry(), []);
+  const sleeveMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: CONE_VERT,
+      fragmentShader: SLEEVE_FRAG,
+      uniforms: { time: { value: 0 }, opacity: { value: 1 }, flashFlare: { value: 0 } },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+  }, []);
   const coneMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: CONE_VERT,
@@ -225,6 +268,12 @@ export function Tornado() {
       const flashTarget = t.flashAlpha;
       const cur = coneMat.uniforms.flashFlare.value;
       coneMat.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
+    }
+    const sleeveMat = sleeveMeshRef.current?.material as THREE.ShaderMaterial | undefined;
+    if (sleeveMat) {
+      sleeveMat.uniforms.time.value += dt;
+      sleeveMat.uniforms.opacity.value = t.tornadoOpacity;
+      sleeveMat.uniforms.flashFlare.value = coneMat ? coneMat.uniforms.flashFlare.value : 0;
     }
 
     const now = performance.now() / 1000;
@@ -350,9 +399,15 @@ export function Tornado() {
   return (
     <>
       <group ref={rootRef}>
-        {/* Solid cone funnel mesh — THE TORNADO */}
+        {/* Solid cone funnel mesh — THE TORNADO (dark dirt core) */}
         <mesh ref={coneMeshRef} geometry={coneGeom} renderOrder={2}>
           <primitive object={coneMaterial} attach="material" />
+        </mesh>
+
+        {/* Translucent condensation sleeve — the pale outer funnel wrapping the
+            dark core, slightly wider so it reads as a soft two-tone vortex. */}
+        <mesh ref={sleeveMeshRef} geometry={coneGeom} scale={[1.16, 1.02, 1.16]} renderOrder={3}>
+          <primitive object={sleeveMaterial} attach="material" />
         </mesh>
 
         {/* Debris — instanced per archetype, riding the vortex field */}

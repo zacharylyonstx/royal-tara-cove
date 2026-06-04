@@ -10,6 +10,11 @@ import { WindowUnit, EntryPortico, GableAccent, CoachLight } from './houseDetail
 import { mat } from '../world/materials';
 import { destructionProgress, destructionPhases } from '../world/houseDestruction';
 import { useTornadoStore } from '../state/tornadoStore';
+import { getHouseDamage } from '../world/tornadoDamage';
+
+// How many flying pieces a house can shed (roof shingles + siding planks + brick
+// chunks). One instanced mesh per house; inert (hidden) until the storm damages it.
+const PIECE_COUNT = 96;
 
 const STORY_H = 3.0;
 const GARAGE_W = 5.6;
@@ -67,12 +72,13 @@ export function House({ config, lot }: HouseProps) {
   const sidingMaterial = mat.lapSiding(sidingColor);
   const brickMaterial = mat.brick(brickColor);
 
-  // Destruction animation refs (tornado-mode). The dramatic overhaul:
-  //   • roof LAUNCHES upward + tumbles + scales away
-  //   • body walls tilt then collapse over a 1.4s sequence
-  //   • debris fountain (40 boxes) bursts outward + falls under gravity
-  //   • dust burst sphere expands to ~12m then fades
-  //   • rubble pile materializes at the end
+  // Destruction refs (tornado-mode). Progressive damage overhaul:
+  //   • the funnel RAMPS damage (0..1) on every house it passes near
+  //   • houses shed real roof shingles / siding planks / brick chunks that get
+  //     sucked UP into the funnel, tumble through, then fall + scatter on the lawn
+  //   • a graze leaves the house standing but battered (roof torn, leaning,
+  //     pieces shed); a DIRECT HIT collapses it to a near-total wreck
+  //   • dust burst + low rubble materialize on a direct hit
   const bodyRef = useRef<THREE.Group>(null);
   const roofRef = useRef<THREE.Group>(null);
   const rubbleRef = useRef<THREE.Mesh>(null);
@@ -81,34 +87,72 @@ export function House({ config, lot }: HouseProps) {
   const dustMeshRef = useRef<THREE.Mesh>(null);
   const dustMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
-  // Pre-compute debris launch velocities (stable per house instance)
-  const debrisLaunch = useMemo(() => {
-    const n = 58; // more wreckage for a meatier blow-apart
-    const arr: { vx: number; vy: number; vz: number; spinX: number; spinY: number; spinZ: number; offsetX: number; offsetZ: number; size: number; suck: number }[] = [];
-    for (let i = 0; i < n; i++) {
+  // Static per-piece descriptors (stable per house instance): what kind of
+  // wreckage it is, where it tears off from, its size/colour, the damage level
+  // at which it detaches, and its launch impulse + spin.
+  const pieces = useMemo(() => {
+    const roofY = wallH + roofH * 0.45;
+    const arr = [];
+    for (let i = 0; i < PIECE_COUNT; i++) {
+      const r = i / PIECE_COUNT;
+      let kind: 'shingle' | 'siding' | 'brick';
+      if (r < 0.5) kind = 'shingle';
+      else if (r < 0.82) kind = 'siding';
+      else kind = 'brick';
+      let ox: number, oy: number, oz: number, sx: number, sy: number, sz: number, color: string, threshold: number;
+      if (kind === 'shingle') {
+        // Roof shingles peel FIRST (low thresholds) and fly the most.
+        ox = (Math.random() - 0.5) * config.width;
+        oy = roofY + Math.random() * roofH * 0.4;
+        oz = (Math.random() - 0.5) * config.depth;
+        sx = 0.4 + Math.random() * 0.25; sy = 0.05; sz = 0.34 + Math.random() * 0.2;
+        color = roofColor;
+        threshold = 0.12 + Math.random() * 0.5;
+      } else if (kind === 'siding') {
+        // Siding planks off the walls at mid damage.
+        const onSide = Math.random() < 0.6;
+        ox = onSide ? (Math.random() < 0.5 ? -halfW : halfW) : (Math.random() - 0.5) * config.width;
+        oz = onSide ? (Math.random() - 0.5) * config.depth : (Math.random() < 0.5 ? -halfD : halfD);
+        oy = 0.5 + Math.random() * (wallH - 0.5);
+        sx = 0.8 + Math.random() * 0.5; sy = 0.13; sz = 0.08;
+        color = sidingColor;
+        threshold = 0.4 + Math.random() * 0.45;
+      } else {
+        // Brick chunks off the front — only torn loose by a near-direct hit.
+        ox = (Math.random() - 0.5) * config.width;
+        oy = 0.5 + Math.random() * (wallH - 0.5);
+        oz = -halfD;
+        sx = 0.45 + Math.random() * 0.25; sy = 0.28 + Math.random() * 0.18; sz = 0.32;
+        color = brickColor;
+        threshold = 0.62 + Math.random() * 0.38;
+      }
       const ang = Math.random() * Math.PI * 2;
-      const speed = 4 + Math.random() * 8;
+      const outSpeed = 2 + Math.random() * 4;
       arr.push({
-        vx: Math.cos(ang) * speed,
-        vy: 6 + Math.random() * 10,
-        vz: Math.sin(ang) * speed,
-        spinX: (Math.random() - 0.5) * 10,
-        spinY: (Math.random() - 0.5) * 10,
-        spinZ: (Math.random() - 0.5) * 10,
-        offsetX: (Math.random() - 0.5) * 2,
-        offsetZ: (Math.random() - 0.5) * 2,
-        size: 0.18 + Math.random() * 0.32,
-        // How strongly this piece gets drawn UP into the passing funnel
-        // (0 = flies free and falls, 1 = sucked skyward toward the vortex).
-        suck: 0.25 + Math.random() * 0.75,
+        kind, ox, oy, oz, sx, sy, sz, color, threshold,
+        vx0: Math.cos(ang) * outSpeed,
+        vy0: 2 + Math.random() * 4,
+        vz0: Math.sin(ang) * outSpeed,
+        spinX: (Math.random() - 0.5) * 8,
+        spinY: (Math.random() - 0.5) * 8,
+        spinZ: (Math.random() - 0.5) * 8,
       });
     }
     return arr;
-  }, []);
+  }, [config.width, config.depth, wallH, roofH, halfW, halfD, roofColor, sidingColor, brickColor]);
 
+  // Mutable per-piece runtime state (position / velocity / rotation / flags).
+  const pieceState = useMemo(
+    () => pieces.map((p) => ({
+      x: p.ox, y: p.oy, z: p.oz, vx: 0, vy: 0, vz: 0,
+      rx: 0, ry: 0, rz: 0, detached: false, resting: false,
+    })),
+    [pieces],
+  );
+  const colorsApplied = useRef(false);
   const tmpDebrisObj = useMemo(() => new THREE.Object3D(), []);
 
-  useFrame(() => {
+  useFrame((_, dtRaw) => {
     const body = bodyRef.current;
     const roof = roofRef.current;
     const rubble = rubbleRef.current;
@@ -118,8 +162,14 @@ export function House({ config, lot }: HouseProps) {
     const dustMat = dustMatRef.current;
     if (!body) return;
     const now = performance.now() / 1000;
-    const p = destructionProgress(config.address, now);
-    if (p <= 0) {
+    const dt = Math.min(dtRaw, 0.05);
+    const damage = getHouseDamage(config.address);              // 0..1 progressive
+    const collapseP = destructionProgress(config.address, now); // 0..1 direct-hit timeline
+    const destroyed = collapseP > 0;
+
+    // Fully intact: reset and bail. Also the path for EVERY house in non-tornado
+    // modes (damage is always 0 there), so this adds no cost outside tornado.
+    if (damage <= 0 && !destroyed) {
       body.scale.set(1, 1, 1);
       body.rotation.set(0, 0, 0);
       body.visible = true;
@@ -129,11 +179,15 @@ export function House({ config, lot }: HouseProps) {
       if (dust) dust.visible = false;
       return;
     }
-    const ph = destructionPhases(p);
 
-    // Funnel position in this house's LOCAL space, so flying wreckage can be
-    // drawn toward (and up into) the vortex as it tears past. The house group
-    // is at lot.housePivot rotated by lot.houseYaw.
+    // Tint each piece its material colour once (roof/siding/brick).
+    if (debris && !colorsApplied.current) {
+      for (let i = 0; i < pieces.length; i++) debris.setColorAt(i, new THREE.Color(pieces[i].color));
+      if (debris.instanceColor) debris.instanceColor.needsUpdate = true;
+      colorsApplied.current = true;
+    }
+
+    // Funnel position in this house's LOCAL space (pieces ride toward it).
     const ts = useTornadoStore.getState();
     const relWX = ts.tornadoX - lot.housePivot[0];
     const relWZ = ts.tornadoZ - lot.housePivot[1];
@@ -141,62 +195,103 @@ export function House({ config, lot }: HouseProps) {
     const sy = Math.sin(-lot.houseYaw);
     const funnelLocalX = relWX * cy - relWZ * sy;
     const funnelLocalZ = relWX * sy + relWZ * cy;
+    const funnelActive = ts.tornadoOpacity > 0.2;
 
-    // Roof: launches up + tumbles + shrinks
+    // --- Structural deformation ---
+    const ph = destructionPhases(collapseP);
     if (roof) {
-      const liftP = Math.min(1, p * 1.8); // launches faster than the rest
-      roof.position.set(
-        Math.sin(p * 7) * 1.5,
-        wallH + 0.1 + liftP * 9 - liftP * liftP * 4, // parabola up then down
-        Math.cos(p * 5) * 1.2,
-      );
-      roof.rotation.set(p * 7, p * 4, p * 5);
-      roof.scale.setScalar(Math.max(0.01, 1 - liftP * 0.85));
+      // Shingles tear off → roof shrinks (battered); a direct hit launches it.
+      const roofShrink = destroyed ? Math.min(1, collapseP * 1.8) : Math.min(0.85, damage * 0.95);
+      if (destroyed) {
+        const liftP = Math.min(1, collapseP * 1.8);
+        roof.position.set(Math.sin(collapseP * 7) * 1.5, wallH + 0.1 + liftP * 9 - liftP * liftP * 4, Math.cos(collapseP * 5) * 1.2);
+        roof.rotation.set(collapseP * 7, collapseP * 4, collapseP * 5);
+      } else {
+        roof.position.set(0, wallH + 0.1, 0);
+        roof.rotation.set(damage * 0.12, 0, damage * 0.1);
+      }
+      roof.scale.setScalar(Math.max(0.04, 1 - roofShrink * 0.9));
     }
+    // Body leans with damage; a DIRECT HIT collapses it to a low jagged remnant
+    // (a near-total wreck — never fully flat, so the ruin still reads).
+    const lean = Math.max(damage * 0.22, destroyed ? ph.wallShrink * 0.4 : 0);
+    body.rotation.z = -lean;
+    if (destroyed) {
+      const severity = Math.max(0.4, damage);    // direct hits ≈ 1
+      const remnant = 0.28 - severity * 0.18;    // 0.10..0.21 of original height
+      body.scale.set(1, Math.max(remnant, 1 - ph.wallShrink * (1 - remnant)), 1);
+    } else {
+      body.scale.set(1, 1, 1);                    // grazed → still standing
+    }
+    body.visible = true;
 
-    // Body walls: tilt away from tornado, then collapse
-    body.rotation.z = ph.wallShrink * -0.4; // 23° tilt
-    body.scale.set(1, Math.max(0.02, 1 - ph.wallShrink * 0.95), 1);
-    body.visible = body.scale.y > 0.02;
-
-    // Debris fountain
+    // --- Flying pieces (roof shingles / siding planks / brick chunks) ---
     if (debris) {
       debris.visible = true;
-      const dragP = Math.min(1, p * 1.3);
-      const pull = p * p; // suction ramps in as the house comes apart
-      for (let i = 0; i < debrisLaunch.length; i++) {
-        const d = debrisLaunch[i];
-        const t = p * 1.4; // seconds-ish since destruction
-        const bx = d.offsetX + d.vx * t;
-        const bz = d.offsetZ + d.vz * t;
-        const by = Math.max(0.2, d.vy * t - 12 * t * t); // gravity
-        // Draw the piece toward the funnel axis and lift it skyward — the
-        // wreckage gets eaten by the passing tornado instead of just falling.
-        const s = pull * d.suck;
-        const x = bx + (funnelLocalX - bx) * s * 0.6;
-        const z = bz + (funnelLocalZ - bz) * s * 0.6;
-        const y = by + s * 22; // streamed up into the vortex
-        tmpDebrisObj.position.set(x, y, z);
-        tmpDebrisObj.rotation.set(d.spinX * t, d.spinY * t, d.spinZ * t);
-        tmpDebrisObj.scale.setScalar(d.size * (1 - dragP * 0.3));
+      for (let i = 0; i < pieces.length; i++) {
+        const p = pieces[i];
+        const s = pieceState[i];
+        if (!s.detached) {
+          if (damage >= p.threshold || destroyed) {
+            s.detached = true;
+            s.x = p.ox; s.y = p.oy; s.z = p.oz;
+            s.vx = p.vx0; s.vy = p.vy0; s.vz = p.vz0;
+          } else {
+            // Still attached → hidden (the house mesh shows it in place).
+            tmpDebrisObj.position.set(0, -1000, 0);
+            tmpDebrisObj.scale.setScalar(0);
+            tmpDebrisObj.rotation.set(0, 0, 0);
+            tmpDebrisObj.updateMatrix();
+            debris.setMatrixAt(i, tmpDebrisObj.matrix);
+            continue;
+          }
+        }
+        if (!s.resting) {
+          const dx = funnelLocalX - s.x;
+          const dz = funnelLocalZ - s.z;
+          const d = Math.hypot(dx, dz) || 0.001;
+          const captured = funnelActive && d < 16 && s.y < 34;
+          if (captured) {
+            const k = 1 - d / 16;
+            s.vx += (dx / d) * 26 * k * dt - (dz / d) * 16 * k * dt; // suck inward + swirl
+            s.vz += (dz / d) * 26 * k * dt + (dx / d) * 16 * k * dt;
+            s.vy += 18 * dt;                                          // strong updraft
+            if (s.vy > 18) s.vy = 18;
+          } else {
+            s.vy -= 18 * dt;                                          // gravity once clear
+            s.vx *= 0.99; s.vz *= 0.99;
+          }
+          s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
+          s.rx += p.spinX * dt; s.ry += p.spinY * dt; s.rz += p.spinZ * dt;
+          const restY = 0.06 + p.sy * 0.5;
+          if (s.y <= restY && s.vy < 0 && !captured) {
+            s.y = restY; s.vx = s.vy = s.vz = 0; s.resting = true;
+            s.rx = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;       // lie roughly flat
+          }
+        }
+        tmpDebrisObj.position.set(s.x, s.y, s.z);
+        tmpDebrisObj.rotation.set(s.rx, s.ry, s.rz);
+        tmpDebrisObj.scale.set(p.sx, p.sy, p.sz);
         tmpDebrisObj.updateMatrix();
         debris.setMatrixAt(i, tmpDebrisObj.matrix);
       }
       debris.instanceMatrix.needsUpdate = true;
     }
 
-    // Dust burst sphere
+    // Dust burst + low rubble only on a direct hit.
     if (dust && dustMat) {
-      dust.visible = true;
-      const dustP = Math.min(1, p * 1.2);
-      const radius = 1 + dustP * 16; // bigger blast cloud
-      dust.scale.setScalar(radius);
-      dustMat.opacity = 0.5 * (1 - dustP);
+      if (destroyed) {
+        dust.visible = true;
+        const dustP = Math.min(1, collapseP * 1.2);
+        dust.scale.setScalar(1 + dustP * 16);
+        dustMat.opacity = 0.5 * (1 - dustP);
+      } else {
+        dust.visible = false;
+      }
     }
-
     if (rubble) {
-      rubble.visible = ph.rubble > 0;
-      if (rubMat) rubMat.opacity = ph.rubble;
+      rubble.visible = destroyed && ph.rubble > 0;
+      if (rubMat) rubMat.opacity = ph.rubble * 0.9;
     }
   });
 
@@ -220,15 +315,17 @@ export function House({ config, lot }: HouseProps) {
         />
       </mesh>
 
-      {/* Debris fountain (40 instanced boxes launched on destruction) */}
+      {/* Flying wreckage — roof shingles / siding planks / brick chunks, each
+          tinted per-instance to its real material colour. Inert until the storm
+          tears the house apart. */}
       <instancedMesh
         ref={debrisMeshRef}
-        args={[undefined, undefined, debrisLaunch.length]}
+        args={[undefined, undefined, PIECE_COUNT]}
         visible={false}
         castShadow
       >
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#7a5a32" roughness={0.85} />
+        <meshStandardMaterial color="#ffffff" roughness={0.9} />
       </instancedMesh>
 
       {/* Dust burst sphere */}
