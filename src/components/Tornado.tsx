@@ -3,28 +3,23 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useTornadoStore } from '../state/tornadoStore';
 import { buildDebrisArchetypes, type DebrisArchetype } from './weather/tornado/debrisShapes';
-import { VortexParticles } from './weather/tornado/VortexParticles';
+import { VolumetricFunnel } from './weather/tornado/VolumetricFunnel';
 import { DebrisDome } from './weather/tornado/DebrisDome';
 import {
   FUNNEL_HEIGHT,
   funnelRadiusAt,
   vortexVelocity,
-  buildConeGeometry,
 } from './weather/tornado/vortex';
 
-// v19 — particle-driven vortex tornado.
+// v20 — TRUE VOLUMETRIC tornado (research-grounded raymarch).
 //
-// The funnel is built from three layers of FX:
-//   1. Skeleton mesh — a single thin funnel-shaped mesh giving silhouette
-//   2. Vortex particles — 600 dark vapor sprites swirling in a real vortex
-//      velocity field. THE FUNNEL'S APPARENT FORM emerges from here.
-//   3. Debris particles — recognizable shapes (planks, shingles, branches,
-//      sheet metal, lumber) riding the same vortex field
-//   4. Debris dome (separate component) — wide low dust cloud at base
-//   5. Yeet jets — occasional debris pieces flung tangentially out the top
-//
-// This is a complete architectural rewrite from v17/v18 which used 3 stacked
-// TubeGeometry shaders (looked like textured cylinders, not a tornado).
+// The funnel is built from:
+//   1. VolumetricFunnel — a raymarched 3D-noise density volume (the hero; see
+//      that file). This replaced the old particle/cone fakes.
+//   2. Debris particles — recognizable shapes (planks, shingles, branches,
+//      sheet metal, lumber) riding the vortex velocity field
+//   3. Debris dome (separate component) — wide low dust cloud at base
+//   4. Yeet jets — occasional debris pieces flung tangentially out the top
 
 const DEBRIS_COUNT = 80;
 const YEET_POOL_PER_ARCHETYPE = 10;
@@ -47,180 +42,10 @@ interface YeetItem {
   alive: boolean;
 }
 
-// ---- Cone funnel shader ----
-// SOLID dark cone — opaque so the silhouette READS clearly from any
-// angle. depthWrite=true so it occludes properly. Subtle scrolling noise
-// suggests swirling vapor texture on the surface, but the SHAPE is
-// driven by the LatheGeometry, not the shader.
-const CONE_VERT = `
-uniform float time;
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vNormal;
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
-float vnoise(vec2 p){
-  vec2 i=floor(p); vec2 f=fract(p); vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x), u.y);
-}
-void main() {
-  vUv = uv;
-  vec3 p = position;
-  float h = uv.y;                       // 0 at the rope base, 1 at the bell
-  float ang = atan(p.z, p.x);
-  // Ragged, churning surface — radial noise that scrolls UP and spins, heavier
-  // toward the top. This breaks the stiff perfect-cone silhouette so the funnel
-  // reads as a living, turbulent column.
-  float n = vnoise(vec2(ang * 2.6 + time * 1.6, h * 5.0 - time * 2.2))
-          + 0.5 * vnoise(vec2(ang * 5.3 - time * 1.2, h * 9.0 - time * 3.1));
-  float disp = (n - 0.75) * (0.7 + h * 2.1);
-  vec2 rad = normalize(p.xz + vec2(1e-4));
-  p.xz += rad * disp;
-  // Sinuous sway so the whole funnel leans + writhes instead of standing stiff.
-  p.x += sin(h * 1.6 + time * 0.9) * h * 1.0 + sin(time * 0.5) * h * 0.7;
-  p.z += cos(h * 1.3 + time * 0.7) * h * 0.8;
-  vec4 wp = modelMatrix * vec4(p, 1.0);
-  vWorldPos = wp.xyz;
-  vNormal = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}
-`;
 
-// Volumetric cloud funnel — the surface is shaded like churning condensation
-// (domain-warped simplex fbm, same family as the wall cloud) with a soft, ragged
-// silhouette so the edge dissolves into wisps instead of a hard cone line.
-const CONE_FRAG = `
-precision highp float;
-uniform float time;
-uniform float opacity;
-uniform float flashFlare;
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vNormal;
-
-vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
-vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
-vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
-vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
-float snoise(vec3 v){
-  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
-  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
-  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
-  vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
-  i=mod289(i);
-  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
-  float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
-  vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
-  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
-  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
-  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
-  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
-  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
-  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
-  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
-  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
-  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
-}
-float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<3;i++){v+=a*snoise(p); p*=2.0; a*=0.5;} return v; }
-
-void main() {
-  // Churning density: wrap uv.x to a cylinder angle so the noise tiles around the
-  // funnel; rise it with -time and spin it; domain-warp for turbulent wisps.
-  float ang = vUv.x * 6.2831;
-  vec3 q = vec3(cos(ang) * 1.7, vUv.y * 3.2 - time * 1.1, sin(ang) * 1.7);
-  float warp = fbm(q * 0.8 + vec3(0.0, time * 0.3, 0.0));
-  float dens = fbm(q + vec3(warp * 0.8)) * 0.5 + 0.5; // 0..1
-
-  // Vertical colour bands shaded by density for volumetric light/shadow depth.
-  vec3 cBase = vec3(0.30, 0.24, 0.18);  // churned dirt at the base
-  vec3 cMid  = vec3(0.14, 0.13, 0.13);  // dark debris core
-  vec3 cTop  = vec3(0.46, 0.46, 0.51);  // condensation toward the cloud (moodier)
-  vec3 color = mix(cBase, cMid, smoothstep(0.0, 0.35, vUv.y));
-  color = mix(color, cTop, smoothstep(0.55, 1.0, vUv.y));
-  color *= (0.42 + dens * 0.72);        // deeper troughs = more contrast/menace
-
-  // Fresnel condensation rim — a bright wispy edge that reads the silhouette.
-  vec3 viewDir = normalize(cameraPosition - vWorldPos);
-  float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  color = mix(color, vec3(0.62, 0.63, 0.68), smoothstep(0.4, 1.0, fres) * 0.45 * dens);
-  color = mix(color, vec3(0.97), flashFlare * 0.6); // lightning
-
-  // Soft ragged silhouette: at grazing angles (the visual edge) let thin-density
-  // patches go transparent so the outline dissolves into cloud wisps; the core
-  // stays solid. Dissolve the very top into the wall cloud.
-  float edge = smoothstep(0.3, 1.0, fres);
-  float alpha = opacity * mix(1.0, smoothstep(0.12, 0.7, dens), edge);
-  alpha *= smoothstep(1.0, 0.88, vUv.y);
-  if (alpha < 0.01) discard;
-  gl_FragColor = vec4(color, alpha);
-}
-`;
-
-// ---- Condensation sleeve shader ----
-// A lighter, wispy, TRANSLUCENT shell wrapping the dark dirt core. Real
-// tornadoes show a pale condensation funnel over a darker debris column — this
-// layer adds exactly that, so the funnel reads as a real two-tone vortex
-// instead of one solid cone. Fresnel makes it a soft edge-lit shell; vertical
-// fades blend it into the wall cloud (top) and the dirt base (bottom).
-const SLEEVE_FRAG = `
-precision highp float;
-uniform float time;
-uniform float opacity;
-uniform float flashFlare;
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vNormal;
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
-float noise(vec2 p){
-  vec2 i=floor(p); vec2 f=fract(p); vec2 u=f*f*(3.0-2.0*f);
-  return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x), mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x), u.y);
-}
-void main(){
-  vec2 sUv = vec2(vUv.x * 5.0 - time * 0.5, vUv.y * 3.0 - time * 1.15);
-  float n = noise(sUv) * 0.6 + noise(sUv * 2.3) * 0.4;
-  vec3 col = mix(vec3(0.32,0.32,0.34), vec3(0.58,0.58,0.6), vUv.y);  // dirty grey, not white
-  col = mix(col, vec3(0.95), flashFlare * 0.7);                      // lightning
-  vec3 viewDir = normalize(cameraPosition - vWorldPos);
-  float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float a = smoothstep(0.2, 1.0, fres) * (0.10 + n * 0.22);
-  a *= smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.78, vUv.y);  // fade top + bottom
-  gl_FragColor = vec4(col, a * opacity);
-}
-`;
 
 export function Tornado() {
   const rootRef = useRef<THREE.Group>(null);
-  // Mesh ref — we read the material off the mesh each frame instead of
-  // caching a ref inside useMemo (Strict Mode double-invokes useMemo,
-  // creating a 2nd material that the rendered mesh DOESN'T use).
-  const coneMeshRef = useRef<THREE.Mesh>(null);
-  const sleeveMeshRef = useRef<THREE.Mesh>(null);
-
-  // ---- Solid cone funnel mesh ----
-  const coneGeom = useMemo(() => buildConeGeometry(), []);
-  const sleeveMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: CONE_VERT,
-      fragmentShader: SLEEVE_FRAG,
-      uniforms: { time: { value: 0 }, opacity: { value: 1 }, flashFlare: { value: 0 } },
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-  }, []);
-  const coneMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: CONE_VERT,
-      fragmentShader: CONE_FRAG,
-      uniforms: {
-        time: { value: 0 },
-        opacity: { value: 1 },        // visible by default; useFrame overrides per-frame
-        flashFlare: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,            // soft volumetric cloud — no hard depth edge
-      side: THREE.FrontSide,
-    });
-  }, []);
 
   // ---- Debris archetypes (planks / shingles / sheet metal / branches / lumber) ----
   const debrisArchetypes = useMemo<DebrisArchetype[]>(() => buildDebrisArchetypes(), []);
@@ -281,23 +106,6 @@ export function Tornado() {
     }
     root.visible = true;
     root.position.set(t.tornadoX, 0, t.tornadoZ);
-
-    // Cone material update — read material off the mesh ref to dodge the
-    // Strict Mode "two memos, one in scene" bug.
-    const coneMat = coneMeshRef.current?.material as THREE.ShaderMaterial | undefined;
-    if (coneMat) {
-      coneMat.uniforms.time.value += dt;
-      coneMat.uniforms.opacity.value = t.tornadoOpacity;
-      const flashTarget = t.flashAlpha;
-      const cur = coneMat.uniforms.flashFlare.value;
-      coneMat.uniforms.flashFlare.value = flashTarget > cur ? flashTarget : Math.max(0, cur - dt * 6);
-    }
-    const sleeveMat = sleeveMeshRef.current?.material as THREE.ShaderMaterial | undefined;
-    if (sleeveMat) {
-      sleeveMat.uniforms.time.value += dt;
-      sleeveMat.uniforms.opacity.value = t.tornadoOpacity;
-      sleeveMat.uniforms.flashFlare.value = coneMat ? coneMat.uniforms.flashFlare.value : 0;
-    }
 
     const now = performance.now() / 1000;
 
@@ -422,17 +230,6 @@ export function Tornado() {
   return (
     <>
       <group ref={rootRef}>
-        {/* Solid cone funnel mesh — THE TORNADO (dark dirt core) */}
-        <mesh ref={coneMeshRef} geometry={coneGeom} renderOrder={2}>
-          <primitive object={coneMaterial} attach="material" />
-        </mesh>
-
-        {/* Translucent condensation sleeve — the pale outer funnel wrapping the
-            dark core, slightly wider so it reads as a soft two-tone vortex. */}
-        <mesh ref={sleeveMeshRef} geometry={coneGeom} scale={[1.08, 1.02, 1.08]} renderOrder={3}>
-          <primitive object={sleeveMaterial} attach="material" />
-        </mesh>
-
         {/* Debris — instanced per archetype, riding the vortex field */}
         {debrisGroups.map((g, i) => (
           <instancedMesh
@@ -456,8 +253,8 @@ export function Tornado() {
         ))}
       </group>
 
-      {/* Vortex vapor cloud — the THING that makes it look like a tornado */}
-      <VortexParticles />
+      {/* THE TORNADO — a true raymarched volumetric funnel cloud */}
+      <VolumetricFunnel />
 
       {/* Wide low debris cloud at base */}
       <DebrisDome />
