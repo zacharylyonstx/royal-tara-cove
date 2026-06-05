@@ -24,6 +24,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   const riding = usePlayStore((s) => s.riding[def.id]);
   const appearance = useWardrobeStore((s) => s.appearances[def.id]) ?? defaultAppearance(def.id);
   const real = useWardrobeStore((s) => s.realMode[def.id]);
+  const realLook = useWardrobeStore((s) => s.realLooks[def.id]);
   const lastPos = useRef({ x: positionRef.x, z: positionRef.z });
   const phase = useRef(0);
   const speedRef = useRef(0);
@@ -89,6 +90,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
           rotationY={0}
           speedRef={speedRef}
           riding={!!riding}
+          cosmetics={realLook}
         />
       ) : (
         <CharacterModel def={def} appearance={appearance} rig={{ leftLeg, rightLeg, leftArm, rightArm, torso }} />

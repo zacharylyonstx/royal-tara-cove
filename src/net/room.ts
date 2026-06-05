@@ -13,6 +13,7 @@ import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../s
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
+import { type RealLook, REAL_SLOTS, getRealItem, defaultRealLook } from '../world/realLooks';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -59,6 +60,7 @@ export interface WardrobeMsg {
   characterId: CharacterId;
   appearance: Appearance;
   realMode?: boolean;
+  realLook?: RealLook;
 }
 
 export interface MunchiesNetSnapshot {
@@ -239,7 +241,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     const id = rawData.characterId;
     if (id !== 'dad' && id !== 'penny' && id !== 'luke') return;
     const real = typeof rawData.realMode === 'boolean' ? rawData.realMode : undefined;
-    useWardrobeStore.getState().setRemoteAppearance(id, safeAppearance(id, rawData.appearance), real);
+    useWardrobeStore.getState().setRemoteAppearance(id, safeAppearance(id, rawData.appearance), real, safeRealLook(rawData.realLook));
   }));
 
   r.onPeerJoin((peerId) => {
@@ -255,7 +257,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     const myId = useNetStore.getState().myCharacterId;
     if (sendWardrobe && myId) {
       const ws = useWardrobeStore.getState();
-      sendWardrobe({ characterId: myId, appearance: ws.appearances[myId], realMode: ws.realMode[myId] }, peerId).catch(() => {});
+      sendWardrobe({ characterId: myId, appearance: ws.appearances[myId], realMode: ws.realMode[myId], realLook: ws.realLooks[myId] }, peerId).catch(() => {});
     }
   });
 
@@ -336,6 +338,19 @@ function safeAppearance(id: CharacterId, raw: unknown): Appearance {
     const c = raw[slot];
     if (isObj(c) && typeof c.item === 'string') {
       const it = getItem(slot, c.item);
+      base[slot] = { item: it.id, color: typeof c.color === 'string' ? c.color : (it.colors[0] ?? '') };
+    }
+  }
+  return base;
+}
+
+function safeRealLook(raw: unknown): RealLook | undefined {
+  if (!isObj(raw)) return undefined;
+  const base = defaultRealLook();
+  for (const slot of REAL_SLOTS) {
+    const c = raw[slot];
+    if (isObj(c) && typeof c.item === 'string') {
+      const it = getRealItem(slot, c.item);
       base[slot] = { item: it.id, color: typeof c.color === 'string' ? c.color : (it.colors[0] ?? '') };
     }
   }

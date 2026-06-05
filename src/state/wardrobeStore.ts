@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { CharacterId } from '../types';
 import { type Appearance, type Slot, getItem, defaultAppearance } from '../world/wardrobe';
-import { loadWardrobe, saveWardrobe } from '../world/wardrobeStorage';
+import { type RealLook, type RealSlot, getRealItem, defaultRealLook } from '../world/realLooks';
+import { loadWardrobe, loadRealLooks, saveWardrobe } from '../world/wardrobeStorage';
 
 export interface DresserReg {
   owner: CharacterId;
@@ -13,6 +14,8 @@ export interface DresserReg {
 interface WardrobeStore {
   /** Appearance for every character (local saved looks + remote-synced looks). */
   appearances: Record<CharacterId, Appearance>;
+  /** Trendy cosmetics layered on the photo-real "Real Me" avatar. */
+  realLooks: Record<CharacterId, RealLook>;
   /** true = show the real photo-real "you" GLB model; false = the dress-up avatar. */
   realMode: Record<CharacterId, boolean>;
   /** Bumped on a LOCAL change to a character (net layer watches this to sync). */
@@ -33,21 +36,28 @@ interface WardrobeStore {
   /** Apply a one-tap preset look (merges over current; keeps omitted slots like hair). */
   applyOutfit: (id: CharacterId, look: Partial<Appearance>) => void;
   resetLook: (id: CharacterId) => void;
+  /** Real-Me cosmetics (hair/headwear/eyewear/back on the photo-real avatar). */
+  equipReal: (id: CharacterId, slot: RealSlot, itemId: string) => void;
+  setRealColor: (id: CharacterId, slot: RealSlot, color: string) => void;
+  applyRealLook: (id: CharacterId, look: RealLook) => void;
+  resetRealLook: (id: CharacterId) => void;
   /** Toggle the real "you" GLB vs the dress-up avatar (bumps rev → syncs). */
   setRealMode: (id: CharacterId, real: boolean) => void;
   registerDresser: (reg: DresserReg) => void;
-  /** Apply a peer's appearance + mode (no persist, no rev bump → no echo). */
-  setRemoteAppearance: (id: CharacterId, appearance: Appearance, real?: boolean) => void;
+  /** Apply a peer's appearance + mode + cosmetics (no persist, no rev bump → no echo). */
+  setRemoteAppearance: (id: CharacterId, appearance: Appearance, real?: boolean, realLook?: RealLook) => void;
 }
 
 const initial = loadWardrobe();
+const initialReal = loadRealLooks();
 
-function persist(appearances: Record<CharacterId, Appearance>) {
-  saveWardrobe(appearances);
+function persist(appearances: Record<CharacterId, Appearance>, realLooks: Record<CharacterId, RealLook>) {
+  saveWardrobe(appearances, realLooks);
 }
 
 export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   appearances: initial,
+  realLooks: initialReal,
   realMode: { dad: true, penny: true, luke: true },
   rev: { dad: 0, penny: 0, luke: 0 },
   open: false,
@@ -68,14 +78,14 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
     // Keep the current color if the new item supports it, else use its default.
     const color = item.colors.includes(prevColor) ? prevColor : (item.colors[0] ?? '');
     const next = { ...cur, [id]: { ...cur[id], [slot]: { item: item.id, color } } };
-    persist(next);
+    persist(next, get().realLooks);
     set((s) => ({ appearances: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
   },
 
   setColor: (id, slot, color) => {
     const cur = get().appearances;
     const next = { ...cur, [id]: { ...cur[id], [slot]: { ...cur[id][slot], color } } };
-    persist(next);
+    persist(next, get().realLooks);
     set((s) => ({ appearances: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
   },
 
@@ -90,15 +100,46 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
       merged[slot] = { item: item.id, color };
     });
     const next = { ...cur, [id]: merged };
-    persist(next);
+    persist(next, get().realLooks);
     set((s) => ({ appearances: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
   },
 
   resetLook: (id) => {
     const cur = get().appearances;
     const next = { ...cur, [id]: defaultAppearance(id) };
-    persist(next);
+    persist(next, get().realLooks);
     set((s) => ({ appearances: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
+  },
+
+  equipReal: (id, slot, itemId) => {
+    const cur = get().realLooks;
+    const item = getRealItem(slot, itemId);
+    const prevColor = cur[id][slot].color;
+    const color = item.colors.includes(prevColor) ? prevColor : (item.colors[0] ?? '');
+    const next = { ...cur, [id]: { ...cur[id], [slot]: { item: item.id, color } } };
+    persist(get().appearances, next);
+    set((s) => ({ realLooks: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
+  },
+
+  setRealColor: (id, slot, color) => {
+    const cur = get().realLooks;
+    const next = { ...cur, [id]: { ...cur[id], [slot]: { ...cur[id][slot], color } } };
+    persist(get().appearances, next);
+    set((s) => ({ realLooks: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
+  },
+
+  applyRealLook: (id, look) => {
+    const cur = get().realLooks;
+    const next = { ...cur, [id]: { ...cur[id], ...look } };
+    persist(get().appearances, next);
+    set((s) => ({ realLooks: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
+  },
+
+  resetRealLook: (id) => {
+    const cur = get().realLooks;
+    const next = { ...cur, [id]: defaultRealLook() };
+    persist(get().appearances, next);
+    set((s) => ({ realLooks: next, rev: { ...s.rev, [id]: s.rev[id] + 1 } }));
   },
 
   setRealMode: (id, real) =>
@@ -109,10 +150,11 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
       ? { dressers: s.dressers.map((d) => (d.owner === reg.owner ? reg : d)) }
       : { dressers: [...s.dressers, reg] }),
 
-  setRemoteAppearance: (id, appearance, real) =>
+  setRemoteAppearance: (id, appearance, real, realLook) =>
     set((s) => ({
       appearances: { ...s.appearances, [id]: appearance },
       realMode: real === undefined ? s.realMode : { ...s.realMode, [id]: real },
+      realLooks: realLook === undefined ? s.realLooks : { ...s.realLooks, [id]: realLook },
     })),
 }));
 
