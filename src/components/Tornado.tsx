@@ -85,6 +85,9 @@ void main() {
 }
 `;
 
+// Volumetric cloud funnel — the surface is shaded like churning condensation
+// (domain-warped simplex fbm, same family as the wall cloud) with a soft, ragged
+// silhouette so the edge dissolves into wisps instead of a hard cone line.
 const CONE_FRAG = `
 precision highp float;
 uniform float time;
@@ -94,60 +97,60 @@ varying vec2 vUv;
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
+vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
+vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0); const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy)); vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz); vec3 l=1.0-g; vec3 i1=min(g.xyz,l.zxy); vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+C.xxx; vec3 x2=x0-i2+C.yyy; vec3 x3=x0-D.yyy;
+  i=mod289(i);
+  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=0.142857142857; vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z); vec4 x_=floor(j*ns.z); vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy; vec4 y=y_*ns.x+ns.yyyy; vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy); vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0; vec4 s1=floor(b1)*2.0+1.0; vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy; vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x); vec3 p1=vec3(a0.zw,h.y); vec3 p2=vec3(a1.xy,h.z); vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0); m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
 }
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
-    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
-    u.y
-  );
-}
+float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<3;i++){v+=a*snoise(p); p*=2.0; a*=0.5;} return v; }
 
 void main() {
-  // Scroll: rotation (uv.x) + updraft (uv.y) — texture suggesting vapor swirl
-  vec2 sUv = vec2(vUv.x * 6.0 + time * 0.7, vUv.y * 4.0 - time * 1.3);
-  float n = noise(sUv) * 0.55 + noise(sUv * 2.4) * 0.3 + noise(sUv * 5.7) * 0.15;
+  // Churning density: wrap uv.x to a cylinder angle so the noise tiles around the
+  // funnel; rise it with -time and spin it; domain-warp for turbulent wisps.
+  float ang = vUv.x * 6.2831;
+  vec3 q = vec3(cos(ang) * 1.7, vUv.y * 3.2 - time * 1.1, sin(ang) * 1.7);
+  float warp = fbm(q * 0.8 + vec3(0.0, time * 0.3, 0.0));
+  float dens = fbm(q + vec3(warp * 0.8)) * 0.5 + 0.5; // 0..1
 
-  // Color palette — darker, more menacing F5 wedge. Dirt-warm at the base
-  // where it's chewing up the ground, crushing to near-charcoal at the bell.
-  // Kept just light enough that the rim light still reads the silhouette.
-  vec3 baseCol = vec3(0.42, 0.34, 0.26);   // churned-dirt warm grey at bottom
-  vec3 midCol  = vec3(0.26, 0.23, 0.22);   // dark warm-grey
-  vec3 topCol  = vec3(0.12, 0.11, 0.12);   // near-charcoal at the bell
+  // Vertical colour bands shaded by density for volumetric light/shadow depth.
+  vec3 cBase = vec3(0.30, 0.24, 0.18);  // churned dirt at the base
+  vec3 cMid  = vec3(0.14, 0.13, 0.13);  // dark debris core
+  vec3 cTop  = vec3(0.46, 0.46, 0.51);  // condensation toward the cloud (moodier)
+  vec3 color = mix(cBase, cMid, smoothstep(0.0, 0.35, vUv.y));
+  color = mix(color, cTop, smoothstep(0.55, 1.0, vUv.y));
+  color *= (0.42 + dens * 0.72);        // deeper troughs = more contrast/menace
 
-  vec3 color;
-  if (vUv.y < 0.35) {
-    color = mix(baseCol, midCol, vUv.y / 0.35);
-  } else {
-    color = mix(midCol, topCol, (vUv.y - 0.35) / 0.65);
-  }
-
-  // Surface noise modulation — modest so SHAPE dominates
-  color *= (0.8 + n * 0.4);
-
-  // STRONG rim light — fresnel-based brightening at silhouette edges so
-  // the cone is unambiguously visible against any sky. This is the key
-  // trick: the SHAPE is defined by the bright outline against the dark
-  // sky behind.
+  // Fresnel condensation rim — a bright wispy edge that reads the silhouette.
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float rim = smoothstep(0.45, 1.0, fres);
-  // Dimmer, cooler rim so the wedge reads as a DARK menacing column against
-  // the storm sky instead of a bright white cone.
-  color = mix(color, vec3(0.52, 0.49, 0.46), rim * 0.42);
+  color = mix(color, vec3(0.62, 0.63, 0.68), smoothstep(0.4, 1.0, fres) * 0.45 * dens);
+  color = mix(color, vec3(0.97), flashFlare * 0.6); // lightning
 
-  // Lightning flash
-  color = mix(color, vec3(0.95), flashFlare * 0.6);
-
-  // Cone is essentially OPAQUE. Tiny softening only at the very tip so it
-  // bleeds into the wall cloud — everything else solid.
-  float topSoft = smoothstep(1.0, 0.94, vUv.y);
-  float alpha = opacity * topSoft;
+  // Soft ragged silhouette: at grazing angles (the visual edge) let thin-density
+  // patches go transparent so the outline dissolves into cloud wisps; the core
+  // stays solid. Dissolve the very top into the wall cloud.
+  float edge = smoothstep(0.3, 1.0, fres);
+  float alpha = opacity * mix(1.0, smoothstep(0.12, 0.7, dens), edge);
+  alpha *= smoothstep(1.0, 0.88, vUv.y);
+  if (alpha < 0.01) discard;
   gl_FragColor = vec4(color, alpha);
 }
 `;
@@ -178,7 +181,7 @@ void main(){
   col = mix(col, vec3(0.95), flashFlare * 0.7);                      // lightning
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   float fres = 1.0 - max(0.0, dot(vNormal, viewDir));
-  float a = smoothstep(0.2, 1.0, fres) * (0.16 + n * 0.34);
+  float a = smoothstep(0.2, 1.0, fres) * (0.10 + n * 0.22);
   a *= smoothstep(0.0, 0.14, vUv.y) * smoothstep(1.0, 0.78, vUv.y);  // fade top + bottom
   gl_FragColor = vec4(col, a * opacity);
 }
@@ -214,7 +217,7 @@ export function Tornado() {
         flashFlare: { value: 0 },
       },
       transparent: true,
-      depthWrite: true,             // CONE OCCLUDES — crucial for it to read solid
+      depthWrite: false,            // soft volumetric cloud — no hard depth edge
       side: THREE.FrontSide,
     });
   }, []);

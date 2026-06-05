@@ -7,17 +7,17 @@ import {
   FUNNEL_HEIGHT,
   funnelRadiusAt,
   vortexVelocity,
-  makeRadialGradientTexture,
+  makeCloudPuffTexture,
 } from './vortex';
 
-// Dark vapor particles that swirl around the funnel axis under a vortex
-// velocity field. The funnel SHAPE emerges from where the particles
-// cluster — that's the whole trick. They render as normal-blended dark
-// billboards so they OCCLUDE light to form mass (not additive glow).
+// Churning vapor cloud around the funnel axis, driven by the vortex velocity
+// field. Thousands of soft cloud-puff billboards stack into a thick volumetric
+// mass — the funnel reads as real swirling vapor, not a fuzzy cone. Particles
+// are tinted dark dirt at the base → lighter condensation up high, and each
+// sprite slowly spins so the whole column visibly churns.
 
-// Denser on desktop for a thicker, more solid wedge; trimmed on touch to
-// protect the iPad framerate.
-const PARTICLE_COUNT = isTouchDevice() ? 560 : 920;
+// Dense on desktop for a thick volumetric cloud; trimmed on touch for framerate.
+const PARTICLE_COUNT = isTouchDevice() ? 760 : 1500;
 
 interface VaporParticle {
   // Position relative to tornado axis
@@ -27,6 +27,8 @@ interface VaporParticle {
   // Per-particle constants
   baseAlpha: number;
   baseSize: number;
+  rot: number;       // current billboard spin angle
+  spin: number;      // spin rate (rad/s)
   age: number;
   lifetime: number;
 }
@@ -34,14 +36,20 @@ interface VaporParticle {
 const VERT = `
 attribute float instanceAlpha;
 attribute float instanceScale;
+attribute float instanceRot;
+attribute float instanceHeight;
 varying vec2 vUv;
 varying float vAlpha;
+varying float vH;
 void main() {
   vUv = uv;
   vAlpha = instanceAlpha;
+  vH = instanceHeight;
   vec4 instancePos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
   vec4 mvPos = modelViewMatrix * instancePos;
-  mvPos.xy += position.xy * instanceScale;
+  float c = cos(instanceRot), s = sin(instanceRot);
+  vec2 p = vec2(position.x * c - position.y * s, position.x * s + position.y * c);
+  mvPos.xy += p * instanceScale;
   gl_Position = projectionMatrix * mvPos;
 }
 `;
@@ -55,10 +63,12 @@ uniform float globalOpacity;
 uniform float flashFlare;
 varying vec2 vUv;
 varying float vAlpha;
+varying float vH;
 void main() {
   vec4 t = texture2D(gradientTex, vUv);
-  // Lightning flash washes the vapor briefly
-  vec3 color = mix(tintLow, vec3(0.95), flashFlare * 0.6);
+  // Dark churned dirt low on the column → pale condensation toward the top.
+  vec3 color = mix(tintLow, tintHigh, smoothstep(0.15, 0.85, vH));
+  color = mix(color, vec3(0.97), flashFlare * 0.6);  // lightning wash
   gl_FragColor = vec4(color, t.a * vAlpha * globalOpacity);
 }
 `;
@@ -83,8 +93,12 @@ function spawnParticle(p: VaporParticle, atBase: boolean) {
     p.z = Math.sin(angle) * r;
   }
   p.vx = 0; p.vy = 0; p.vz = 0;
-  p.baseAlpha = 0.55 + Math.random() * 0.3;
-  p.baseSize = 1.5 + Math.random() * 1.8;
+  // Multi-shell sizing: lots of mid puffs + some big soft wisps for volume.
+  const big = Math.random() < 0.3;
+  p.baseAlpha = big ? 0.32 + Math.random() * 0.28 : 0.55 + Math.random() * 0.35;
+  p.baseSize = big ? 3.2 + Math.random() * 2.6 : 1.4 + Math.random() * 1.8;
+  p.rot = Math.random() * Math.PI * 2;
+  p.spin = (Math.random() - 0.5) * 1.6;
   p.age = 0;
   // Long lifetime — they recycle when they exit the top, not by clock.
   p.lifetime = 999;
@@ -99,7 +113,7 @@ export function VortexParticles() {
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const p: VaporParticle = {
         x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0,
-        baseAlpha: 0, baseSize: 0, age: 0, lifetime: 999,
+        baseAlpha: 0, baseSize: 0, rot: 0, spin: 0, age: 0, lifetime: 999,
       };
       spawnParticle(p, false);
       arr.push(p);
@@ -107,21 +121,24 @@ export function VortexParticles() {
     return arr;
   }, []);
 
-  const { material, geometry, alphaArr, scaleArr } = useMemo(() => {
+  const { material, geometry, alphaArr, scaleArr, rotArr, heightArr } = useMemo(() => {
     const geom = new THREE.PlaneGeometry(1, 1);
     const alphaArr = new Float32Array(PARTICLE_COUNT);
     const scaleArr = new Float32Array(PARTICLE_COUNT);
+    const rotArr = new Float32Array(PARTICLE_COUNT);
+    const heightArr = new Float32Array(PARTICLE_COUNT);
     geom.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(alphaArr, 1));
     geom.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scaleArr, 1));
-    const gradient = makeRadialGradientTexture();
+    geom.setAttribute('instanceRot', new THREE.InstancedBufferAttribute(rotArr, 1));
+    geom.setAttribute('instanceHeight', new THREE.InstancedBufferAttribute(heightArr, 1));
+    const gradient = makeCloudPuffTexture();
     const mat = new THREE.ShaderMaterial({
       vertexShader: VERT,
       fragmentShader: FRAG,
       uniforms: {
         gradientTex: { value: gradient },
-        // tintHigh: kept for future per-height tint (currently unused)
-        tintHigh: { value: new THREE.Color('#121110') },
-        tintLow:  { value: new THREE.Color('#1d1a18') },
+        tintHigh: { value: new THREE.Color('#8f9097') }, // pale condensation up high
+        tintLow:  { value: new THREE.Color('#16120f') }, // dark churned dirt at the base
         globalOpacity: { value: 0 },
         flashFlare: { value: 0 },
       },
@@ -131,7 +148,7 @@ export function VortexParticles() {
       blending: THREE.NormalBlending,
     });
     matRef.current = mat;
-    return { material: mat, geometry: geom, alphaArr, scaleArr };
+    return { material: mat, geometry: geom, alphaArr, scaleArr, rotArr, heightArr };
   }, []);
 
   const tmp = useMemo(() => new THREE.Object3D(), []);
@@ -196,6 +213,7 @@ export function VortexParticles() {
 
       // Size grows with height (vapor expands as it climbs)
       const scale = p.baseSize * (0.65 + heightFrac * 0.85);
+      p.rot += p.spin * dt; // slow churn
 
       tmp.position.set(ts.tornadoX + p.x, p.y, ts.tornadoZ + p.z);
       tmp.scale.setScalar(1);
@@ -204,10 +222,14 @@ export function VortexParticles() {
       mesh.setMatrixAt(i, tmp.matrix);
       alphaArr[i] = alpha;
       scaleArr[i] = scale;
+      rotArr[i] = p.rot;
+      heightArr[i] = heightFrac;
     }
     mesh.instanceMatrix.needsUpdate = true;
     (geometry.getAttribute('instanceAlpha') as THREE.InstancedBufferAttribute).needsUpdate = true;
     (geometry.getAttribute('instanceScale') as THREE.InstancedBufferAttribute).needsUpdate = true;
+    (geometry.getAttribute('instanceRot') as THREE.InstancedBufferAttribute).needsUpdate = true;
+    (geometry.getAttribute('instanceHeight') as THREE.InstancedBufferAttribute).needsUpdate = true;
   });
 
   return (

@@ -123,3 +123,45 @@ export function makeRadialGradientTexture(): THREE.DataTexture {
   tex.needsUpdate = true;
   return tex;
 }
+
+// Wispy CLOUD-PUFF texture for the vortex vapor — a radial falloff broken up by
+// value-noise so each sprite reads as an irregular clump of cloud instead of a
+// clean dot. Stacking thousands of these makes the funnel look like churning
+// volumetric vapor rather than a fuzzy cone.
+export function makeCloudPuffTexture(): THREE.DataTexture {
+  const size = 96;
+  const data = new Uint8Array(size * size * 4);
+  const hash = (x: number, y: number) => {
+    const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const vnoise = (x: number, y: number) => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    return lerp(
+      lerp(hash(xi, yi), hash(xi + 1, yi), u),
+      lerp(hash(xi, yi + 1), hash(xi + 1, yi + 1), u),
+      v,
+    );
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x - size / 2) / (size / 2);
+      const dy = (y - size / 2) / (size / 2);
+      const d = Math.hypot(dx, dy);
+      const radial = Math.max(0, 1 - d);
+      // 2-octave value-noise clump
+      const n = vnoise(x / 13, y / 13) * 0.6 + vnoise(x / 5.5, y / 5.5) * 0.4;
+      let a = radial ** 1.3 * (0.45 + n * 0.95);
+      a = Math.max(0, Math.min(1, a)) * Math.max(0, 1 - d); // hard cutoff at the rim
+      const i = (y * size + x) * 4;
+      data[i] = 255; data[i + 1] = 255; data[i + 2] = 255;
+      data[i + 3] = Math.floor(a * 255);
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.needsUpdate = true;
+  return tex;
+}
