@@ -4,10 +4,6 @@ import type { Group } from 'three';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { CHARACTERS } from '../world/characters';
 import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, OUTFITS, type Slot } from '../world/wardrobe';
-import {
-  REAL_CATALOG, REAL_SLOTS, REAL_SLOT_LABEL, REAL_SLOT_EMOJI, getRealItem,
-  REAL_LOOK_PRESETS, type RealSlot,
-} from '../world/realLooks';
 import { CharacterModel } from '../components/CharacterModel';
 import { GLBCharacterModel } from '../components/GLBCharacterModel';
 import { wardrobeBlip } from '../audio';
@@ -19,7 +15,6 @@ function PreviewModel({ id }: { id: CharacterId }) {
   const ref = useRef<Group>(null);
   const appearance = useWardrobeStore((s) => s.appearances[id]);
   const real = useWardrobeStore((s) => s.realMode[id]);
-  const realLook = useWardrobeStore((s) => s.realLooks[id]);
   const def = CHARACTERS[id];
   const norm = 1.7 / def.height; // normalize so all three frame similarly
   useFrame((_, dt) => {
@@ -28,7 +23,7 @@ function PreviewModel({ id }: { id: CharacterId }) {
   return (
     <group ref={ref} scale={norm} position={[0, 0, 0]}>
       {real ? (
-        <GLBCharacterModel baseUrl={`/assets/models/${id}-base.glb`} height={def.height} rotationY={Math.PI} speedRef={ZERO} riding={false} cosmetics={realLook} />
+        <GLBCharacterModel baseUrl={`/assets/models/${id}-base.glb`} height={def.height} rotationY={Math.PI} speedRef={ZERO} riding={false} />
       ) : (
         <CharacterModel def={def} appearance={appearance} />
       )}
@@ -44,14 +39,10 @@ export function WardrobeOverlay() {
   const equip = useWardrobeStore((s) => s.equip);
   const setColor = useWardrobeStore((s) => s.setColor);
   const applyOutfit = useWardrobeStore((s) => s.applyOutfit);
-  const equipReal = useWardrobeStore((s) => s.equipReal);
-  const setRealColor = useWardrobeStore((s) => s.setRealColor);
-  const applyRealLook = useWardrobeStore((s) => s.applyRealLook);
   const setRealMode = useWardrobeStore((s) => s.setRealMode);
   const realMode = useWardrobeStore((s) => s.realMode);
   const close = useWardrobeStore((s) => s.close);
   const [tab, setTab] = useState<Slot>('top');
-  const [realTab, setRealTab] = useState<RealSlot>('hair');
   // One re-render a frame after open so the preview Canvas paints even if its
   // flex container measured 0px on the first layout pass (was blank-until-click).
   const [, nudge] = useState(0);
@@ -65,9 +56,8 @@ export function WardrobeOverlay() {
   }, [open, close]);
   // Subscribe to appearances so cards/swatches reflect current selection.
   const appearance = useWardrobeStore((s) => (openFor ? s.appearances[openFor] : null));
-  const realLook = useWardrobeStore((s) => (openFor ? s.realLooks[openFor] : null));
 
-  if (!open || !openFor || !appearance || !realLook) return null;
+  if (!open || !openFor || !appearance) return null;
   const accent = ACCENT[openFor];
   const name = CHARACTERS[openFor].name;
   const items = CATALOG[tab];
@@ -75,16 +65,6 @@ export function WardrobeOverlay() {
   const selItem = getItem(tab, choice.item);
 
   const surprise = () => {
-    if (realMode[openFor]) {
-      // Randomize the real-avatar cosmetics (keeps the real face).
-      for (const slot of REAL_SLOTS) {
-        const list = REAL_CATALOG[slot];
-        const it = list[Math.floor(Math.random() * list.length)];
-        equipReal(openFor, slot, it.id);
-        if (it.colors.length) setRealColor(openFor, slot, it.colors[Math.floor(Math.random() * it.colors.length)]);
-      }
-      return;
-    }
     for (const slot of SLOTS) {
       const list = CATALOG[slot];
       const it = list[Math.floor(Math.abs(Math.sin(slot.length * 99 + Math.random() * 1000)) * list.length) % list.length];
@@ -142,52 +122,13 @@ export function WardrobeOverlay() {
             <button onClick={() => { setRealMode(openFor, false); wardrobeBlip(); }} style={toggleBtn(!realMode[openFor], accent)}>👗 Dress Up</button>
           </div>
           {realMode[openFor] ? (
-            <>
-              <div style={{ fontSize: 13, opacity: 0.82, marginBottom: 10, lineHeight: 1.4 }}>
-                ✨ It's the real <b>{name}</b> — add trendy hair & gear that keeps your real face.
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12, opacity: 0.95 }}>
+              <div style={{ fontSize: 44 }}>✨</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>This is the real {name}!</div>
+              <div style={{ fontSize: 14, opacity: 0.82, maxWidth: 300, lineHeight: 1.5 }}>
+                Everyone playing online sees you as <b>you</b>. Tap <b>👗 Dress Up</b> to put on fun costumes and mix-and-match outfits.
               </div>
-              {/* One-tap trendy looks */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 6, fontWeight: 800, letterSpacing: 0.3 }}>✨ TRENDY LOOKS</div>
-                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6 }}>
-                  {REAL_LOOK_PRESETS.map((o) => (
-                    <button key={o.id} onClick={() => { applyRealLook(openFor, o.look); wardrobeBlip(); }} style={lookBtn(accent)}>
-                      <span style={{ fontSize: 24, lineHeight: 1 }}>{o.emoji}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{o.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* Real-cosmetic category tabs */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {REAL_SLOTS.map((s) => (
-                  <button key={s} onClick={() => setRealTab(s)} style={tabBtn(realTab === s, accent)}>
-                    {REAL_SLOT_EMOJI[s]} {REAL_SLOT_LABEL[s]}
-                  </button>
-                ))}
-              </div>
-              {/* Item grid */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 10, alignContent: 'start', paddingRight: 4 }}>
-                {REAL_CATALOG[realTab].map((it) => {
-                  const on = it.id === realLook[realTab].item;
-                  return (
-                    <button key={it.id} onClick={() => { equipReal(openFor, realTab, it.id); wardrobeBlip(); }} style={card(on, accent)}>
-                      <div style={{ fontSize: 34, lineHeight: 1 }}>{it.emoji}</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{it.label}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Color swatches for the selected real item */}
-              {getRealItem(realTab, realLook[realTab].item).colors.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, padding: '12px 2px 4px', alignItems: 'center' }}>
-                  <span style={{ fontSize: 14, opacity: 0.85, marginRight: 4 }}>🎨</span>
-                  {getRealItem(realTab, realLook[realTab].item).colors.map((cc) => (
-                    <button key={cc} onClick={() => { setRealColor(openFor, realTab, cc); wardrobeBlip(); }} style={swatch(cc, realLook[realTab].color === cc)} aria-label={cc} />
-                  ))}
-                </div>
-              )}
-            </>
+            </div>
           ) : (
           <>
           {/* One-tap full looks */}
