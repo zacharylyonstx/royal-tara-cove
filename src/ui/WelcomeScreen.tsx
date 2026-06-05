@@ -44,6 +44,7 @@ export function WelcomeScreen() {
           textAlign: 'center',
           boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          animation: 'pop-in 0.42s ease both',
         }}
       >
         <h1 style={{ fontSize: 38, margin: 0, color: '#3a5a25' }}>🏡 Royal Tara Cove</h1>
@@ -60,6 +61,8 @@ export function WelcomeScreen() {
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
             gap: 12,
             margin: '4px 0 18px',
+            animation: 'card-rise 0.5s ease both',
+            animationDelay: '0.12s',
           }}
         >
           <GameCard
@@ -100,7 +103,7 @@ export function WelcomeScreen() {
         </div>
 
         <p style={{ fontSize: 13, color: '#5a5040', margin: 0, lineHeight: 1.5 }}>
-          <strong>WASD</strong> move · <strong>Shift</strong> run · <strong>E</strong> ride bike / pick up ball / open door · <strong>click</strong> or <strong>Space</strong> shoot hoops · <strong>1/2/3</strong> switch kid
+          <strong>WASD</strong> move · <strong>Shift</strong> run · <strong>E</strong> ride bike / pick up ball / open door · <strong>click</strong> or <strong>Space</strong> shoot hoops
           <br />
           🚲 On a bike: <strong>Space</strong> bunny-hop · hit the <strong>ramp</strong> for big air · tap <strong>Space</strong> again mid-air + hold <strong>W/S</strong> to flip!
         </p>
@@ -124,6 +127,7 @@ function GameCard({
 }) {
   return (
     <div
+      className="gcard"
       style={{
         background: 'rgba(255,255,255,0.78)',
         border: `3px solid ${accent}`,

@@ -23,6 +23,27 @@ canvas {
   outline: none;
 }
 
+/* Welcome game cards: a soft lift on hover (desktop) for tactile feel. */
+.gcard {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.gcard:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+/* Gentle rise-in for grouped UI (welcome cards). */
+@keyframes card-rise {
+  0% {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 /* Bouncy entrance for victory/defeat/game-over cards. */
 @keyframes pop-in {
   0% {
