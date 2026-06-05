@@ -203,6 +203,7 @@ interface CombatStore {
 
   shake: number;
   addShake: (amount: number) => void;
+  setShake: (v: number) => void;
   decayShake: (dt: number) => void;
 
   damageFlashAt: number;
@@ -429,6 +430,9 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
 
   shake: 0,
   addShake: (n) => set((s) => ({ shake: Math.min(1, s.shake + n) })),
+  // Sustain shake at >= a target (for continuous buffeting like a tornado
+  // bearing down) without the runaway accumulation of repeated addShake().
+  setShake: (v) => set((s) => ({ shake: Math.max(s.shake, Math.min(1, v)) })),
   decayShake: (dt) => {
     const cur = get().shake;
     if (cur <= 0) return;

@@ -39,6 +39,11 @@ interface TornadoStore {
   lightningCue: number;
   bumpLightning: () => void;
 
+  /** perf.now()/1000 of the last transformer/power-line flash (electric pop that
+   *  lights the neighborhood as the tornado rips through). 0 = none. */
+  powerFlash: number;
+  firePowerFlash: () => void;
+
   /** Reset to initial values (for replay / mode switch). */
   reset: () => void;
 }
@@ -52,6 +57,7 @@ const INITIAL = {
   windStrength: 0,
   tornadoOpacity: 0,
   lightningCue: 0,
+  powerFlash: 0,
 };
 
 export const useTornadoStore = create<TornadoStore>((set) => ({
@@ -64,6 +70,11 @@ export const useTornadoStore = create<TornadoStore>((set) => ({
   setWindStrength: (v) => set({ windStrength: v }),
   setTornadoOpacity: (v) => set({ tornadoOpacity: v }),
   bumpLightning: () => set((s) => ({ lightningCue: s.lightningCue + 1 })),
+  firePowerFlash: () => {
+    set({ powerFlash: performance.now() / 1000, flashAlpha: 0.85 });
+    // Decay the scene illumination shortly after (mirrors the lightning path).
+    setTimeout(() => set({ flashAlpha: 0 }), 130);
+  },
   reset: () => set(INITIAL),
 }));
 

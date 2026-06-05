@@ -10,9 +10,9 @@ import { makeRadialGradientTexture } from './vortex';
 // tall fountain) so the funnel reads as if its base disappears into a
 // churning cloud of dirt + debris.
 
-const DUST_COUNT = isTouchDevice() ? 95 : 170; // denser ground cloud on desktop
-const DOME_RADIUS = 14; // wider skirt of churned ground
-const DOME_HEIGHT = 5;
+const DUST_COUNT = isTouchDevice() ? 130 : 240; // violent churning bowl
+const DOME_RADIUS = 19; // huge skirt of ripped-up ground, wider than the funnel
+const DOME_HEIGHT = 7;
 
 interface Particle {
   x: number; y: number; z: number;
@@ -120,7 +120,7 @@ export function DebrisDome() {
       return;
     }
     mesh.visible = true;
-    mat.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.72;
+    mat.uniforms.globalOpacity.value = ts.tornadoOpacity * 0.82;
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];

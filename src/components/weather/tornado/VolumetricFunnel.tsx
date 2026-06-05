@@ -93,6 +93,16 @@ float density(vec3 wp){
   // this is what makes it churn instead of looking like a smooth column.
   float carve = smoothstep(0.30, 0.82, n);
   float dens = radial * carve;
+  // MULTI-VORTEX: a couple of sub-vortices orbiting the core (the signature of a
+  // violent tornado — denser knots that spiral around inside the main funnel).
+  float sub = 0.0;
+  for (int k = 0; k < 2; k++){
+    float a = uTime * 2.3 + hn * 3.2 + float(k) * 3.14159;
+    vec2 c = vec2(cos(a), sin(a)) * Rf * 0.5;
+    float dd = length(lp.xz - c);
+    sub += exp(-dd * dd * 0.45) * (0.55 + 0.45 * n);
+  }
+  dens = max(dens, radial * sub * 0.9);
   // Helical striations — the visible spiralling bands of a real spinning funnel.
   float theta = atan(lp.z, lp.x);
   dens *= 0.8 + 0.2 * sin(theta * 4.0 + hn * 16.0 - uTime * 5.0);

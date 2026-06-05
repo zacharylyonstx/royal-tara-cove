@@ -70,6 +70,7 @@ export function TornadoController() {
   const addShake = useCombatStore((s) => s.addShake);
   const cinematicStartedRef = useRef(false);
   const slowMoActiveRef = useRef(false);
+  const nextPowerFlashRef = useRef(0);
 
   // Pre-compute non-hero house world positions (sorted by Z descending so we
   // destroy from north to south — same direction as the tornado walks).
@@ -268,6 +269,8 @@ export function TornadoController() {
           // Ground-jolt: a building coming apart nearby should rattle the
           // camera. Scales hard with proximity, capped so it never nauseates.
           addShake(Math.max(0.08, Math.min(0.5, 0.5 * (1 - distToPlayer / 55))));
+          // The house takes the power line with it — transformer blows.
+          ts.firePowerFlash();
           break; // one per frame to keep audio uncluttered
         }
       }
@@ -301,8 +304,17 @@ export function TornadoController() {
         } else if (slowMoActiveRef.current) {
           useCombatStore.setState({ slowMoEndsAt: now + 1 });
         }
-        const shake = Math.min(0.06, 0.05 / Math.max(1, hostDistToFunnel / 8));
-        addShake(shake);
+        // VIOLENT BUFFETING that ramps hard as the funnel bears down on you —
+        // the core of "it's right on top of me." Sustained (setShake holds the
+        // level) rather than a tiny impulse; gentle far, brutal up close.
+        const prox = Math.max(0, 1 - hostDistToFunnel / 45);
+        cs.setShake(0.03 + prox * prox * 0.5);
+      }
+
+      // Transformer / power-line flashes pop periodically as it rips through.
+      if (now >= nextPowerFlashRef.current) {
+        ts.firePowerFlash();
+        nextPowerFlashRef.current = now + 3 + Math.random() * 4;
       }
 
       // Check all claimed players for kill zone entry.

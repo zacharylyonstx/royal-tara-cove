@@ -27,6 +27,7 @@ import { PowerUpHud } from './ui/PowerUpHud';
 import { FloatingNumbers } from './ui/FloatingNumbers';
 import { TornadoHud } from './ui/TornadoHud';
 import { StormVignette } from './ui/StormVignette';
+import { PowerFlash } from './ui/PowerFlash';
 import { MunchiesHud } from './ui/MunchiesHud';
 import { MunchiesIntro } from './ui/MunchiesIntro';
 import { MunchiesLevelClear } from './ui/MunchiesLevelClear';
@@ -86,6 +87,7 @@ export default function App() {
       <FloatingNumbers />
       <TornadoHud />
       <StormVignette />
+      <PowerFlash />
       <MunchiesHud />
       <MunchiesIntro />
       <MunchiesLevelClear />

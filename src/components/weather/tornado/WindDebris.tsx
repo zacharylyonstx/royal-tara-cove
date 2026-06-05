@@ -11,8 +11,8 @@ import { makeRadialGradientTexture } from './vortex';
 // wind well before (and around) the funnel itself. Recycles around the camera
 // so the player is always in the thick of it. Pure VFX.
 
-const COUNT = isTouchDevice() ? 70 : 140;
-const BOX = 70;        // span of the debris field around the camera (m)
+const COUNT = isTouchDevice() ? 120 : 240; // dense grit ripping past you
+const BOX = 64;        // span of the debris field around the camera (m)
 const BOX_H = 16;      // vertical span (m)
 
 interface Bit {
@@ -55,8 +55,8 @@ export function WindDebris() {
         y: Math.random() * BOX_H,
         z: (Math.random() - 0.5) * BOX,
         phase: Math.random() * Math.PI * 2,
-        size: 0.18 + Math.random() * 0.35,
-        speedMul: 0.6 + Math.random() * 0.9,
+        size: 0.16 + Math.random() * 0.55,
+        speedMul: 0.7 + Math.random() * 1.1,
       })),
     [],
   );
