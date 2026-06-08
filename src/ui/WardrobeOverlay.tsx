@@ -6,6 +6,7 @@ import { CHARACTERS } from '../world/characters';
 import { CATALOG, SLOTS, SLOT_LABEL, SLOT_EMOJI, getItem, OUTFITS, type Slot } from '../world/wardrobe';
 import { CharacterModel } from '../components/CharacterModel';
 import { GLBCharacterModel } from '../components/GLBCharacterModel';
+import { GLBRiggedCharacter } from '../components/GLBRiggedCharacter';
 import { wardrobeBlip } from '../audio';
 import type { CharacterId } from '../types';
 
@@ -15,6 +16,7 @@ function PreviewModel({ id }: { id: CharacterId }) {
   const ref = useRef<Group>(null);
   const appearance = useWardrobeStore((s) => s.appearances[id]);
   const real = useWardrobeStore((s) => s.realMode[id]);
+  const action = useWardrobeStore((s) => s.actionMode[id]);
   const def = CHARACTERS[id];
   const norm = 1.7 / def.height; // normalize so all three frame similarly
   useFrame((_, dt) => {
@@ -22,7 +24,10 @@ function PreviewModel({ id }: { id: CharacterId }) {
   });
   return (
     <group ref={ref} scale={norm} position={[0, 0, 0]}>
-      {real ? (
+      {action ? (
+        // Walk in place in the preview so you can see the legs/arms moving.
+        <GLBRiggedCharacter baseUrl={`/assets/models/${id}-rig.glb`} walkUrl={`/assets/models/${id}-walk.glb`} runUrl={`/assets/models/${id}-run.glb`} height={def.height} rotationY={Math.PI} speedRef={WALK} riding={false} />
+      ) : real ? (
         <GLBCharacterModel baseUrl={`/assets/models/${id}-base.glb`} height={def.height} rotationY={Math.PI} speedRef={ZERO} riding={false} />
       ) : (
         <CharacterModel def={def} appearance={appearance} />
@@ -32,6 +37,7 @@ function PreviewModel({ id }: { id: CharacterId }) {
 }
 
 const ZERO = { current: 0 };
+const WALK = { current: 2.2 };
 
 export function WardrobeOverlay() {
   const open = useWardrobeStore((s) => s.open);
@@ -41,6 +47,8 @@ export function WardrobeOverlay() {
   const applyOutfit = useWardrobeStore((s) => s.applyOutfit);
   const setRealMode = useWardrobeStore((s) => s.setRealMode);
   const realMode = useWardrobeStore((s) => s.realMode);
+  const setActionMode = useWardrobeStore((s) => s.setActionMode);
+  const actionMode = useWardrobeStore((s) => s.actionMode);
   const close = useWardrobeStore((s) => s.close);
   const [tab, setTab] = useState<Slot>('top');
   // One re-render a frame after open so the preview Canvas paints even if its
@@ -116,17 +124,26 @@ export function WardrobeOverlay() {
 
         {/* Controls */}
         <div style={{ flex: '1 1 360px', minWidth: 280, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          {/* Real-you vs dress-up toggle */}
+          {/* Real-you vs action-walking vs dress-up toggle */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            <button onClick={() => { setRealMode(openFor, true); wardrobeBlip(); }} style={toggleBtn(realMode[openFor], accent)}>🧍 Real Me</button>
-            <button onClick={() => { setRealMode(openFor, false); wardrobeBlip(); }} style={toggleBtn(!realMode[openFor], accent)}>👗 Dress Up</button>
+            <button onClick={() => { setActionMode(openFor, false); setRealMode(openFor, true); wardrobeBlip(); }} style={toggleBtn(realMode[openFor] && !actionMode[openFor], accent)}>🧍 Real Me</button>
+            <button onClick={() => { setActionMode(openFor, true); wardrobeBlip(); }} style={toggleBtn(actionMode[openFor], accent)}>🏃 Action Me</button>
+            <button onClick={() => { setActionMode(openFor, false); setRealMode(openFor, false); wardrobeBlip(); }} style={toggleBtn(!realMode[openFor] && !actionMode[openFor], accent)}>👗 Dress Up</button>
           </div>
-          {realMode[openFor] ? (
+          {actionMode[openFor] ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12, opacity: 0.95 }}>
+              <div style={{ fontSize: 44 }}>🏃</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>Action {name}!</div>
+              <div style={{ fontSize: 14, opacity: 0.82, maxWidth: 300, lineHeight: 1.5 }}>
+                Your legs and arms really move when you walk and run! Tap <b>🧍 Real Me</b> for your photo self, or <b>👗 Dress Up</b> for costumes.
+              </div>
+            </div>
+          ) : realMode[openFor] ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12, opacity: 0.95 }}>
               <div style={{ fontSize: 44 }}>✨</div>
               <div style={{ fontSize: 20, fontWeight: 800 }}>This is the real {name}!</div>
               <div style={{ fontSize: 14, opacity: 0.82, maxWidth: 300, lineHeight: 1.5 }}>
-                Everyone playing online sees you as <b>you</b>. Tap <b>👗 Dress Up</b> to put on fun costumes and mix-and-match outfits.
+                Everyone playing online sees you as <b>you</b>. Tap <b>🏃 Action Me</b> to really walk &amp; run, or <b>👗 Dress Up</b> for costumes.
               </div>
             </div>
           ) : (

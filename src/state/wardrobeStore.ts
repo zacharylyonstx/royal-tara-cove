@@ -15,6 +15,8 @@ interface WardrobeStore {
   appearances: Record<CharacterId, Appearance>;
   /** true = show the real photo-real "you" GLB model; false = the dress-up avatar. */
   realMode: Record<CharacterId, boolean>;
+  /** true = show the rigged "Action Me" walking character (takes precedence over realMode). */
+  actionMode: Record<CharacterId, boolean>;
   /** Bumped on a LOCAL change to a character (net layer watches this to sync). */
   rev: Record<CharacterId, number>;
   /** Dress-up overlay state. */
@@ -35,9 +37,11 @@ interface WardrobeStore {
   resetLook: (id: CharacterId) => void;
   /** Toggle the real "you" GLB vs the dress-up avatar (bumps rev → syncs). */
   setRealMode: (id: CharacterId, real: boolean) => void;
+  /** Toggle the rigged "Action Me" walking character (bumps rev → syncs). */
+  setActionMode: (id: CharacterId, action: boolean) => void;
   registerDresser: (reg: DresserReg) => void;
-  /** Apply a peer's appearance + mode (no persist, no rev bump → no echo). */
-  setRemoteAppearance: (id: CharacterId, appearance: Appearance, real?: boolean) => void;
+  /** Apply a peer's appearance + modes (no persist, no rev bump → no echo). */
+  setRemoteAppearance: (id: CharacterId, appearance: Appearance, real?: boolean, action?: boolean) => void;
 }
 
 const initial = loadWardrobe();
@@ -49,6 +53,7 @@ function persist(appearances: Record<CharacterId, Appearance>) {
 export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   appearances: initial,
   realMode: { dad: true, penny: true, luke: true },
+  actionMode: { dad: false, penny: false, luke: false },
   rev: { dad: 0, penny: 0, luke: 0 },
   open: false,
   openFor: null,
@@ -104,15 +109,19 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   setRealMode: (id, real) =>
     set((s) => ({ realMode: { ...s.realMode, [id]: real }, rev: { ...s.rev, [id]: s.rev[id] + 1 } })),
 
+  setActionMode: (id, action) =>
+    set((s) => ({ actionMode: { ...s.actionMode, [id]: action }, rev: { ...s.rev, [id]: s.rev[id] + 1 } })),
+
   registerDresser: (reg) => set((s) =>
     s.dressers.some((d) => d.owner === reg.owner)
       ? { dressers: s.dressers.map((d) => (d.owner === reg.owner ? reg : d)) }
       : { dressers: [...s.dressers, reg] }),
 
-  setRemoteAppearance: (id, appearance, real) =>
+  setRemoteAppearance: (id, appearance, real, action) =>
     set((s) => ({
       appearances: { ...s.appearances, [id]: appearance },
       realMode: real === undefined ? s.realMode : { ...s.realMode, [id]: real },
+      actionMode: action === undefined ? s.actionMode : { ...s.actionMode, [id]: action },
     })),
 }));
 

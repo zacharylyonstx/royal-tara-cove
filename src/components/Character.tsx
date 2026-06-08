@@ -6,6 +6,7 @@ import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { CharacterModel, charDims } from './CharacterModel';
 import { GLBCharacterModel } from './GLBCharacterModel';
+import { GLBRiggedCharacter } from './GLBRiggedCharacter';
 import { defaultAppearance } from '../world/wardrobe';
 
 interface CharacterProps {
@@ -24,6 +25,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   const riding = usePlayStore((s) => s.riding[def.id]);
   const appearance = useWardrobeStore((s) => s.appearances[def.id]) ?? defaultAppearance(def.id);
   const real = useWardrobeStore((s) => s.realMode[def.id]);
+  const action = useWardrobeStore((s) => s.actionMode[def.id]);
   const lastPos = useRef({ x: positionRef.x, z: positionRef.z });
   const phase = useRef(0);
   const speedRef = useRef(0);
@@ -59,9 +61,10 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     lastPos.current.x = positionRef.x;
     lastPos.current.z = positionRef.z;
 
-    // Procedural limb swing — only when the dress-up avatar is shown (the GLB does
-    // its own whole-body procedural animation).
-    if (real) return;
+    // Procedural limb swing — only when the dress-up avatar is shown (the photo-real
+    // GLB does whole-body procedural animation; the rigged Action character plays
+    // real skeletal clips).
+    if (real || action) return;
     if (speed > 0.1) phase.current += dt * Math.min(12, 4 + speed);
     else phase.current += dt * 1.5 * -Math.sin(phase.current);
     const swing = Math.sin(phase.current) * Math.min(0.5, speed * 0.08);
@@ -82,7 +85,17 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
 
   return (
     <group ref={groupRef} visible={!isActive || !!riding}>
-      {real ? (
+      {action ? (
+        <GLBRiggedCharacter
+          baseUrl={`/assets/models/${def.id}-rig.glb`}
+          walkUrl={`/assets/models/${def.id}-walk.glb`}
+          runUrl={`/assets/models/${def.id}-run.glb`}
+          height={def.height}
+          rotationY={0}
+          speedRef={speedRef}
+          riding={!!riding}
+        />
+      ) : real ? (
         <GLBCharacterModel
           baseUrl={`/assets/models/${def.id}-base.glb`}
           height={def.height}
