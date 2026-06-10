@@ -32,14 +32,36 @@ export function ControlsHud() {
             <kbd>WASD</kbd> move &nbsp; <kbd>R</kbd> reset to spawn
           </div>
           <div>
-            <kbd>T</kbd> chat &nbsp; <kbd>esc</kbd> close menus
+            <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; <kbd>esc</kbd> close menus
+          </div>
+        </>
+      ) : gameMode === 'treehouse' ? (
+        // Treehouse uses a follow cam (no pointer lock) — no click/esc hints.
+        <>
+          <div>
+            <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
+          </div>
+          <div>
+            <kbd>E</kbd> climb / open / pick up &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
+          </div>
+        </>
+      ) : gameMode === 'freeplay' ? (
+        <>
+          <div>
+            <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
+          </div>
+          <div>
+            <kbd>E</kbd> ride bike · drive · ball · doors
+          </div>
+          <div>
+            🚲 <kbd>␣</kbd> hop · ramp + <kbd>W/S</kbd> flips!
+          </div>
+          <div>
+            <kbd>click</kbd> look around &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
           </div>
         </>
       ) : (
         <>
-          <div>
-            <kbd>1</kbd> Dad &nbsp; <kbd>2</kbd> Penny &nbsp; <kbd>3</kbd> Luke
-          </div>
           <div>
             <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
           </div>
@@ -47,7 +69,7 @@ export function ControlsHud() {
             <kbd>E</kbd> open / close door &nbsp; <kbd>R</kbd> reset
           </div>
           <div>
-            <kbd>click</kbd> look around &nbsp; <kbd>esc</kbd> release cursor &nbsp; <kbd>T</kbd> chat
+            <kbd>click</kbd> look around &nbsp; <kbd>esc</kbd> release cursor &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
           </div>
         </>
       )}

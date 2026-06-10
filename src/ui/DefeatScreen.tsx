@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
+import { useNetStore } from '../state/netStore';
 import { defeatSting } from '../audio';
+import { replayAliens } from './VictoryScreen';
+import { backToGames } from './MenuButton';
 
 export function DefeatScreen() {
   const phase = useGameStore((s) => s.phase);
   const gameMode = useGameStore((s) => s.gameMode);
+  const isHost = useNetStore((s) => s.isHost);
   useEffect(() => {
     if (phase === 'defeat' && gameMode === 'aliens') defeatSting();
   }, [phase, gameMode]);
@@ -41,23 +45,47 @@ export function DefeatScreen() {
         <p style={{ fontSize: 18 }}>
           They squished everyone in the cul-de-sac. Earth is lost. Probably.
         </p>
-        <button
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: 16,
-            padding: '14px 36px',
-            fontSize: 18,
-            fontWeight: 700,
-            background: '#c83a3a',
-            color: 'white',
-            border: 'none',
-            borderRadius: 12,
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-          }}
-        >
-          Try again ▶
-        </button>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 16 }}>
+          {/* Host-authoritative phase: a guest's restart would be snapped back
+              by the next snapshot, so guests wait for the host's call. */}
+          {isHost ? (
+            <button
+              onClick={replayAliens}
+              style={{
+                padding: '14px 36px',
+                fontSize: 18,
+                fontWeight: 700,
+                background: '#c83a3a',
+                color: 'white',
+                border: 'none',
+                borderRadius: 12,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              }}
+            >
+              Try again ▶
+            </button>
+          ) : (
+            <div style={{ padding: '14px 18px', fontSize: 15, opacity: 0.8 }}>
+              Waiting for the host to try again…
+            </div>
+          )}
+          <button
+            onClick={backToGames}
+            style={{
+              padding: '14px 24px',
+              fontSize: 16,
+              fontWeight: 700,
+              background: 'rgba(255,255,255,0.14)',
+              color: '#f5ecd9',
+              border: '2px solid rgba(245,236,217,0.5)',
+              borderRadius: 12,
+              cursor: 'pointer',
+            }}
+          >
+            🏠 Games
+          </button>
+        </div>
       </div>
     </div>
   );

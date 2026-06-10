@@ -77,6 +77,7 @@ import { SiblingBond } from './munchies/SiblingBond';
 import { RagdollController } from '../systems/RagdollController';
 import { NetSyncController } from '../systems/NetSyncController';
 import { SpeechBubbles } from '../ui/SpeechBubbles';
+import { NameTags } from '../ui/NameTags';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
 import { Hail } from './weather/Hail';
@@ -226,6 +227,10 @@ export function Game() {
       <CameraExposer />
       <NetSyncController />
       <SpeechBubbles />
+      <NameTags />
+      {/* Self-gated on timeOfDay (visible only when dusk falls) — mounted
+          globally so any mode that gets dark earns backyard fireflies. */}
+      <Fireflies />
     </>
   );
 }
@@ -309,7 +314,6 @@ function AliensModeSystems() {
       <Projectiles />
       <BackyardPortal />
       <VictoryOnly />
-      <Fireflies />
       <BlobController />
       <CombatController />
       <ProjectileController />

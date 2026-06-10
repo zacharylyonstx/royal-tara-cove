@@ -15,15 +15,22 @@ interface Particle {
   size: number;
 }
 
+// Confetti falls over the bulb + hero house (z ≈ -20..+44) — where the family
+// actually stands at victory — not the empty street to the north.
+const SPAWN_Z_CENTER = 12;
+const SPAWN_Z_SPREAD = 64;
+
 export function Confetti() {
   const phase = useGameStore((s) => s.phase);
+  // Munchies has its own victory phase; both deserve falling confetti.
+  const celebrating = phase === 'victory' || phase === 'munchies-victory';
   const groupRef = useRef<THREE.Group>(null);
 
   const particles = useMemo<Particle[]>(() => {
     return Array.from({ length: COUNT }, () => ({
-      x: (Math.random() - 0.5) * 80,
+      x: (Math.random() - 0.5) * 60,
       y: 25 + Math.random() * 25,
-      z: -40 + (Math.random() - 0.5) * 100,
+      z: SPAWN_Z_CENTER + (Math.random() - 0.5) * SPAWN_Z_SPREAD,
       vx: (Math.random() - 0.5) * 1.5,
       vy: -1 - Math.random() * 1.5,
       vz: (Math.random() - 0.5) * 1.5,
@@ -39,7 +46,7 @@ export function Confetti() {
   }, []);
 
   useFrame((_, dtRaw) => {
-    if (phase !== 'victory') return;
+    if (!celebrating) return;
     const dt = Math.min(dtRaw, 0.1);
     const g = groupRef.current;
     if (!g) return;
@@ -55,16 +62,16 @@ export function Confetti() {
       p.rotZ += p.rotVz * dt;
       if (p.y < -0.5) {
         // Recycle to top
-        p.x = (Math.random() - 0.5) * 80;
+        p.x = (Math.random() - 0.5) * 60;
         p.y = 25 + Math.random() * 15;
-        p.z = -40 + (Math.random() - 0.5) * 100;
+        p.z = SPAWN_Z_CENTER + (Math.random() - 0.5) * SPAWN_Z_SPREAD;
       }
       m.position.set(p.x, p.y, p.z);
       m.rotation.set(p.rotX, p.rotY, p.rotZ);
     });
   });
 
-  if (phase !== 'victory') return null;
+  if (!celebrating) return null;
 
   return (
     <group ref={groupRef}>

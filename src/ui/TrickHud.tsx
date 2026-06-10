@@ -37,7 +37,9 @@ export function TrickHud() {
       {trickCount > 0 && (
         <div
           style={{
-            position: 'fixed', top: 16, right: 16,
+            // Below CharacterIndicator (top 16) and AudioButton (top 66),
+            // which both live in this corner.
+            position: 'fixed', top: 116, right: 16,
             padding: '6px 14px', background: 'rgba(20,30,40,0.7)', color: 'white',
             borderRadius: 12, fontFamily: FONT, fontSize: 18, fontWeight: 700,
             backdropFilter: 'blur(6px)', zIndex: 100, pointerEvents: 'none',

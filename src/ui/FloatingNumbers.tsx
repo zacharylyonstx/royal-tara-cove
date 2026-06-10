@@ -33,6 +33,9 @@ export function FloatingNumbers() {
         if (v.z > 1) continue;
         const sx = (v.x * 0.5 + 0.5) * window.innerWidth;
         const sy = (-v.y * 0.5 + 0.5) * window.innerHeight;
+        // project() degenerates (NaN/Infinity) if the point coincides with
+        // the camera for a frame — e.g. mid in-place restart. Skip the frame.
+        if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
         next.push({
           id: t.id,
           text: t.text,

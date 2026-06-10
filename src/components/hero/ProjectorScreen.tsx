@@ -10,9 +10,12 @@ import { getProjectorTexture } from '../../world/projectorMedia';
 
 const SCREEN_W = 2.5;
 const SCREEN_H = 1.4;
-const SCREEN_X = 11.6;    // flush on the +X side wall (lining at 11.84)
-const SCREEN_Y = 1.9;     // eye level
-const SCREEN_Z = -4;      // great-room seating row
+// Exported so ProjectorController's audio falloff is always centered on the
+// real screen (they drifted apart once and the movie played from a phantom
+// spot 13m away).
+export const SCREEN_X = 11.6;    // flush on the +X side wall (lining at 11.84)
+export const SCREEN_Y = 1.9;     // eye level
+export const SCREEN_Z = -4;      // great-room seating row
 
 const PROJECTOR_X = 8.6;  // ceiling-mounted west of the screen, throws +X
 const PROJECTOR_Y = 2.78; // just below the great-room loft underside

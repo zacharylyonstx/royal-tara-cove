@@ -7,6 +7,7 @@ import { CharacterSelect } from './ui/CharacterSelect';
 import { RoomBadge } from './ui/RoomBadge';
 import { ChatInput } from './ui/ChatInput';
 import { ChatLog } from './ui/ChatLog';
+import { EmoteBar } from './ui/EmoteBar';
 import { ControlsHud } from './ui/ControlsHud';
 import { CharacterIndicator } from './ui/CharacterIndicator';
 import { InteractPrompt } from './ui/InteractPrompt';
@@ -103,6 +104,7 @@ export default function App() {
       <RoomBadge />
       <ChatLog />
       <ChatInput />
+      <EmoteBar />
       <VictoryScreen />
       <DefeatScreen />
       <TouchControls />

@@ -4,9 +4,11 @@ import type { Group, Mesh, MeshBasicMaterial } from 'three';
 import { useCombatStore } from '../../state/combatStore';
 
 const COUNT = 18;
+// 10600's backyard (hero house sits at z≈+38 since the rebuild; the old
+// z=-100 was a pre-rebuild coordinate pointing at empty street).
 const CENTER_X = 0;
-const CENTER_Z = -100; // hero house area
-const RADIUS = 10;
+const CENTER_Z = 48;
+const RADIUS = 12;
 
 interface FireflyData {
   baseX: number; baseZ: number;

@@ -5,6 +5,7 @@ import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
 import { laserZap, blobSquish } from '../audio';
+import { broadcastFire, isInRoom } from '../net/room';
 
 const FIRE_COOLDOWN_BASE = 0.18;
 const RAPID_FIRE_COOLDOWN = 0.06;
@@ -218,15 +219,24 @@ export function CombatController() {
     if (bestId !== null) {
       const blobs = useCombatStore.getState().blobs.filter((b) => b.alive);
       const target = blobs.find((b) => b.id === bestId);
-      // Damage is host-authoritative. Non-host beams are cosmetic — they
-      // hit visually but don't subtract HP. Damage broadcast for non-host
-      // shots is a follow-up.
+      // Damage is host-authoritative: the host lands it directly; a guest's
+      // hit reaches the host through the broadcast below (and the kill comes
+      // back via the world snapshot, which plays the guest's squish).
       if (useNetStore.getState().isHost) {
         damageBlob(bestId, dmg);
         if (target && target.hp <= dmg) blobSquish();
       }
       recordShotHit();
       spawnHitParticle(bestPoint[0], bestPoint[1], bestPoint[2], bestVariant);
+    }
+    // Let every peer see (and the host land) this shot.
+    if (isInRoom()) {
+      broadcastFire({
+        by: activeId, kind: 'beam',
+        fromX: muzzleX, fromY: muzzleY, fromZ: muzzleZ,
+        toX: bestPoint[0], toY: bestPoint[1], toZ: bestPoint[2],
+        tint: 'cyan', targetBlobId: bestId, damage: dmg, t: Date.now(),
+      });
     }
     lastTargetId.current = bestId;
   }
@@ -255,9 +265,6 @@ export function CombatController() {
     const { muzzleX, muzzleY, muzzleZ, dirX, dirZ, pos, yaw } = getAimVectors();
     recordShotFired();
     laserZap();
-    // Only host spawns projectiles (ProjectileController is host-gated; on
-    // non-host they would accumulate forever).
-    if (!useNetStore.getState().isHost) return;
     // Auto-aim toward nearest target
     const snap = snapTargetForYaw(yaw, pos.x, pos.z);
     let tx = pos.x + dirX * 12;
@@ -271,6 +278,9 @@ export function CombatController() {
     const vx = dx / flightTime;
     const vz = dz / flightTime;
     const vy = 0.5 * 22 * flightTime + 0.4; // up enough to clear an arc
+    const damage = hasPowerUp('bigLaser') ? 4 : 2;
+    // Everyone spawns their own copy (ProjectileController moves projectiles
+    // on every client now; only the host's copy deals damage).
     spawnProjectile({
       kind: 'bomb',
       x: muzzleX, y: muzzleY + 0.1, z: muzzleZ,
@@ -278,15 +288,21 @@ export function CombatController() {
       spawnedAt: performance.now() / 1000,
       bouncesLeft: 2,
       rotPhase: Math.random() * Math.PI * 2,
-      damage: hasPowerUp('bigLaser') ? 4 : 2,
+      damage,
     });
+    if (isInRoom()) {
+      broadcastFire({
+        by: activeId, kind: 'bomb',
+        px: muzzleX, py: muzzleY + 0.1, pz: muzzleZ,
+        vx, vy, vz, damage, t: Date.now(),
+      });
+    }
   }
 
   function fireLegoSpread() {
     const { muzzleX, muzzleY, muzzleZ, pos, yaw } = getAimVectors();
     recordShotFired();
     laserZap();
-    if (!useNetStore.getState().isHost) return;
     const snap = snapTargetForYaw(yaw, pos.x, pos.z);
     let aimYaw = yaw;
     if (snap) {
@@ -311,6 +327,13 @@ export function CombatController() {
         rotPhase: Math.random() * Math.PI * 2,
         damage: dmg,
       });
+      if (isInRoom()) {
+        broadcastFire({
+          by: activeId, kind: 'lego',
+          px: muzzleX, py: muzzleY, pz: muzzleZ,
+          vx, vy: 1.2, vz, damage: dmg, t: Date.now(),
+        });
+      }
     }
   }
 

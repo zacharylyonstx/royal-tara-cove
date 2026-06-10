@@ -16,7 +16,9 @@ export function MusicController() {
     const phase = useGameStore.getState().phase;
 
     // Hand off to the mode-specific themes — stop the neighborhood/combat music.
-    if (mode === 'munchies' || mode === 'treehouse') {
+    // The tornado carries its own dread (storm roar, sirens, hail); the
+    // cheerful C-major pad plinking under it broke the spell.
+    if (mode === 'munchies' || mode === 'treehouse' || mode === 'tornado') {
       if (startedRef.current) { stopMusic(); startedRef.current = false; }
       return;
     }

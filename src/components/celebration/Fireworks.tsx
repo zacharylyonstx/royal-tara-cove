@@ -23,9 +23,10 @@ export function Fireworks() {
     accum.current += dt;
     if (accum.current > SPAWN_INTERVAL) {
       accum.current = 0;
-      // Spawn over and around the cul-de-sac (closer to player so always visible)
+      // Spawn over the bulb-to-hero-house stretch (z 0..38) where the party
+      // actually happens, so the show is overhead rather than up the street.
       const cx = (Math.random() - 0.5) * 50;
-      const cz = -10 + (Math.random() - 0.5) * 50;
+      const cz = 12 + (Math.random() - 0.5) * 44;
       const cy = 14 + Math.random() * 8;
       const color = COLORS[Math.floor(Math.random() * COLORS.length)];
       spawnFirework(cx, cy, cz, color);

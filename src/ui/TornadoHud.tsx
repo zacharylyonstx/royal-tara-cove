@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
-import { resetTornadoAudio } from '../audio';
+import { resetTornadoAudio, victoryFanfare, defeatSting } from '../audio';
 
 // Tornado-mode HUD: warnings, countdown, victory/defeat overlays.
 
@@ -65,6 +65,8 @@ export function TornadoHud() {
 function VictoryOverlay() {
   const replay = makeReplay();
   const backToMenu = makeBackToMenu();
+  // Surviving the scariest mode deserves a fanfare, not a silent card.
+  useEffect(() => { victoryFanfare(); }, []);
   return (
     <FullscreenOverlay accent="#5a8a3e">
       <div style={{ fontSize: 70, lineHeight: 1 }}>🌈</div>
@@ -90,6 +92,10 @@ function DefeatOverlay() {
     const t = setTimeout(() => setShow(true), 100);
     return () => clearTimeout(t);
   }, [ragdoll]);
+  // Sad sting once the overlay actually appears (after the ragdoll ride).
+  useEffect(() => {
+    if (show) defeatSting();
+  }, [show]);
   if (!show) return null;
   const replay = makeReplay();
   const backToMenu = makeBackToMenu();

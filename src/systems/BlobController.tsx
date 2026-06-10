@@ -109,22 +109,28 @@ export function BlobController() {
   }, [phase]);
 
   useFrame((state, dtRaw) => {
-    if (!useNetStore.getState().isHost) return;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     const now = state.clock.elapsedTime;
     const realDt = Math.min(dtRaw, 0.1);
     const dt = realDt * slowMo;
 
+    // Local-FX housekeeping runs on EVERY client — guests spawn their own
+    // beams/particles/popups when shooting, and without reaping they pile up
+    // forever (permanent glow trails + slow leak on the kids' machines).
     decaySlowMo();
-    reapDeadBlobs(now);
     reapSplats(now);
     reapBeams(now);
     reapHitParticles(now);
     reapDialogue(now);
-    reapPowerUps(now);
     reapFloatingTexts(now);
     reapFireworks(now);
     decayCombo(now);
+
+    // Everything below is the host-authoritative sim (blob brains, damage,
+    // spawns). Guests receive its results via the world snapshot.
+    if (!useNetStore.getState().isHost) return;
+    reapDeadBlobs(now);
+    reapPowerUps(now);
 
     if (phase !== 'combat') return;
 

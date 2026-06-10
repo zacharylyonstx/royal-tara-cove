@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { useMunchiesStore } from '../state/munchiesStore';
+import { defeatSting } from '../audio';
 import type { SleepwalkerId } from '../state/munchiesStore';
 
 function caughtByLine(who: SleepwalkerId | null): string {
@@ -20,8 +22,14 @@ export function MunchiesGameOver() {
   const setPhase = useGameStore((s) => s.setPhase);
   const reset = useMunchiesStore((s) => s.reset);
 
-  if (gameMode !== 'munchies') return null;
-  if (phase !== 'munchies-game-over') return null;
+  // Losing the last life used to land in total silence while the lullaby
+  // looped on — give it a gentle punctuation mark.
+  const showing = gameMode === 'munchies' && phase === 'munchies-game-over';
+  useEffect(() => {
+    if (showing) defeatSting();
+  }, [showing]);
+
+  if (!showing) return null;
 
   const tryAgain = () => {
     reset();

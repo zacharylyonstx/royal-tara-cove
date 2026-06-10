@@ -15,7 +15,10 @@ export function ProjectileController() {
   const slowMo = useCombatStore((s) => s.slowMo);
 
   useFrame((_, dtRaw) => {
-    if (!useNetStore.getState().isHost) return;
+    // Every client moves projectiles (so guests see their own bombs/legos and
+    // each other's); ONLY the host applies damage — guest hits are cosmetic
+    // and the real kill arrives back via the world snapshot.
+    const isHost = useNetStore.getState().isHost;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
@@ -67,18 +70,18 @@ export function ProjectileController() {
         // Explode on blob contact OR after fuse OR after life
         if (hitBlobId !== null || age > 1.6 || age > BOMB_LIFE) {
           exploded = true;
-          // Splash damage
+          // Splash damage — host-authoritative.
           for (const b of blobs) {
             const d = Math.hypot(b.x - p.x, b.z - p.z);
             if (d < BOMB_EXPLODE_RADIUS) {
-              c.damageBlob(b.id, p.damage);
+              if (isHost) c.damageBlob(b.id, p.damage);
               c.spawnHitParticle(b.x, b.y + 0.3, b.z, b.variant);
             }
           }
           // Visual: spawn a few "burst" floating texts
           c.spawnFloatingText(p.x, p.y + 0.5, p.z, '💥', '#ff66b0', true);
           c.addShake(0.35);
-          c.recordShotHit();
+          if (isHost) c.recordShotHit();
           blobSquish();
           damageHit();
           c.removeProjectile(p.id);
@@ -86,10 +89,12 @@ export function ProjectileController() {
       } else {
         // Lego: damage on first blob hit OR removal at age
         if (hitBlobId !== null) {
-          c.damageBlob(hitBlobId, p.damage);
+          if (isHost) {
+            c.damageBlob(hitBlobId, p.damage);
+            c.recordShotHit();
+          }
           const blob = blobs.find((b) => b.id === hitBlobId);
           if (blob) c.spawnHitParticle(blob.x, blob.y + 0.3, blob.z, blob.variant);
-          c.recordShotHit();
           blobSquish();
           c.removeProjectile(p.id);
           exploded = true;

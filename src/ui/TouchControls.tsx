@@ -47,12 +47,27 @@ export function TouchControls() {
 
   // One-time "drag to look" coaching pill — the FPS modes have no other way to
   // turn the camera on touch, so make the gesture discoverable. Auto-hides.
+  // The countdown only runs while the controls are actually visible (it used
+  // to burn its 6 seconds hidden behind the welcome screen).
   const [showHint, setShowHint] = useState(true);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || welcomeOpen) return;
     const t = setTimeout(() => setShowHint(false), 6000);
     return () => clearTimeout(t);
-  }, [enabled]);
+  }, [enabled, welcomeOpen]);
+
+  // If the menu opens mid-drag (kid taps 🏠 Games with the other thumb), the
+  // joystick DOM vanishes before its pointerup ever fires — without this reset
+  // the last stick vector stays latched and the character walks by itself in
+  // the next mode until the joystick is touched again.
+  useEffect(() => {
+    if (!welcomeOpen) return;
+    dragId.current = null;
+    setThumb({ x: 0, y: 0 });
+    touchInput.active = false;
+    touchInput.moveX = 0;
+    touchInput.moveY = 0;
+  }, [welcomeOpen]);
 
   if (!enabled || welcomeOpen) return null;
 

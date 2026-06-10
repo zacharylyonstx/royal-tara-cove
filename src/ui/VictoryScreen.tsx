@@ -2,6 +2,18 @@ import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 
+/** In-place aliens restart — keeps the P2P room and character claims alive
+ *  (a page reload used to kick every peer and force a full re-join). */
+export function replayAliens() {
+  useCombatStore.getState().reset();
+  const gs = useGameStore.getState();
+  gs.resetHp();
+  gs.resetFamilyPositions();
+  // UFOCrash's phase-'intro' effect re-zeros its timers and replays the
+  // crash cinematic; WaveController restarts the waves from there.
+  gs.setPhase('intro');
+}
+
 export function VictoryScreen() {
   const phase = useGameStore((s) => s.phase);
   const gameMode = useGameStore((s) => s.gameMode);
@@ -19,7 +31,6 @@ export function VictoryScreen() {
   if (accuracy >= 80 && elapsed < 90) rating = 'S';
   else if (accuracy >= 60 && elapsed < 120) rating = 'A';
   else if (accuracy >= 40) rating = 'B';
-  const totalEnemies = 4 + 6 + 5;
 
   return (
     <div
@@ -51,7 +62,7 @@ export function VictoryScreen() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18, maxWidth: 480, margin: '0 auto 18px' }}>
           <Stat label="Score" value={score.toLocaleString()} />
           <Stat label="Time" value={fmtTime(elapsed)} />
-          <Stat label="Kills" value={`${kills} / ${totalEnemies}`} />
+          <Stat label="Kills" value={String(kills)} />
           <Stat label="Accuracy" value={`${accuracy.toFixed(1)}%`} />
           <Stat label="Shots" value={`${shotsHit} / ${shotsFired}`} />
           <Stat label="Status" value="🎉 PARTY!" />
@@ -72,18 +83,23 @@ export function VictoryScreen() {
           RANK: {rating}
         </div>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '14px 28px', fontSize: 16, fontWeight: 700,
-              background: '#888', color: 'white',
-              border: 'none', borderRadius: 12,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-            }}
-          >
-            Play again ↻
-          </button>
+          {/* Phase is host-authoritative in co-op — a guest's restart would be
+              overwritten by the next world snapshot, so only the host (or a
+              solo player) gets the live button. */}
+          {isHost ? (
+            <button
+              onClick={replayAliens}
+              style={{
+                padding: '14px 28px', fontSize: 16, fontWeight: 700,
+                background: '#888', color: 'white',
+                border: 'none', borderRadius: 12,
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              }}
+            >
+              Play again ↻
+            </button>
+          ) : null}
           {isHost ? (
             <button
               onClick={() => useGameStore.getState().setPhase('free-play')}

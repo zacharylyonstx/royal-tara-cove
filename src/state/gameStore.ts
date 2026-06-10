@@ -58,8 +58,9 @@ interface GameStore {
   /** Reset all tornado-mode state for replay or mode switch. */
   resetTornadoGame: () => void;
 
-  /** Reset all munchies state (positions + store). Called when welcome reopens or mode switches away from munchies. */
-  resetMunchiesGame: () => void;
+  /** Reset the family to their cul-de-sac spawn (positions + yaws). Used by
+   *  in-place replays and back-to-menu teardowns for every mode. */
+  resetFamilyPositions: () => void;
 
   /** Game phase machine. Welcome closes → intro → combat → victory|defeat (aliens),
    *  or → calm → rain → hail → tornado-approach → tornado-arrived → victory|defeat (tornado). */
@@ -142,7 +143,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     yaws: { dad: Math.PI, penny: Math.PI, luke: Math.PI },
   }),
 
-  resetMunchiesGame: () => set({
+  resetFamilyPositions: () => set({
     positions: {
       dad: new Vector3(-2.5, 0, 10),
       penny: new Vector3(0, 0, 11),

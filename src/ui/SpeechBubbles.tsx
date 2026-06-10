@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { useChatStore } from '../state/chatStore';
+import { useChatStore, EMOTES } from '../state/chatStore';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
@@ -38,6 +38,8 @@ export function SpeechBubbles() {
         const def = CHARACTERS[id];
         const pos = positions[id];
         if (!pos) return null;
+        // One-tap emotes render as one big bouncy emoji, not a text bubble.
+        const isEmote = (EMOTES as readonly string[]).includes(msg.text);
         return (
           <Html
             key={`${id}-${msg.id}`}
@@ -51,9 +53,9 @@ export function SpeechBubbles() {
               style={{
                 background: 'white',
                 color: '#1a1a1c',
-                padding: '6px 10px',
-                borderRadius: 10,
-                fontSize: 18,
+                padding: isEmote ? '6px 12px' : '6px 10px',
+                borderRadius: isEmote ? 16 : 10,
+                fontSize: isEmote ? 40 : 18,
                 fontWeight: 600,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 boxShadow: '0 4px 10px rgba(0,0,0,0.35)',
@@ -64,9 +66,10 @@ export function SpeechBubbles() {
                 position: 'relative',
                 border: `2px solid ${def.bodyColor}`,
                 pointerEvents: 'none',
+                animation: isEmote ? 'pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both' : undefined,
               }}
             >
-              <span style={{ marginRight: 4 }}>{def.emoji}</span>
+              {!isEmote && <span style={{ marginRight: 4 }}>{def.emoji}</span>}
               {msg.text}
               <span
                 style={{

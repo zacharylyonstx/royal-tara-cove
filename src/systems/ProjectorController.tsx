@@ -6,6 +6,7 @@ import { buildLots } from '../world/lots';
 import { getProjectorVideo } from '../world/projectorMedia';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
+import { SCREEN_X, SCREEN_Y, SCREEN_Z } from '../components/hero/ProjectorScreen';
 
 // Audio falloff for the great-room projector. Headless: no rendering.
 //
@@ -44,10 +45,11 @@ const SETUP: Setup | null = (() => {
   const lots = buildLots(HOUSES);
   const lot = lots.find((l) => l.address === hero.address);
   if (!lot) return null;
-  // Screen plane center in HOUSE-LOCAL space (matches ProjectorScreen.tsx).
-  const localX = -1.58;
-  const localY = 1.8;
-  const localZ = -4;
+  // Screen plane center in HOUSE-LOCAL space (imported from ProjectorScreen
+  // so the audio source can never drift from the visible screen again).
+  const localX = SCREEN_X;
+  const localY = SCREEN_Y;
+  const localZ = SCREEN_Z;
   const cosYaw = Math.cos(lot.houseYaw);
   const sinYaw = Math.sin(lot.houseYaw);
   return {

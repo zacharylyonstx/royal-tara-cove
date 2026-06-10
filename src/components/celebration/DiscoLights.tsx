@@ -8,9 +8,11 @@ const LIGHT_COLORS = ['#ff5a3a', '#5cb85c', '#3a6db0', '#3afff0', '#fff15a', '#e
 interface Spot { x: number; z: number; phase: number }
 
 const SPOTS: Spot[] = [
+  // Flank the cul-de-sac bulb (where everyone stands at victory) + light the
+  // hero front yard. The old z=-55 spot lit an empty stretch of street.
   { x: -18, z: -12, phase: 0 },
   { x: 18, z: -12, phase: 1.5 },
-  { x: 0, z: -55, phase: 3.0 },
+  { x: 0, z: 28, phase: 3.0 },
 ];
 
 export function DiscoLights() {

@@ -20,7 +20,8 @@ export function RoomBadge() {
     mode === 'aliens'   ? '👽 Aliens'
     : mode === 'tornado' ? '🌪️ Tornado'
     : mode === 'munchies' ? '🥛 Munchies'
-    : '·';
+    : mode === 'treehouse' ? '🌳 Treehouse'
+    : '🏘️ Free Play';
   const myDef = myCharacterId ? CHARACTERS[myCharacterId] : null;
 
   const statusDot =

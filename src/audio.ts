@@ -74,11 +74,12 @@ export function hopSound() {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
+  const v = 0.9 + Math.random() * 0.2; // fresh pitch every hop
   const osc = c.createOscillator();
   const g = c.createGain();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(290, t0);
-  osc.frequency.exponentialRampToValueAtTime(560, t0 + 0.09);
+  osc.frequency.setValueAtTime(290 * v, t0);
+  osc.frequency.exponentialRampToValueAtTime(560 * v, t0 + 0.09);
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.linearRampToValueAtTime(0.13, t0 + 0.012);
   g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
@@ -111,6 +112,30 @@ export function trampolineBoing(charge = 0) {
   lfo.start(t0);
   osc.stop(t0 + 0.36);
   lfo.stop(t0 + 0.36);
+}
+
+/** Warm two-note pop when a chat message / emote lands. Each family member
+ *  has their own pitch (Dad low, Luke middle, Penny high) so the kids learn
+ *  "that ding is ME" — and Dad hears who's talking without reading. */
+export function chatPop(characterId?: string) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const base = characterId === 'penny' ? 620 : characterId === 'luke' ? 470 : 340;
+  for (let i = 0; i < 2; i++) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    const f = base * (i === 0 ? 1 : 1.33); // perfect-fourth hop up
+    const ts = t0 + i * 0.07;
+    osc.frequency.setValueAtTime(f, ts);
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.1, ts + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.16);
+    osc.connect(g).connect(master(c));
+    osc.start(ts);
+    osc.stop(ts + 0.18);
+  }
 }
 
 /** Soft UI blip when picking a dress-up item. */
@@ -171,11 +196,14 @@ export function laserZap() {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
+  // Random detune so hundreds of shots per session don't all ring identical
+  // (identical repeats turn from juicy to grating in minutes).
+  const v = 0.9 + Math.random() * 0.2;
   const osc = c.createOscillator();
   const gain = c.createGain();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(1100, t0);
-  osc.frequency.exponentialRampToValueAtTime(160, t0 + 0.18);
+  osc.frequency.setValueAtTime(1100 * v, t0);
+  osc.frequency.exponentialRampToValueAtTime(160 * v, t0 + 0.18);
   gain.gain.setValueAtTime(0.18, t0);
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.2);
   osc.connect(gain).connect(master(c));
@@ -185,8 +213,8 @@ export function laserZap() {
   const osc2 = c.createOscillator();
   const gain2 = c.createGain();
   osc2.type = 'square';
-  osc2.frequency.setValueAtTime(2400, t0);
-  osc2.frequency.exponentialRampToValueAtTime(900, t0 + 0.06);
+  osc2.frequency.setValueAtTime(2400 * v, t0);
+  osc2.frequency.exponentialRampToValueAtTime(900 * v, t0 + 0.06);
   gain2.gain.setValueAtTime(0.06, t0);
   gain2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06);
   osc2.connect(gain2).connect(master(c));
@@ -1210,10 +1238,16 @@ export function cowMoo() {
 
 // --- Midnight Munchies SFX ---
 
+// Classic Pac-Man alternates two chomp pitches — constant pellet-eating with
+// one fixed pitch fatigues fast.
+let crunchAlt = false;
+
 export function munchiesCrunch() {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
+  crunchAlt = !crunchAlt;
+  const pitchMul = crunchAlt ? 1 : 0.82;
   // Layered: bright crunch noise + low sub-thump
   const bufSize = Math.floor(c.sampleRate * 0.15);
   const buf = c.createBuffer(1, bufSize, c.sampleRate);
@@ -1228,7 +1262,7 @@ export function munchiesCrunch() {
   gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
   const bp = c.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 1800;
+  bp.frequency.value = 1800 * pitchMul;
   bp.Q.value = 1.0;
   src.connect(bp).connect(gain).connect(master(c));
   src.start(t0);
@@ -1238,8 +1272,8 @@ export function munchiesCrunch() {
   const sub = c.createOscillator();
   const subGain = c.createGain();
   sub.type = 'sine';
-  sub.frequency.setValueAtTime(120, t0);
-  sub.frequency.exponentialRampToValueAtTime(50, t0 + 0.09);
+  sub.frequency.setValueAtTime(120 * pitchMul, t0);
+  sub.frequency.exponentialRampToValueAtTime(50 * pitchMul, t0 + 0.09);
   subGain.gain.setValueAtTime(0.18, t0);
   subGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1);
   sub.connect(subGain).connect(master(c));

@@ -12,6 +12,11 @@ export interface ChatMsg {
 const MAX_MESSAGES = 30;
 const BUBBLE_DURATION_MS = 6000;
 
+/** One-tap emotes — sent through the normal chat channel so they show as
+ *  speech bubbles on every screen. A message that IS one of these strings
+ *  renders as a big emoji bubble. Order matters: keys 1-4 map to these. */
+export const EMOTES = ['👋', '❤️', '😂', '🤩'] as const;
+
 interface ChatStore {
   inputOpen: boolean;
   messages: ChatMsg[];

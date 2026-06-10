@@ -8,11 +8,12 @@ import { useNetStore } from '../state/netStore';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
-import { useChatStore, type ChatMsg } from '../state/chatStore';
+import { useChatStore, EMOTES, type ChatMsg } from '../state/chatStore';
 import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
+import { blobSquish, chatPop } from '../audio';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -50,6 +51,28 @@ export interface PlayerStateMsg {
 /** A "someone scored a basket" celebration event. */
 export interface BasketMsg {
   shooter: CharacterId;
+  t: number;
+}
+
+/**
+ * A weapon discharge (aliens combat). Broadcast by every shooter so peers SEE
+ * each other fight; the host additionally applies the damage (world state is
+ * host-authoritative, so a guest kid's shots are forwarded here rather than
+ * damaging locally).
+ */
+export interface FireMsg {
+  by: CharacterId;
+  kind: 'beam' | 'bomb' | 'lego';
+  /** Beam visual endpoints (beam only). */
+  fromX?: number; fromY?: number; fromZ?: number;
+  toX?: number; toY?: number; toZ?: number;
+  tint?: 'cyan' | 'pink' | 'green';
+  /** Beam: blob the shooter's aim resolved to (null = miss). */
+  targetBlobId?: number | null;
+  /** Projectile launch state (bomb/lego only). */
+  px?: number; py?: number; pz?: number;
+  vx?: number; vy?: number; vz?: number;
+  damage: number;
   t: number;
 }
 
@@ -109,6 +132,7 @@ let sendWorld: ((data: WorldStateMsg) => Promise<void[]>) | null = null;
 let sendChatAction: ((data: ChatMsg) => Promise<void[]>) | null = null;
 let sendBasketAction: ((data: BasketMsg) => Promise<void[]>) | null = null;
 let sendWardrobe: ((data: WardrobeMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
+let sendFireAction: ((data: FireMsg) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 let chatMsgCounter = 0;
 
@@ -168,12 +192,14 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [chatSender, chatReceiver] = r.makeAction('chat');
   const [basketSender, basketReceiver] = r.makeAction('basket');
   const [wardrobeSender, wardrobeReceiver] = r.makeAction('wardrobe');
+  const [fireSender, fireReceiver] = r.makeAction('fire');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
   sendChatAction = chatSender as unknown as typeof sendChatAction;
   sendBasketAction = basketSender as unknown as typeof sendBasketAction;
   sendWardrobe = wardrobeSender as unknown as typeof sendWardrobe;
+  sendFireAction = fireSender as unknown as typeof sendFireAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
@@ -226,6 +252,9 @@ export async function joinRoom(mode: GameMode): Promise<void> {
       text,
       sentAt: num(rawData.sentAt, Date.now()),
     });
+    // Audible arrival, pitched per family member — Dad hears the kids even
+    // while he's mid-blob-fight.
+    chatPop(characterId);
   }));
 
   basketReceiver((rawData) => netGuard('basket', () => {
@@ -233,6 +262,42 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     // A peer scored — celebrate + count it on our side (sender already counted
     // locally; trystero doesn't echo to the sender, so no double-count).
     usePlayStore.getState().scoreBasket(rawData.shooter as CharacterId, performance.now());
+  }));
+
+  fireReceiver((rawData) => netGuard('fire', () => {
+    if (!isObj(rawData)) return;
+    if (useGameStore.getState().gameMode !== 'aliens') return;
+    const c = useCombatStore.getState();
+    const tint = rawData.tint === 'pink' || rawData.tint === 'green' ? rawData.tint : 'cyan';
+    const damage = Math.min(4, Math.max(1, num(rawData.damage, 1)));
+    if (rawData.kind === 'beam') {
+      // Everyone renders the shooter's beam; the host also lands the hit.
+      const to: [number, number, number] = [num(rawData.toX), num(rawData.toY), num(rawData.toZ)];
+      c.spawnBeam([num(rawData.fromX), num(rawData.fromY), num(rawData.fromZ)], to, tint);
+      const targetId = typeof rawData.targetBlobId === 'number' ? rawData.targetBlobId : null;
+      if (targetId !== null) {
+        const blob = c.blobs.find((b) => b.id === targetId && b.alive);
+        if (blob) {
+          c.spawnHitParticle(to[0], to[1], to[2], blob.variant);
+          if (useNetStore.getState().isHost) {
+            c.damageBlob(targetId, damage);
+            if (blob.hp <= damage) blobSquish();
+          }
+        }
+      }
+    } else if (rawData.kind === 'bomb' || rawData.kind === 'lego') {
+      // Spawn the shooter's projectile locally. ProjectileController moves it
+      // on every client; only the host's copy deals damage.
+      c.spawnProjectile({
+        kind: rawData.kind,
+        x: num(rawData.px), y: num(rawData.py), z: num(rawData.pz),
+        vx: num(rawData.vx), vy: num(rawData.vy), vz: num(rawData.vz),
+        spawnedAt: performance.now() / 1000,
+        bouncesLeft: rawData.kind === 'bomb' ? 2 : undefined,
+        rotPhase: Math.random() * Math.PI * 2,
+        damage,
+      });
+    }
   }));
 
   wardrobeReceiver((rawData) => netGuard('wardrobe', () => {
@@ -284,6 +349,7 @@ export async function leaveRoom(): Promise<void> {
   }
   room = null;
   sendWhoami = sendPlayer = sendWorld = sendChatAction = sendBasketAction = sendWardrobe = null;
+  sendFireAction = null;
   useNetStore.getState().leftRoom();
 }
 
@@ -302,7 +368,21 @@ export async function sendChat(text: string): Promise<void> {
   };
   // Append locally first so the sender sees their own message immediately.
   useChatStore.getState().appendMessage(msg);
+  chatPop(characterId);
   if (sendChatAction) await sendChatAction(msg).catch(() => {});
+}
+
+let lastEmoteAt = 0;
+
+/** Send a one-tap emote (index into EMOTES) through the chat channel.
+ *  Lightly rate-limited so a button-mashing kid doesn't flood the room. */
+export function sendEmote(index: number): void {
+  const e = EMOTES[index];
+  if (!e) return;
+  const now = Date.now();
+  if (now - lastEmoteAt < 350) return;
+  lastEmoteAt = now;
+  void sendChat(e);
 }
 
 export async function claimCharacter(id: CharacterId): Promise<void> {
@@ -323,6 +403,11 @@ export async function broadcastWorldState(msg: WorldStateMsg): Promise<void> {
 /** Tell peers we sank a basket (celebration only; the ball isn't networked). */
 export async function broadcastBasket(shooter: CharacterId): Promise<void> {
   if (sendBasketAction) await sendBasketAction({ shooter, t: Date.now() }).catch(() => {});
+}
+
+/** Broadcast a weapon discharge so peers see it (and the host lands it). */
+export async function broadcastFire(msg: FireMsg): Promise<void> {
+  if (sendFireAction) await sendFireAction(msg).catch(() => {});
 }
 
 /** Broadcast our character's chosen dress-up look to all peers. */
@@ -365,8 +450,21 @@ function applyWorldSnapshot(s: Json): void {
   }
 
   // Combat store: blobs, wave state, power-ups, score.
+  // Kill juice for guests: the host plays squish/shake at the moment of a
+  // kill, but a guest only learns about it here — without this, a kid's own
+  // killing blow lands in total silence on her machine.
+  const nextBlobs = arr(s.blobs) as Blob[];
+  {
+    const cs = useCombatStore.getState();
+    const prevAlive = cs.blobs.reduce((n, b) => n + (b.alive ? 1 : 0), 0);
+    const nextAlive = nextBlobs.reduce((n, b) => n + (b.alive ? 1 : 0), 0);
+    if (nextAlive < prevAlive && prevAlive > 0) {
+      blobSquish();
+      cs.addShake(0.1);
+    }
+  }
   useCombatStore.setState({
-    blobs: arr(s.blobs) as Blob[],
+    blobs: nextBlobs,
     waveIndex: num(s.waveIndex),
     waveState: s.waveState as WaveState,
     intermissionEndsAt: num(s.intermissionEndsAt),

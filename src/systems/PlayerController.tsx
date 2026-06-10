@@ -17,6 +17,7 @@ import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions
 import { treehousePickup, hopSound, trampolineBoing } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
 import { useWardrobeStore } from '../state/wardrobeStore';
+import { sendEmote } from '../net/room';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -98,9 +99,17 @@ export function PlayerController() {
       keys.current[k] = true;
       // Space shoots a held ball OR hops/flips on a bike (edge-triggered: one press = one action).
       if ((k === ' ' || k === 'space') && !e.repeat) { shootRef.current = true; jumpPressedRef.current = true; }
-      // 1/2/3 character swap disabled in multiplayer — character is fixed
-      // to whatever you claimed in CharacterSelect.
+      // 1-4 fire one-tap emotes (👋 ❤️ 😂 🤩) — pops a speech bubble over
+      // your head on every screen. (Character swap stays disabled in MP.)
+      if (!e.repeat && (k === '1' || k === '2' || k === '3' || k === '4')) {
+        if (!useGameStore.getState().welcomeOpen) sendEmote(Number(k) - 1);
+      }
       if (k === 'r') {
+        // Ignore while the menu is open (the controller is gated but this
+        // branch mutates positions directly) and while driving — teleporting
+        // a mounted rider leaves the vehicle snapped under them mid-street.
+        if (useGameStore.getState().welcomeOpen) return;
+        if (usePlayStore.getState().riding[activeId]) return;
         // reset to spawn (mode-aware)
         const pos = positions[activeId];
         const modeForReset = useGameStore.getState().gameMode;
@@ -125,13 +134,34 @@ export function PlayerController() {
       if (useWardrobeStore.getState().open) return; // overlay clicks must not arm a shot
       shootRef.current = true;
     };
+    // Dad alt-tabs to Zoom constantly while screen-sharing: a key held at that
+    // moment never gets its keyup, so the character sprints off on its own.
+    // Clear ALL input state whenever the window loses focus or the tab hides.
+    const clearAllInput = () => {
+      keys.current = {};
+      shootRef.current = false;
+      jumpPressedRef.current = false;
+      interactPressedRef.current = false;
+      touchInput.active = false;
+      touchInput.moveX = 0;
+      touchInput.moveY = 0;
+      touchInput.jumpQueued = false;
+      touchInput.actionQueued = false;
+    };
+    const onVisibility = () => {
+      if (document.hidden) clearAllInput();
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('blur', clearAllInput);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
       window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('blur', clearAllInput);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [activeId, positions]);
 
