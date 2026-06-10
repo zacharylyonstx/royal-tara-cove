@@ -8,6 +8,7 @@ import { useTornadoStore } from '../state/tornadoStore';
 import { getCarThrow } from '../world/tornadoCarThrow';
 import { Truck } from './props/Truck';
 import { Sedan } from './props/Sedan';
+import { GolfCart } from './props/GolfCart';
 import { BBQGrill } from './props/BBQGrill';
 import { BasketballHoop } from './props/BasketballHoop';
 import { TrashBins } from './props/TrashBins';
@@ -41,7 +42,10 @@ function toWorld(lx: number, ly: number, lz: number, pivot: [number, number], ya
  *  (the driven copy follows the driver via RiddenBikes). In tornado mode, when
  *  the funnel reaches it the car is RIPPED off the driveway: sucked up, spun,
  *  tumbled through the vortex, then flung out and gone. */
-function ParkedCar({ carId }: { carId: string }) {
+/** A parked, drivable car. Generic over playStore.cars — also used by the
+ * across-the-boulevard zone for its golf cart. Hides while driven; tornado
+ * mode can rip it into the funnel. */
+export function ParkedCar({ carId }: { carId: string }) {
   const car = usePlayStore((s) => s.cars[carId]);
   const driven = usePlayStore((s) =>
     Object.values(s.riding).some((r) => r && r.vehicle === 'car' && r.bikeId === carId));
@@ -106,7 +110,9 @@ function ParkedCar({ carId }: { carId: string }) {
   if (!car || driven) return null;
   const body = car.kind === 'truck'
     ? <Truck position={[0, 0, 0]} rotation={0} color={car.color} />
-    : <Sedan position={[0, 0, 0]} rotation={0} color={car.color} />;
+    : car.kind === 'golfcart'
+      ? <GolfCart position={[0, 0, 0]} rotation={0} />
+      : <Sedan position={[0, 0, 0]} rotation={0} color={car.color} />;
   return <group ref={ref}>{body}</group>;
 }
 

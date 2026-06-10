@@ -47,6 +47,14 @@ export const MODELS = {
   ufo: { url: `${base}/ufo.glb`, fitHeight: 3.2 },
   // tornado easter-egg — the classic Twister flying cow
   cow: { url: `${base}/cow.glb`, fitHeight: 2.2 },
+  // across-the-boulevard zone (pond park + shops) & pets
+  dog: { url: `${base}/dog.glb`, fitHeight: 0.95, rotationY: Math.PI },
+  duck: { url: `${base}/duck.glb`, fitHeight: 0.42 },
+  playground: { url: `${base}/playground.glb`, fitHeight: 3.4 },
+  icecreamstand: { url: `${base}/icecreamstand.glb`, fitHeight: 2.3 },
+  picnictable: { url: `${base}/picnictable.glb`, fitHeight: 0.8 },
+  parkbench: { url: `${base}/parkbench.glb`, fitHeight: 0.9 },
+  golfcart: { url: `${base}/golfcart.glb`, fitHeight: 1.8, rotationY: -Math.PI / 2 },
 } as const satisfies Record<string, ModelConfig>;
 
 export type ModelKey = keyof typeof MODELS;

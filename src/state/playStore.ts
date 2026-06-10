@@ -25,7 +25,7 @@ export interface CarReg {
   x: number;
   z: number;
   color: string;
-  kind: 'sedan' | 'truck';
+  kind: 'sedan' | 'truck' | 'golfcart';
   yaw: number; // parked facing
 }
 
@@ -36,7 +36,7 @@ export interface RidingState {
   bikeColor: string;
   /** undefined/'bike' = bicycle; 'car' = driving a registered car. */
   vehicle?: 'bike' | 'car';
-  carKind?: 'sedan' | 'truck';
+  carKind?: 'sedan' | 'truck' | 'golfcart';
   heading: number;    // facing yaw of the bike
   speed: number;      // m/s, signed
   y: number;          // bike height (0 = on the ground, >0 = airborne)

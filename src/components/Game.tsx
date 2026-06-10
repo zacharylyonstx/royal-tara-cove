@@ -78,6 +78,9 @@ import { RagdollController } from '../systems/RagdollController';
 import { NetSyncController } from '../systems/NetSyncController';
 import { SpeechBubbles } from '../ui/SpeechBubbles';
 import { NameTags } from '../ui/NameTags';
+import { AcrossTheBoulevard } from './zone/AcrossTheBoulevard';
+import { FamilyDog } from './zone/FamilyDog';
+import { buildAcrossBlvdColliders, buildAcrossBlvdFloors } from '../world/acrossBlvd';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
 import { Hail } from './weather/Hail';
@@ -141,11 +144,12 @@ export function Game() {
         ...buildHeroExteriorColliders(hero, heroLot),
         ...buildPlayhouseColliders(hero, heroLot),
       ];
-      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor()]);
+      // ONE setFloors call for the whole world (it replaces wholesale).
+      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors()]);
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders()]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders()]);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors]);
 
   return (
@@ -194,6 +198,11 @@ export function Game() {
 
       {/* Hazy distant treeline framing the neighborhood (depth backdrop). */}
       <DistantScenery />
+
+      {/* The duck pond, park + shops across Avery Ranch Blvd (real geography). */}
+      <AcrossTheBoulevard />
+      {/* Sparky lives at 10600 in Free Play. */}
+      <FamilyDog />
 
       {/* Characters */}
       {CHARACTER_ORDER.map((id) => (

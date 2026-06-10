@@ -114,6 +114,101 @@ export function trampolineBoing(charge = 0) {
   lfo.stop(t0 + 0.36);
 }
 
+/** Friendly double woof — band-passed noise bursts with a falling formant. */
+export function dogBark() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const v = 0.92 + Math.random() * 0.16;
+  for (let i = 0; i < 2; i++) {
+    const ts = t0 + i * 0.16;
+    const buf = makeNoiseBuffer(c, 0.14, 'white');
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(640 * v, ts);
+    bp.frequency.exponentialRampToValueAtTime(310 * v, ts + 0.1);
+    bp.Q.value = 2.2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.34, ts + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.13);
+    src.connect(bp).connect(g).connect(master(c));
+    src.start(ts);
+    src.stop(ts + 0.15);
+  }
+}
+
+/** Soft happy chime for petting — gentle major third shimmer. */
+export function petChime() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const base = 520 + Math.random() * 60;
+  [1, 1.26, 1.5].forEach((ratio, i) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    const ts = t0 + i * 0.05;
+    osc.frequency.setValueAtTime(base * ratio, ts);
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.08, ts + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.5);
+    osc.connect(g).connect(master(c));
+    osc.start(ts);
+    osc.stop(ts + 0.55);
+  });
+}
+
+/** Mallard quack-quack — sawtooth with a fast pitch dip, nasal bandpass. */
+export function duckQuack() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const v = 0.85 + Math.random() * 0.3;
+  for (let i = 0; i < 2; i++) {
+    const ts = t0 + i * 0.22;
+    const osc = c.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(290 * v, ts);
+    osc.frequency.exponentialRampToValueAtTime(180 * v, ts + 0.12);
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1100 * v;
+    bp.Q.value = 1.6;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.12, ts + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.16);
+    osc.connect(bp).connect(g).connect(master(c));
+    osc.start(ts);
+    osc.stop(ts + 0.2);
+  }
+}
+
+/** Tiny music-box jingle for the ice cream cart (first 5 notes, kid-catnip). */
+export function icecreamJingle() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  // C-E-G-E-C up-down twinkle.
+  const notes = [523.25, 659.25, 783.99, 659.25, 1046.5];
+  notes.forEach((f, i) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'triangle';
+    const ts = t0 + i * 0.13;
+    osc.frequency.setValueAtTime(f, ts);
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.12, ts + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.35);
+    osc.connect(g).connect(master(c));
+    osc.start(ts);
+    osc.stop(ts + 0.4);
+  });
+}
+
 /** Warm two-note pop when a chat message / emote lands. Each family member
  *  has their own pitch (Dad low, Luke middle, Penny high) so the kids learn
  *  "that ding is ME" — and Dad hears who's talking without reading. */

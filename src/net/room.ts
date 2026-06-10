@@ -44,7 +44,7 @@ export interface PlayerStateMsg {
   jumping: boolean;
   /** Vehicle-riding state (so peers render the bike/car under us). y/flipAngle drive air + tricks.
    *  bikeId is the real registered prop id so observers hide the right parked vehicle. */
-  riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' } | null;
+  riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart' } | null;
   t: number; // sender timestamp ms
 }
 
@@ -222,7 +222,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
           y: num(r.y),
           flipAngle: num(r.flipAngle),
           vehicle: r.vehicle === 'car' ? ('car' as const) : ('bike' as const),
-          carKind: r.carKind === 'truck' ? ('truck' as const) : ('sedan' as const),
+          carKind: r.carKind === 'truck' ? ('truck' as const) : r.carKind === 'golfcart' ? ('golfcart' as const) : ('sedan' as const),
         }
       : null;
     useNetStore.getState().setRemotePlayerState({

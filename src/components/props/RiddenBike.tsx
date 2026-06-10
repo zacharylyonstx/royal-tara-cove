@@ -4,6 +4,7 @@ import type { Group } from 'three';
 import { Bike } from './Bike';
 import { Truck } from './Truck';
 import { Sedan } from './Sedan';
+import { GolfCart } from './GolfCart';
 import { usePlayStore } from '../../state/playStore';
 import { useGameStore } from '../../state/gameStore';
 import { CHARACTER_ORDER } from '../../world/characters';
@@ -71,6 +72,8 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
         {isCar ? (
           riding.carKind === 'truck' ? (
             <Truck position={[0, 0, 0]} rotation={0} color={riding.bikeColor} />
+          ) : riding.carKind === 'golfcart' ? (
+            <GolfCart position={[0, 0, 0]} rotation={0} />
           ) : (
             <Sedan position={[0, 0, 0]} rotation={0} color={riding.bikeColor} />
           )

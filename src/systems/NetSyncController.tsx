@@ -94,7 +94,7 @@ export function NetSyncController() {
         const fa = rp.riding.flipAngle ?? 0;
         const flip = fa !== 0 ? { dir: (fa >= 0 ? 1 : -1) as 1 | -1, angle: fa } : null;
         const vehicle = rp.riding.vehicle === 'car' ? 'car' : 'bike';
-        const carKind = rp.riding.carKind === 'truck' ? 'truck' : 'sedan';
+        const carKind = rp.riding.carKind === 'truck' ? 'truck' : rp.riding.carKind === 'golfcart' ? 'golfcart' : 'sedan';
         if (!cur) play.mount(cid, { bikeId: rp.riding.bikeId || `${charId}-remote`, bikeColor: rp.riding.bikeColor, vehicle, carKind, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0 });
         else {
           // Smooth heading + hop height; snap discrete fields (color/flip/vehicle).

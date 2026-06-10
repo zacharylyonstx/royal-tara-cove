@@ -17,7 +17,10 @@ import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions
 import { treehousePickup, hopSound, trampolineBoing } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
 import { useWardrobeStore } from '../state/wardrobeStore';
-import { sendEmote } from '../net/room';
+import { useZoneStore } from '../state/zoneStore';
+import { sendEmote, sendChat } from '../net/room';
+import { icecreamJingle } from '../audio';
+import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -222,8 +225,31 @@ export function PlayerController() {
         ws.openWardrobe(near.owner);
         return;
       }
-    } else if (useWardrobeStore.getState().hoverDresser) {
-      useWardrobeStore.getState().setHoverDresser(null);
+
+      // Zone interactables (pet Sparky, the ice cream cart). Dresser wins on
+      // overlap; the prompt priority in InteractPrompt matches this order.
+      const zs = useZoneStore.getState();
+      let zNear: (typeof zs.interactables)[string] | null = null;
+      let zD = Infinity;
+      for (const it of Object.values(zs.interactables)) {
+        const d = Math.hypot(it.x - p.x, it.z - p.z);
+        if (d < it.radius && d < zD) { zD = d; zNear = it; }
+      }
+      zs.setHover(zNear ? zNear.id : null);
+      if (zNear && !near && interactPressedRef.current) {
+        interactPressedRef.current = false;
+        zs.fireInteract(zNear.id, activeId);
+        if (zNear.kind === 'icecream') {
+          // The treat is a shared moment: jingle + a 🍦 bubble over your head
+          // on every screen (rides the chat channel like the emotes).
+          icecreamJingle();
+          void sendChat('🍦');
+        }
+        return;
+      }
+    } else {
+      if (useWardrobeStore.getState().hoverDresser) useWardrobeStore.getState().setHoverDresser(null);
+      if (useZoneStore.getState().hoverId) useZoneStore.getState().setHover(null);
     }
 
     if (modeNow === 'munchies') {
@@ -575,8 +601,10 @@ function clampToStreet(x: number, z: number): { x: number; z: number } | null {
   const inStick = Math.abs(x) <= RIDE_STICK_HALF_X && z <= STRAIGHT_START_Z && z >= STRAIGHT_END_Z;
   const inBulb = x * x + z * z <= RIDE_BULB_R * RIDE_BULB_R;
   const inBlvd = Math.abs(x) <= RIDE_BLVD_HALF_X && Math.abs(z - RIDE_BLVD_Z) <= RIDE_BLVD_HALF_Z;
-  if (inStick || inBulb || inBlvd) return null;
-  // Outside all three: clamp to whichever region edge is nearest.
+  // Across-the-boulevard park zone (pond / shops / playground).
+  const inZone = Math.abs(x) <= ZONE_HALF_X && z <= ZONE_MAX_Z && z >= ZONE_MIN_Z;
+  if (inStick || inBulb || inBlvd || inZone) return null;
+  // Outside all regions: clamp to whichever region edge is nearest.
   const sx = Math.max(-RIDE_STICK_HALF_X, Math.min(RIDE_STICK_HALF_X, x));
   const sz = Math.max(STRAIGHT_END_Z, Math.min(STRAIGHT_START_Z, z));
   const dStick = (x - sx) ** 2 + (z - sz) ** 2;
@@ -587,9 +615,13 @@ function clampToStreet(x: number, z: number): { x: number; z: number } | null {
   const bx = (x / dd) * RIDE_BULB_R;
   const bz = (z / dd) * RIDE_BULB_R;
   const dBulb = (x - bx) ** 2 + (z - bz) ** 2;
-  const best = Math.min(dStick, dBlvd, dBulb);
+  const zx = Math.max(-ZONE_HALF_X, Math.min(ZONE_HALF_X, x));
+  const zz = Math.max(ZONE_MIN_Z, Math.min(ZONE_MAX_Z, z));
+  const dZone = (x - zx) ** 2 + (z - zz) ** 2;
+  const best = Math.min(dStick, dBlvd, dBulb, dZone);
   if (best === dStick) return { x: sx, z: sz };
   if (best === dBlvd) return { x: vx, z: vz };
+  if (best === dZone) return { x: zx, z: zz };
   return { x: bx, z: bz };
 }
 
@@ -642,7 +674,9 @@ function rideBikeTick(
   const wipingOut = riding.wipeoutUntil > now;
   const grounded = !riding.airborne;
   const isCar = riding.vehicle === 'car';
-  const MAXSP = isCar ? CAR_MAX_SPEED : BIKE_MAX_SPEED;
+  // The golf cart putters: real-cart top speed, tighter turning for pond laps.
+  const isGolfCart = isCar && riding.carKind === 'golfcart';
+  const MAXSP = isGolfCart ? 12 : isCar ? CAR_MAX_SPEED : BIKE_MAX_SPEED;
   const REVSP = isCar ? CAR_REVERSE_SPEED : BIKE_REVERSE_SPEED;
   const ACCEL = isCar ? CAR_ACCEL : BIKE_ACCEL;
   const BRAKE = isCar ? CAR_BRAKE : BIKE_BRAKE;

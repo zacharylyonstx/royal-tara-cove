@@ -86,6 +86,7 @@ function LetterBoard({ position }: { position: [number, number, number] }) {
         <boxGeometry args={[1.0, 0.7, 0.04]} />
         <meshStandardMaterial color="#a98654" roughness={0.85} />
       </mesh>
+      {/* No emoji here — troika 3D Text renders emoji as a tofu box. */}
       <Text
         position={[0, 0.32, 0.03]}
         fontSize={0.08}
@@ -93,7 +94,7 @@ function LetterBoard({ position }: { position: [number, number, number] }) {
         anchorX="center"
         anchorY="middle"
       >
-        📬 LETTERS
+        LETTERS
       </Text>
       {/* Click target — small opacity so pointer events fire */}
       <mesh

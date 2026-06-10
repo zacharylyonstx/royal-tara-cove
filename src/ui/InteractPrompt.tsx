@@ -1,6 +1,7 @@
 import { useGameStore } from '../state/gameStore';
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
+import { useZoneStore } from '../state/zoneStore';
 
 const PLAY_LABELS: Record<string, string> = {
   ride: 'ride bike',
@@ -14,12 +15,17 @@ export function InteractPrompt() {
   const doors = useGameStore((s) => s.doors);
   const hoverPlay = usePlayStore((s) => s.hoverPlay);
   const hoverDresser = useWardrobeStore((s) => s.hoverDresser);
+  const hoverZoneId = useZoneStore((s) => s.hoverId);
+  const zoneInteractables = useZoneStore((s) => s.interactables);
 
-  // Wardrobe dresser first, then free-roam play cues, then doors.
+  // Wardrobe dresser first, then zone spots (Sparky, ice cream), then
+  // free-roam play cues, then doors — matches PlayerController's E priority.
   let label: string | null = null;
   let key = 'E';
   if (hoverDresser) {
     label = 'open wardrobe 👗';
+  } else if (hoverZoneId && zoneInteractables[hoverZoneId]) {
+    label = zoneInteractables[hoverZoneId].label;
   } else if (hoverPlay === 'shoot') {
     label = 'shoot';
     key = 'click';
