@@ -1,100 +1,157 @@
-// "Across the Boulevard" — the real geography north of the Royal Tara Cove
-// entrance, lovingly compressed: directly across Avery Ranch Blvd sits a treed
-// pond at the golf-club edge; The Plaza at Avery Ranch (Brooklyn Heights
-// Pizzeria, Orange Leaf, Woof Gang Bakery) is just east; the HOA playground a
-// little further. Layout lives here so the zone component, colliders, floors
-// and the vehicle clamp all share one source of truth.
+// "Across the Boulevard" — corrected to the REAL Avery Ranch geography
+// (Google-satellite + OSM way geometry, meters relative to the Royal Tara
+// Cove × Avery Ranch Blvd junction, proportionally compressed ~5:1):
 //
-// World frame: -Z is north. The blvd asphalt spans z -177.5..-189.5; its far
-// sidewalk outer edge is z=-190.9. The ground plane ends at z=-300 and the
-// fake distant treeline starts at z≈-260 — everything here stays z ≥ -250.
+//   - CASITAS DR starts DIRECTLY across the junction, runs north lined with
+//     garden homes on both sides, then horseshoes east to meet Parmer Ln.
+//   - THE DUCK POND sits WEST, nestled between the blvd and Casitas.
+//   - THE PLAZA AT AVERY RANCH is a large L of shops + parking lot inside
+//     the Casitas dogleg, at the NW corner of Parmer & the blvd.
+//   - PARMER LN is the big median-divided road on the east edge.
+//   - Little Twist Bakery really is one of the Casitas garden homes.
+//
+// World frame: -Z is north, +X is east. Blvd asphalt z -177.5..-189.5 (far
+// sidewalk edge -190.9). Ground ends at z=-300; distant treeline ≈-260; the
+// zone stays z ≥ -250, x within ±70 (vehicle clamp ZONE_* below).
 import { rectAt } from './colliders';
 import type { Floor, RectCollider } from '../types';
 
-// --- Pond (directly across from the entrance, like the real one) ---
-export const POND_X = 0;
-export const POND_Z = -222;
-export const POND_RX = 19; // east-west radius
-export const POND_RZ = 14; // north-south radius
+// --- Duck pond (west pocket between the blvd and Casitas) ---
+export const POND_X = -40;
+export const POND_Z = -212;
+export const POND_RX = 13; // east-west radius
+export const POND_RZ = 10; // north-south radius
 
-// --- Dock (south shore, walks out over the water) ---
+// --- Dock (south shore, walks north out over the water) ---
 export const DOCK_W = 2.4;
-export const DOCK_START_Z = -207.5; // shore end (on grass)
-export const DOCK_END_Z = -216.5;   // water end
+export const DOCK_START_Z = -200.8; // shore end (grass)
+export const DOCK_END_Z = -208.5;   // water end
 export const DOCK_Y = 0.35;         // plank deck height
 
-// --- Park path: crosswalk → pond ---
-export const PATH_HALF_W = 1.6;
-export const PATH_START_Z = -189.5; // far edge of blvd asphalt
-export const PATH_END_Z = DOCK_START_Z;
+// --- Casitas Dr (straight across, north segment + east horseshoe leg) ---
+export const CAS_HALF_W = 3.5;
+export const CAS_NORTH_X = 0;          // north segment centerline
+export const CAS_NORTH_Z0 = -191;      // starts at the blvd sidewalk
+export const CAS_NORTH_Z1 = -226;      // corner
+export const CAS_EAST_Z = -233;        // east segment centerline
+export const CAS_EAST_X0 = 0;          // corner
+export const CAS_EAST_X1 = 53;         // meets Parmer west curb
 
-// --- Playground corner (west of the pond) ---
-export const PLAYGROUND_X = -32;
-export const PLAYGROUND_Z = -210;
+// --- Casitas garden homes (small, dense rows lining the street) ---
+export interface GardenHome { x: number; z: number; faceYaw: number; body: string; roof: string; bakery?: boolean }
+const HOME_BODIES = ['#e3d6bd', '#d9c8ad', '#cfd6c2', '#e6dcc8', '#d6cdb8', '#dccfae'];
+const HOME_ROOFS = ['#6b5b4a', '#5a5a5e', '#75604a', '#62584e'];
+export const GARDEN_HOMES: GardenHome[] = [
+  // West column (face east toward Casitas).
+  ...[-196.5, -203, -209.5, -216, -222.5].map((z, i) => ({
+    x: -10, z, faceYaw: -Math.PI / 2,
+    body: HOME_BODIES[i % HOME_BODIES.length], roof: HOME_ROOFS[i % HOME_ROOFS.length],
+    // The real-life neighborhood home bakery on Casitas.
+    bakery: i === 2,
+  })),
+  // East column (face west toward Casitas).
+  ...[-196.5, -203, -209.5, -216].map((z, i) => ({
+    x: 10, z, faceYaw: Math.PI / 2,
+    body: HOME_BODIES[(i + 3) % HOME_BODIES.length], roof: HOME_ROOFS[(i + 1) % HOME_ROOFS.length],
+  })),
+  // North of the east leg (face south toward the street).
+  ...[16, 26, 36].map((x, i) => ({
+    x, z: -241.5, faceYaw: Math.PI,
+    body: HOME_BODIES[(i + 1) % HOME_BODIES.length], roof: HOME_ROOFS[(i + 2) % HOME_ROOFS.length],
+  })),
+];
+export const HOME_W = 6.4;  // along the street
+export const HOME_D = 5.2;  // depth
+export const HOME_H = 3.1;
 
-// --- Picnic spot ---
-export const PICNIC_X = -17;
-export const PICNIC_Z = -206;
-
-// --- Ice cream cart (by the path, east side) ---
-export const CART_X = 8;
-export const CART_Z = -201;
-
-// --- Golf cart parking (east of the dock, golf-club edge) ---
-export const GOLFCART_X = 16;
-export const GOLFCART_Z = -207;
-
-// --- Shops strip (east, fronting the blvd — The Plaza at Avery Ranch) ---
-export const SHOPS_MIN_X = 28;
-export const SHOPS_MAX_X = 61;
-export const SHOPS_FRONT_Z = -198;  // storefront wall (faces south to the blvd)
-export const SHOPS_BACK_Z = -208;
+// --- The Plaza at Avery Ranch (L of shops + parking inside the dogleg) ---
+export const LOT_MIN_X = 16;
+export const LOT_MAX_X = 44;
+export const LOT_MIN_Z = -214; // north edge (deeper)
+export const LOT_MAX_Z = -196; // south edge (toward blvd)
 export const SHOPS_H = 4.6;
-/** Storefront unit bounds [minX, maxX] + identity. */
-export const SHOPS: { name: string; sub: string; minX: number; maxX: number; accent: string }[] = [
-  { name: 'BROOKLYN HEIGHTS', sub: 'PIZZERIA', minX: 28, maxX: 39, accent: '#b03a2e' },
-  { name: 'ORANGE LEAF', sub: 'FROZEN YOGURT', minX: 39, maxX: 50, accent: '#e8821e' },
-  { name: 'WOOF GANG', sub: 'DOG BAKERY', minX: 50, maxX: 61, accent: '#3a6db0' },
+/** Wing A: long strip on the lot's north side, storefronts face SOUTH. */
+export const WINGA_MIN_X = 16;
+export const WINGA_MAX_X = 44;
+export const WINGA_FRONT_Z = -215;  // storefront wall
+export const WINGA_BACK_Z = -223.5;
+/** Wing B: shorter strip on the lot's east side, storefronts face WEST. */
+export const WINGB_FRONT_X = 45;    // storefront wall
+export const WINGB_BACK_X = 52;
+export const WINGB_MIN_Z = -223.5;
+export const WINGB_MAX_Z = -196;
+export interface ShopUnit { name: string; sub: string; accent: string; min: number; max: number }
+export const WINGA_SHOPS: ShopUnit[] = [
+  { name: 'BROOKLYN HEIGHTS', sub: 'PIZZERIA', accent: '#b03a2e', min: 16, max: 25.5 },
+  { name: 'BLUE AGAVE', sub: 'TEX MEX', accent: '#2e7a6e', min: 25.5, max: 35 },
+  { name: 'ORANGE LEAF', sub: 'FROZEN YOGURT', accent: '#e8821e', min: 35, max: 44 },
+];
+export const WINGB_SHOPS: ShopUnit[] = [
+  { name: 'WOOF GANG', sub: 'DOG BAKERY', accent: '#3a6db0', min: -223.5, max: -214.5 },
+  { name: 'HUNAN RANCH', sub: 'CHINESE KITCHEN', accent: '#a8333d', min: -214.5, max: -205.5 },
+  { name: 'KUMON', sub: 'LEARNING CENTER', accent: '#3a8ac4', min: -205.5, max: -196 },
 ];
 
-// --- Limestone entry walls flanking the crosswalk landing ---
-export const WALL_Z = -192.4;
+// --- Parmer Ln (massive divided road, north-south on the east edge) ---
+export const PARMER_CENTER_X = 62;
+export const PARMER_MEDIAN_HALF = 2;   // grass median x 60..64
+export const PARMER_LANE_W = 7;        // each carriageway
+export const PARMER_Z0 = -189.5;       // meets the blvd
+export const PARMER_Z1 = -250;
+
+// --- Park furnishings (all in the west pond pocket now) ---
+export const PLAYGROUND_X = -58;
+export const PLAYGROUND_Z = -210;
+export const PICNIC_X = -52;
+export const PICNIC_Z = -220;
+export const CART_X = -16;   // ice cream cart at the pond path fork
+export const CART_Z = -194.5;
+export const GOLFCART_X = -24;
+export const GOLFCART_Z = -198.5;
+
+// --- Casitas entry monument walls flanking the crosswalk landing ---
+export const WALL_Z = -192.2;
 
 // --- Vehicle clamp region for the whole zone (used by PlayerController) ---
 export const ZONE_HALF_X = 70;
 export const ZONE_MIN_Z = -250;
 export const ZONE_MAX_Z = -189;
 
-// Oak ring around the pond (positions also drive trunk colliders).
+// Oak ring around the pond + west greenbelt feel.
 export const POND_OAKS: { x: number; z: number; s: number }[] = [
-  { x: -22, z: -230, s: 1.1 },
-  { x: -14, z: -238, s: 0.95 },
-  { x: 4, z: -241, s: 1.15 },
-  { x: 18, z: -235, s: 1.0 },
-  { x: 25, z: -222, s: 0.9 },
-  { x: -26, z: -216, s: 1.0 },
-  { x: 24, z: -212, s: 0.85 },
+  { x: -57, z: -222, s: 1.1 },
+  { x: -50, z: -228, s: 0.95 },
+  { x: -38, z: -230, s: 1.15 },
+  { x: -26, z: -226, s: 1.0 },
+  { x: -22, z: -214, s: 0.9 },
+  { x: -56, z: -200, s: 1.0 },
+  { x: -64, z: -214, s: 1.05 },
+  { x: -28, z: -199, s: 0.85 },
+];
+
+/** Parking-island oaks inside the Plaza lot. */
+export const LOT_OAKS: { x: number; z: number }[] = [
+  { x: 23, z: -205 },
+  { x: 37, z: -205 },
 ];
 
 /**
- * Static colliders for the zone. Pond water is fenced by an octagon of OBB
- * segments (gap on the south edge where the dock crosses); the dock keeps you
- * on its planks with rail colliders; buildings/walls/trees are solid boxes.
+ * Static colliders for the zone: gapless pond water fill (the lesson: piecewise
+ * wall rings have thread-able corner gaps), dock rails, garden homes, Plaza
+ * wings, entry walls, props, oak trunks.
  */
 export function buildAcrossBlvdColliders(): RectCollider[] {
   const out: RectCollider[] = [];
 
-  // Pond edge: 8 OBB segments approximating the ellipse, with segment centers
-  // ON the axis angles so the i=2 segment sits exactly at the south shore
-  // (facing the dock) and can be skipped to open the dock corridor.
+  // Pond rim ring (OBB chords; hop-height) — segment centered at the south
+  // axis (i=2) skipped for the dock corridor.
   const SEGS = 8;
   for (let i = 0; i < SEGS; i++) {
-    if (i === 2) continue; // south-center segment — the dock crosses here
+    if (i === 2) continue;
     const aMid = (i / SEGS) * Math.PI * 2;
     const ex = Math.cos(aMid) * POND_RX;
     const ez = Math.sin(aMid) * POND_RZ;
     const segLen = (2 * Math.PI * ((POND_RX + POND_RZ) / 2)) / SEGS + 2;
-    // OBB long axis (local X) aligned with the ellipse tangent at aMid.
     const yaw = Math.atan2(POND_RZ * Math.cos(aMid), POND_RX * Math.sin(aMid));
     out.push({
       minX: POND_X + ex - segLen / 2,
@@ -106,68 +163,64 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
       tag: 'pond-edge',
     });
   }
-  // The skipped segment leaves ~7m of open shore each side of the dock —
-  // close it with straight fills so nobody wades in beside the planks.
-  out.push(rectAt(POND_X - 4.8, POND_Z + POND_RZ + 0.2, 7.2, 1, { maxY: 1.2, tag: 'pond-edge' }));
-  out.push(rectAt(POND_X + 4.8, POND_Z + POND_RZ + 0.2, 7.2, 1, { maxY: 1.2, tag: 'pond-edge' }));
-
-  // GAPLESS water fill: piecewise rim walls leave thread-able corner gaps
-  // (the drive auto-unstick slide actively finds them — a golf cart swam to
-  // prove it). These overlapping low slabs approximate the whole ellipse with
-  // zero gaps. maxY 0.3 so anyone ON the dock deck (y=0.35, Y-aware collision)
-  // walks right over them — the dock needs no corridor at all.
-  // Innermost slab stops at z −209 so the dock entry ramp can lift walkers
-  // past maxY before they reach it (the shore band z −209..−207.3 is covered
-  // by the full-height fills + dock rails + the forced ramp floor).
+  // Shore fills flanking the dock.
+  out.push(rectAt(POND_X - 4.4, POND_Z + POND_RZ + 0.2, 6.4, 1, { maxY: 1.2, tag: 'pond-edge' }));
+  out.push(rectAt(POND_X + 4.4, POND_Z + POND_RZ + 0.2, 6.4, 1, { maxY: 1.2, tag: 'pond-edge' }));
+  // GAPLESS water fill: overlapping low slabs (maxY 0.3 — dock walkers at
+  // y=0.35 pass over). Innermost slab stops short of the dock entry ramp.
   const SLABS: [number, number][] = [
-    [19, 6], [16.5, 10], [11.5, 13], [6, 13],
+    [13, 4], [11, 7], [8, 9], [4.5, 9.3],
   ];
   for (const [hx, hz] of SLABS) {
     out.push(rectAt(POND_X, POND_Z, hx * 2, hz * 2, { maxY: 0.3, tag: 'pond-water' }));
   }
 
-  // Dock side + end rails (keep everyone dry).
+  // Dock rails.
   const railLen = DOCK_START_Z - DOCK_END_Z + 1;
   const railMidZ = (DOCK_START_Z + DOCK_END_Z) / 2;
   out.push(rectAt(POND_X - DOCK_W / 2 - 0.15, railMidZ, 0.3, railLen, { maxY: 1.6, tag: 'dock-rail' }));
   out.push(rectAt(POND_X + DOCK_W / 2 + 0.15, railMidZ, 0.3, railLen, { maxY: 1.6, tag: 'dock-rail' }));
   out.push(rectAt(POND_X, DOCK_END_Z - 0.15, DOCK_W + 0.6, 0.3, { maxY: 1.6, tag: 'dock-rail' }));
 
-  // Shops building body (walkway canopy in front stays open).
+  // Garden homes (one box each; faceYaw only flips facade, footprint is AABB
+  // because every home is axis-aligned).
+  for (const h of GARDEN_HOMES) {
+    const alongX = Math.abs(Math.abs(h.faceYaw) - Math.PI / 2) < 0.1; // faces ±X → width along Z
+    out.push(rectAt(h.x, h.z, alongX ? HOME_D : HOME_W, alongX ? HOME_W : HOME_D, { maxY: HOME_H + 1, tag: 'casitas-home' }));
+  }
+
+  // Plaza wings.
   out.push(rectAt(
-    (SHOPS_MIN_X + SHOPS_MAX_X) / 2,
-    (SHOPS_FRONT_Z + SHOPS_BACK_Z) / 2,
-    SHOPS_MAX_X - SHOPS_MIN_X,
-    SHOPS_BACK_Z - SHOPS_FRONT_Z < 0 ? SHOPS_FRONT_Z - SHOPS_BACK_Z : SHOPS_BACK_Z - SHOPS_FRONT_Z,
-    { maxY: SHOPS_H, tag: 'shops' },
+    (WINGA_MIN_X + WINGA_MAX_X) / 2, (WINGA_FRONT_Z + WINGA_BACK_Z) / 2,
+    WINGA_MAX_X - WINGA_MIN_X, WINGA_FRONT_Z - WINGA_BACK_Z,
+    { maxY: SHOPS_H, tag: 'plaza' },
+  ));
+  out.push(rectAt(
+    (WINGB_FRONT_X + WINGB_BACK_X) / 2, (WINGB_MIN_Z + WINGB_MAX_Z) / 2,
+    WINGB_BACK_X - WINGB_FRONT_X, WINGB_MAX_Z - WINGB_MIN_Z,
+    { maxY: SHOPS_H, tag: 'plaza' },
   ));
 
-  // Limestone entry walls flanking the crosswalk landing.
-  out.push(rectAt(-8, WALL_Z, 8, 0.8, { maxY: 1.1, tag: 'entry-wall' }));
-  out.push(rectAt(8, WALL_Z, 8, 0.8, { maxY: 1.1, tag: 'entry-wall' }));
+  // Casitas entry walls.
+  out.push(rectAt(-9, WALL_Z, 6.5, 0.8, { maxY: 1.1, tag: 'entry-wall' }));
+  out.push(rectAt(9, WALL_Z, 6.5, 0.8, { maxY: 1.1, tag: 'entry-wall' }));
 
-  // Playground central tower (kids can still run under the swings).
+  // Playground tower, picnic table, ice cream cart.
   out.push(rectAt(PLAYGROUND_X, PLAYGROUND_Z, 2.4, 2.4, { maxY: 2.6, tag: 'playground' }));
-
-  // Picnic table + ice cream cart footprints.
   out.push(rectAt(PICNIC_X, PICNIC_Z, 2.4, 1.6, { maxY: 1.0, tag: 'picnic' }));
   out.push(rectAt(CART_X, CART_Z, 1.8, 1.2, { maxY: 1.6, tag: 'icecream-cart' }));
 
-  // Pond oak trunks.
-  for (const o of POND_OAKS) {
-    out.push(rectAt(o.x, o.z, 1.2, 1.2, { maxY: 6, tag: 'zone-oak' }));
-  }
+  // Oak trunks (pond ring + parking islands).
+  for (const o of POND_OAKS) out.push(rectAt(o.x, o.z, 1.2, 1.2, { maxY: 6, tag: 'zone-oak' }));
+  for (const o of LOT_OAKS) out.push(rectAt(o.x, o.z, 1.0, 1.0, { maxY: 6, tag: 'zone-oak' }));
 
   return out;
 }
 
-/**
- * Dock floors: a short entry step then the plank deck (merged into the single
- * setFloors call in Game.tsx — never call setFloors separately).
- */
+/** Dock floors (merged into Game.tsx's single setFloors call). */
 export function buildAcrossBlvdFloors(): Floor[] {
   return [
-    // Entry step ramp: grass (0) up to deck height over 1.5m.
+    // Entry step ramp: grass up to deck height, climbing north.
     {
       minX: POND_X - DOCK_W / 2,
       maxX: POND_X + DOCK_W / 2,
@@ -176,9 +229,8 @@ export function buildAcrossBlvdFloors(): Floor[] {
       baseY: 0,
       topY: DOCK_Y,
       axis: 'z',
-      invert: true, // climbs as z decreases (walking north onto the dock)
+      invert: true,
     },
-    // The deck itself.
     {
       minX: POND_X - DOCK_W / 2,
       maxX: POND_X + DOCK_W / 2,
