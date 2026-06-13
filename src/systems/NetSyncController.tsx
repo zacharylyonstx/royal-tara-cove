@@ -9,6 +9,7 @@ import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom 
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
+import { useNightStore } from '../state/nightStore';
 
 const PLAYER_RATE_HZ = 15;
 const WORLD_RATE_HZ = 10;
@@ -128,6 +129,7 @@ export function NetSyncController() {
           x: pos.x, y: pos.y, z: pos.z, yaw,
           running: lastRunningRef.current,
           jumping,
+          crouching: useNightStore.getState().crouching,
           riding: myRiding ? { bikeId: myRiding.bikeId, bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind } : null,
           t: Date.now(),
         };
@@ -182,6 +184,18 @@ export function NetSyncController() {
             roster: ms.activeRoster,
           };
           snap.munchies = munchiesSnap;
+        }
+        if (game.gameMode === 'night') {
+          const ns = useNightStore.getState();
+          snap.night = {
+            sirenX: ns.sirenX, sirenZ: ns.sirenZ, sirenYaw: ns.sirenYaw,
+            sirenState: ns.sirenState, sirenTargetId: ns.sirenTargetId,
+            playerNightStates: { ...ns.playerNightStates },
+            lanterns: ns.lanterns.map((l) => ({ id: l.id, x: l.x, z: l.z, state: l.state, carrier: l.carrier })),
+            lanternsDelivered: ns.lanternsDelivered,
+            roundEndsInSeconds: ns.roundEndsInSeconds,
+            regroupAt: ns.regroupAt,
+          };
         }
         broadcastWorldState(snap);
       }

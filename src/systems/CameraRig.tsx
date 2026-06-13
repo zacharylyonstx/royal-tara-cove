@@ -6,6 +6,7 @@ import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
 import { usePlayStore } from '../state/playStore';
+import { useNightStore } from '../state/nightStore';
 import { CHARACTER_ORDER } from '../world/characters';
 import { isTouchDevice, TOUCH_LOOK_SENS } from './touchInput';
 
@@ -41,6 +42,7 @@ export function CameraRig() {
   const yaw = useRef(Math.PI);
   const pitch = useRef(0);
   const locked = useRef(false);
+  const eyeRef = useRef(EYE_HEIGHT); // smoothly lowers when crouching in night mode
 
   // DEV-only: drive the first-person look direction from the console / Playwright
   // for screenshot verification (the camera is otherwise mouse-only).
@@ -248,9 +250,12 @@ export function CameraRig() {
       return;
     }
 
-    // First-person: camera position is the active character's head.
+    // First-person: camera position is the active character's head. Crouching
+    // in Siren Head Night drops the eye line (smoothed) so you tuck behind cover.
+    const crouching = _camMode === 'night' && useNightStore.getState().crouching;
+    eyeRef.current += ((crouching ? 0.95 : EYE_HEIGHT) - eyeRef.current) * Math.min(1, 10 * dt);
     const baseX = pos.x;
-    const baseY = pos.y + EYE_HEIGHT;
+    const baseY = pos.y + eyeRef.current;
     const baseZ = pos.z;
 
     // Sync the active character's body yaw with the camera so combat aiming

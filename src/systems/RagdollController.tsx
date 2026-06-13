@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Euler, Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
+import { useNightStore } from '../state/nightStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import { startRagdollWhoosh, tickRagdollWhoosh, stopRagdollWhoosh, wilhelmScream } from '../audio';
@@ -17,8 +18,16 @@ import { startRagdollWhoosh, tickRagdollWhoosh, stopRagdollWhoosh, wilhelmScream
 
 const THROW_DURATION = 4;
 
+// Siren Head Night: a short, comedic "BONK + whoosh launch" instead of the
+// tornado's wild first-person tumble — kid-friendly. Runs on the LOCAL caught
+// client (which may be a non-host guest), animating only the local character;
+// the arc propagates to everyone via the normal position broadcast.
+const NIGHT_SWAT_DURATION = 1.8;
+const NIGHT_SWAT_PEAK = 6.5;
+
 export function RagdollController() {
   const startedRef = useRef(false);
+  const nightLaunch = useRef<{ dirX: number; dirZ: number; oy: number } | null>(null);
   const { camera } = useThree();
 
   useEffect(() => {
@@ -33,8 +42,40 @@ export function RagdollController() {
   }, []);
 
   useFrame(() => {
-    if (!useNetStore.getState().isHost) return;
     const g = useGameStore.getState();
+
+    // ---- Siren Head Night swat (runs on the local caught client, any peer) ----
+    if (g.gameMode === 'night') {
+      const rag = g.ragdoll;
+      if (!rag || !rag.active) { nightLaunch.current = null; return; }
+      const localId = useNetStore.getState().myCharacterId ?? g.activeCharacterId;
+      const player = g.positions[localId];
+      if (!player) return;
+      if (!nightLaunch.current) {
+        const ns = useNightStore.getState();
+        const ax = rag.originX - ns.sirenX;
+        const az = rag.originZ - ns.sirenZ;
+        const al = Math.hypot(ax, az) || 1;
+        nightLaunch.current = { dirX: ax / al, dirZ: az / al, oy: rag.originY };
+        useCombatStore.getState().addShake(0.3);
+      }
+      const L = nightLaunch.current;
+      const now = performance.now() / 1000;
+      const t = Math.min(NIGHT_SWAT_DURATION, now - rag.startedAt);
+      const p = t / NIGHT_SWAT_DURATION;
+      player.x = rag.originX + L.dirX * p * 11; // tossed ~11m away from Siren Head
+      player.z = rag.originZ + L.dirZ * p * 11;
+      player.y = Math.max(0, L.oy + Math.sin(p * Math.PI) * NIGHT_SWAT_PEAK);
+      if (t >= NIGHT_SWAT_DURATION) {
+        player.y = 0;
+        g.clearRagdoll();
+        nightLaunch.current = null;
+      }
+      return;
+    }
+
+    // ---- Tornado defeat throw (host-only) ----
+    if (!useNetStore.getState().isHost) return;
     if (g.gameMode !== 'tornado') return;
     const rag = g.ragdoll;
     const cs = useCombatStore.getState();

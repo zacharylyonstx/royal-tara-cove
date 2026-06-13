@@ -18,12 +18,19 @@ import { treehousePickup, hopSound, trampolineBoing } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
+import { useNightStore } from '../state/nightStore';
 import { sendEmote, sendChat } from '../net/room';
 import { icecreamJingle } from '../audio';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
+// Siren Head Night locomotion. Walk is a touch slower than Siren's chase (4.7)
+// so plain walking can't outrun him — you sprint in bursts (stamina-limited,
+// noisy) and hide. Crouch is slow + quiet.
+const NIGHT_WALK_SPEED = 4.2;
+const NIGHT_SPRINT_SPEED = 8.0;
+const NIGHT_CROUCH_SPEED = 2.4;
 const JUMP_VELOCITY = 7.5;
 const GRAVITY = 22;
 const INTERACT_RADIUS = 2.5;
@@ -128,6 +135,10 @@ export function PlayerController() {
         }
       }
       if (k === 'e') interactPressedRef.current = true;
+      // Siren Head Night: F toggles the flashlight (reveals you AND the way).
+      if (k === 'f' && !e.repeat && useGameStore.getState().gameMode === 'night') {
+        useNightStore.getState().toggleFlashlight();
+      }
     };
     const up = (e: KeyboardEvent) => {
       keys.current[e.key.toLowerCase()] = false;
@@ -331,6 +342,34 @@ export function PlayerController() {
     if (k['a'] || k['arrowleft']) dx -= 1;
     if (k['d'] || k['arrowright']) dx += 1;
 
+    // ---- Siren Head Night: sprint stamina, crouch, and down-lock ----
+    let nightDown = false;
+    let nightSpeedOverride: number | null = null;
+    if (modeNow === 'night') {
+      const ns = useNightStore.getState();
+      nightDown = ns.playerNightStates[activeId] === 'down';
+      if (nightDown) {
+        // Swatted — the SwatController owns your position (the comedic launch)
+        // until a teammate (or the auto-timer) helps you up. Don't move, jump,
+        // or apply gravity; just let stamina recover.
+        ns.setCrouching(false);
+        ns.setLocalRunning(false);
+        ns.setStamina(Math.min(1, ns.stamina + dt / 5.0));
+        return;
+      }
+      const crouch = !!k['c'] || !!k['control'];
+      ns.setCrouching(crouch);
+      const moving = dx !== 0 || dz !== 0;
+      const wantSprint = !!k['shift'] && !crouch;
+      const sprinting = wantSprint && ns.stamina > 0 && moving;
+      const stam = sprinting
+        ? Math.max(0, ns.stamina - dt / 3.0)   // ~3s of sprint
+        : Math.min(1, ns.stamina + dt / 5.0);  // ~5s to refill
+      ns.setStamina(stam);
+      ns.setLocalRunning(sprinting);
+      nightSpeedOverride = crouch ? NIGHT_CROUCH_SPEED : sprinting ? NIGHT_SPRINT_SPEED : NIGHT_WALK_SPEED;
+    }
+
     const pos = positions[activeId];
 
     // ---- Riding a bike? Bike movement replaces walking (non-combat only) ----
@@ -386,7 +425,7 @@ export function PlayerController() {
         const camRight = new Vector3().crossVectors(camDir, new Vector3(0, 1, 0)).normalize();
 
         const isRunning = !!k['shift'];
-        const speed = isRunning ? RUN_SPEED : SPEED;
+        const speed = nightSpeedOverride ?? (isRunning ? RUN_SPEED : SPEED);
 
         moveDir = new Vector3()
           .addScaledVector(camDir, -dz)
@@ -425,7 +464,7 @@ export function PlayerController() {
       const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
       // jumpedThisFrame folds in the touch Jump button (edge-triggered): one tap
       // = one jump/bounce, alongside held Space on keyboard.
-      const jumpHeld = (k[' '] || k['space'] || jumpedThisFrame) && !usePlayStore.getState().heldBall;
+      const jumpHeld = (k[' '] || k['space'] || jumpedThisFrame) && !usePlayStore.getState().heldBall && !nightDown;
       const tramp = usePlayStore.getState().trampoline;
       const onTramp = !!tramp && Math.abs(pos.x - tramp.x) < tramp.half && Math.abs(pos.z - tramp.z) < tramp.half;
 

@@ -39,6 +39,7 @@ import { TreehouseWelcomeOverlay } from './ui/TreehouseWelcomeOverlay';
 import { TreehouseLetterOverlay } from './ui/TreehouseLetterOverlay';
 import { TreehouseHud } from './ui/TreehouseHud';
 import { TreehouseMissionCompleteToast } from './ui/TreehouseMissionCompleteToast';
+import { NightHud } from './ui/NightHud';
 import { TouchControls } from './ui/TouchControls';
 import { WardrobeOverlay } from './ui/WardrobeOverlay';
 import { AudioButton } from './ui/AudioButton';
@@ -99,6 +100,7 @@ export default function App() {
       <TreehouseLetterOverlay />
       <TreehouseHud />
       <TreehouseMissionCompleteToast />
+      <NightHud />
       <WelcomeScreen />
       <CharacterSelect />
       <RoomBadge />

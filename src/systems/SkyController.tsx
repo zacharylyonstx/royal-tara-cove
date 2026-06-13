@@ -20,7 +20,13 @@ export function SkyController() {
   const setTimeOfDay = useCombatStore((s) => s.setTimeOfDay);
 
   useFrame((_, dtRaw) => {
-    if (useGameStore.getState().gameMode === 'munchies') return;
+    const mode = useGameStore.getState().gameMode;
+    if (mode === 'munchies') return;
+    // Siren Head Night: snap to deep night instantly (no dawn-to-dusk tween).
+    if (mode === 'night') {
+      if (timeOfDay !== 0.92) setTimeOfDay(0.92);
+      return;
+    }
     const dt = Math.min(dtRaw, 0.1);
     let target = TARGETS_BY_WAVE[waveIndex] ?? 0.15;
     if (phase === 'victory') target = 0.05; // dawn

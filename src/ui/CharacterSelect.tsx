@@ -4,6 +4,7 @@ import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
 import { useGameStore } from '../state/gameStore';
 import { useTornadoStore } from '../state/tornadoStore';
+import { useNightStore } from '../state/nightStore';
 import { claimCharacter, leaveRoom } from '../net/room';
 import { unlockAudio } from '../audio';
 import { MunchiesDifficultyToggle } from './MunchiesDifficultyToggle';
@@ -54,6 +55,10 @@ export function CharacterSelect() {
       resetTornadoGame();
       useTornadoStore.getState().reset();
       useTornadoStore.getState().setPhaseEnteredAt(performance.now() / 1000);
+      if (useGameStore.getState().gameMode === 'night') {
+        useGameStore.getState().resetFamilyPositions();
+        useNightStore.getState().reset();
+      }
       closeWelcome();
     } else {
       // Joining a game in progress — don't touch shared state. Just hide
@@ -78,8 +83,8 @@ export function CharacterSelect() {
 
   if (!visible) return null;
 
-  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : mode === 'treehouse' ? 'THE TREEHOUSE CLUB' : mode === 'freeplay' ? 'FREE PLAY' : 'TORNADO WARNING';
-  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : mode === 'treehouse' ? '#3a7a3a' : mode === 'freeplay' ? '#c87a2a' : '#3a5a8a';
+  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : mode === 'treehouse' ? 'THE TREEHOUSE CLUB' : mode === 'freeplay' ? 'FREE PLAY' : mode === 'night' ? 'SIREN HEAD' : 'TORNADO WARNING';
+  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : mode === 'treehouse' ? '#3a7a3a' : mode === 'freeplay' ? '#c87a2a' : mode === 'night' ? '#b0344f' : '#3a5a8a';
 
   return (
     <div
@@ -127,6 +132,11 @@ export function CharacterSelect() {
         {gameMode === 'treehouse' && (
           <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>
             Pick a club member. Penny and Luke can both play — solo or in two windows.
+          </p>
+        )}
+        {gameMode === 'night' && (
+          <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>
+            Stick together! Grab the lanterns and light the block before Siren Head finds you. It's just make-believe — best played with Dad. 🔦
           </p>
         )}
 

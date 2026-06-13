@@ -75,6 +75,12 @@ import { BedsLive } from './munchies/Bed';
 import { SleepwalkersLive } from './munchies/Sleepwalker';
 import { SiblingBond } from './munchies/SiblingBond';
 import { RagdollController } from '../systems/RagdollController';
+import { SirenHeadController } from '../systems/SirenHeadController';
+import { SirenHead } from './horror/SirenHead';
+import { Lanterns } from './horror/Lanterns';
+import { Flashlight } from './horror/Flashlight';
+import { useNightStore } from '../state/nightStore';
+import { HIDE_ZONES, SAFE_ZONES } from '../world/nightLayout';
 import { NetSyncController } from '../systems/NetSyncController';
 import { SpeechBubbles } from '../ui/SpeechBubbles';
 import { NameTags } from '../ui/NameTags';
@@ -150,6 +156,8 @@ export function Game() {
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
     setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders()]);
+    // Siren Head Night hide/safe zones (static layout — register once).
+    useNightStore.getState().setZones(HIDE_ZONES, SAFE_ZONES);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors]);
 
   return (
@@ -232,6 +240,7 @@ export function Game() {
       <TornadoModeSystems />
       <MunchiesModeSystems />
       <TreehouseModeSystems />
+      <NightModeSystems />
       <CameraRig />
       <CameraExposer />
       <NetSyncController />
@@ -303,6 +312,20 @@ function TornadoModeSystems() {
   );
 }
 
+function NightModeSystems() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'night') return null;
+  return (
+    <>
+      <SirenHeadController />
+      <SirenHead />
+      <Lanterns />
+      <Flashlight />
+      <RagdollController />
+    </>
+  );
+}
+
 function AliensModeSystems() {
   const gameMode = useGameStore((s) => s.gameMode);
   if (gameMode !== 'aliens') return null;
@@ -345,6 +368,9 @@ function SceneFog() {
     const far = 130 - stormIntensity * 75;
     return <fog attach="fog" args={['#3a3a40', near, far]} />;
   }
+  // Siren Head Night: thick, cool fog that closes in just behind the player so
+  // Siren Head looms out of the dark — claustrophobic but readable with a light.
+  if (gameMode === 'night') return <fog attach="fog" args={['#10161f', 7, 52]} />;
   if (gameMode === 'munchies') return null;
   const dusk = Math.min(1, Math.max(0, timeOfDay) * 1.5);
   const r = Math.round((0.81 - dusk * 0.33) * 255);
@@ -356,8 +382,14 @@ function SceneFog() {
 }
 
 function DynamicSky() {
+  const gameMode = useGameStore((s) => s.gameMode);
   const timeOfDay = useCombatStore((s) => s.timeOfDay);
   const storm = useTornadoStore((s) => s.stormIntensity);
+  // Siren Head Night: the drei <Sky> scattering shader never goes truly dark
+  // (it stays a sunset glow at low sun), which kills the horror mood — so swap
+  // it for a solid deep-night backdrop. Stars render against it; the cool fog
+  // blends the horizon.
+  if (gameMode === 'night') return <color attach="background" args={['#070a14']} />;
   // 0..1 → angle around horizon. We compute a sun position via timeOfDay.
   // tod 0..0.5 = day, 0.5..1 = night (sun below).
   const elev = Math.max(0.05, Math.cos(timeOfDay * Math.PI)); // 1 at noon, -1 at midnight
@@ -385,6 +417,26 @@ function DynamicLights() {
   const hemiRef = useRef<HemisphereLight>(null);
   const ambRef = useRef<AmbientLight>(null);
   useFrame(() => {
+    // Siren Head Night: override to cool moonlight. Dark + moody on desktop
+    // (the flashlight + lantern/siren glow carry it); a lifted cool floor on
+    // touch so iPad stays playable without a flashlight cone.
+    if (useGameStore.getState().gameMode === 'night') {
+      const touch = isTouchDevice();
+      if (dirRef.current) {
+        dirRef.current.intensity = 0.16;
+        dirRef.current.color.setRGB(0.55, 0.62, 0.95);
+        dirRef.current.position.set(-30, 70, -20); // moon overhead
+      }
+      if (hemiRef.current) {
+        hemiRef.current.intensity = touch ? 0.26 : 0.12;
+        hemiRef.current.color.setRGB(0.3, 0.4, 0.62);
+      }
+      if (ambRef.current) {
+        ambRef.current.intensity = touch ? 0.34 : 0.16;
+        ambRef.current.color.setRGB(0.32, 0.42, 0.7);
+      }
+      return;
+    }
     const t = useCombatStore.getState().timeOfDay;
     const storm = useTornadoStore.getState().stormIntensity;
     const stormDarken = 1 - 0.88 * storm;

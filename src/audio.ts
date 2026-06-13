@@ -1744,3 +1744,250 @@ export function resetTornadoAudio() {
   stopRagdollWhoosh();
   restoreTornadoAudio();
 }
+
+// =====================================================================
+// SIREN HEAD NIGHT — tense ambient + diegetic siren cues + comedic catch.
+// All looping sources route through a single `nightGroup` GainNode so the
+// mode can be faded/cleared on exit. Telegraphed, never a shriek sting.
+// =====================================================================
+
+let nightGroup: GainNode | null = null;
+function ensureNightGroup(): GainNode | null {
+  const c = ensureCtx();
+  if (!c) return null;
+  if (!nightGroup || nightGroup.context !== c) {
+    nightGroup = c.createGain();
+    nightGroup.gain.value = 1;
+    nightGroup.connect(master(c));
+  }
+  return nightGroup;
+}
+
+// Distant civil-defense wail — a warbling two-tone you hear before you see him.
+let nightSiren: { osc: OscillatorNode; osc2: OscillatorNode; lfo: OscillatorNode; gain: GainNode } | null = null;
+export function startNightSiren() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp || nightSiren) return;
+  const osc = c.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = 600;
+  const osc2 = c.createOscillator(); // slightly detuned for an uneasy beat
+  osc2.type = 'sine';
+  osc2.frequency.value = 606;
+  const lfo = c.createOscillator(); // slow wail sweep (~10s)
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.1;
+  const lfoGain = c.createGain();
+  lfoGain.gain.value = 130;
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+  lfoGain.connect(osc2.frequency);
+  const gain = c.createGain();
+  gain.gain.value = 0;
+  osc.connect(gain);
+  osc2.connect(gain);
+  gain.connect(grp);
+  osc.start(); osc2.start(); lfo.start();
+  nightSiren = { osc, osc2, lfo, gain };
+}
+export function setNightSirenVolume(v: number) {
+  const c = ensureCtx();
+  if (!c || !nightSiren) return;
+  nightSiren.gain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.09, c.currentTime, 0.35);
+}
+export function stopNightSiren() {
+  if (!nightSiren) return;
+  try { nightSiren.osc.stop(); } catch { /* */ }
+  try { nightSiren.osc2.stop(); } catch { /* */ }
+  try { nightSiren.lfo.stop(); } catch { /* */ }
+  nightSiren = null;
+}
+
+// Lock-on whoop the moment he wakes and spots you (rising then falling).
+export function sirenAlertStab() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, t0);
+  osc.frequency.linearRampToValueAtTime(720, t0 + 0.35);
+  osc.frequency.linearRampToValueAtTime(420, t0 + 0.9);
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1400;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.22, t0 + 0.05);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.0);
+  osc.connect(lp).connect(g).connect(grp);
+  osc.start(t0);
+  osc.stop(t0 + 1.05);
+}
+
+// Comedic cartoon "BONK!" when Siren Head swats you — two descending thunks
+// plus a soft fleshy thwack. Funny, never scary.
+export function bonkHit() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  for (let i = 0; i < 2; i++) {
+    const ts = t0 + i * 0.1;
+    const osc = c.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(330 - i * 70, ts);
+    osc.frequency.exponentialRampToValueAtTime(95 - i * 20, ts + 0.09);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, ts);
+    g.gain.linearRampToValueAtTime(0.26, ts + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, ts + 0.1);
+    osc.connect(g).connect(grp);
+    osc.start(ts);
+    osc.stop(ts + 0.12);
+  }
+  const buf = makeNoiseBuffer(c, 0.1, 'brown');
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 550;
+  const ng = c.createGain();
+  ng.gain.setValueAtTime(0.34, t0);
+  ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+  src.connect(lp).connect(ng).connect(grp);
+  src.start(t0);
+  src.stop(t0 + 0.11);
+}
+
+// Heartbeat — two thumps, faster + louder as he closes in (prox 0..1).
+export function heartbeat(prox = 0) {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const vol = 0.1 + prox * 0.26;
+  const thump = (when: number, freq: number, v: number) => {
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, when);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.45, when + 0.14);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(v, when + 0.018);
+    g.gain.exponentialRampToValueAtTime(0.001, when + 0.18);
+    osc.connect(g).connect(grp);
+    osc.start(when);
+    osc.stop(when + 0.2);
+  };
+  thump(t0, 78, vol);
+  thump(t0 + 0.13, 66, vol * 0.6);
+}
+
+// Radio static crackle — the "he's far / dormant" tell.
+export function staticBurst() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const dur = 0.18 + Math.random() * 0.12;
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, dur + 0.05, 'white');
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1200;
+  bp.Q.value = 2.0;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.12, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(bp).connect(g).connect(grp);
+  src.start(t0);
+  src.stop(t0 + dur + 0.02);
+}
+
+// Slow minor-key tense loop — a nod to the kids' favorite "Run Away."
+let horrorStop: (() => void) | null = null;
+export function startHorrorTheme() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp || horrorStop) return;
+  let cancelled = false;
+  const base = c.createGain();
+  base.gain.value = 0.0;
+  base.connect(grp);
+  base.gain.linearRampToValueAtTime(0.06, c.currentTime + 2.0);
+
+  const note = (freq: number, when: number, dur: number, type: OscillatorType = 'sine', peak = 0.5) => {
+    const osc = c.createOscillator();
+    const env = c.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    env.gain.setValueAtTime(0.0001, when);
+    env.gain.exponentialRampToValueAtTime(peak, when + 0.05);
+    env.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+    osc.connect(env).connect(base);
+    osc.start(when);
+    osc.stop(when + dur + 0.05);
+  };
+
+  const BEAT = 0.86; // ~70 bpm, brooding
+  const tick = () => {
+    if (cancelled) return;
+    const t = c.currentTime;
+    // sub drone alternating A1 / Eb2 (tritone unease)
+    note(55.0, t, BEAT * 4, 'sine', 0.6);
+    note(77.78, t + BEAT * 4, BEAT * 4, 'sine', 0.6);
+    // brooding minor pulse A2/C3/E3 arpeggio
+    const arp = [110.0, 130.81, 164.81, 130.81, 110.0, 130.81, 164.81, 196.0];
+    arp.forEach((f, i) => note(f, t + i * BEAT, BEAT * 0.55, 'triangle', 0.32));
+    // sporadic high "siren shimmer"
+    if (Math.random() < 0.4) note(660 + Math.random() * 220, t + Math.random() * BEAT * 6, 0.5, 'sine', 0.06);
+    setTimeout(tick, BEAT * 8 * 1000);
+  };
+  tick();
+  horrorStop = () => {
+    cancelled = true;
+    const c2 = ensureCtx();
+    if (c2) { base.gain.cancelScheduledValues(c2.currentTime); base.gain.linearRampToValueAtTime(0.0001, c2.currentTime + 1.5); }
+  };
+}
+export function stopHorrorTheme() {
+  horrorStop?.();
+  horrorStop = null;
+}
+
+// Bright warm win flourish — the block lights up, the family cheers.
+export function blockLitFanfare() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const chord = [261.63, 329.63, 392.0, 523.25, 659.25];
+  chord.forEach((freq, i) => {
+    const tn = t0 + i * 0.08;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, tn);
+    g.gain.exponentialRampToValueAtTime(0.3, tn + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, tn + 1.4);
+    osc.connect(g).connect(grp);
+    osc.start(tn);
+    osc.stop(tn + 1.45);
+  });
+}
+
+/** Stop all night loops + reset the group gain (for teardown / mode switch). */
+export function resetNightAudio() {
+  stopNightSiren();
+  stopHorrorTheme();
+  const c = ensureCtx();
+  if (c && nightGroup) {
+    nightGroup.gain.cancelScheduledValues(c.currentTime);
+    nightGroup.gain.setValueAtTime(1, c.currentTime);
+  }
+}

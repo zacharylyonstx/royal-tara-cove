@@ -20,6 +20,8 @@ export interface RemotePlayerState {
   yaw: number;
   running: boolean;
   jumping: boolean;
+  /** Crouching (Siren Head Night) — host reads this for remote players' hiding. */
+  crouching?: boolean;
   /** Set when this peer is riding a vehicle (so we render it under them). */
   riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart' } | null;
   receivedAt: number;

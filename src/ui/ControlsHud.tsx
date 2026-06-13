@@ -7,6 +7,8 @@ export function ControlsHud() {
   // On touch devices the on-screen joystick + buttons replace these keyboard
   // hints (which would also collide with the joystick in the bottom-left).
   if (isTouchDevice()) return null;
+  // Siren Head Night shows its own control hints (sprint/crouch/flashlight).
+  if (gameMode === 'night') return null;
 
   return (
     <div

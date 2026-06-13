@@ -13,7 +13,8 @@ import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../s
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
-import { blobSquish, chatPop } from '../audio';
+import { blobSquish, chatPop, bonkHit } from '../audio';
+import { useNightStore, type SirenState, type PlayerNightState, type Lantern } from '../state/nightStore';
 import type { CharacterId } from '../types';
 
 const APP_ID = 'royal-tara-cove-7f3a';
@@ -42,6 +43,9 @@ export interface PlayerStateMsg {
   yaw: number;
   running: boolean;
   jumping: boolean;
+  /** Crouching (Siren Head Night) — shrinks your detection radius; the host
+   *  reads remote players' crouch so kids' hiding works when Dad hosts. */
+  crouching?: boolean;
   /** Vehicle-riding state (so peers render the bike/car under us). y/flipAngle drive air + tricks.
    *  bikeId is the real registered prop id so observers hide the right parked vehicle. */
   riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart' } | null;
@@ -73,6 +77,15 @@ export interface FireMsg {
   px?: number; py?: number; pz?: number;
   vx?: number; vy?: number; vz?: number;
   damage: number;
+  t: number;
+}
+
+/** Siren Head Night — host tells everyone a player just got swatted (down) or
+ *  freed (safe). A crisp one-shot so the BONK + ragdoll fire instantly on peers,
+ *  in addition to the continuous WorldStateMsg.night replication. */
+export interface SirenCaughtMsg {
+  characterId: CharacterId;
+  result: 'down' | 'safe';
   t: number;
 }
 
@@ -123,6 +136,17 @@ export interface WorldStateMsg {
   t: number;
   /** munchies — undefined when not in munchies mode. */
   munchies?: MunchiesNetSnapshot;
+  /** Siren Head Night — undefined when not in night mode. roundEndsInSeconds is
+   *  a DELTA (not an absolute clock) so cross-machine skew never matters. */
+  night?: {
+    sirenX: number; sirenZ: number; sirenYaw: number;
+    sirenState: string; sirenTargetId: string | null;
+    playerNightStates: Record<string, string>;
+    lanterns: { id: string; x: number; z: number; state: string; carrier: string | null }[];
+    lanternsDelivered: number;
+    roundEndsInSeconds: number;
+    regroupAt: number;
+  };
 }
 
 let room: Room | null = null;
@@ -133,7 +157,11 @@ let sendChatAction: ((data: ChatMsg) => Promise<void[]>) | null = null;
 let sendBasketAction: ((data: BasketMsg) => Promise<void[]>) | null = null;
 let sendWardrobe: ((data: WardrobeMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendFireAction: ((data: FireMsg) => Promise<void[]>) | null = null;
+let sendSirenCaughtAction: ((data: SirenCaughtMsg) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
+/** Last host regroup timestamp we applied (raw host clock); guests stamp their
+ *  own perf.now() when it changes so the "Regroup!" toast times correctly. */
+let lastNightRegroupRaw = 0;
 let chatMsgCounter = 0;
 
 // --- Inbound payload validation -------------------------------------------
@@ -193,6 +221,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [basketSender, basketReceiver] = r.makeAction('basket');
   const [wardrobeSender, wardrobeReceiver] = r.makeAction('wardrobe');
   const [fireSender, fireReceiver] = r.makeAction('fire');
+  const [sirenCaughtSender, sirenCaughtReceiver] = r.makeAction('sirenCaught');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
@@ -200,6 +229,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendBasketAction = basketSender as unknown as typeof sendBasketAction;
   sendWardrobe = wardrobeSender as unknown as typeof sendWardrobe;
   sendFireAction = fireSender as unknown as typeof sendFireAction;
+  sendSirenCaughtAction = sirenCaughtSender as unknown as typeof sendSirenCaughtAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
@@ -229,6 +259,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
       characterId: rawData.characterId as CharacterId,
       x: num(rawData.x), y: num(rawData.y), z: num(rawData.z), yaw: num(rawData.yaw),
       running: bool(rawData.running), jumping: bool(rawData.jumping),
+      crouching: bool(rawData.crouching),
       riding,
       receivedAt: performance.now(),
     });
@@ -300,6 +331,23 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     }
   }));
 
+  sirenCaughtReceiver((rawData) => netGuard('sirenCaught', () => {
+    if (!isObj(rawData) || typeof rawData.characterId !== 'string') return;
+    const id = rawData.characterId as CharacterId;
+    if (id !== 'dad' && id !== 'penny' && id !== 'luke') return;
+    const ns = useNightStore.getState();
+    const result: PlayerNightState = rawData.result === 'safe' ? 'safe' : 'down';
+    ns.setPlayerNightState(id, result);
+    ns.setDownAt(id, performance.now() / 1000);
+    bonkHit();
+    // If it was MY character, pop my own ragdoll locally (it broadcasts via the
+    // normal position sync so others see the launch too).
+    if (result === 'down' && id === useNetStore.getState().myCharacterId) {
+      const p = useGameStore.getState().positions[id];
+      if (p) useGameStore.getState().startRagdoll(p.x, p.y, p.z, performance.now() / 1000);
+    }
+  }));
+
   wardrobeReceiver((rawData) => netGuard('wardrobe', () => {
     if (!isObj(rawData) || typeof rawData.characterId !== 'string') return;
     const id = rawData.characterId;
@@ -350,6 +398,7 @@ export async function leaveRoom(): Promise<void> {
   room = null;
   sendWhoami = sendPlayer = sendWorld = sendChatAction = sendBasketAction = sendWardrobe = null;
   sendFireAction = null;
+  sendSirenCaughtAction = null;
   useNetStore.getState().leftRoom();
 }
 
@@ -408,6 +457,11 @@ export async function broadcastBasket(shooter: CharacterId): Promise<void> {
 /** Broadcast a weapon discharge so peers see it (and the host lands it). */
 export async function broadcastFire(msg: FireMsg): Promise<void> {
   if (sendFireAction) await sendFireAction(msg).catch(() => {});
+}
+
+/** Host → peers: a player got swatted by Siren Head (or freed). */
+export async function broadcastSirenCaught(msg: SirenCaughtMsg): Promise<void> {
+  if (sendSirenCaughtAction) await sendSirenCaughtAction(msg).catch(() => {});
 }
 
 /** Broadcast our character's chosen dress-up look to all peers. */
@@ -487,6 +541,47 @@ function applyWorldSnapshot(s: Json): void {
   // Munchies — only when host's snapshot includes it.
   if (isObj(s.munchies)) {
     applyMunchiesSnapshot(s.munchies);
+  }
+
+  // Siren Head Night — only when host's snapshot includes it.
+  if (isObj(s.night)) {
+    applyNightSnapshot(s.night);
+  }
+}
+
+function applyNightSnapshot(n: Json): void {
+  const ns = useNightStore.getState();
+  ns.setSiren(
+    num(n.sirenX), num(n.sirenZ), num(n.sirenYaw),
+    str(n.sirenState, 'patrol') as SirenState,
+    typeof n.sirenTargetId === 'string' ? (n.sirenTargetId as CharacterId) : null,
+  );
+  const pns = obj(n.playerNightStates);
+  for (const id of ['dad', 'penny', 'luke'] as const) {
+    const v = str(pns[id], 'alive');
+    const st: PlayerNightState = v === 'down' ? 'down' : v === 'safe' ? 'safe' : 'alive';
+    ns.setPlayerNightState(id, st);
+  }
+  const lanterns: Lantern[] = arr(n.lanterns)
+    .map((l) => {
+      const o = obj(l);
+      const stt = str(o.state, 'idle');
+      return {
+        id: str(o.id),
+        x: num(o.x), z: num(o.z),
+        state: (stt === 'carried' ? 'carried' : stt === 'delivered' ? 'delivered' : 'idle') as Lantern['state'],
+        carrier: typeof o.carrier === 'string' ? (o.carrier as CharacterId) : null,
+      };
+    })
+    .filter((l) => l.id);
+  if (lanterns.length) ns.setLanterns(lanterns);
+  ns.setLanternsDelivered(num(n.lanternsDelivered));
+  ns.setRoundEndsInSeconds(num(n.roundEndsInSeconds));
+  // Regroup toast: when the host's raw timestamp changes, stamp our own clock.
+  const rg = num(n.regroupAt);
+  if (rg && rg !== lastNightRegroupRaw) {
+    lastNightRegroupRaw = rg;
+    ns.setRegroupAt(performance.now() / 1000);
   }
 }
 

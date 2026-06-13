@@ -4,6 +4,7 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useMunchiesStore } from '../state/munchiesStore';
+import { useNightStore } from '../state/nightStore';
 import { resetTornadoAudio, stopCrackleLoop } from '../audio';
 import type { CharacterId } from '../types';
 
@@ -39,6 +40,13 @@ export function backToGames() {
     // mounted while gameMode is 'munchies' and only re-starts it on mount, so
     // stopping it would leave a silent re-entry. Mode switch unmounts + stops.
     useMunchiesStore.getState().reset();
+    gs.resetFamilyPositions();
+  } else if (mode === 'night') {
+    // Like munchies, the horror theme/siren are owned by SirenHeadController's
+    // mount lifecycle (still mounted under the menu while mode stays 'night'),
+    // so we only reset the round state + family here.
+    useNightStore.getState().reset();
+    gs.clearRagdoll();
     gs.resetFamilyPositions();
   }
   gs.setPhase('pre-intro');

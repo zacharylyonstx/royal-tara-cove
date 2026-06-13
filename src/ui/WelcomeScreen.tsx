@@ -100,6 +100,13 @@ export function WelcomeScreen() {
             accent="#5a8a3e"
             onPlay={() => pick('treehouse')}
           />
+          <GameCard
+            emoji="🔦"
+            title="SIREN HEAD"
+            blurb="It's dark and foggy and tall Siren Head is roaming the street! Sneak out together, grab the 5 glowing lanterns, and light up the block before he finds you. Get bonked? A buddy helps you up!"
+            accent="#b0344f"
+            onPlay={() => pick('night')}
+          />
         </div>
 
         <p style={{ fontSize: 13, color: '#5a5040', margin: 0, lineHeight: 1.5 }}>
