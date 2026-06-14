@@ -1908,55 +1908,126 @@ export function staticBurst() {
   src.stop(t0 + dur + 0.02);
 }
 
-// Slow minor-key tense loop — a nod to the kids' favorite "Run Away."
+// Tense minor-key dread loop (nod to the kids' fave "Run Away") with a SUB-DRONE
+// foundation + a CHASE layer that slams in the instant Siren Head commits, then
+// eases back to relief when you break away. Built per the horror-audio research.
 let horrorStop: (() => void) | null = null;
+let horrorChaseGain: GainNode | null = null; // 0..1 chase intensity (ramped)
 export function startHorrorTheme() {
   const c = ensureCtx();
   const grp = ensureNightGroup();
   if (!c || !grp || horrorStop) return;
   let cancelled = false;
+
   const base = c.createGain();
   base.gain.value = 0.0;
   base.connect(grp);
-  base.gain.linearRampToValueAtTime(0.06, c.currentTime + 2.0);
+  base.gain.linearRampToValueAtTime(0.1, c.currentTime + 2.0); // louder than before
 
-  const note = (freq: number, when: number, dur: number, type: OscillatorType = 'sine', peak = 0.5) => {
+  // Persistent sub-drone foundation (~46 Hz) that slowly breathes — dread bed.
+  const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = 46;
+  const subG = c.createGain(); subG.gain.value = 0.09;
+  const subLfo = c.createOscillator(); subLfo.type = 'sine'; subLfo.frequency.value = 0.16;
+  const subLfoG = c.createGain(); subLfoG.gain.value = 0.05;
+  subLfo.connect(subLfoG).connect(subG.gain);
+  sub.connect(subG).connect(base);
+  sub.start(); subLfo.start();
+
+  // Chase layer — its own gain to the night group, silent until setHorrorChase.
+  const chase = c.createGain(); chase.gain.value = 0; chase.connect(grp);
+  horrorChaseGain = chase;
+
+  const note = (freq: number, when: number, dur: number, type: OscillatorType, peak: number, dest: GainNode) => {
     const osc = c.createOscillator();
     const env = c.createGain();
     osc.type = type;
     osc.frequency.value = freq;
     env.gain.setValueAtTime(0.0001, when);
-    env.gain.exponentialRampToValueAtTime(peak, when + 0.05);
+    env.gain.exponentialRampToValueAtTime(peak, when + 0.04);
     env.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-    osc.connect(env).connect(base);
+    osc.connect(env).connect(dest);
     osc.start(when);
     osc.stop(when + dur + 0.05);
+  };
+  // A relentless detuned-saw tritone "engine" stab for the chase layer.
+  const chaseStab = (when: number) => {
+    for (const f of [110.0, 155.56]) { // A2 + D#3 = tritone
+      const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.detune.value = (Math.random() - 0.5) * 12;
+      osc.frequency.value = f;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+      const env = c.createGain();
+      env.gain.setValueAtTime(0.0001, when);
+      env.gain.exponentialRampToValueAtTime(0.5, when + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.0001, when + 0.22);
+      osc.connect(lp).connect(env).connect(chase);
+      osc.start(when); osc.stop(when + 0.24);
+    }
   };
 
   const BEAT = 0.86; // ~70 bpm, brooding
   const tick = () => {
     if (cancelled) return;
     const t = c.currentTime;
-    // sub drone alternating A1 / Eb2 (tritone unease)
-    note(55.0, t, BEAT * 4, 'sine', 0.6);
-    note(77.78, t + BEAT * 4, BEAT * 4, 'sine', 0.6);
-    // brooding minor pulse A2/C3/E3 arpeggio
+    // brooding minor arpeggio on the base
     const arp = [110.0, 130.81, 164.81, 130.81, 110.0, 130.81, 164.81, 196.0];
-    arp.forEach((f, i) => note(f, t + i * BEAT, BEAT * 0.55, 'triangle', 0.32));
-    // sporadic high "siren shimmer"
-    if (Math.random() < 0.4) note(660 + Math.random() * 220, t + Math.random() * BEAT * 6, 0.5, 'sine', 0.06);
+    arp.forEach((f, i) => note(f, t + i * BEAT, BEAT * 0.55, 'triangle', 0.3, base));
+    if (Math.random() < 0.4) note(660 + Math.random() * 220, t + Math.random() * BEAT * 6, 0.5, 'sine', 0.06, base);
+    // chase engine — only schedule when the layer is actually audible
+    if (horrorChaseGain && horrorChaseGain.gain.value > 0.02) {
+      for (let i = 0; i < 16; i++) chaseStab(t + i * (BEAT / 2)); // fast driving pulse
+    }
     setTimeout(tick, BEAT * 8 * 1000);
   };
   tick();
   horrorStop = () => {
     cancelled = true;
     const c2 = ensureCtx();
-    if (c2) { base.gain.cancelScheduledValues(c2.currentTime); base.gain.linearRampToValueAtTime(0.0001, c2.currentTime + 1.5); }
+    if (c2) {
+      base.gain.cancelScheduledValues(c2.currentTime);
+      base.gain.linearRampToValueAtTime(0.0001, c2.currentTime + 1.5);
+      if (horrorChaseGain) horrorChaseGain.gain.linearRampToValueAtTime(0.0001, c2.currentTime + 0.8);
+      try { sub.stop(c2.currentTime + 1.6); subLfo.stop(c2.currentTime + 1.6); } catch { /* */ }
+    }
+    horrorChaseGain = null;
   };
+}
+/** 0..1 chase-music intensity — slams up when he spots you, eases to relief. */
+export function setHorrorChase(v: number) {
+  const c = ensureCtx();
+  if (!c || !horrorChaseGain) return;
+  horrorChaseGain.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.7, c.currentTime, 0.35);
 }
 export function stopHorrorTheme() {
   horrorStop?.();
   horrorStop = null;
+}
+
+// "IT SEES YOU" — a loud dissonant stab the instant he commits to the chase.
+// Detuned-saw tritone cluster + a noise burst, fast attack, ~450ms decay.
+export function sirenSpotStinger() {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  for (const f of [196.0, 277.18]) { // G3 + C#4 = tritone
+    const osc = c.createOscillator(); osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f, t0);
+    osc.frequency.linearRampToValueAtTime(f * 0.85, t0 + 0.45);
+    const env = c.createGain();
+    env.gain.setValueAtTime(0.0001, t0);
+    env.gain.linearRampToValueAtTime(0.34, t0 + 0.006);
+    env.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+    osc.connect(env).connect(grp);
+    osc.start(t0); osc.stop(t0 + 0.5);
+  }
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, 0.3, 'white');
+  const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 1.4;
+  const ng = c.createGain();
+  ng.gain.setValueAtTime(0.22, t0);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+  src.connect(bp).connect(ng).connect(grp);
+  src.start(t0); src.stop(t0 + 0.32);
 }
 
 // Bright warm win flourish — the block lights up, the family cheers.

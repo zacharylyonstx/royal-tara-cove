@@ -12,7 +12,7 @@ import { resolveMotion } from './collision';
 import { broadcastSirenCaught, isInRoom } from '../net/room';
 import {
   startNightSiren, stopNightSiren, setNightSirenVolume,
-  sirenAlertStab, bonkHit, heartbeat, blockLitFanfare,
+  sirenAlertStab, sirenSpotStinger, setHorrorChase, bonkHit, heartbeat, blockLitFanfare,
   startHorrorTheme, stopHorrorTheme,
 } from '../audio';
 
@@ -24,13 +24,19 @@ import {
 
 const INTRO_DURATION = 4.5;     // "make-believe" card before the hunt
 const PATROL_SPEED = 2.6;
-const CHASE_SPEED = 4.3;        // < player sprint (14) — escapable but pressuring
-const ALERT_RADIUS_BASE = 13;
-const SPRINT_NOISE = 7;         // sprinting makes you detectable much farther
-const CARRY_NOISE = 5;          // carrying a glowing lantern is risky
-const CROUCH_QUIET = 6;         // crouching shrinks your detection radius
+// SCARY-AF tuning: he SPRINTS when he spots you. 7.2 is faster than the player's
+// walk (4.2) — so walking can't escape, you must sprint-burst (8.8) + hide — but
+// still below sprint, so it stays escapable with effort. A short close-range
+// lunge makes the final pounce feel vicious.
+const CHASE_SPEED = 7.2;
+const CHASE_LUNGE_MULT = 1.3;   // burst when he's right on top of you (<5m)
+const ALERT_RADIUS_BASE = 22;   // spots you from much further (was 13)
+const SPRINT_NOISE = 9;         // sprinting makes you detectable much farther
+const CARRY_NOISE = 6;          // carrying a glowing lantern is risky
+const CROUCH_QUIET = 8;         // crouching shrinks your detection radius
 const CATCH_RADIUS = 2.0;
-const ALERT_PAUSE = 1.0;        // dread beat before the chase
+const ALERT_PAUSE = 0.6;        // short dread beat, then he commits (scarier)
+const WHACK_WINDUP_RANGE = 3.6; // he raises his hand to swat at this range
 const LOS_BREAK_DELAY = 2.2;    // grace before he loses interest
 const REACQUIRE_COOLDOWN = 2.6; // after a catch, give the kid a head start
 const AUTO_REVIVE_SECS = 6;
@@ -86,6 +92,7 @@ interface Runtime {
   losLostAt: number;
   reacquireUntil: number;
   allDownSince: number;
+  swungThisChase: boolean;
   detectFrame: number;
   prevState: string;
   // local audio
@@ -96,7 +103,7 @@ export function SirenHeadController() {
   const rt = useRef<Runtime>({
     lastPhase: '', introStart: 0, roundEndsAt: 0,
     patrolTX: SIREN_SPAWN.x, patrolTZ: SIREN_SPAWN.z, patrolPickedAt: 0,
-    alertedAt: 0, losLostAt: 0, reacquireUntil: 0, allDownSince: 0, detectFrame: 0,
+    alertedAt: 0, losLostAt: 0, reacquireUntil: 0, allDownSince: 0, swungThisChase: false, detectFrame: 0,
     prevState: 'patrol', heartTimer: 0,
   });
 
@@ -144,7 +151,11 @@ export function SirenHeadController() {
 
     if (phase !== 'night-hunt') return;
 
-    const colliders = g.staticColliders;
+    // Siren Head is an ~11m giant — he steps OVER small props (the launch ramp,
+    // bins, mailboxes, hydrants) and is only blocked by tall structures (houses,
+    // fences). This also keeps LOS honest: hide behind a HOUSE, not a mailbox.
+    // (Without this, his direct-chase pins on the street ramp and stalls.)
+    const colliders = g.staticColliders.filter((c) => (c.maxY ?? 6) >= 3);
     const net = useNetStore.getState();
     const myId = net.myCharacterId ?? g.activeCharacterId;
     const ids = claimedPlayers();
@@ -307,14 +318,20 @@ export function SirenHeadController() {
     if (sstate === 'alerted') {
       const tp = target ? g.positions[target] : null;
       if (tp) syaw = Math.atan2(-(tp.x - sx), -(tp.z - sz));
-      if (now - r.alertedAt > ALERT_PAUSE) sstate = 'chase';
+      if (now - r.alertedAt > ALERT_PAUSE) { sstate = 'chase'; r.swungThisChase = false; } // arm the swat
     } else if (sstate === 'chase') {
       const tp = target ? g.positions[target] : null;
       if (tp) {
         const dx = tp.x - sx, dz = tp.z - sz;
         const d = Math.hypot(dx, dz) || 1;
-        const res = resolveMotion(sx, sz, sx + (dx / d) * CHASE_SPEED * dt, sz + (dz / d) * CHASE_SPEED * dt, colliders);
+        const spd = CHASE_SPEED * (d < 5 ? CHASE_LUNGE_MULT : 1); // vicious close-range lunge
+        const res = resolveMotion(sx, sz, sx + (dx / d) * spd * dt, sz + (dz / d) * spd * dt, colliders);
         sx = res.x; sz = res.z; syaw = Math.atan2(-dx, -dz);
+        // HAND-SWAT WINDUP: raise the arm as he closes in (one-shot per chase).
+        if (d < WHACK_WINDUP_RANGE && !r.swungThisChase && target && ns.playerNightStates[target] === 'alive') {
+          ns.bumpSirenSwing();
+          r.swungThisChase = true;
+        }
         // CATCH
         if (d < CATCH_RADIUS && target && ns.playerNightStates[target] === 'alive') {
           const victim = target;
@@ -331,6 +348,7 @@ export function SirenHeadController() {
           if (victim === myId && vp) g.startRagdoll(vp.x, vp.y, vp.z, now);
           if (isInRoom()) broadcastSirenCaught({ characterId: victim, result: 'down', t: Date.now() });
           sstate = 'patrol'; target = null; r.reacquireUntil = now + REACQUIRE_COOLDOWN;
+          r.swungThisChase = false;
           r.patrolPickedAt = 0;
         }
       } else { sstate = 'patrol'; }
@@ -353,8 +371,10 @@ export function SirenHeadController() {
     sx = Math.max(SIREN_BOUNDS.minX, Math.min(SIREN_BOUNDS.maxX, sx));
     sz = Math.max(SIREN_BOUNDS.minZ, Math.min(SIREN_BOUNDS.maxZ, sz));
 
-    // alert "lock-on" wail when he first wakes
+    // alert "lock-on" wail when he first wakes; a louder "IT SEES YOU" stinger
+    // the instant he commits to the chase.
     if (sstate === 'alerted' && r.prevState !== 'alerted' && r.prevState !== 'chase') sirenAlertStab();
+    if (sstate === 'chase' && r.prevState !== 'chase') sirenSpotStinger();
     r.prevState = sstate;
 
     ns.setSiren(sx, sz, syaw, sstate, target);
@@ -363,7 +383,7 @@ export function SirenHeadController() {
   // ---------- LOCAL AUDIO + PROXIMITY (every client) ----------
   useFrame((_, dtRaw) => {
     const g = useGameStore.getState();
-    if (g.gameMode !== 'night') { setNightSirenVolume(0); return; }
+    if (g.gameMode !== 'night') { setNightSirenVolume(0); setHorrorChase(0); return; }
     const ns = useNightStore.getState();
     const net = useNetStore.getState();
     const localId = net.myCharacterId ?? g.activeCharacterId;
@@ -377,6 +397,9 @@ export function SirenHeadController() {
     const chasing = ns.sirenState === 'chase' || ns.sirenState === 'alerted';
     // distant wail grows as he nears; spikes when he's hunting you
     setNightSirenVolume(hunting ? prox * (chasing ? 1 : 0.6) : 0);
+    // music dread layer: slams in when he commits to the chase, eases to relief
+    // the moment you break away (setHorrorChase ramps internally).
+    setHorrorChase(!hunting ? 0 : ns.sirenState === 'chase' ? 1 : ns.sirenState === 'alerted' ? 0.5 : 0);
 
     // heartbeat tightens as he closes in (only when genuinely near)
     if (hunting && prox > 0.35 && ns.playerNightStates[localId] !== 'down') {

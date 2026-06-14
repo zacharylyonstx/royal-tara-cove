@@ -241,7 +241,10 @@ export function CameraRig() {
     // were the host (before presence sync). Always first-person for non-host.
     const isHost = useNetStore.getState().isHost;
     const cin = useCombatStore.getState().cinematic;
-    if (cin.active && isHost) {
+    // Night mode's only cinematic is the local swat tumble (set by THIS client's
+    // own RagdollController), so it's safe to honor on guests too — otherwise a
+    // caught kid (guest) wouldn't get the "tossed" view.
+    if (cin.active && (isHost || _camMode === 'night')) {
       const blendK = Math.min(1, 4 * dt);
       const targetCam = new Vector3(cin.cameraX, cin.cameraY, cin.cameraZ);
       const lookTarget = new Vector3(cin.targetX, cin.targetY, cin.targetZ);

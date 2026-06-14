@@ -29,7 +29,7 @@ const RUN_SPEED = 10.0;
 // so plain walking can't outrun him — you sprint in bursts (stamina-limited,
 // noisy) and hide. Crouch is slow + quiet.
 const NIGHT_WALK_SPEED = 4.2;
-const NIGHT_SPRINT_SPEED = 8.0;
+const NIGHT_SPRINT_SPEED = 8.8;   // clearly faster than Siren's chase (7.2) so a sprint-burst escapes
 const NIGHT_CROUCH_SPEED = 2.4;
 const JUMP_VELOCITY = 7.5;
 const GRAVITY = 22;
@@ -363,8 +363,8 @@ export function PlayerController() {
       const wantSprint = !!k['shift'] && !crouch;
       const sprinting = wantSprint && ns.stamina > 0 && moving;
       const stam = sprinting
-        ? Math.max(0, ns.stamina - dt / 3.0)   // ~3s of sprint
-        : Math.min(1, ns.stamina + dt / 5.0);  // ~5s to refill
+        ? Math.max(0, ns.stamina - dt / 3.6)   // ~3.6s of sprint
+        : Math.min(1, ns.stamina + dt / 4.0);  // ~4s to refill
       ns.setStamina(stam);
       ns.setLocalRunning(sprinting);
       nightSpeedOverride = crouch ? NIGHT_CROUCH_SPEED : sprinting ? NIGHT_SPRINT_SPEED : NIGHT_WALK_SPEED;

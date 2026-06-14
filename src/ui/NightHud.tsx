@@ -67,7 +67,7 @@ function HuntHud() {
       {/* danger flash when he's hunting you */}
       {(chasing || alerted) && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 90, pointerEvents: 'none',
-          boxShadow: `inset 0 0 ${chasing ? 220 : 120}px ${chasing ? 90 : 50}px rgba(176,30,50,${chasing ? 0.5 : 0.28})`,
+          boxShadow: `inset 0 0 ${chasing ? 240 : 110}px ${chasing ? 110 : 44}px rgba(176,30,50,${chasing ? 0.55 : 0.18})`,
           animation: chasing ? 'pop-in 0.4s ease' : undefined }} />
       )}
 

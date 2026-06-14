@@ -22,8 +22,9 @@ const THROW_DURATION = 4;
 // tornado's wild first-person tumble — kid-friendly. Runs on the LOCAL caught
 // client (which may be a non-host guest), animating only the local character;
 // the arc propagates to everyone via the normal position broadcast.
-const NIGHT_SWAT_DURATION = 1.8;
-const NIGHT_SWAT_PEAK = 6.5;
+const NIGHT_SWAT_DURATION = 2.4;  // a big, satisfying "tossed across the street" arc
+const NIGHT_SWAT_PEAK = 14;       // launched way up (was 6.5) — like the tornado yeet
+const NIGHT_SWAT_DIST = 20;       // hurled this far from where Siren Head whacked you
 
 export function RagdollController() {
   const startedRef = useRef(false);
@@ -57,19 +58,40 @@ export function RagdollController() {
         const az = rag.originZ - ns.sirenZ;
         const al = Math.hypot(ax, az) || 1;
         nightLaunch.current = { dirX: ax / al, dirZ: az / al, oy: rag.originY };
-        useCombatStore.getState().addShake(0.3);
+        useCombatStore.getState().addShake(0.7); // hard WHAM
       }
       const L = nightLaunch.current;
       const now = performance.now() / 1000;
       const t = Math.min(NIGHT_SWAT_DURATION, now - rag.startedAt);
       const p = t / NIGHT_SWAT_DURATION;
-      player.x = rag.originX + L.dirX * p * 11; // tossed ~11m away from Siren Head
-      player.z = rag.originZ + L.dirZ * p * 11;
-      player.y = Math.max(0, L.oy + Math.sin(p * Math.PI) * NIGHT_SWAT_PEAK);
+      const x = rag.originX + L.dirX * p * NIGHT_SWAT_DIST;
+      const z = rag.originZ + L.dirZ * p * NIGHT_SWAT_DIST;
+      const y = Math.max(0, L.oy + Math.sin(p * Math.PI) * NIGHT_SWAT_PEAK);
+      player.x = x; player.y = y; player.z = z;
+      // Tumbling first-person view — the "tossed by the tornado" feel, a bit
+      // tamer than the tornado spin so it's fun, not nauseating. Honored on every
+      // client in night mode (CameraRig relaxes its host-gate for night).
+      const yaw = t * 6;
+      const pitch = Math.sin(t * 6.5) * 0.5;
+      const roll = Math.sin(t * 4.5) * 0.45;
+      const lookDir = new Vector3(0, 0, -1).applyEuler(new Euler(pitch, yaw, roll, 'YXZ'));
+      const headY = y + 0.4;
+      useCombatStore.setState({
+        cinematic: {
+          active: true,
+          cameraX: x, cameraY: headY, cameraZ: z,
+          targetX: x + lookDir.x * 5, targetY: headY + lookDir.y * 5, targetZ: z + lookDir.z * 5,
+          endsAt: now + NIGHT_SWAT_DURATION,
+        },
+      });
+      camera.up.set(Math.sin(roll), Math.cos(roll), 0);
+      g.yaws[localId] = yaw; // body spins too (others see you tumble)
       if (t >= NIGHT_SWAT_DURATION) {
         player.y = 0;
         g.clearRagdoll();
         nightLaunch.current = null;
+        useCombatStore.getState().endCinematic();
+        camera.up.set(0, 1, 0);
       }
       return;
     }

@@ -146,6 +146,7 @@ export interface WorldStateMsg {
     lanternsDelivered: number;
     roundEndsInSeconds: number;
     regroupAt: number;
+    sirenSwingCount: number;
   };
 }
 
@@ -583,6 +584,9 @@ function applyNightSnapshot(n: Json): void {
     lastNightRegroupRaw = rg;
     ns.setRegroupAt(performance.now() / 1000);
   }
+  // Hand-swat cue: a counter — the mesh latches locally on change (skew-safe).
+  const sc = num(n.sirenSwingCount);
+  if (sc !== ns.sirenSwingCount) useNightStore.setState({ sirenSwingCount: sc });
 }
 
 function applyMunchiesSnapshot(m: Json): void {

@@ -61,6 +61,12 @@ interface NightStore {
   regroupAt: number;
   setRegroupAt: (t: number) => void;
 
+  /** Increments each time Siren Head winds up a hand-swat — the mesh latches on
+   *  the change and plays the arm-chop locally (clock-skew-safe: a counter, not
+   *  a host timestamp). Synced in the snapshot so all peers see the whack. */
+  sirenSwingCount: number;
+  bumpSirenSwing: () => void;
+
   // ---- host-only bookkeeping (not synced) ----
   /** perf.now()/1000 when each character went down (for auto-revive timing). */
   downAt: Record<CharacterId, number>;
@@ -112,6 +118,9 @@ export const useNightStore = create<NightStore>((set) => ({
   regroupAt: 0,
   setRegroupAt: (t) => set({ regroupAt: t }),
 
+  sirenSwingCount: 0,
+  bumpSirenSwing: () => set((st) => ({ sirenSwingCount: st.sirenSwingCount + 1 })),
+
   downAt: { dad: 0, penny: 0, luke: 0 },
   setDownAt: (id, t) => set((st) => ({ downAt: { ...st.downAt, [id]: t } })),
 
@@ -142,6 +151,7 @@ export const useNightStore = create<NightStore>((set) => ({
       playerNightStates: freshStates(),
       roundEndsInSeconds: NIGHT_ROUND_SECONDS,
       regroupAt: 0,
+      sirenSwingCount: 0,
       downAt: { dad: 0, penny: 0, luke: 0 },
       crouching: false,
       flashlightOn: true,

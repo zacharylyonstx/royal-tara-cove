@@ -195,6 +195,7 @@ export function NetSyncController() {
             lanternsDelivered: ns.lanternsDelivered,
             roundEndsInSeconds: ns.roundEndsInSeconds,
             regroupAt: ns.regroupAt,
+            sirenSwingCount: ns.sirenSwingCount,
           };
         }
         broadcastWorldState(snap);
