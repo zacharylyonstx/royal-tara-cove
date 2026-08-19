@@ -15,6 +15,7 @@ export type InteractKind =
   | 'ball'      // id = basketball id
   | 'bike'      // id = bike id
   | 'car'       // id = parked car id
+  | 'seat'      // id = "driverId:seatIndex" (a free seat in a vehicle someone is driving)
   | 'door';     // id = door id
 
 export interface InteractCandidate {
@@ -33,6 +34,7 @@ const KIND_BIAS: Record<InteractKind, number> = {
   ball: -0.1,
   bike: -0.05,
   car: 0,
+  seat: -0.05,
   door: 0,
   zone: 0.12,
 };

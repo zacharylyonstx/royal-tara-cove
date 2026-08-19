@@ -74,7 +74,10 @@ export function NetSyncController() {
       if (charId === net.myCharacterId) continue;
       const pos = game.positions[charId as keyof typeof game.positions];
       const yaws = game.yaws as Record<string, number>;
-      if (pos) {
+      // Remote PASSENGERS are placed by Character.tsx from their driver's vehicle
+      // every frame — smoothing their own (lagging) position would fight that.
+      const isPassenger = !!rp.riding?.passengerOf;
+      if (pos && !isPassenger) {
         const far = Math.hypot(rp.x - pos.x, rp.y - pos.y, rp.z - pos.z) > REMOTE_SNAP_DIST;
         if (far) {
           // First sight / teleport / mode change — snap, don't slide.
@@ -96,8 +99,12 @@ export function NetSyncController() {
         const flip = fa !== 0 ? { dir: (fa >= 0 ? 1 : -1) as 1 | -1, angle: fa } : null;
         const vehicle = rp.riding.vehicle === 'car' ? 'car' : 'bike';
         const carKind = rp.riding.carKind === 'truck' ? 'truck' : rp.riding.carKind === 'golfcart' ? 'golfcart' : 'sedan';
-        if (!cur) play.mount(cid, { bikeId: rp.riding.bikeId || `${charId}-remote`, bikeColor: rp.riding.bikeColor, vehicle, carKind, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0 });
+        const passengerOf = rp.riding.passengerOf;
+        const seat = rp.riding.seat;
+        if (!cur) play.mount(cid, { bikeId: rp.riding.bikeId || `${charId}-remote`, bikeColor: rp.riding.bikeColor, vehicle, carKind, heading: rp.riding.heading, speed: 0, y: ry, vy: 0, airborne: ry > 0.02, flip, wipeoutUntil: 0, passengerOf, seat });
         else {
+          cur.passengerOf = passengerOf;
+          cur.seat = seat;
           // Smooth heading + hop height; snap discrete fields (color/flip/vehicle).
           cur.heading = cur.heading + shortestAngle(cur.heading, rp.riding.heading) * k;
           cur.y += (ry - cur.y) * k;
@@ -137,7 +144,7 @@ export function NetSyncController() {
           running: lastRunningRef.current,
           jumping,
           crouching: useNightStore.getState().crouching,
-          riding: myRiding ? { bikeId: myRiding.bikeId, bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind } : null,
+          riding: myRiding ? { bikeId: myRiding.bikeId, bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind, passengerOf: myRiding.passengerOf, seat: myRiding.seat } : null,
           t: Date.now(),
         };
         broadcastPlayerState(msg);

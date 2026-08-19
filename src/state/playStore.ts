@@ -29,7 +29,7 @@ export interface CarReg {
   yaw: number; // parked facing
 }
 
-export type HoverPlay = 'ride' | 'drive' | 'getoff' | 'pickup' | 'shoot' | null;
+export type HoverPlay = 'ride' | 'drive' | 'getoff' | 'pickup' | 'shoot' | 'hopin' | null;
 
 export interface RidingState {
   bikeId: string;
@@ -46,6 +46,10 @@ export interface RidingState {
   flip: { dir: 1 | -1; angle: number } | null;
   /** performance.now() timestamp the wipeout tumble ends (0 = not wiping out). */
   wipeoutUntil: number;
+  /** Passenger: the character DRIVING the vehicle I'm sitting in (my position is
+   *  derived from theirs each frame — see world/seats.ts) + which seat. */
+  passengerOf?: CharacterId;
+  seat?: number;
 }
 
 /** The single street launch ramp (registered by the Ramp prop on mount). */
@@ -90,6 +94,9 @@ interface PlayStore {
   hoverBikeId: string | null;
   hoverBallId: string | null;
   hoverCarId: string | null;
+  /** 'hopin' hover: whose vehicle + which seat (label for the prompt). */
+  hoverSeat: { driver: CharacterId; seat: number; label: string } | null;
+  setHoverSeat: (v: { driver: CharacterId; seat: number; label: string } | null) => void;
 
   /** One-shot landing-impact event (ramp/jump touchdown): drives the dust puff,
    *  camera shake, and vehicle squash. Consumers compare `at` to performance.now(). */
@@ -123,7 +130,7 @@ declare global {
   interface Window { __play?: unknown; }
 }
 
-export const usePlayStore = create<PlayStore>((set) => ({
+export const usePlayStore = create<PlayStore>((set, get) => ({
   riding: { dad: null, penny: null, luke: null },
   heldBall: null,
   shotImpulse: null,
@@ -140,6 +147,12 @@ export const usePlayStore = create<PlayStore>((set) => ({
   hoverBikeId: null,
   hoverBallId: null,
   hoverCarId: null,
+  hoverSeat: null,
+  setHoverSeat: (v) => {
+    const cur = get().hoverSeat;
+    if (cur === v || (cur && v && cur.driver === v.driver && cur.seat === v.seat)) return;
+    set({ hoverSeat: v });
+  },
   landingFx: null,
 
   triggerLandingFx: (x, z, power) => set({ landingFx: { x, z, at: performance.now(), power } }),

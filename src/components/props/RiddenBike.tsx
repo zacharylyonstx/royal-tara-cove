@@ -34,7 +34,7 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
     const fg = flipRef.current;
     if (!g || !fg) return;
     const r = usePlayStore.getState().riding[id];
-    if (!r) { g.visible = false; return; }
+    if (!r || r.passengerOf) { g.visible = false; return; } // passengers ride the DRIVER's vehicle
     g.visible = true;
     const p = useGameStore.getState().positions[id];
     g.position.set(p.x, r.y, p.z);
@@ -65,7 +65,7 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
     }
   });
 
-  if (!riding) return null;
+  if (!riding || riding.passengerOf) return null;
   return (
     <group ref={ref}>
       <group ref={flipRef}>

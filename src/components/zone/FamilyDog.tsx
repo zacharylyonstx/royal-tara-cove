@@ -9,6 +9,9 @@ import { useZoneStore } from '../../state/zoneStore';
 import { resolveMotion } from '../../systems/collision';
 import { dogBark, petChime } from '../../audio';
 import { CHARACTER_ORDER } from '../../world/characters';
+import { usePlayStore } from '../../state/playStore';
+import { PET_SEAT, seatWorld } from '../../world/seats';
+import type { CharacterId } from '../../types';
 
 // Sparky — the friendly little dog from the treehouse letters — lives at
 // 10600 in Free Play. He wanders the front yard, trots after whoever comes
@@ -22,10 +25,14 @@ import { CHARACTER_ORDER } from '../../world/characters';
 const HOME_X = 4;
 const HOME_Z = 24; // 10600 front yard
 const WANDER_R = 7;
-const FOLLOW_RANGE = 13;
+const FOLLOW_RANGE = 13;   // comes over + bonds when you're this close
+const LOSE_RANGE = 120;    // bond breaks only if you're REALLY gone (he'd have caught up by then)
+const CATCH_UP_RANGE = 28; // fell this far behind → pops in behind you
+const HOP_IN_RANGE = 16;   // close enough to hop in the car as you pull away
 const HEEL_DIST = 1.7;
 const WALK_SPEED = 2.0;
 const TROT_SPEED = 4.6;
+const SPRINT_SPEED = 9.5;  // faster than a walking kid, slower than a running one
 const PET_RADIUS = 2.4;
 
 const HEART_COUNT = 7;
@@ -48,6 +55,9 @@ function FamilyDogInner() {
     petUntil: 0,
     lastSeenPetAt: 0,
     posPushAccum: 0,
+    y: 0,
+    bondId: null as CharacterId | null,   // the family member he's sticking with
+    rideWith: null as CharacterId | null, // the DRIVER whose vehicle he's riding in
   });
 
   // Register the pettable spot (position kept live below).
@@ -91,63 +101,125 @@ function FamilyDogInner() {
     }
     const petting = t < s.petUntil;
 
-    // --- Brain: follow the nearest claimed family member, else wander home ---
-    let nearestD = Infinity;
-    let nearX = 0, nearZ = 0;
+    // --- Brain: follow YOUR person (bond), ride along when they drive, else wander home ---
+    // Who is claimed (so he ignores the frozen unclaimed family)?
     const peers = useNetStore.getState().peers;
     const claimed = new Set<string>();
     for (const p of Object.values(peers)) if (p.characterId) claimed.add(p.characterId);
     // Solo fallback: in single-player your active character may be the only claim.
     if (claimed.size === 0) claimed.add(game.activeCharacterId);
+    let nearestD = Infinity;
+    let nearId: CharacterId | null = null;
     for (const id of CHARACTER_ORDER) {
       if (!claimed.has(id)) continue;
       const p = game.positions[id];
       if (!p) continue;
       const d = Math.hypot(p.x - s.x, p.z - s.z);
-      if (d < nearestD) { nearestD = d; nearX = p.x; nearZ = p.z; }
+      if (d < nearestD) { nearestD = d; nearId = id; }
+    }
+    // Bond: he latches onto whoever comes close and STAYS with them — across
+    // the map, into the truck, wherever — until they're truly gone (or someone
+    // else is right next to him). The kids drove to the Plaza and "Sparky
+    // didn't make it"; now he does.
+    if (nearId && nearestD < FOLLOW_RANGE) s.bondId = nearId;
+    if (s.bondId && !claimed.has(s.bondId)) s.bondId = null;
+    let bondD = Infinity;
+    let bondX = 0, bondZ = 0;
+    if (s.bondId) {
+      const bp = game.positions[s.bondId];
+      bondX = bp.x; bondZ = bp.z;
+      bondD = Math.hypot(bp.x - s.x, bp.z - s.z);
+      if (bondD > LOSE_RANGE) s.bondId = null; // they left him way behind → home
     }
 
-    if (!petting) {
-      if (nearestD < FOLLOW_RANGE && nearestD > HEEL_DIST) {
-        s.targetX = nearX;
-        s.targetZ = nearZ;
-      } else if (nearestD >= FOLLOW_RANGE && t > s.nextWanderAt) {
-        s.nextWanderAt = t + 5 + Math.random() * 6;
-        const a = Math.random() * Math.PI * 2;
-        const r = Math.random() * WANDER_R;
-        s.targetX = HOME_X + Math.cos(a) * r;
-        s.targetZ = HOME_Z + Math.sin(a) * r;
+    // Ride along: when my person is in a car (driving OR riding), hop in the
+    // back. Snap to the pet seat each frame (the vehicle is already resolved).
+    const riding = usePlayStore.getState().riding;
+    const br = s.bondId ? riding[s.bondId] : null;
+    const drvId = br ? (br.passengerOf ?? s.bondId) : null;
+    const dr = drvId ? riding[drvId] : null;
+    if (s.bondId && dr && dr.vehicle === 'car' && !dr.passengerOf) {
+      if (!s.rideWith) {
+        // Hop in only if he's reasonably close — otherwise he sprints after you.
+        if (bondD < HOP_IN_RANGE) s.rideWith = drvId;
+      } else if (s.rideWith !== drvId) {
+        s.rideWith = drvId;
+      }
+    } else if (s.rideWith) {
+      // Ride over: hop out beside where the vehicle stopped.
+      s.rideWith = null;
+      s.y = 0;
+      const offsets: [number, number][] = [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]];
+      for (const [ox, oz] of offsets) {
+        const tx = s.x + ox, tz = s.z + oz;
+        const r = resolveMotion(s.x, s.z, tx, tz, game.staticColliders);
+        if (Math.hypot(r.x - tx, r.z - tz) < 0.05) { s.x = r.x; s.z = r.z; break; }
+      }
+      s.petUntil = t + 0.8; // happy wiggle on arrival
+    }
+
+    let moving = false;
+    const chasing = !!s.bondId && !s.rideWith;
+    if (s.rideWith && dr) {
+      const dp = game.positions[s.rideWith];
+      const seat = PET_SEAT[dr.carKind ?? 'sedan'];
+      const w = seatWorld(dp.x, dr.y, dp.z, dr.heading, seat);
+      s.x = w.x; s.z = w.z; s.y = w.y;
+      s.yaw = dr.heading + Math.PI; // look out the back, ears in the wind
+      s.targetX = s.x; s.targetZ = s.z;
+    } else {
+      s.y = 0;
+      if (!petting) {
+        if (chasing && bondD > HEEL_DIST) {
+          s.targetX = bondX;
+          s.targetZ = bondZ;
+        } else if (!chasing && t > s.nextWanderAt) {
+          s.nextWanderAt = t + 5 + Math.random() * 6;
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.random() * WANDER_R;
+          s.targetX = HOME_X + Math.cos(a) * r;
+          s.targetZ = HOME_Z + Math.sin(a) * r;
+        }
+      }
+
+      // Way behind (wedged on a fence, or you ran): he "catches up" — pops in a
+      // few metres behind you rather than being lost forever.
+      if (chasing && bondD > CATCH_UP_RANGE) {
+        const bp = game.positions[s.bondId as CharacterId];
+        const yaw = game.yaws[s.bondId as CharacterId] ?? 0;
+        s.x = bp.x + Math.sin(yaw) * 4; // 4 m behind the facing direction
+        s.z = bp.z + Math.cos(yaw) * 4;
+        s.petUntil = t + 0.6;
+      }
+
+      const toX = s.targetX - s.x;
+      const toZ = s.targetZ - s.z;
+      const dist = Math.hypot(toX, toZ);
+      const stopAt = chasing ? HEEL_DIST : 0.4;
+      if (!petting && dist > stopAt) {
+        moving = true;
+        const speed = chasing ? (bondD > 9 ? SPRINT_SPEED : bondD > 5 ? TROT_SPEED : WALK_SPEED) : WALK_SPEED;
+        const step = Math.min(speed * dt, dist);
+        const nx = s.x + (toX / dist) * step;
+        const nz = s.z + (toZ / dist) * step;
+        const resolved = resolveMotion(s.x, s.z, nx, nz, game.staticColliders);
+        s.x = resolved.x;
+        s.z = resolved.z;
+        const desiredYaw = Math.atan2(-(toX / dist), -(toZ / dist));
+        let diff = desiredYaw - s.yaw;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        s.yaw += diff * Math.min(1, 8 * dt);
+      } else if (!petting && chasing) {
+        // Heeling: face your person.
+        const desiredYaw = Math.atan2(-(bondX - s.x), -(bondZ - s.z));
+        let diff = desiredYaw - s.yaw;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        s.yaw += diff * Math.min(1, 5 * dt);
       }
     }
-
-    const toX = s.targetX - s.x;
-    const toZ = s.targetZ - s.z;
-    const dist = Math.hypot(toX, toZ);
-    const chasing = nearestD < FOLLOW_RANGE;
-    const stopAt = chasing ? HEEL_DIST : 0.4;
-    let moving = false;
-    if (!petting && dist > stopAt) {
-      moving = true;
-      const speed = chasing && nearestD > 5 ? TROT_SPEED : WALK_SPEED;
-      const step = Math.min(speed * dt, dist);
-      const nx = s.x + (toX / dist) * step;
-      const nz = s.z + (toZ / dist) * step;
-      const resolved = resolveMotion(s.x, s.z, nx, nz, game.staticColliders);
-      s.x = resolved.x;
-      s.z = resolved.z;
-      const desiredYaw = Math.atan2(-(toX / dist), -(toZ / dist));
-      let diff = desiredYaw - s.yaw;
-      while (diff > Math.PI) diff -= 2 * Math.PI;
-      while (diff < -Math.PI) diff += 2 * Math.PI;
-      s.yaw += diff * Math.min(1, 8 * dt);
-    } else if (!petting && chasing) {
-      // Heeling: face your person.
-      const desiredYaw = Math.atan2(-(nearX - s.x), -(nearZ - s.z));
-      let diff = desiredYaw - s.yaw;
-      while (diff > Math.PI) diff -= 2 * Math.PI;
-      while (diff < -Math.PI) diff += 2 * Math.PI;
-      s.yaw += diff * Math.min(1, 5 * dt);
-    }
+    const nearestDForAnim = bondD;
 
     // Keep the pettable spot tracking him (~5x/sec is plenty).
     s.posPushAccum += dt;
@@ -160,7 +232,7 @@ function FamilyDogInner() {
     const root = rootRef.current;
     const body = bodyRef.current;
     if (root) {
-      root.position.set(s.x, 0, s.z);
+      root.position.set(s.x, s.y, s.z);
       root.rotation.y = s.yaw;
     }
     if (body) {
@@ -171,7 +243,7 @@ function FamilyDogInner() {
         body.rotation.y = Math.sin(t * 18) * 0.3 * k;
         body.rotation.x = 0;
       } else if (moving) {
-        const speedK = chasing && nearestD > 5 ? 13 : 9;
+        const speedK = chasing && nearestDForAnim > 5 ? 13 : 9;
         body.position.y = Math.abs(Math.sin(t * speedK)) * 0.07;
         body.rotation.x = Math.sin(t * speedK) * 0.05;
         body.rotation.y = 0;

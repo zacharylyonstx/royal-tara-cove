@@ -9,6 +9,7 @@ import { GLBCharacterModel } from './GLBCharacterModel';
 import { GLBRiggedCharacter } from './GLBRiggedCharacter';
 import { defaultAppearance } from '../world/wardrobe';
 import { useGameStore } from '../state/gameStore';
+import { SEATS, seatWorld } from '../world/seats';
 
 interface CharacterProps {
   def: CharacterDef;
@@ -48,12 +49,27 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     const dt = Math.min(dtRaw, 0.1);
     const g = groupRef.current;
     if (!g) return;
+    const live = usePlayStore.getState().riding[def.id];
+    if (live?.passengerOf) {
+      // Passenger: sit rigidly in the driver's vehicle on EVERY client (local or
+      // remote) — derived from the driver's position, never from this character's
+      // own (lagging) network position, so nobody trails behind the truck.
+      const drv = live.passengerOf;
+      const dr = usePlayStore.getState().riding[drv];
+      const dp = useGameStore.getState().positions[drv];
+      if (dr && dr.vehicle === 'car' && dp) {
+        const seats = SEATS[dr.carKind ?? 'sedan'];
+        const seat = seats[live.seat ?? 0] ?? seats[0];
+        const w = seatWorld(dp.x, dr.y, dp.z, dr.heading, seat);
+        positionRef.set(w.x, w.y, w.z);
+        yawRef.current = dr.heading;
+      }
+    }
     g.position.copy(positionRef);
     g.rotation.order = 'YXZ';
     // Model front is +Z; the game's yaw convention is -Z-forward (yaw=π faces +Z).
     g.rotation.y = yawRef.current + Math.PI;
 
-    const live = usePlayStore.getState().riding[def.id];
     // Sink the driver into the car seat (bikes stay at ground level).
     if (live?.vehicle === 'car') g.position.y -= 0.45;
     g.rotation.x = live?.flip ? live.flip.angle : 0;

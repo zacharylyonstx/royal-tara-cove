@@ -23,6 +23,8 @@ import { sendEmote, sendChat, broadcastDoor, broadcastPark, isInRoom } from '../
 import { icecreamJingle } from '../audio';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
+import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
+import { CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
 import type { RidingState } from '../state/playStore';
 
@@ -430,7 +432,10 @@ export function PlayerController() {
 
     // ---- Riding a bike? Bike movement replaces walking (non-combat only) ----
     const myRiding = usePlayStore.getState().riding[activeId];
-    if (myRiding) {
+    if (myRiding?.passengerOf) {
+      // Passenger: I go where the driver's vehicle goes (no sim of my own).
+      passengerTick(myRiding, pos, yaws, activeId, staticColliders);
+    } else if (myRiding) {
       rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors, jumpedThisFrame);
     }
 
@@ -584,10 +589,25 @@ export function PlayerController() {
         }
         for (const c of Object.values(play.cars)) {
           // Skip cars someone is already driving (a second kid could "drive" the
-          // same truck from its empty driveway spot → two trucks). Passengers
-          // are a separate, later feature.
+          // same truck from its empty driveway spot → two trucks) — those offer
+          // SEATS instead (below).
           if (isCarDriven(play.riding, c.id)) continue;
           cands.push({ kind: 'car', id: c.id, x: c.x, z: c.z, radius: 3.4 }); // cars are big — generous reach
+        }
+        // Free seats in vehicles other family members are driving: "ride along" /
+        // "hop in the back". One candidate per seat so standing by the tailgate
+        // offers the bed and standing by the door offers the cab.
+        for (const drvId of CHARACTER_ORDER) {
+          if (drvId === activeId) continue;
+          const dr = play.riding[drvId];
+          if (!dr || dr.vehicle !== 'car' || dr.passengerOf) continue;
+          const seats = SEATS[dr.carKind ?? 'sedan'];
+          const dp = positions[drvId];
+          for (let i = 0; i < seats.length; i++) {
+            if (isSeatTaken(play.riding, drvId, i)) continue;
+            const w = seatWorld(dp.x, 0, dp.z, dr.heading, seats[i]);
+            cands.push({ kind: 'seat', id: seatCandidateId(drvId, i), x: w.x, z: w.z, radius: 2.8 });
+          }
         }
       }
       for (const [id, door] of Object.entries(doors)) {
@@ -607,7 +627,16 @@ export function PlayerController() {
       else if (best?.kind === 'ball') play.setHover('pickup', null, best.id);
       else if (best?.kind === 'bike') play.setHover('ride', best.id, null);
       else if (best?.kind === 'car') play.setHover('drive', null, null, best.id);
+      else if (best?.kind === 'seat') play.setHover('hopin', null, null);
       else play.setHover(null, null, null);
+      if (best?.kind === 'seat') {
+        const ps = parseSeatCandidateId(best.id);
+        const dr = ps ? play.riding[ps.driver] : null;
+        const seat = ps && dr ? SEATS[dr.carKind ?? 'sedan'][ps.seat] : null;
+        play.setHoverSeat(ps && seat ? { driver: ps.driver, seat: ps.seat, label: seat.label } : null);
+      } else if (play.hoverSeat) {
+        play.setHoverSeat(null);
+      }
     } else {
       // Left free-roam (combat started / mode changed): cancel local play.
       if (play.hoverPlay) play.setHover(null, null, null);
@@ -624,14 +653,19 @@ export function PlayerController() {
       } else if (playActive && cur) {
         // Leave a car parked exactly where it was (centered on the driver) before
         // the rider steps out, so it doesn't snap back to its driveway — and
-        // tell everyone else where it is now.
-        if (cur.vehicle === 'car') {
+        // tell everyone else where it is now. Passengers just hop out.
+        if (cur.vehicle === 'car' && !cur.passengerOf) {
           ph.parkCar(cur.bikeId, pos.x, pos.z, cur.heading);
           void broadcastPark([{ id: cur.bikeId, x: pos.x, z: pos.z, yaw: cur.heading }]);
         }
         dismountBike(activeId, pos, staticColliders);
       } else if (best) {
         switch (best.kind) {
+          case 'seat': {
+            const ps = parseSeatCandidateId(best.id);
+            if (playActive && ps) mountAsPassenger(activeId, ps.driver, ps.seat);
+            break;
+          }
           case 'dresser':
           case 'zone':
             fireHouseOrZoneInteract(best, activeId);
@@ -754,6 +788,56 @@ function mountCar(id: import('../types').CharacterId, carId: string, currentYaw:
     bikeId: carId, bikeColor: car.color, vehicle: 'car', carKind: car.kind,
     heading: currentYaw, speed: 0, y: 0, vy: 0, airborne: false, flip: null, wipeoutUntil: 0,
   });
+}
+
+function isSeatTaken(riding: Record<CharacterId, RidingState | null>, driver: CharacterId, seat: number): boolean {
+  for (const r of Object.values(riding)) if (r && r.passengerOf === driver && r.seat === seat) return true;
+  return false;
+}
+
+/** Hop into a free seat of a vehicle another family member is driving. */
+function mountAsPassenger(id: CharacterId, driver: CharacterId, seat: number) {
+  const play = usePlayStore.getState();
+  const dr = play.riding[driver];
+  if (!dr || dr.vehicle !== 'car' || dr.passengerOf) return;
+  if (!SEATS[dr.carKind ?? 'sedan'][seat]) return;
+  if (isSeatTaken(play.riding, driver, seat)) return;
+  play.mount(id, {
+    bikeId: dr.bikeId, bikeColor: dr.bikeColor, vehicle: 'car', carKind: dr.carKind,
+    heading: dr.heading, speed: dr.speed, y: 0, vy: 0, airborne: false, flip: null, wipeoutUntil: 0,
+    passengerOf: driver, seat,
+  });
+}
+
+/** Passenger frame: sit where the driver's vehicle is; hop out if the ride ended. */
+function passengerTick(
+  riding: RidingState,
+  pos: Vector3,
+  yaws: Record<string, number>,
+  activeId: CharacterId,
+  colliders: Colliders,
+) {
+  const play = usePlayStore.getState();
+  const driver = riding.passengerOf as CharacterId;
+  const dr = play.riding[driver];
+  const net = useNetStore.getState();
+  // Driver still present? (a remote driver who vanished leaves a stale riding
+  // entry — don't stay glued to a phantom truck).
+  const driverPresent = driver === net.myCharacterId || !!net.remotePlayers[driver] || !isInRoom();
+  if (!dr || dr.vehicle !== 'car' || dr.bikeId !== riding.bikeId || dr.passengerOf || !driverPresent) {
+    dismountBike(activeId, pos, colliders);
+    return;
+  }
+  const seat = SEATS[dr.carKind ?? 'sedan'][riding.seat ?? 0] ?? SEATS[dr.carKind ?? 'sedan'][0];
+  const dp = useGameStore.getState().positions[driver];
+  const w = seatWorld(dp.x, dr.y, dp.z, dr.heading, seat);
+  pos.set(w.x, w.y, w.z);
+  // Mirror the driver's motion so the chase cam + the riding pose behave.
+  riding.heading = dr.heading;
+  riding.speed = dr.speed;
+  riding.y = dr.y;
+  riding.airborne = dr.airborne;
+  yaws[activeId] = dr.heading;
 }
 
 function dismountBike(id: import('../types').CharacterId, pos: Vector3, colliders: Colliders) {

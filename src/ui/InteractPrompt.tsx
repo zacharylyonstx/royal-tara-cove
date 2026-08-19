@@ -21,6 +21,7 @@ export function InteractPrompt() {
   const zoneInteractables = useZoneStore((s) => s.interactables);
   const me = useNetStore((s) => s.myCharacterId);
   const ridingVehicle = usePlayStore((s) => (me ? s.riding[me]?.vehicle : undefined));
+  const hoverSeat = usePlayStore((s) => s.hoverSeat);
   // On iPad the kid has no E key — show the on-screen button glyphs instead.
   const touch = isTouchDevice();
 
@@ -35,6 +36,8 @@ export function InteractPrompt() {
   } else if (hoverPlay === 'shoot') {
     label = 'shoot';
     key = touch ? '⤴' : 'click';
+  } else if (hoverPlay === 'hopin') {
+    label = hoverSeat?.label ?? 'hop in 🚗';
   } else if (hoverPlay === 'getoff') {
     label = ridingVehicle === 'car' ? 'hop out' : 'get off';
   } else if (hoverPlay && PLAY_LABELS[hoverPlay]) {
