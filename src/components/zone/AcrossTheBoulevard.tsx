@@ -10,6 +10,9 @@ import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
 import { duckQuack, petChime } from '../../audio';
 import { HeartBurst } from './HeartBurst';
+import { CharacterModel } from '../CharacterModel';
+import { CHARACTERS } from '../../world/characters';
+import { OUTFITS, defaultAppearance, PALETTE } from '../../world/wardrobe';
 import { ParkedCar } from '../HouseProps';
 import { CasitasHomes } from './CasitasHomes';
 import {
@@ -23,6 +26,7 @@ import {
   PLAYGROUND_X, PLAYGROUND_Z, PICNIC_X, PICNIC_Z, CART_X, CART_Z, GOLFCART_X, GOLFCART_Z,
   WALL_Z, POND_OAKS, LOT_OAKS,
   type ShopUnit,
+  BOUTIQUE_X, BOUTIQUE_Z,
 } from '../../world/acrossBlvd';
 
 const ASPHALT = '#3d4045';
@@ -478,6 +482,76 @@ function PondSign() {
 }
 
 /** The Plaza at Avery Ranch: parking lot + two limestone shop wings. */
+
+/** The kids' boutique storefront: three dressed mannequins on plinths, a rack
+ *  of hanging tops and an A-frame sign. Stand at the rack and press E / ✋ to
+ *  "shop outfits" — it opens the same dress-up wardrobe as the bedroom dresser
+ *  (everything's free; the buying is pretend). */
+const MANNEQUINS: { id: 'penny' | 'luke' | 'dad'; outfit: string; dx: number }[] = [
+  { id: 'penny', outfit: 'fairy', dx: -1.7 },
+  { id: 'luke', outfit: 'super', dx: 0 },
+  { id: 'dad', outfit: 'cowpoke', dx: 1.7 },
+];
+function Boutique() {
+  useEffect(() => {
+    useZoneStore.getState().register({ id: 'boutique', kind: 'shop', label: 'shop outfits 🛍️', x: BOUTIQUE_X, z: BOUTIQUE_Z, radius: 3.2 });
+    return () => useZoneStore.getState().unregister('boutique');
+  }, []);
+  const looks = useMemo(() => MANNEQUINS.map((m) => {
+    const outfit = OUTFITS.find((o) => o.id === m.outfit) ?? OUTFITS[0];
+    return { ...m, appearance: { ...defaultAppearance(m.id), ...outfit.look } };
+  }), []);
+  return (
+    <group>
+      {looks.map((m) => (
+        <group key={m.id} position={[BOUTIQUE_X + m.dx, 0, BOUTIQUE_Z - 1.1]}>
+          <mesh position={[0, 0.09, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.42, 0.46, 0.18, 20]} />
+            <meshStandardMaterial color="#f3eee4" roughness={0.6} />
+          </mesh>
+          {/* Face the lot (+Z = south). The model's front is +Z already. */}
+          <group position={[0, 0.18, 0]} rotation={[0, 0, 0]}>
+            <CharacterModel def={CHARACTERS[m.id]} appearance={m.appearance} />
+          </group>
+        </group>
+      ))}
+      {/* Clothes rack: two posts + bar + hanging tops in the palette colors. */}
+      <group position={[BOUTIQUE_X + 3.2, 0, BOUTIQUE_Z - 0.9]}>
+        {[-0.75, 0.75].map((x) => (
+          <mesh key={x} position={[x, 0.7, 0]} castShadow>
+            <cylinderGeometry args={[0.03, 0.03, 1.4, 8]} />
+            <meshStandardMaterial color="#4a4238" metalness={0.5} roughness={0.4} />
+          </mesh>
+        ))}
+        <mesh position={[0, 1.4, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.025, 0.025, 1.6, 8]} />
+          <meshStandardMaterial color="#4a4238" metalness={0.5} roughness={0.4} />
+        </mesh>
+        {PALETTE.slice(0, 6).map((c, i) => (
+          <mesh key={c} position={[-0.6 + i * 0.24, 1.05, 0]} castShadow>
+            <boxGeometry args={[0.2, 0.55, 0.07]} />
+            <meshStandardMaterial color={c} roughness={0.85} />
+          </mesh>
+        ))}
+      </group>
+      {/* A-frame sandwich board. */}
+      <group position={[BOUTIQUE_X - 3.2, 0, BOUTIQUE_Z + 0.3]} rotation={[0, 0.3, 0]}>
+        <mesh position={[0, 0.45, -0.12]} rotation={[-0.25, 0, 0]} castShadow>
+          <boxGeometry args={[0.7, 0.9, 0.04]} />
+          <meshStandardMaterial color="#2c2f3a" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.45, 0.12]} rotation={[0.25, 0, 0]} castShadow>
+          <boxGeometry args={[0.7, 0.9, 0.04]} />
+          <meshStandardMaterial color="#2c2f3a" roughness={0.9} />
+        </mesh>
+        <Text position={[0, 0.55, 0.17]} rotation={[0.25, 0, 0]} fontSize={0.13} color="#fff8ec" anchorX="center" anchorY="middle" maxWidth={0.6} textAlign="center">
+          {'TRY ON\nANYTHING!\n🛍️'}
+        </Text>
+      </group>
+    </group>
+  );
+}
+
 function Plaza() {
   const lotW = LOT_MAX_X - LOT_MIN_X;
   const lotD = LOT_MAX_Z - LOT_MIN_Z;
@@ -522,6 +596,7 @@ function Plaza() {
         min={WINGA_MIN_X}
         max={WINGA_MAX_X}
       />
+      <Boutique />
       {/* Wing B — storefronts face WEST over the lot. */}
       <ShopWing
         units={WINGB_SHOPS}
@@ -570,7 +645,10 @@ function ShopWing({ units, axis, frontCoord, backCoord, min, max }: {
   // Build in a local frame where the wing runs along local X with its
   // storefront at local +Z, then yaw the whole group for wing B.
   const groupPos: [number, number, number] = facingSouth ? [mid, 0, depthMid] : [depthMid, 0, mid];
-  const groupYaw = facingSouth ? 0 : Math.PI / 2;
+  // −π/2 puts local +Z (the storefront) at world −X = WEST, over the lot. (+π/2
+  // had Wing B's signs, glass and columns facing Parmer Ln — nobody could see
+  // Woof Gang from the parking lot.)
+  const groupYaw = facingSouth ? 0 : -Math.PI / 2;
   const columns = useMemo(() => {
     const xs: number[] = [];
     for (let c = -span / 2 + 0.8; c <= span / 2 - 0.6; c += 5.2) xs.push(c);

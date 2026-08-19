@@ -64,6 +64,7 @@ export function WardrobeOverlay() {
   }, [open, close]);
   // Subscribe to appearances so cards/swatches reflect current selection.
   const appearance = useWardrobeStore((s) => (openFor ? s.appearances[openFor] : null));
+  const source = useWardrobeStore((st) => st.source);
 
   if (!open || !openFor || !appearance) return null;
   const accent = ACCENT[openFor];
@@ -95,7 +96,7 @@ export function WardrobeOverlay() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 22px' }}>
         <div style={{ fontSize: 26, fontWeight: 800, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-          👗 {name}'s Wardrobe
+          {source === 'boutique' ? `🛍️ ${name} at the Boutique` : `👗 ${name}'s Wardrobe`}
         </div>
         <button onClick={close} style={btn('#ffffff22', '#fff', 44)}>✕</button>
       </div>

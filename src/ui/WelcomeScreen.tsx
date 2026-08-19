@@ -68,7 +68,7 @@ export function WelcomeScreen() {
           <GameCard
             emoji="🏘️"
             title="FREE PLAY"
-            blurb="Just play! Bike and run around the whole block, shoot hoops, and go inside our house. No aliens, no storms — just our neighborhood."
+            blurb="Just play! Ride together in the truck, pet Sparky and the ducks, go shopping at the Plaza, and hang out in our house. No aliens, no storms — just our neighborhood."
             accent="#e09028"
             onPlay={() => pick('freeplay')}
           />
@@ -96,7 +96,7 @@ export function WelcomeScreen() {
           <GameCard
             emoji="🌳"
             title="THE TREEHOUSE CLUB"
-            blurb="Penny and Luke's secret clubhouse. Read letters from neighbors, do little adventures, and fill the shelf with stickers!"
+            blurb="🚧 Still being built! Penny and Luke's secret clubhouse — read letters from neighbors and do little adventures (solo for now)."
             accent="#5a8a3e"
             onPlay={() => pick('treehouse')}
           />

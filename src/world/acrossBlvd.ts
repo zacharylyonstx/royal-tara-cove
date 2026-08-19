@@ -82,14 +82,23 @@ export const WINGB_MIN_Z = -223.5;
 export const WINGB_MAX_Z = -196;
 export interface ShopUnit { name: string; sub: string; accent: string; min: number; max: number }
 export const WINGA_SHOPS: ShopUnit[] = [
-  { name: 'BROOKLYN HEIGHTS', sub: 'PIZZERIA', accent: '#b03a2e', min: 16, max: 25.5 },
-  { name: 'BLUE AGAVE', sub: 'TEX MEX', accent: '#2e7a6e', min: 25.5, max: 35 },
-  { name: 'ORANGE LEAF', sub: 'FROZEN YOGURT', accent: '#e8821e', min: 35, max: 44 },
+  { name: 'BROOKLYN HEIGHTS', sub: 'PIZZERIA', accent: '#b03a2e', min: 16, max: 23.5 },
+  { name: 'BLUE AGAVE', sub: 'TEX MEX', accent: '#2e7a6e', min: 23.5, max: 30.5 },
+  { name: 'ORANGE LEAF', sub: 'FROZEN YOGURT', accent: '#e8821e', min: 30.5, max: 37 },
+  // The kids asked to actually BUY things at the shopping center — this one
+  // really works: mannequins out front, E → the dress-up wardrobe.
+  { name: 'PENNY & LUKE\'S', sub: 'KIDS\' BOUTIQUE 🛍️', accent: '#d64a7a', min: 37, max: 44 },
 ];
+/** Where the boutique's "shop outfits" spot + mannequins sit (on the Wing A walkway). */
+export const BOUTIQUE_X = 40.5;
+export const BOUTIQUE_Z = WINGA_FRONT_Z + 1.9;
+// Woof Gang takes the south unit (nearest the lot entrance — it's where the
+// adoptable pups will be); the corner slot (hidden behind Wing A's end wall)
+// gets Kumon.
 export const WINGB_SHOPS: ShopUnit[] = [
-  { name: 'WOOF GANG', sub: 'DOG BAKERY', accent: '#3a6db0', min: -223.5, max: -214.5 },
+  { name: 'KUMON', sub: 'LEARNING CENTER', accent: '#3a8ac4', min: -223.5, max: -214.5 },
   { name: 'HUNAN RANCH', sub: 'CHINESE KITCHEN', accent: '#a8333d', min: -214.5, max: -205.5 },
-  { name: 'KUMON', sub: 'LEARNING CENTER', accent: '#3a8ac4', min: -205.5, max: -196 },
+  { name: 'WOOF GANG', sub: 'DOG BAKERY', accent: '#3a6db0', min: -205.5, max: -196 },
 ];
 
 // --- Parmer Ln (massive divided road, north-south on the east edge) ---
@@ -212,6 +221,9 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
 
   // Oak trunks (pond ring + parking islands).
   for (const o of POND_OAKS) out.push(rectAt(o.x, o.z, 1.2, 1.2, { maxY: 6, tag: 'zone-oak' }));
+  // Boutique storefront props (three mannequin plinths + a clothes rack).
+  for (const dx of [-1.7, 0, 1.7]) out.push(rectAt(BOUTIQUE_X + dx, BOUTIQUE_Z - 1.1, 0.8, 0.8, { maxY: 1.9, tag: 'boutique' }));
+  out.push(rectAt(BOUTIQUE_X + 3.2, BOUTIQUE_Z - 0.9, 1.6, 0.5, { maxY: 1.5, tag: 'boutique' }));
   for (const o of LOT_OAKS) out.push(rectAt(o.x, o.z, 1.0, 1.0, { maxY: 6, tag: 'zone-oak' }));
 
   return out;

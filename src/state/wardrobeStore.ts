@@ -27,7 +27,9 @@ interface WardrobeStore {
   /** Owner of the dresser the player is currently standing at (for the prompt). */
   hoverDresser: CharacterId | null;
 
-  openWardrobe: (owner: CharacterId) => void;
+  /** Where the UI was opened from — the bedroom dresser or the Plaza boutique. */
+  source: 'dresser' | 'boutique';
+  openWardrobe: (owner: CharacterId, source?: 'dresser' | 'boutique') => void;
   close: () => void;
   setHoverDresser: (owner: CharacterId | null) => void;
   equip: (id: CharacterId, slot: Slot, itemId: string) => void;
@@ -60,7 +62,8 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   dressers: [],
   hoverDresser: null,
 
-  openWardrobe: (owner) => set({ open: true, openFor: owner, hoverDresser: null }),
+  source: 'dresser',
+  openWardrobe: (owner, source = 'dresser') => set({ open: true, openFor: owner, source, hoverDresser: null }),
   close: () => set({ open: false, openFor: null }),
   setHoverDresser: (owner) => {
     if (get().hoverDresser !== owner) set({ hoverDresser: owner });

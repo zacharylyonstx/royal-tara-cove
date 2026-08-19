@@ -50,6 +50,12 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
   if (c.kind === 'zone') {
     const zs = useZoneStore.getState();
     const it = zs.interactables[c.id];
+    if (it?.kind === 'shop') {
+      // The Plaza boutique: same dress-up UI as the bedroom dresser, opened for
+      // whoever is shopping (free — "buying" is pretend).
+      useWardrobeStore.getState().openWardrobe(by, 'boutique');
+      return;
+    }
     zs.fireInteract(c.id, by);
     if (it?.kind === 'pet') void broadcastPet(c.id, by); // hearts on every screen
     if (it?.kind === 'icecream') {
