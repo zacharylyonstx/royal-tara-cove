@@ -172,18 +172,16 @@ export function PlayerController() {
         // branch mutates positions directly) and while driving — teleporting
         // a mounted rider leaves the vehicle snapped under them mid-street.
         if (useGameStore.getState().welcomeOpen) return;
-        if (usePlayStore.getState().riding[activeId]) return;
-        // reset to spawn (mode-aware)
-        const pos = positions[activeId];
         const modeForReset = useGameStore.getState().gameMode;
         if (modeForReset === 'freeplay') {
-          // Free Play: R is a HOLD (≈1 s, see useFrame) that walks you home to
-          // the 10600 front yard. A tap used to hard-teleport to (0,0,-90) —
-          // mid-street, 100 m from the house — which the kids experienced as
-          // "I got shot down to the end of the street" (R sits next to E).
+          // Free Play: R is a HOLD (≈1 s, see useFrame). On foot it walks you
+          // home; while DRIVING it un-sticks the car ("my car can't move!").
           if (!e.repeat && !rHoldStart.current) rHoldStart.current = performance.now();
           return;
         }
+        if (usePlayStore.getState().riding[activeId]) return;
+        // reset to spawn (mode-aware)
+        const pos = positions[activeId];
         if (modeForReset === 'munchies') {
           // Munchies spawn is the great-room couch, not the cul-de-sac.
           pos.set(-5.0, 0, -3.0);
@@ -328,10 +326,13 @@ export function PlayerController() {
         rHoldStart.current = 0;
       } else if (performance.now() - rHoldStart.current > R_HOLD_MS) {
         rHoldStart.current = 0;
-        if (!usePlayStore.getState().riding[activeId]) {
+        const rid = usePlayStore.getState().riding[activeId];
+        if (!rid) {
           const home = FREEPLAY_HOME[activeId];
           positions[activeId].set(home[0], 0, home[1]);
           yVel.current = 0;
+        } else if (rid.vehicle === 'car' && !rid.passengerOf) {
+          recoverVehicle(rid, positions[activeId], staticColliders);
         }
       }
     }
@@ -803,6 +804,44 @@ function mountCar(id: import('../types').CharacterId, carId: string, currentYaw:
     bikeId: carId, bikeColor: car.color, vehicle: 'car', carKind: car.kind,
     heading: currentYaw, speed: 0, y: 0, vy: 0, airborne: false, flip: null, wipeoutUntil: 0,
   });
+}
+
+/** Hold R while driving: set the car upright + still, then free it — first by
+ *  nudging to a clear spot right here, else by dropping it back onto the nearest
+ *  road (stick centreline / boulevard / cul-de-sac ring). Passengers + Sparky
+ *  ride along automatically (they're derived from the driver). */
+function recoverVehicle(riding: RidingState, pos: Vector3, colliders: Colliders) {
+  riding.y = 0; riding.vy = 0; riding.airborne = false; riding.flip = null; riding.speed = 0; riding.wipeoutUntil = 0;
+  pos.y = 0;
+  // 1) Try a ring of nearby clear spots (2.4 m, then 4.8 m).
+  for (const r of [2.4, 4.8]) {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const tx = pos.x + Math.cos(a) * r, tz = pos.z + Math.sin(a) * r;
+      const res = resolveMotion(tx, tz, tx, tz, colliders);
+      const moved = resolveMotion(pos.x, pos.z, tx, tz, colliders);
+      if (Math.hypot(res.x - tx, res.z - tz) < 0.05 && Math.hypot(moved.x - tx, moved.z - tz) < 0.3 && clampToStreet(tx, tz) === null) {
+        pos.x = tx; pos.z = tz;
+        hopSound();
+        return;
+      }
+    }
+  }
+  // 2) Nearest road point.
+  const sx = 0, sz = Math.max(STRAIGHT_END_Z, Math.min(STRAIGHT_START_Z, pos.z));
+  const vx = Math.max(-RIDE_BLVD_HALF_X, Math.min(RIDE_BLVD_HALF_X, pos.x)), vz = RIDE_BLVD_Z;
+  const dd = Math.hypot(pos.x, pos.z) || 1;
+  const bx = (pos.x / dd) * 9, bz = (pos.z / dd) * 9;
+  const cands: [number, number, number][] = [
+    [sx, sz, (pos.z < sz ? 0 : Math.PI)],
+    [vx, vz, (pos.x < vx ? -Math.PI / 2 : Math.PI / 2)],
+    [bx, bz, Math.atan2(-(-bx), -(-bz))],
+  ];
+  let best = cands[0], bd = Infinity;
+  for (const c of cands) { const d = Math.hypot(c[0] - pos.x, c[1] - pos.z); if (d < bd) { bd = d; best = c; } }
+  pos.x = best[0]; pos.z = best[1];
+  riding.heading = best[2];
+  hopSound();
 }
 
 function isSeatTaken(riding: Record<CharacterId, RidingState | null>, driver: CharacterId, seat: number): boolean {

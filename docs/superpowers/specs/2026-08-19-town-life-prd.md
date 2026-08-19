@@ -55,8 +55,8 @@ Legend: ⬜ todo · 🔧 in progress · ✅ verified locally · 🚀 LIVE
 
 ## Log
 - 15:14 — kickoff; codebase map fanned out (8 explorers); dev server up on :5173.
-- 17:33 — R4b verified 2-tab: adopt prompt → Penny owns Biscuit, label flips to pet, Dad's tab shows Biscuit heeling Penny (1.3 m). Pushing.
-- 17:12 — R4a verified: prompt + wardrobe opens as Boutique for Dad, Escape closes, mannequins render, Wing B faces the lot; 0 errors. Pushing.
-- 16:50 — R3 verified 2-tab: badge New→Friend after 3 pets, toast, guest sees pet + identical dog position (sync age ~90 ms). Pushing.
-- 16:20 — R2 verified 2-tab: Penny "hop in the back" → sits in the bed on BOTH screens while Dad drives at 20 m/s, Sparky in the bed too; hop out; Dad gets out → passengers auto-eject + Sparky hops out; cab seat; catch-up pop. Pushing.
+- 16:29 — R4b verified 2-tab: adopt prompt → Penny owns Biscuit, label flips to pet, Dad's tab shows Biscuit heeling Penny (1.3 m). Pushing.
+- 16:22 — R4a verified: prompt + wardrobe opens as Boutique for Dad, Escape closes, mannequins render, Wing B faces the lot; 0 errors. Pushing.
+- 16:15 — R3 verified 2-tab: badge New→Friend after 3 pets, toast, guest sees pet + identical dog position (sync age ~90 ms). Pushing.
+- 16:05 — R2 verified 2-tab: Penny "hop in the back" → sits in the bed on BOTH screens while Dad drives at 20 m/s, Sparky in the bed too; hop out; Dad gets out → passengers auto-eject + Sparky hops out; cab seat; catch-up pop. Pushing.
 - 15:55 — R1 built + verified (single-tab: door vs Sparky facing test, R tap/hold, duck pet w/ hearts; 2-tab: claim race bounced in 2.2 s w/ banner, door open synced, truck park synced exactly, late joiner catch-up; all 6 modes boot with 0 errors). Pushing.

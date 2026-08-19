@@ -59,7 +59,7 @@ export function ControlsHud() {
             🚲 <kbd>␣</kbd> hop · ramp + <kbd>W/S</kbd> flips!
           </div>
           <div>
-            <kbd>click</kbd> look around &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; hold <kbd>R</kbd> go home
+            <kbd>click</kbd> look around &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; hold <kbd>R</kbd> go home · unstick car
           </div>
         </>
       ) : (

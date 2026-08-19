@@ -15,6 +15,7 @@ import { Scoreboard } from './ui/Scoreboard';
 import { TrickHud } from './ui/TrickHud';
 import { BasketToast } from './ui/BasketToast';
 import { FriendshipToast } from './ui/FriendshipToast';
+import { LookHint } from './ui/LookHint';
 import { CombatHud } from './ui/CombatHud';
 import { Crosshair } from './ui/Crosshair';
 import { DamageFlash } from './ui/DamageFlash';
@@ -74,6 +75,7 @@ export default function App() {
       </Canvas>
       <CharacterIndicator />
       <ControlsHud />
+      <LookHint />
       <InteractPrompt />
       <Scoreboard />
       <TrickHud />
