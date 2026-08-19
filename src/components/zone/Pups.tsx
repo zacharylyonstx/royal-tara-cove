@@ -100,6 +100,7 @@ function Pup({ def, penSpot }: { def: PupDef; penSpot: { x: number; z: number } 
   const state = useRef({
     x: penSpot.x, z: penSpot.z, y: 0, yaw: -Math.PI / 2,
     lastSeenPetAt: 0, posPushAccum: 0, idlePhase: Math.random() * 6,
+    justAdopted: false,
   });
   // Who owns me (first owner in family order wins if two adopted the same pup at once).
   const pets = usePetStore((s) => s.pets);
@@ -122,7 +123,9 @@ function Pup({ def, penSpot }: { def: PupDef; penSpot: { x: number; z: number } 
       const p = useGameStore.getState().positions[owner];
       const s = state.current;
       s.x = p.x + 0.8; s.z = p.z + 0.8; s.y = 0;
-      petUntil.current = performance.now() / 1000 + 1.2; // (clock-based below; harmless)
+      // NOTE: petUntil is in CLOCK seconds (three's clock.elapsedTime), not
+      // performance.now()/1000 — mixing them left pups wiggling for minutes.
+      s.justAdopted = true;
       dogBark();
     } else if (!owner && prevOwner.current) {
       const s = state.current;
@@ -137,6 +140,8 @@ function Pup({ def, penSpot }: { def: PupDef; penSpot: { x: number; z: number } 
     const t = clock.elapsedTime;
     const game = useGameStore.getState();
 
+    // Fresh adoption: happy wiggle (timestamp needs the CLOCK, only known here).
+    if (s.justAdopted) { s.justAdopted = false; petUntil.current = t + 1.2; }
     // Petted?
     const zs = useZoneStore.getState();
     if (zs.lastPetAt !== s.lastSeenPetAt && zs.lastPetId === zoneId) {

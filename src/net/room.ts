@@ -119,6 +119,8 @@ export interface DoorMsg {
 export interface PetMsg {
   id: string;
   by: CharacterId;
+  /** true = "stay!" (stop following / go home) instead of a pet. */
+  stay?: boolean;
   t: number;
 }
 
@@ -457,7 +459,8 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     const { id, by } = rawData;
     if (typeof id !== 'string' || id.length === 0 || id.length >= 40) return;
     if (by !== 'dad' && by !== 'penny' && by !== 'luke') return;
-    useZoneStore.getState().firePetRemote(id, by);
+    if (rawData.stay === true) useZoneStore.getState().fireStay(id);
+    else useZoneStore.getState().firePetRemote(id, by);
   }));
 
   r.onPeerJoin((peerId) => {
@@ -597,8 +600,8 @@ export async function broadcastDoor(msg: DoorMsg): Promise<void> {
 }
 
 /** Tell peers I petted an animal. */
-export async function broadcastPet(id: string, by: CharacterId): Promise<void> {
-  if (sendPetAction) await sendPetAction({ id, by, t: Date.now() }).catch(() => {});
+export async function broadcastPet(id: string, by: CharacterId, stay = false): Promise<void> {
+  if (sendPetAction) await sendPetAction({ id, by, stay: stay || undefined, t: Date.now() }).catch(() => {});
 }
 
 /** Tell peers where car(s) are now parked (call when a driver gets out). */

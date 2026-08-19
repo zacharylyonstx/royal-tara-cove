@@ -53,6 +53,8 @@ Legend: ⬜ todo · 🔧 in progress · ✅ verified locally · 🚀 LIVE
 4. For net features: 2-tab P2P (second tab claims PENNY), confirm both sides.
 5. `git push origin main` → Netlify auto-deploys (~60 s); confirm the live bundle + 0 console errors at royal-tara-cove.netlify.app.
 
+## Playtest round 2 (Zak live, 17:22): shipped 17:45 — projector-audio scuffing killed (outside bleed 0 + mute button now mutes the TV), hold-E/✋ 'stay' for Sparky (+ hold = return pup to pen), pond WADING (walk in, pet ducks; vehicles still blocked), blvd extended west past the school to an AVERY RANCH turnaround + School Dr drop-off loop (drivable clamp updated), pup adoption wiggle clock bug. School orientation kept (front faces the pond/playground; School Dr now serves it so it reads intentional).
+
 ## Status: ALL SHIPPABLE RELEASES LIVE (R1–R6) as of 17:20 — bundle index-N_T7WgF_. Left for Zak: TV media, domain. Left for later: Woof Gang interior, sitting on school chairs, Kessler mode.
 
 ## Log

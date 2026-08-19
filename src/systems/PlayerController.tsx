@@ -22,7 +22,7 @@ import { useNightStore } from '../state/nightStore';
 import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRoom } from '../net/room';
 import { icecreamJingle, petChime } from '../audio';
 import { usePetStore } from '../state/petStore';
-import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
+import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z, POND_X, POND_Z, POND_RX, POND_RZ, WEST_BLVD_X0, WEST_BLVD_X1, WEST_BLVD_Z, WEST_BULB_X, WEST_BULB_R, SCHOOL_DR_X, SCHOOL_DR_Z0, SCHOOL_DR_Z1 } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
 import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
 import { CHARACTER_ORDER } from '../world/characters';
@@ -36,6 +36,9 @@ const FREEPLAY_HOME: Record<CharacterId, [number, number]> = {
   luke: [2.5, 10],
 };
 const R_HOLD_MS = 900;
+const STAY_HOLD_MS = 800;
+/** How deep you stand in the duck pond while wading (shin-deep, kid-safe). */
+const WADE_Y = -0.32;
 
 function isCarDriven(riding: Record<CharacterId, RidingState | null>, carId: string): boolean {
   for (const r of Object.values(riding)) if (r && r.vehicle === 'car' && r.bikeId === carId) return true;
@@ -150,6 +153,7 @@ export function PlayerController() {
   const jumpPressedRef = useRef(false); // edge-triggered Space, for bike hop/flip
   const touchWasActive = useRef(false); // tracks joystick engagement for clean release
   const rHoldStart = useRef(0); // performance.now() when R went down in Free Play (0 = not held)
+  const eHoldStart = useRef(0); // performance.now() when E / ✋ went down (0 = not held / consumed)
   const heroBox = useMemo(() => computeHeroBox(), []);
 
   useEffect(() => {
@@ -193,7 +197,10 @@ export function PlayerController() {
           pos.set(0, 0, -90);
         }
       }
-      if (k === 'e') interactPressedRef.current = true;
+      if (k === 'e') {
+        interactPressedRef.current = true;
+        if (!e.repeat && !eHoldStart.current) eHoldStart.current = performance.now();
+      }
       // Siren Head Night: F toggles the flashlight (reveals you AND the way).
       if (k === 'f' && !e.repeat && useGameStore.getState().gameMode === 'night') {
         useNightStore.getState().toggleFlashlight();
@@ -203,6 +210,7 @@ export function PlayerController() {
       const k = e.key.toLowerCase();
       keys.current[k] = false;
       if (k === 'r') rHoldStart.current = 0;
+      if (k === 'e') eHoldStart.current = 0;
     };
     // Mouse click also shoots a held ball (only acted on when holding).
     const onMouseDown = () => {
@@ -218,6 +226,7 @@ export function PlayerController() {
       jumpPressedRef.current = false;
       interactPressedRef.current = false;
       rHoldStart.current = 0;
+      eHoldStart.current = 0;
       touchInput.active = false;
       touchInput.moveX = 0;
       touchInput.moveY = 0;
@@ -517,7 +526,11 @@ export function PlayerController() {
       const desiredZ = pos.z + moveZ + windDZ;
 
       // Combine static colliders with door AABBs (closed doors block, open ones don't).
-      const allColliders = [...staticColliders];
+      // Walkers may WADE into the duck pond ("you should be able to get in it
+      // to go pet the ducks") — the pond slabs/rim only block vehicles + Sparky.
+      const allColliders = modeNow === 'freeplay'
+        ? staticColliders.filter((cbox) => cbox.tag !== 'pond-water' && cbox.tag !== 'pond-edge')
+        : [...staticColliders];
       for (const door of Object.values(doors)) {
         if (door.open) continue;
         allColliders.push(door.aabbWhenClosed);
@@ -538,7 +551,13 @@ export function PlayerController() {
 
     // Floor + jump + gravity (skipped while riding — the bike stays grounded).
     if (!myRiding) {
-      const standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
+      let standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
+      // Wading: inside the pond (and off the dock) you sink to your shins.
+      if (modeNow === 'freeplay' && standingFloorY <= 0) {
+        const pdx = (pos.x - POND_X) / POND_RX;
+        const pdz = (pos.z - POND_Z) / POND_RZ;
+        if (pdx * pdx + pdz * pdz < 1) standingFloorY = WADE_Y;
+      }
       // jumpedThisFrame folds in the touch Jump button (edge-triggered): one tap
       // = one jump/bounce, alongside held Space on keyboard.
       const jumpHeld = (k[' '] || k['space'] || jumpedThisFrame) && !usePlayStore.getState().heldBall && !nightDown;
@@ -660,6 +679,28 @@ export function PlayerController() {
       if (play.heldBall && play.heldBall.by === activeId) play.dropBall();
     }
 
+    // HOLD E / hold ✋ on a pet = "stay": Sparky goes home + stops following;
+    // your adopted pup trots back to the Woof Gang pen (un-adopted). Zak: "some
+    // kind of button press that can stop the dog from following."
+    const holdActive = eHoldStart.current || (touchInput.actionHeld ? (eHoldStart.current = eHoldStart.current || performance.now()) : 0);
+    if (!keys.current['e'] && !touchInput.actionHeld) eHoldStart.current = 0;
+    if (modeNow === 'freeplay' && holdActive > 0 && performance.now() - holdActive > STAY_HOLD_MS && best?.kind === 'zone') {
+      eHoldStart.current = -1; // consumed until released (keyup/pointerup resets to 0)
+      const zi = useZoneStore.getState().interactables[best.id];
+      if (zi?.kind === 'pet') {
+        if (best.id === 'sparky') {
+          useZoneStore.getState().fireStay('sparky');
+          void broadcastPet('sparky', activeId, true);
+        } else if (best.id.startsWith('pup-')) {
+          const pupId = best.id.slice(4);
+          if (usePetStore.getState().pets[activeId] === pupId) {
+            usePetStore.getState().release(activeId);
+            void sendChat('👋🐶');
+          }
+        }
+      }
+    }
+
     if (interactPressedRef.current) {
       interactPressedRef.current = false;
       const ph = usePlayStore.getState();
@@ -764,7 +805,12 @@ function clampToStreet(x: number, z: number): { x: number; z: number } | null {
   const inBlvd = Math.abs(x) <= RIDE_BLVD_HALF_X && Math.abs(z - RIDE_BLVD_Z) <= RIDE_BLVD_HALF_Z;
   // Across-the-boulevard park zone (pond / shops / playground).
   const inZone = Math.abs(x) <= ZONE_HALF_X && z <= ZONE_MAX_Z && z >= ZONE_MIN_Z;
-  if (inStick || inBulb || inBlvd || inZone) return null;
+  // West extension: the continued blvd, its turnaround bulb, School Dr + the
+  // schoolyard apron — "make sure all the map is drivable".
+  const inWestBlvd = x >= WEST_BLVD_X0 && x <= WEST_BLVD_X1 && Math.abs(z - WEST_BLVD_Z) <= RIDE_BLVD_HALF_Z;
+  const inWestBulb = (x - WEST_BULB_X) ** 2 + (z - WEST_BLVD_Z) ** 2 <= (WEST_BULB_R + 3) ** 2;
+  const inSchoolDr = Math.abs(x - SCHOOL_DR_X) <= 9 && z <= SCHOOL_DR_Z0 && z >= SCHOOL_DR_Z1 - 2;
+  if (inStick || inBulb || inBlvd || inZone || inWestBlvd || inWestBulb || inSchoolDr) return null;
   // Outside all regions: clamp to whichever region edge is nearest.
   const sx = Math.max(-RIDE_STICK_HALF_X, Math.min(RIDE_STICK_HALF_X, x));
   const sz = Math.max(STRAIGHT_END_Z, Math.min(STRAIGHT_START_Z, z));
@@ -779,10 +825,18 @@ function clampToStreet(x: number, z: number): { x: number; z: number } | null {
   const zx = Math.max(-ZONE_HALF_X, Math.min(ZONE_HALF_X, x));
   const zz = Math.max(ZONE_MIN_Z, Math.min(ZONE_MAX_Z, z));
   const dZone = (x - zx) ** 2 + (z - zz) ** 2;
-  const best = Math.min(dStick, dBlvd, dBulb, dZone);
+  const wx = Math.max(WEST_BLVD_X0, Math.min(WEST_BLVD_X1, x));
+  const wz = Math.max(WEST_BLVD_Z - RIDE_BLVD_HALF_Z, Math.min(WEST_BLVD_Z + RIDE_BLVD_HALF_Z, z));
+  const dWest = (x - wx) ** 2 + (z - wz) ** 2;
+  const dx2 = Math.max(SCHOOL_DR_X - 9, Math.min(SCHOOL_DR_X + 9, x));
+  const dz2 = Math.max(SCHOOL_DR_Z1 - 2, Math.min(SCHOOL_DR_Z0, z));
+  const dDr = (x - dx2) ** 2 + (z - dz2) ** 2;
+  const best = Math.min(dStick, dBlvd, dBulb, dZone, dWest, dDr);
   if (best === dStick) return { x: sx, z: sz };
   if (best === dBlvd) return { x: vx, z: vz };
   if (best === dZone) return { x: zx, z: zz };
+  if (best === dWest) return { x: wx, z: wz };
+  if (best === dDr) return { x: dx2, z: dz2 };
   return { x: bx, z: bz };
 }
 

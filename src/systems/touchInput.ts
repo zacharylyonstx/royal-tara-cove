@@ -13,6 +13,8 @@ export const touchInput = {
   /** Edge-triggered button taps; consumed (set false) by PlayerController. */
   jumpQueued: false,
   actionQueued: false,
+  /** True while the ✋ Use button is held down (for hold-gestures like "stay"). */
+  actionHeld: false,
 };
 
 /** Push the stick past this fraction of its travel to run. */

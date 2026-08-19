@@ -42,6 +42,10 @@ interface ZoneStore {
   lastPetId: string | null;
   lastPetBy: CharacterId | null;
   lastTreatAt: number;
+  /** "Stay!" one-shot (hold E/✋ on a pet): the pet stops following + goes home. */
+  lastStayAt: number;
+  lastStayId: string | null;
+  fireStay: (id: string) => void;
   fireInteract: (id: string, by: CharacterId) => void;
   /** A pet event from a PEER (so everyone sees the hearts + the host's dog reacts). */
   firePetRemote: (id: string, by: CharacterId) => void;
@@ -97,6 +101,9 @@ export const useZoneStore = create<ZoneStore>((set, get) => ({
   lastPetId: null,
   lastPetBy: null,
   lastTreatAt: 0,
+  lastStayAt: 0,
+  lastStayId: null,
+  fireStay: (id) => set({ lastStayAt: performance.now(), lastStayId: id }),
   fireInteract: (id, by) => {
     const i = get().interactables[id];
     if (!i) return;

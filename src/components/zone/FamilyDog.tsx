@@ -69,6 +69,8 @@ function FamilyDogInner() {
     y: 0,
     bondId: null as CharacterId | null,   // the family member he's sticking with
     rideWith: null as CharacterId | null, // the DRIVER whose vehicle he's riding in
+    lastSeenStayAt: 0,
+    stayHome: false, // told to "stay": wanders home + won't follow until petted again
     idleSince: 0,        // when he last stopped (for the Good-Friend sit)
     togetherAccum: 0,    // seconds spent close to his person (passive friendship)
     farFromBond: false,  // for the "you came back!" greeting woof
@@ -174,8 +176,21 @@ function FamilyDogInner() {
     if (petAt !== s.lastSeenPetAt && zsNow.lastPetId === 'sparky') {
       s.lastSeenPetAt = petAt;
       s.petUntil = t + 1.3;
+      s.stayHome = false; // a pet is an invitation — he's back on the team
       dogBark();
       petChime();
+    }
+    // "Stay!" (hold E/✋): drop the bond, hop out if riding, head home, and
+    // don't follow ANYONE until somebody pets him again.
+    if (zsNow.lastStayAt !== s.lastSeenStayAt && zsNow.lastStayId === 'sparky') {
+      s.lastSeenStayAt = zsNow.lastStayAt;
+      s.stayHome = true;
+      s.bondId = null;
+      if (s.rideWith) { s.rideWith = null; s.y = 0; }
+      s.targetX = HOME_X;
+      s.targetZ = HOME_Z;
+      s.nextWanderAt = t + 8;
+      dogBark();
     }
     const petting = t < s.petUntil || (isGuestDog() && dogNetIn.petting);
 
@@ -227,7 +242,7 @@ function FamilyDogInner() {
     // else is right next to him). The kids drove to the Plaza and "Sparky
     // didn't make it"; now he does. Better friends pull him from farther away.
     const nearLevel = nearId ? friendLevel(affection[nearId] ?? 0).level : 0;
-    if (nearId && nearestD < FOLLOW_RANGE_BY_LEVEL[nearLevel]) s.bondId = nearId;
+    if (!s.stayHome && nearId && nearestD < FOLLOW_RANGE_BY_LEVEL[nearLevel]) s.bondId = nearId;
     if (s.bondId && !claimed.has(s.bondId)) s.bondId = null;
     let bondD = Infinity;
     let bondX = 0, bondZ = 0;

@@ -6,6 +6,7 @@ import { buildLots } from '../world/lots';
 import { getProjectorVideo } from '../world/projectorMedia';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
+import { useAudioStore } from '../state/audioStore';
 import { SCREEN_X, SCREEN_Y, SCREEN_Z } from '../components/hero/ProjectorScreen';
 
 // Audio falloff for the great-room projector. Headless: no rendering.
@@ -17,7 +18,10 @@ import { SCREEN_X, SCREEN_Y, SCREEN_Z } from '../components/hero/ProjectorScreen
 // Volume is lerped each frame for a smooth ~250ms fade.
 
 const MAX_VOLUME_INSIDE = 0.7;
-const MAX_VOLUME_BLEED = 0.2;
+// Outside bleed is OFF: the looping home clip's handling noise leaked into the
+// whole front yard as a constant "scuffing" (Zak's playtest note). The TV is an
+// inside-the-house thing now.
+const MAX_VOLUME_BLEED = 0.0;
 const INSIDE_FULL_RADIUS = 3;
 const INSIDE_SILENT_RADIUS = 16;
 const BLEED_SILENT_RADIUS = 8;
@@ -108,6 +112,12 @@ export function ProjectorController() {
     } else {
       target = 0;
     }
+
+    // The 🔊 mute button must silence the TV too (it plays through the <video>
+    // element, not the Web Audio master gain).
+    const audio = useAudioStore.getState();
+    if (audio.muted) target = 0;
+    else target *= audio.volume;
 
     const k = Math.min(1, dt * FADE_RATE);
     video.volume = THREE.MathUtils.lerp(video.volume, target, k);

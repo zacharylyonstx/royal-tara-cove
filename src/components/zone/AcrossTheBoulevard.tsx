@@ -16,6 +16,7 @@ import { OUTFITS, defaultAppearance, PALETTE } from '../../world/wardrobe';
 import { ParkedCar } from '../HouseProps';
 import { CasitasHomes } from './CasitasHomes';
 import { School } from './School';
+import { WestRoad } from './WestRoad';
 import {
   POND_X, POND_Z, POND_RX, POND_RZ,
   DOCK_W, DOCK_START_Z, DOCK_END_Z, DOCK_Y,
@@ -70,6 +71,7 @@ export function AcrossTheBoulevard() {
       <Ducks />
       <PondSign />
       <Plaza />
+      <WestRoad />
       <School />
 
       {/* Playground corner (west of the pond, wood-chip pad). */}

@@ -241,6 +241,74 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
   // Avery Ranch Elementary (west of the pond — walls, lockers, desks, yard).
   out.push(...buildSchoolColliders());
 
+  // West Road extension (blvd continues west + School Dr): monument, oaks, benches.
+  out.push(...buildWestRoadColliders());
+
+  return out;
+}
+
+// ============================================================================
+// --- West Road extension ---------------------------------------------------
+// The blvd used to dead-end at x=−70 right next to the school. It now
+// continues west past the schoolyard to a cul-de-sac turnaround, and a short
+// School Dr driveway drops south off the blvd to the school's front walkway.
+// Visuals live in src/components/zone/WestRoad.tsx; the vehicle drive-clamp
+// is wired separately off the exported constants below.
+
+/** Boulevard extension: asphalt continues west at the same centerline. */
+export const WEST_BLVD_X0 = -124;
+export const WEST_BLVD_X1 = -70;
+export const WEST_BLVD_Z = -183.5; // centerline (Street.tsx avenueZ = STRAIGHT_END_Z − 4)
+export const WEST_BLVD_W = 12;     // asphalt width (matches Street.tsx avenueWidth)
+
+/** West turnaround bulb — cars loop here instead of dead-ending. */
+export const WEST_BULB_X = -124;
+export const WEST_BULB_R = 10;
+
+/** School Dr: north-south driveway serving the school's front door. */
+export const SCHOOL_DR_X = -60;   // centerline (east of the school, x −88..−66)
+export const SCHOOL_DR_Z0 = -187; // leaves the blvd
+export const SCHOOL_DR_Z1 = -214; // far end of the drop-off apron
+export const SCHOOL_DR_W = 6;
+
+/** "AVERY RANCH" monument sign on the turnaround's west rim. */
+export const WEST_MONUMENT_X = -135.3;
+export const WEST_MONUMENT_Z = WEST_BLVD_Z;
+
+/** Live oaks lining the extension's far (school) side. */
+export const WEST_OAKS: { x: number; z: number; s: number; seed: number }[] = [
+  { x: -82, z: -192.5, s: 1.05, seed: 71 },
+  { x: -95, z: -193.2, s: 0.9, seed: 72 },
+  { x: -108, z: -192.2, s: 1.1, seed: 73 },
+  { x: -120, z: -194, s: 0.95, seed: 74 },
+];
+
+/** Park benches near the extension's east end, looking out at the duck pond. */
+export const WEST_BENCHES: { x: number; z: number }[] = [
+  { x: -72, z: -191.8 },
+  { x: -77, z: -191.8 },
+];
+
+/** Yaw that points a bench (local +Z facing) at the duck pond. */
+export function westBenchYaw(b: { x: number; z: number }): number {
+  return Math.atan2(POND_X - b.x, POND_Z - b.z);
+}
+
+/**
+ * West Road colliders: monument sign, oak trunks, benches. Roads, sidewalks,
+ * the turnaround circle, the School Dr strip, and the school walkway band all
+ * stay collider-free so every inch of the extension is drivable/walkable.
+ */
+export function buildWestRoadColliders(): RectCollider[] {
+  const out: RectCollider[] = [];
+  // Monument (plinth footprint; runs along Z because the sign faces east).
+  out.push(rectAt(WEST_MONUMENT_X, WEST_MONUMENT_Z, 1.0, 4.4, { maxY: 2.0, tag: 'west-monument' }));
+  // Oak trunks.
+  for (const o of WEST_OAKS) out.push(rectAt(o.x, o.z, 0.9, 0.9, { maxY: 6, tag: 'west-oak' }));
+  // Benches (OBBs matching the pond-facing mesh yaw).
+  for (const b of WEST_BENCHES) {
+    out.push(rectAt(b.x, b.z, 1.8, 0.6, { maxY: 1.0, yaw: westBenchYaw(b), tag: 'west-bench' }));
+  }
   return out;
 }
 

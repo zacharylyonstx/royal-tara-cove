@@ -166,7 +166,7 @@ export function TouchControls() {
           pointerEvents: 'auto',
         }}
       >
-        <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; }} size={Math.round(78 * scale)} />
+        <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; touchInput.actionHeld = true; }} onRelease={() => { touchInput.actionHeld = false; }} size={Math.round(78 * scale)} />
         <ActionButton label="⤴" sub="Jump" color="#3a6db0" onPress={() => { touchInput.jumpQueued = true; }} size={Math.round(92 * scale)} />
       </div>
 
@@ -199,15 +199,15 @@ export function TouchControls() {
 }
 
 function ActionButton({
-  label, sub, color, onPress, size,
-}: { label: string; sub: string; color: string; onPress: () => void; size: number }) {
+  label, sub, color, onPress, onRelease, size,
+}: { label: string; sub: string; color: string; onPress: () => void; onRelease?: () => void; size: number }) {
   const [down, setDown] = useState(false);
   return (
     <button
       onPointerDown={(e) => { e.preventDefault(); setDown(true); onPress(); }}
-      onPointerUp={() => setDown(false)}
-      onPointerCancel={() => setDown(false)}
-      onPointerLeave={() => setDown(false)}
+      onPointerUp={() => { setDown(false); onRelease?.(); }}
+      onPointerCancel={() => { setDown(false); onRelease?.(); }}
+      onPointerLeave={() => { setDown(false); onRelease?.(); }}
       style={{
         width: size,
         height: size,
