@@ -86,6 +86,7 @@ import { SpeechBubbles } from '../ui/SpeechBubbles';
 import { NameTags } from '../ui/NameTags';
 import { AcrossTheBoulevard } from './zone/AcrossTheBoulevard';
 import { FamilyDog } from './zone/FamilyDog';
+import { Pups } from './zone/Pups';
 import { buildAcrossBlvdColliders, buildAcrossBlvdFloors } from '../world/acrossBlvd';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
@@ -211,6 +212,8 @@ export function Game() {
       <AcrossTheBoulevard />
       {/* Sparky lives at 10600 in Free Play. */}
       <FamilyDog />
+      {/* Woof Gang's adoptable pups (Free Play only). */}
+      <Pups />
 
       {/* Characters */}
       {CHARACTER_ORDER.map((id) => (

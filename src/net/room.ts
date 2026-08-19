@@ -51,6 +51,8 @@ export interface PlayerStateMsg {
   /** Vehicle-riding state (so peers render the bike/car under us). y/flipAngle drive air + tricks.
    *  bikeId is the real registered prop id so observers hide the right parked vehicle. */
   riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart'; passengerOf?: CharacterId; seat?: number } | null;
+  /** Adopted pup id (Woof Gang), null/undefined = none. */
+  pet?: string | null;
   t: number; // sender timestamp ms
 }
 
@@ -328,6 +330,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
       running: bool(rawData.running), jumping: bool(rawData.jumping),
       crouching: bool(rawData.crouching),
       riding,
+      pet: typeof rawData.pet === 'string' && rawData.pet.length < 24 ? rawData.pet : null,
       receivedAt: performance.now(),
     });
   }));

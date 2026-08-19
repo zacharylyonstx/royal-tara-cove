@@ -20,7 +20,8 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
 import { useNightStore } from '../state/nightStore';
 import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRoom } from '../net/room';
-import { icecreamJingle } from '../audio';
+import { icecreamJingle, petChime } from '../audio';
+import { usePetStore } from '../state/petStore';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
 import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
@@ -50,6 +51,13 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
   if (c.kind === 'zone') {
     const zs = useZoneStore.getState();
     const it = zs.interactables[c.id];
+    if (it?.kind === 'adopt') {
+      // Woof Gang: the pup becomes YOURS (follows you, rides along, pettable);
+      // peers learn via PlayerStateMsg.pet.
+      const pupId = c.id.replace(/^pup-/, '');
+      if (usePetStore.getState().adopt(by, pupId)) { petChime(); void sendChat('🐶'); }
+      return;
+    }
     if (it?.kind === 'shop') {
       // The Plaza boutique: same dress-up UI as the bedroom dresser, opened for
       // whoever is shopping (free — "buying" is pretend).

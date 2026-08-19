@@ -7,6 +7,8 @@ import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom, recentParkMsgAt } from '../net/room';
 import { dogNetOut } from '../state/dogSync';
+import { usePetStore } from '../state/petStore';
+import type { CharacterId } from '../types';
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
@@ -91,6 +93,8 @@ export function NetSyncController() {
           yaws[charId] = (yaws[charId] ?? rp.yaw) + shortestAngle(yaws[charId] ?? rp.yaw, rp.yaw) * k;
         }
       }
+      // Their adopted pup (Woof Gang) — render it following them here too.
+      usePetStore.getState().setRemotePet(charId as CharacterId, rp.pet ?? null);
       // Mirror the peer's riding state so we render the bike under them.
       const cid = charId as keyof typeof play.riding;
       const cur = play.riding[cid];
@@ -146,6 +150,7 @@ export function NetSyncController() {
           jumping,
           crouching: useNightStore.getState().crouching,
           riding: myRiding ? { bikeId: myRiding.bikeId, bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind, passengerOf: myRiding.passengerOf, seat: myRiding.seat } : null,
+          pet: usePetStore.getState().pets[net.myCharacterId] ?? null,
           t: Date.now(),
         };
         broadcastPlayerState(msg);

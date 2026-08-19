@@ -7,7 +7,7 @@ import { loadAffection, saveAffection, friendLevel, type Affection } from '../wo
 // proximity-scans + consumes E, InteractPrompt shows the label, and the
 // owning component reacts to the fired event for FX.
 
-export type ZoneInteractKind = 'pet' | 'icecream' | 'shop';
+export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt';
 
 export interface ZoneInteractable {
   id: string;

@@ -44,6 +44,13 @@ export const PET_SEAT: Record<CarKind, { x: number; y: number; z: number }> = {
   golfcart: { x: 0, y: 0.72, z: 1.0 },
 };
 
+/** Where an adopted PUP rides (tucked in front of Sparky's spot / beside him). */
+export const PUP_SEAT: Record<CarKind, { x: number; y: number; z: number }> = {
+  truck: { x: 0, y: 0.84, z: 1.15 },
+  sedan: { x: -0.5, y: 1.02, z: 1.55 },
+  golfcart: { x: -0.4, y: 0.72, z: 1.0 },
+};
+
 /** Vehicle-local offset → world, given the driver's position + heading. */
 export function seatWorld(
   driverX: number,
