@@ -243,8 +243,10 @@ export function getNextMissionId(currentId: string): string | null {
  *  8 units south of the oak so the camera (5 behind player) is 13 units
  *  away and the full tree+treehouse is visible in the opening shot. */
 export function treehouseSpawnPoint(): { x: number; z: number } {
+  // South-east of the oak, OUT in the open backyard. (oak.z - 8 was INSIDE the
+  // back of the hero house — kids spawned staring at a blank upstairs wall.)
   const oak = liveOakPosition();
-  return { x: oak.x, z: oak.z - 8 };
+  return { x: oak.x + 6, z: oak.z + 6 };
 }
 
 /** Helpers exposed for UI / renderers. */

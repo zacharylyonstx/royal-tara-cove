@@ -64,9 +64,11 @@ function TreehouseControllerInner() {
       const spawn = treehouseSpawnPoint();
       gs.positions.luke.set(spawn.x, 0, spawn.z);
       gs.positions.penny.set(spawn.x + 1.5, 0, spawn.z);
-      // Face players toward the live oak (yaw=π → camera south of player, looking north/+Z).
-      gs.yaws.luke = Math.PI;
-      gs.yaws.penny = Math.PI;
+      // Face players toward the live oak from the south-east (forward is
+      // (-sin yaw, -cos yaw), so yaw=π/4 looks north-west at the tree) — the
+      // chase cam then hangs in the open greenbelt, not inside the house.
+      gs.yaws.luke = Math.PI / 4;
+      gs.yaws.penny = Math.PI / 4;
       teleported.current = true;
     }
 
