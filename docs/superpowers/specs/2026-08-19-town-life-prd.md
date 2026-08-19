@@ -41,7 +41,7 @@ calm, low-UI, imaginative. No currency, no quests, no timers.
 | R3 | **"Sparky loves you back"** | friendship levels (New → Friend → Good Friend → Best Friend) from petting (1 s cooldown) + time together (+1/30 s heeling or riding), persisted in pets.v1; prompt shows "♥♥♡ Good Friend"; level-up toast; behaviours: better friends pull him from farther + he prefers who loves him most, Good Friend sits when you stop, Best Friend spins + extra hearts, greeting woof when you come back; HOST-synced dog (WorldStateMsg.dog, guests lerp) so everyone sees the same Sparky; pet events broadcast → hearts on every screen | M | 🚀 |
 | R4a | **"Plaza boutique"** | PENNY & LUKE'S KIDS' BOUTIQUE on Wing A (4th unit): 3 dressed mannequins (Penny fairy / Luke superhero / Dad cowpoke), rack + sandwich board; "E shop outfits 🛍️" opens the wardrobe titled "🛍️ Dad at the Boutique"; FIXED Wing B facade (was facing Parmer Ln) + Woof Gang moved to the visible south unit; Treehouse card marked 🚧; Free Play blurb updated | S | 🚀 |
 | R4b | **"Woof Gang adoption"** | picket pen + ADOPT ME sign in front of Woof Gang with Biscuit / Pepper / Maple (tinted + sized pups, name tags); "E adopt Biscuit 🐶" → it's yours (persisted adoptions.v1): heels you, sprints/catch-up pops, rides in the truck (PUP_SEAT), pettable with its own friendship badge; peers see your pup via PlayerStateMsg.pet (per-client sim from synced owner position) | M | 🚀 |
-| R5 | **"Avery Ranch Elementary"** | school west of the pond: enterable building, hallway w/ lockers, 2 classrooms (teacher desk, student desks you can SIT at, whiteboard), cafeteria tables, playground; doors; colliders; minimap label | L | ⬜ |
+| R5 | **"Avery Ranch Elementary"** | school WEST of the pond (x −88..−66, front door (−66,−208), red openable door): hallway with colored lockers, 2 classrooms (whiteboard "Good morning, class!", teacher desk, 6 student desks each), cafeteria with long tables + serving counter, library/art room, flagpole, marquee sign; the existing playground = recess; 61 colliders, doorway gaps player-verified | L | 🚀 |
 | R6 | Polish grab-bag | hold-R while driving = un-stick (ring nudge → nearest road), "🖱️ Click the game to look around" pill when the pointer isn't locked; Treehouse 🚧 shipped in R4a. TV channels deliberately NOT done (needs Zak's media). | S | 🚀 |
 
 Legend: ⬜ todo · 🔧 in progress · ✅ verified locally · 🚀 LIVE
@@ -55,6 +55,7 @@ Legend: ⬜ todo · 🔧 in progress · ✅ verified locally · 🚀 LIVE
 
 ## Log
 - 15:14 — kickoff; codebase map fanned out (8 explorers); dev server up on :5173.
+- 17:15 — R5 verified with a REAL walkthrough: pond→front (sign/flag/door), E opens 'school-front', walked the full hallway past lockers to x=−86.6, classroom whiteboard + ABC (order fixed to read A-B-C), cafeteria counter; night mode still boots; 0 errors. Pushing.
 - 16:45 — R6 verified (hold-R nudged a wedged truck 2.4 m; hint shows when unlocked). Pushed. School (R5) building in a subagent.
 - 16:29 — R4b verified 2-tab: adopt prompt → Penny owns Biscuit, label flips to pet, Dad's tab shows Biscuit heeling Penny (1.3 m). Pushing.
 - 16:22 — R4a verified: prompt + wardrobe opens as Boutique for Dad, Escape closes, mannequins render, Wing B faces the lot; 0 errors. Pushing.

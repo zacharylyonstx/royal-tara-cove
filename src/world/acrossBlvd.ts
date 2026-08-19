@@ -14,6 +14,7 @@
 // sidewalk edge -190.9). Ground ends at z=-300; distant treeline ≈-260; the
 // zone stays z ≥ -250, x within ±70 (vehicle clamp ZONE_* below).
 import { rectAt } from './colliders';
+import { buildSchoolColliders } from './school';
 import type { Floor, RectCollider } from '../types';
 
 // --- Duck pond (west pocket between the blvd and Casitas) ---
@@ -236,6 +237,9 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
   for (const dx of [-1.7, 0, 1.7]) out.push(rectAt(BOUTIQUE_X + dx, BOUTIQUE_Z - 1.1, 0.8, 0.8, { maxY: 1.9, tag: 'boutique' }));
   out.push(rectAt(BOUTIQUE_X + 3.2, BOUTIQUE_Z - 0.9, 1.6, 0.5, { maxY: 1.5, tag: 'boutique' }));
   for (const o of LOT_OAKS) out.push(rectAt(o.x, o.z, 1.0, 1.0, { maxY: 6, tag: 'zone-oak' }));
+
+  // Avery Ranch Elementary (west of the pond — walls, lockers, desks, yard).
+  out.push(...buildSchoolColliders());
 
   return out;
 }

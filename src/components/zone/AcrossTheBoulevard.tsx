@@ -15,6 +15,7 @@ import { CHARACTERS } from '../../world/characters';
 import { OUTFITS, defaultAppearance, PALETTE } from '../../world/wardrobe';
 import { ParkedCar } from '../HouseProps';
 import { CasitasHomes } from './CasitasHomes';
+import { School } from './School';
 import {
   POND_X, POND_Z, POND_RX, POND_RZ,
   DOCK_W, DOCK_START_Z, DOCK_END_Z, DOCK_Y,
@@ -69,6 +70,7 @@ export function AcrossTheBoulevard() {
       <Ducks />
       <PondSign />
       <Plaza />
+      <School />
 
       {/* Playground corner (west of the pond, wood-chip pad). */}
       <mesh position={[PLAYGROUND_X, 0.012, PLAYGROUND_Z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
