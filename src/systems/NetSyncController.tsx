@@ -5,7 +5,7 @@ import { useGameStore } from '../state/gameStore';
 import { usePlayStore } from '../state/playStore';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
-import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom } from '../net/room';
+import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom, recentParkMsgAt } from '../net/room';
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
@@ -108,6 +108,13 @@ export function NetSyncController() {
           cur.flip = flip;
         }
       } else if (cur) {
+        // Driver got out of a CAR: leave it parked right where they stopped
+        // (their last synced position/heading) BEFORE dismounting, so the
+        // ParkedCar reappears there instead of snapping back to its driveway
+        // for the few frames until the driver's ParkMsg lands.
+        if (cur.vehicle === 'car' && cur.bikeId && performance.now() - (recentParkMsgAt.get(cur.bikeId) ?? 0) > 1500) {
+          play.parkCar(cur.bikeId, rp.x, rp.z, cur.heading);
+        }
         play.dismount(cid);
       }
     }

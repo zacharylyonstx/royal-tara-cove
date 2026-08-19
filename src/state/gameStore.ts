@@ -88,6 +88,9 @@ interface GameStore {
   doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: RectCollider }>;
   registerDoor: (id: string, aabb: RectCollider, centerX: number, centerZ: number) => void;
   toggleDoor: (id: string) => void;
+  /** Idempotent door set — used by the net layer so a peer's swing (or the
+   *  host's "here are the open doors" greet) lands without flip-flopping. */
+  setDoorOpen: (id: string, open: boolean) => void;
 
   hoverDoorId: string | null;
   setHoverDoor: (id: string | null) => void;
@@ -193,6 +196,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!door) return;
     set((s) => ({
       doors: { ...s.doors, [id]: { ...door, open: !door.open } },
+    }));
+  },
+  setDoorOpen: (id, open) => {
+    const door = get().doors[id];
+    // Unknown door (not registered yet on this build) or already in that
+    // state → no-op, so duplicate packets never re-render the house.
+    if (!door || door.open === open) return;
+    set((s) => ({
+      doors: { ...s.doors, [id]: { ...door, open } },
     }));
   },
 

@@ -19,9 +19,44 @@ import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInp
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
 import { useNightStore } from '../state/nightStore';
-import { sendEmote, sendChat } from '../net/room';
+import { sendEmote, sendChat, broadcastDoor, broadcastPark, isInRoom } from '../net/room';
 import { icecreamJingle } from '../audio';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
+import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
+import type { CharacterId } from '../types';
+import type { RidingState } from '../state/playStore';
+
+/** Free Play "go home" spots (hold R) — the family's cul-de-sac spawn in front of 10600. */
+const FREEPLAY_HOME: Record<CharacterId, [number, number]> = {
+  dad: [-2.5, 10],
+  penny: [0, 11],
+  luke: [2.5, 10],
+};
+const R_HOLD_MS = 900;
+
+function isCarDriven(riding: Record<CharacterId, RidingState | null>, carId: string): boolean {
+  for (const r of Object.values(riding)) if (r && r.vehicle === 'car' && r.bikeId === carId) return true;
+  return false;
+}
+
+/** Fire a pass-1 interactable (dresser → wardrobe UI; zone spot → pet / treat). */
+function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
+  if (c.kind === 'dresser') {
+    useWardrobeStore.getState().openWardrobe(c.id as CharacterId);
+    return;
+  }
+  if (c.kind === 'zone') {
+    const zs = useZoneStore.getState();
+    const it = zs.interactables[c.id];
+    zs.fireInteract(c.id, by);
+    if (it?.kind === 'icecream') {
+      // The treat is a shared moment: jingle + a 🍦 bubble over your head
+      // on every screen (rides the chat channel like the emotes).
+      icecreamJingle();
+      void sendChat('🍦');
+    }
+  }
+}
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
@@ -97,6 +132,7 @@ export function PlayerController() {
   const shootRef = useRef(false);
   const jumpPressedRef = useRef(false); // edge-triggered Space, for bike hop/flip
   const touchWasActive = useRef(false); // tracks joystick engagement for clean release
+  const rHoldStart = useRef(0); // performance.now() when R went down in Free Play (0 = not held)
   const heroBox = useMemo(() => computeHeroBox(), []);
 
   useEffect(() => {
@@ -123,6 +159,14 @@ export function PlayerController() {
         // reset to spawn (mode-aware)
         const pos = positions[activeId];
         const modeForReset = useGameStore.getState().gameMode;
+        if (modeForReset === 'freeplay') {
+          // Free Play: R is a HOLD (≈1 s, see useFrame) that walks you home to
+          // the 10600 front yard. A tap used to hard-teleport to (0,0,-90) —
+          // mid-street, 100 m from the house — which the kids experienced as
+          // "I got shot down to the end of the street" (R sits next to E).
+          if (!e.repeat && !rHoldStart.current) rHoldStart.current = performance.now();
+          return;
+        }
         if (modeForReset === 'munchies') {
           // Munchies spawn is the great-room couch, not the cul-de-sac.
           pos.set(-5.0, 0, -3.0);
@@ -141,7 +185,9 @@ export function PlayerController() {
       }
     };
     const up = (e: KeyboardEvent) => {
-      keys.current[e.key.toLowerCase()] = false;
+      const k = e.key.toLowerCase();
+      keys.current[k] = false;
+      if (k === 'r') rHoldStart.current = 0;
     };
     // Mouse click also shoots a held ball (only acted on when holding).
     const onMouseDown = () => {
@@ -156,6 +202,7 @@ export function PlayerController() {
       shootRef.current = false;
       jumpPressedRef.current = false;
       interactPressedRef.current = false;
+      rHoldStart.current = 0;
       touchInput.active = false;
       touchInput.moveX = 0;
       touchInput.moveY = 0;
@@ -183,6 +230,9 @@ export function PlayerController() {
     if (welcomeOpen) return;
     // Spectators don't move anything.
     if (spectator) return;
+    // Still on the character picker (or bounced off a duplicate claim): don't
+    // puppet the fallback Dad around while the kid is choosing.
+    if (!myCharacterId && isInRoom()) return;
     // While chat is open, the textbox owns the keyboard.
     if (useChatStore.getState().inputOpen) return;
     // The dress-up overlay owns input while open.
@@ -218,49 +268,55 @@ export function PlayerController() {
 
     const modeNow = useGameStore.getState().gameMode;
 
-    // Wardrobe dressers: when exploring the house (freeplay/treehouse), offer
-    // "open wardrobe" near a dresser and open the owner's dress-up UI on E/Action.
+    // ---- Interactables, pass 1: house + zone spots (freeplay / treehouse) ----
+    // Dressers (open wardrobe) and zone spots (pet Sparky, pet a duck, ice
+    // cream…) are collected as CANDIDATES. In Free Play the single best one is
+    // picked further down TOGETHER with doors/vehicles/balls by distance AND
+    // facing (interactSelect.ts) — so Sparky heeling at your feet can no longer
+    // steal "open door". Treehouse keeps its own interact chain, so it picks here.
+    const earlyCands: InteractCandidate[] = [];
     if (modeNow === 'freeplay' || modeNow === 'treehouse') {
       const p = positions[activeId];
       const ws = useWardrobeStore.getState();
-      let near: typeof ws.dressers[number] | null = null;
-      let nd = 1.9;
-      for (const dr of ws.dressers) {
-        if (Math.abs(p.y - dr.y) > 1.6) continue; // must be on the same floor
-        const dist = Math.hypot(dr.x - p.x, dr.z - p.z);
-        if (dist < nd) { nd = dist; near = dr; }
-      }
-      ws.setHoverDresser(near ? near.owner : null);
-      if (near && interactPressedRef.current) {
-        interactPressedRef.current = false;
-        ws.openWardrobe(near.owner);
-        return;
-      }
-
-      // Zone interactables (pet Sparky, the ice cream cart). Dresser wins on
-      // overlap; the prompt priority in InteractPrompt matches this order.
       const zs = useZoneStore.getState();
-      let zNear: (typeof zs.interactables)[string] | null = null;
-      let zD = Infinity;
-      for (const it of Object.values(zs.interactables)) {
-        const d = Math.hypot(it.x - p.x, it.z - p.z);
-        if (d < it.radius && d < zD) { zD = d; zNear = it; }
-      }
-      zs.setHover(zNear ? zNear.id : null);
-      if (zNear && !near && interactPressedRef.current) {
-        interactPressedRef.current = false;
-        zs.fireInteract(zNear.id, activeId);
-        if (zNear.kind === 'icecream') {
-          // The treat is a shared moment: jingle + a 🍦 bubble over your head
-          // on every screen (rides the chat channel like the emotes).
-          icecreamJingle();
-          void sendChat('🍦');
+      if (!usePlayStore.getState().riding[activeId]) {
+        for (const dr of ws.dressers) {
+          if (Math.abs(p.y - dr.y) > 1.6) continue; // must be on the same floor
+          earlyCands.push({ kind: 'dresser', id: dr.owner, x: dr.x, z: dr.z, radius: 1.9 });
         }
-        return;
+        for (const it of Object.values(zs.interactables)) {
+          earlyCands.push({ kind: 'zone', id: it.id, x: it.x, z: it.z, radius: it.radius });
+        }
+      }
+      if (modeNow === 'treehouse') {
+        const { fx, fz } = facingFromYaw(yaws[activeId]);
+        const best = selectInteractable(p.x, p.z, fx, fz, earlyCands);
+        ws.setHoverDresser(best?.kind === 'dresser' ? (best.id as CharacterId) : null);
+        zs.setHover(best?.kind === 'zone' ? best.id : null);
+        if (best && interactPressedRef.current) {
+          interactPressedRef.current = false;
+          fireHouseOrZoneInteract(best, activeId);
+          return;
+        }
       }
     } else {
       if (useWardrobeStore.getState().hoverDresser) useWardrobeStore.getState().setHoverDresser(null);
       if (useZoneStore.getState().hoverId) useZoneStore.getState().setHover(null);
+    }
+
+    // Free Play: HOLD R (~1 s) to walk home to the 10600 front yard. Never
+    // while driving (the vehicle would snap under you mid-street).
+    if (modeNow === 'freeplay' && rHoldStart.current) {
+      if (!keys.current['r']) {
+        rHoldStart.current = 0;
+      } else if (performance.now() - rHoldStart.current > R_HOLD_MS) {
+        rHoldStart.current = 0;
+        if (!usePlayStore.getState().riding[activeId]) {
+          const home = FREEPLAY_HOME[activeId];
+          positions[activeId].set(home[0], 0, home[1]);
+          yVel.current = 0;
+        }
+      }
     }
 
     if (modeNow === 'munchies') {
@@ -505,55 +561,53 @@ export function PlayerController() {
       }
     }
 
-    // Door interaction: find nearest door within INTERACT_RADIUS.
-    let nearestId: string | null = null;
-    let nearestDist = INTERACT_RADIUS;
-    for (const [id, door] of Object.entries(doors)) {
-      const d = Math.hypot(door.centerX - pos.x, door.centerZ - pos.z);
-      if (d < nearestDist) {
-        nearestDist = d;
-        nearestId = id;
-      }
-    }
-    setHoverDoor(nearestId);
-
-    // ---- Free-roam play hover (bikes + basketball), non-combat only ----
+    // ---- Interactables, pass 2: doors + free-roam play (balls/bikes/cars) ----
+    // All candidates (incl. pass-1 dressers/zone spots in Free Play) go through
+    // ONE picker scored by distance + facing; exactly one hover/prompt results.
     const phaseNow = useGameStore.getState().phase;
     const playActive =
       modeNow === 'freeplay' ||
       (modeNow === 'aliens' &&
         (phaseNow === 'free-play' || phaseNow === 'pre-intro' || phaseNow === 'victory'));
     const play = usePlayStore.getState();
-    if (playActive) {
-      const riding = play.riding[activeId];
-      if (riding) {
-        play.setHover('getoff', riding.bikeId, null);
-      } else if (play.heldBall && play.heldBall.by === activeId) {
-        play.setHover('shoot', null, play.heldBall.ballId);
-      } else {
-        let bestBike: string | null = null;
-        let bestBikeD = 2.0;
-        for (const b of Object.values(play.bikes)) {
-          const d = Math.hypot(b.x - pos.x, b.z - pos.z);
-          if (d < bestBikeD) { bestBikeD = d; bestBike = b.id; }
-        }
-        let bestBall: string | null = null;
-        let bestBallD = 1.5;
+    const ridingNow = play.riding[activeId];
+    const holdingBall = !!(play.heldBall && play.heldBall.by === activeId);
+
+    const cands = earlyCands;
+    if (!ridingNow && !holdingBall) {
+      if (playActive) {
         for (const [bid, bp] of Object.entries(ballPositions)) {
-          const d = Math.hypot(bp.x - pos.x, bp.z - pos.z);
-          if (d < bestBallD) { bestBallD = d; bestBall = bid; }
+          cands.push({ kind: 'ball', id: bid, x: bp.x, z: bp.z, radius: 1.5 });
         }
-        let bestCar: string | null = null;
-        let bestCarD = 3.4; // cars are big — generous reach so kids can hop in easily
+        for (const b of Object.values(play.bikes)) {
+          cands.push({ kind: 'bike', id: b.id, x: b.x, z: b.z, radius: 2.0 });
+        }
         for (const c of Object.values(play.cars)) {
-          const d = Math.hypot(c.x - pos.x, c.z - pos.z);
-          if (d < bestCarD) { bestCarD = d; bestCar = c.id; }
+          // Skip cars someone is already driving (a second kid could "drive" the
+          // same truck from its empty driveway spot → two trucks). Passengers
+          // are a separate, later feature.
+          if (isCarDriven(play.riding, c.id)) continue;
+          cands.push({ kind: 'car', id: c.id, x: c.x, z: c.z, radius: 3.4 }); // cars are big — generous reach
         }
-        if (bestBall && (!bestBike || bestBallD <= bestBikeD)) play.setHover('pickup', null, bestBall);
-        else if (bestBike) play.setHover('ride', bestBike, null);
-        else if (bestCar) play.setHover('drive', null, null, bestCar);
-        else play.setHover(null, null, null);
       }
+      for (const [id, door] of Object.entries(doors)) {
+        cands.push({ kind: 'door', id, x: door.centerX, z: door.centerZ, radius: INTERACT_RADIUS });
+      }
+    }
+    const facing = facingFromYaw(yaws[activeId]);
+    const best = ridingNow || holdingBall ? null : selectInteractable(pos.x, pos.z, facing.fx, facing.fz, cands);
+
+    // Publish exactly ONE hover so InteractPrompt shows a single label.
+    setHoverDoor(best?.kind === 'door' ? best.id : null);
+    useWardrobeStore.getState().setHoverDresser(best?.kind === 'dresser' ? (best.id as CharacterId) : null);
+    useZoneStore.getState().setHover(best?.kind === 'zone' ? best.id : null);
+    if (playActive) {
+      if (ridingNow) play.setHover('getoff', ridingNow.bikeId, null);
+      else if (holdingBall) play.setHover('shoot', null, play.heldBall!.ballId);
+      else if (best?.kind === 'ball') play.setHover('pickup', null, best.id);
+      else if (best?.kind === 'bike') play.setHover('ride', best.id, null);
+      else if (best?.kind === 'car') play.setHover('drive', null, null, best.id);
+      else play.setHover(null, null, null);
     } else {
       // Left free-roam (combat started / mode changed): cancel local play.
       if (play.hoverPlay) play.setHover(null, null, null);
@@ -563,24 +617,42 @@ export function PlayerController() {
 
     if (interactPressedRef.current) {
       interactPressedRef.current = false;
-      // Play interactions take precedence over doors when both are in range.
       const ph = usePlayStore.getState();
+      const cur = ph.riding[activeId];
       if (playActive && ph.heldBall && ph.heldBall.by === activeId) {
         ph.dropBall();
-      } else if (playActive && ph.hoverPlay === 'pickup' && ph.hoverBallId) {
-        ph.pickUpBall(ph.hoverBallId, activeId);
-      } else if (playActive && ph.hoverPlay === 'ride' && ph.hoverBikeId) {
-        mountBike(activeId, ph.hoverBikeId, ph.bikes[ph.hoverBikeId]?.color ?? '#3a6db0', yaws[activeId]);
-      } else if (playActive && ph.hoverPlay === 'drive' && ph.hoverCarId) {
-        mountCar(activeId, ph.hoverCarId, yaws[activeId]);
-      } else if (playActive && ph.hoverPlay === 'getoff') {
-        const cur = ph.riding[activeId];
+      } else if (playActive && cur) {
         // Leave a car parked exactly where it was (centered on the driver) before
-        // the rider steps out, so it doesn't snap back to its driveway.
-        if (cur && cur.vehicle === 'car') ph.parkCar(cur.bikeId, pos.x, pos.z, cur.heading);
+        // the rider steps out, so it doesn't snap back to its driveway — and
+        // tell everyone else where it is now.
+        if (cur.vehicle === 'car') {
+          ph.parkCar(cur.bikeId, pos.x, pos.z, cur.heading);
+          void broadcastPark([{ id: cur.bikeId, x: pos.x, z: pos.z, yaw: cur.heading }]);
+        }
         dismountBike(activeId, pos, staticColliders);
-      } else if (nearestId) {
-        toggleDoor(nearestId);
+      } else if (best) {
+        switch (best.kind) {
+          case 'dresser':
+          case 'zone':
+            fireHouseOrZoneInteract(best, activeId);
+            break;
+          case 'ball':
+            if (playActive) ph.pickUpBall(best.id, activeId);
+            break;
+          case 'bike':
+            if (playActive) mountBike(activeId, best.id, ph.bikes[best.id]?.color ?? '#3a6db0', yaws[activeId]);
+            break;
+          case 'car':
+            if (playActive) mountCar(activeId, best.id, yaws[activeId]);
+            break;
+          case 'door': {
+            // Doors are shared world state: everyone sees the same door.
+            const willOpen = !doors[best.id]?.open;
+            toggleDoor(best.id);
+            void broadcastDoor({ id: best.id, open: willOpen, t: Date.now() });
+            break;
+          }
+        }
       }
     }
 
@@ -965,6 +1037,9 @@ function munchiesTick(
   doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>,
 ) {
   const dt = Math.min(dtRaw, 0.1);
+  // The maze is on the ground: a kid arriving from the treehouse (y≈8) used to
+  // keep "flying" over it. Stay planted.
+  if (pos.y !== 0) pos.y = 0;
   // 4-direction movement, world-axis, no diagonal.
   let dx = 0;
   let dz = 0;
@@ -1011,6 +1086,7 @@ const TREEHOUSE_RUN_SPEED = 8.5;
 const LADDER_INTERACT_RADIUS = 2.5;
 const ITEM_INTERACT_RADIUS = 2.0;
 const TREEHOUSE_FLOOR_Y = 8.0;
+const TREEHOUSE_PLATFORM_REACH = 2.4; // past this from the trunk you've stepped off the deck
 const COVE_BOUND_RADIUS = 75;
 
 function treehouseTick(
@@ -1056,6 +1132,12 @@ function treehouseTick(
     while (diff > Math.PI) diff -= 2 * Math.PI;
     while (diff < -Math.PI) diff += 2 * Math.PI;
     yaws[activeId] = yaws[activeId] + diff * Math.min(1, 8 * dt);
+  }
+
+  // Walked off the treehouse platform edge → hop down (no more hovering at 8 m).
+  if (pos.y > 0.5) {
+    const oak = liveOakPosition();
+    if (Math.hypot(pos.x - oak.x, pos.z - oak.z) > TREEHOUSE_PLATFORM_REACH) pos.y = 0;
   }
 
   // --- Soft cove boundary ---

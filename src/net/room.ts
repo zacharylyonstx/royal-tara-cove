@@ -4,7 +4,7 @@
 // well-maintained public infrastructure and more reliable for our use case.
 import { joinRoom as trysteroJoin, selfId } from '@trystero-p2p/torrent';
 import type { Room } from '@trystero-p2p/torrent';
-import { useNetStore } from '../state/netStore';
+import { useNetStore, peerOutranks } from '../state/netStore';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
@@ -98,6 +98,27 @@ export interface WardrobeMsg {
   actionMode?: boolean;
 }
 
+/** A door swung open/closed (low-frequency: on interact + host greet). Doors
+ *  are id-keyed in gameStore so a peer opening the front door opens it for
+ *  everyone instead of Penny walking through a door Luke sees as shut. */
+export interface DoorMsg {
+  id: string;
+  open: boolean;
+  t: number;
+}
+
+/** Where cars are parked right now. Sent when a driver gets out (just that
+ *  car) and by the host to a late joiner (every car) so nobody sees a truck
+ *  teleport back to its driveway. */
+export interface ParkMsg {
+  cars: { id: string; x: number; z: number; yaw: number }[];
+  t: number;
+}
+/** perf.now() of the last exact ParkMsg per car id — NetSync's "driver got out"
+ *  fallback (which only knows the driver's SMOOTHED position) defers to this so
+ *  the precise spot isn't overwritten by a laggy one a frame later. */
+export const recentParkMsgAt = new Map<string, number>();
+
 export interface MunchiesNetSnapshot {
   level: number;
   score: number;
@@ -159,6 +180,8 @@ let sendBasketAction: ((data: BasketMsg) => Promise<void[]>) | null = null;
 let sendWardrobe: ((data: WardrobeMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendFireAction: ((data: FireMsg) => Promise<void[]>) | null = null;
 let sendSirenCaughtAction: ((data: SirenCaughtMsg) => Promise<void[]>) | null = null;
+let sendDoorAction: ((data: DoorMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
+let sendParkAction: ((data: ParkMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 /** Last host regroup timestamp we applied (raw host clock); guests stamp their
  *  own perf.now() when it changes so the "Regroup!" toast times correctly. */
@@ -223,6 +246,8 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [wardrobeSender, wardrobeReceiver] = r.makeAction('wardrobe');
   const [fireSender, fireReceiver] = r.makeAction('fire');
   const [sirenCaughtSender, sirenCaughtReceiver] = r.makeAction('sirenCaught');
+  const [doorSender, doorReceiver] = r.makeAction('door');
+  const [parkSender, parkReceiver] = r.makeAction('park');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
@@ -231,15 +256,38 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendWardrobe = wardrobeSender as unknown as typeof sendWardrobe;
   sendFireAction = fireSender as unknown as typeof sendFireAction;
   sendSirenCaughtAction = sirenCaughtSender as unknown as typeof sendSirenCaughtAction;
+  sendDoorAction = doorSender as unknown as typeof sendDoorAction;
+  sendParkAction = parkSender as unknown as typeof sendParkAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
+    const theirCharacterId = (typeof rawData.characterId === 'string'
+      ? rawData.characterId
+      : null) as CharacterId | null;
+    const theirJoinedAt = num(rawData.joinedAt, Date.now());
     useNetStore.getState().upsertPeer(peerId, {
-      characterId: (typeof rawData.characterId === 'string'
-        ? rawData.characterId
-        : null) as CharacterId | null,
-      joinedAt: num(rawData.joinedAt, Date.now()),
+      characterId: theirCharacterId,
+      joinedAt: theirJoinedAt,
     });
+
+    // Duplicate claim: both of us say we're the same character (two kids both
+    // tapped Dad before either saw the other's claim). Left alone, each side
+    // ignores the other's position packets as "echoes of self" and they turn
+    // invisible to each other. Resolve it with the SAME seniority rule as host
+    // election so both browsers reach the same verdict with no negotiation.
+    const net = useNetStore.getState();
+    if (!theirCharacterId || theirCharacterId !== net.myCharacterId || !net.selfId) return;
+    const me = { peerId: net.selfId, joinedAt: myJoinedAt };
+    const them = { peerId, joinedAt: theirJoinedAt };
+    if (peerOutranks(them, me)) {
+      // I lose: let go of the character and tell everyone I'm unclaimed again.
+      net.setMyCharacter(null);
+      net.noteClaimBounce(theirCharacterId);
+      if (sendWhoami) sendWhoami({ characterId: null, joinedAt: myJoinedAt }).catch(() => {});
+    } else if (sendWhoami) {
+      // I win: re-assert to just that peer so they run this same check and bounce.
+      sendWhoami({ characterId: theirCharacterId, joinedAt: myJoinedAt }, peerId).catch(() => {});
+    }
   }));
 
   playerReceiver((rawData) => netGuard('player', () => {
@@ -358,6 +406,31 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     useWardrobeStore.getState().setRemoteAppearance(id, safeAppearance(id, rawData.appearance), real, action);
   }));
 
+  doorReceiver((rawData) => netGuard('door', () => {
+    if (!isObj(rawData)) return;
+    const { id, open } = rawData;
+    if (typeof id !== 'string' || id.length === 0 || id.length >= 80) return;
+    if (typeof open !== 'boolean') return;
+    // setDoorOpen is idempotent + ignores unknown ids, so a late/duplicate
+    // packet or a door this build hasn't registered yet is harmless.
+    useGameStore.getState().setDoorOpen(id, open);
+  }));
+
+  parkReceiver((rawData) => netGuard('park', () => {
+    if (!isObj(rawData)) return;
+    const cars = arr(rawData.cars);
+    if (cars.length > 64) return; // the whole neighborhood is ~25 cars
+    const play = usePlayStore.getState();
+    const now = performance.now();
+    for (const c of cars) {
+      if (!isObj(c) || typeof c.id !== 'string' || c.id.length >= 80) continue;
+      if (typeof c.x !== 'number' || typeof c.z !== 'number' || typeof c.yaw !== 'number') continue;
+      if (!Number.isFinite(c.x) || !Number.isFinite(c.z) || !Number.isFinite(c.yaw)) continue;
+      play.parkCar(c.id, c.x, c.z, c.yaw); // no-ops on unknown ids
+      recentParkMsgAt.set(c.id, now);
+    }
+  }));
+
   r.onPeerJoin((peerId) => {
     // Greet new peer with our identity so they learn about us.
     if (sendWhoami) {
@@ -372,6 +445,23 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     if (sendWardrobe && myId) {
       const ws = useWardrobeStore.getState();
       sendWardrobe({ characterId: myId, appearance: ws.appearances[myId], realMode: ws.realMode[myId], actionMode: ws.actionMode[myId] }, peerId).catch(() => {});
+    }
+    // Host catches the late joiner up on world bits that only change on
+    // interaction (not in the 10 Hz snapshot): which doors are open, and
+    // where every car is parked right now.
+    if (useNetStore.getState().isHost) {
+      const t = Date.now();
+      if (sendDoorAction) {
+        const doors = useGameStore.getState().doors;
+        for (const id of Object.keys(doors)) {
+          if (doors[id].open) sendDoorAction({ id, open: true, t }, peerId).catch(() => {});
+        }
+      }
+      if (sendParkAction) {
+        const cars = Object.values(usePlayStore.getState().cars)
+          .map((c) => ({ id: c.id, x: c.x, z: c.z, yaw: c.yaw }));
+        if (cars.length) sendParkAction({ cars, t }, peerId).catch(() => {});
+      }
     }
   });
 
@@ -400,6 +490,7 @@ export async function leaveRoom(): Promise<void> {
   sendWhoami = sendPlayer = sendWorld = sendChatAction = sendBasketAction = sendWardrobe = null;
   sendFireAction = null;
   sendSirenCaughtAction = null;
+  sendDoorAction = sendParkAction = null;
   useNetStore.getState().leftRoom();
 }
 
@@ -468,6 +559,17 @@ export async function broadcastSirenCaught(msg: SirenCaughtMsg): Promise<void> {
 /** Broadcast our character's chosen dress-up look to all peers. */
 export async function broadcastWardrobe(msg: WardrobeMsg): Promise<void> {
   if (sendWardrobe) await sendWardrobe(msg).catch(() => {});
+}
+
+/** Tell peers a door just swung (call after toggling it locally). */
+export async function broadcastDoor(msg: DoorMsg): Promise<void> {
+  if (sendDoorAction) await sendDoorAction(msg).catch(() => {});
+}
+
+/** Tell peers where car(s) are now parked (call when a driver gets out). */
+export async function broadcastPark(cars: { id: string; x: number; z: number; yaw: number }[]): Promise<void> {
+  if (!cars.length) return;
+  if (sendParkAction) await sendParkAction({ cars, t: Date.now() }).catch(() => {});
 }
 
 /** Build a validated Appearance from an untrusted P2P payload (catalog-checked). */

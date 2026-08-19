@@ -48,6 +48,11 @@ export function backToGames() {
     useNightStore.getState().reset();
     gs.clearRagdoll();
     gs.resetFamilyPositions();
+  } else if (mode === 'treehouse' || mode === 'freeplay') {
+    // Bring everyone back to the cul-de-sac so a kid who was up in the
+    // treehouse (y≈8) or across the boulevard doesn't carry that into the
+    // next game.
+    gs.resetFamilyPositions();
   }
   gs.setPhase('pre-intro');
   gs.openWelcome();

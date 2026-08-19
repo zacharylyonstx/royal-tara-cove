@@ -8,7 +8,8 @@ import { usePlayStore } from '../../state/playStore';
 import { useZoneStore } from '../../state/zoneStore';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
-import { duckQuack } from '../../audio';
+import { duckQuack, petChime } from '../../audio';
+import { HeartBurst } from './HeartBurst';
 import { ParkedCar } from '../HouseProps';
 import { CasitasHomes } from './CasitasHomes';
 import {
@@ -353,22 +354,61 @@ function Dock() {
   );
 }
 
-/** Four mallards on slow swimming loops; quacks when the family is close. */
+/** Four mallards on slow swimming loops; quacks when the family is close.
+ *  Each duck is a PETTABLE zone spot (the kids kept asking "can you pet him?"):
+ *  two loops hug the shore and two pass the dock tip so every duck comes within
+ *  reach; E / ✋ → quack + hearts + a happy tail-wiggle. */
+const DUCK_PET_RADIUS = 3.0;
+const DUCK_COUNT = 4;
+
 function Ducks() {
   const refs = useRef<(THREE.Group | null)[]>([]);
+  const bodyRefs = useRef<(THREE.Group | null)[]>([]);
   const nextQuack = useRef(0);
+  const lastSeenPetAt = useRef(0);
+  const posPushAccum = useRef(0);
+  // Per-duck "being petted until" (clock seconds) — refs so HeartBurst can read them.
+  const petUntil = useMemo(() => Array.from({ length: DUCK_COUNT }, () => ({ current: 0 })), []);
   const ducks = useMemo(
     () => [
-      { r: 5, speed: 0.14, phase: 0, dir: 1 },
-      { r: 7.5, speed: 0.1, phase: 2.1, dir: -1 },
-      { r: 3.5, speed: 0.18, phase: 4.0, dir: 1 },
-      { r: 8.5, speed: 0.08, phase: 5.3, dir: -1 },
+      { r: 5, speed: 0.14, phase: 0, dir: 1 },       // passes the dock tip
+      { r: 11, speed: 0.1, phase: 2.1, dir: -1 },    // hugs the shore
+      { r: 3.5, speed: 0.18, phase: 4.0, dir: 1 },   // right by the dock
+      { r: 11.5, speed: 0.08, phase: 5.3, dir: -1 }, // hugs the shore
     ],
     [],
   );
 
-  useFrame(({ clock }) => {
+  useEffect(() => {
+    const zs = useZoneStore.getState();
+    for (let i = 0; i < DUCK_COUNT; i++) {
+      zs.register({ id: `duck-${i}`, kind: 'pet', label: 'pet duck 🦆', x: POND_X, z: POND_Z, radius: DUCK_PET_RADIUS });
+    }
+    return () => {
+      for (let i = 0; i < DUCK_COUNT; i++) useZoneStore.getState().unregister(`duck-${i}`);
+    };
+  }, []);
+
+  useFrame(({ clock }, dtRaw) => {
     const t = clock.elapsedTime;
+    const dt = Math.min(dtRaw, 0.1);
+
+    // React to a fresh pet on one of OUR ducks.
+    const zs = useZoneStore.getState();
+    if (zs.lastPetAt !== lastSeenPetAt.current && zs.lastPetId && zs.lastPetId.startsWith('duck-')) {
+      lastSeenPetAt.current = zs.lastPetAt;
+      const i = Number(zs.lastPetId.slice(5));
+      if (petUntil[i]) {
+        petUntil[i].current = t + 1.3;
+        duckQuack();
+        petChime();
+      }
+    }
+
+    posPushAccum.current += dt;
+    const pushPos = posPushAccum.current > 0.15;
+    if (pushPos) posPushAccum.current = 0;
+
     for (let i = 0; i < ducks.length; i++) {
       const g = refs.current[i];
       if (!g) continue;
@@ -380,6 +420,20 @@ function Ducks() {
       const tx = -Math.sin(a) * d.dir;
       const tz = Math.cos(a) * d.dir * (POND_RZ / POND_RX);
       g.rotation.y = Math.atan2(tx, tz);
+      if (pushPos) zs.updatePos(`duck-${i}`, x, z);
+      // Happy wiggle while being petted.
+      const body = bodyRefs.current[i];
+      if (body) {
+        const remain = petUntil[i].current - t;
+        if (remain > 0) {
+          const k = remain / 1.3;
+          body.position.y = Math.abs(Math.sin(t * 14)) * 0.12 * k;
+          body.rotation.y = Math.sin(t * 18) * 0.35 * k;
+        } else if (body.position.y !== 0 || body.rotation.y !== 0) {
+          body.position.y = 0;
+          body.rotation.y = 0;
+        }
+      }
     }
     if (t > nextQuack.current) {
       nextQuack.current = t + 7 + Math.random() * 9;
@@ -394,7 +448,10 @@ function Ducks() {
     <>
       {ducks.map((_, i) => (
         <group key={i} ref={(g) => { refs.current[i] = g; }}>
-          <GLBModel url={MODELS.duck.url} fitHeight={MODELS.duck.fitHeight} castShadow={false} />
+          <group ref={(g) => { bodyRefs.current[i] = g; }}>
+            <GLBModel url={MODELS.duck.url} fitHeight={MODELS.duck.fitHeight} castShadow={false} />
+          </group>
+          <HeartBurst until={petUntil[i]} y={0.45} radius={0.3} />
         </group>
       ))}
     </>

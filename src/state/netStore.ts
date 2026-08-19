@@ -45,6 +45,10 @@ interface NetStore {
   remotePlayers: Partial<Record<CharacterId, RemotePlayerState>>;
   /** True if this browser is currently the host (oldest joinedAt). */
   isHost: boolean;
+  /** Set when two browsers picked the SAME character and we lost the tie-break
+   *  (e.g. both kids tapped Dad). CharacterSelect reads it to show a friendly
+   *  "someone already picked X" banner; cleared once we claim another. */
+  claimBounce: { characterId: CharacterId; at: number } | null;
 
   // Actions
   joined: (selfId: string, joinedAt: number, mode: GameMode) => void;
@@ -52,6 +56,8 @@ interface NetStore {
   upsertPeer: (peerId: string, peer: Omit<RoomPeer, 'peerId'>) => void;
   removePeer: (peerId: string) => void;
   setMyCharacter: (id: CharacterId | null) => void;
+  /** Record that our claim on `characterId` lost to an earlier joiner. */
+  noteClaimBounce: (characterId: CharacterId) => void;
   setSpectator: (v: boolean) => void;
   setRemotePlayerState: (s: RemotePlayerState) => void;
   /** Drop remote players we haven't heard from in `staleMs` (silently-stalled
@@ -62,20 +68,27 @@ interface NetStore {
   setConnectionStatus: (s: ConnectionStatus) => void;
 }
 
+/** The ONE seniority rule for the whole net layer: earlier joinedAt wins, ties
+ *  go to the lexicographically smaller peerId. Host election AND duplicate
+ *  character-claim resolution both use this so every browser agrees on the
+ *  outcome without any extra round-trips. */
+export function peerOutranks(
+  a: { peerId: string; joinedAt: number },
+  b: { peerId: string; joinedAt: number },
+): boolean {
+  return a.joinedAt < b.joinedAt || (a.joinedAt === b.joinedAt && a.peerId < b.peerId);
+}
+
 function computeHost(peers: Record<string, RoomPeer>, selfId: string | null): boolean {
   if (!selfId) return true; // solo / no room — treat as host
   const list = Object.values(peers);
   if (list.length === 0) return true;
   // Smallest joinedAt wins; ties broken by lexicographically smallest peerId.
-  let bestId = list[0].peerId;
-  let bestJoinedAt = list[0].joinedAt;
+  let best = list[0];
   for (const p of list.slice(1)) {
-    if (p.joinedAt < bestJoinedAt || (p.joinedAt === bestJoinedAt && p.peerId < bestId)) {
-      bestId = p.peerId;
-      bestJoinedAt = p.joinedAt;
-    }
+    if (peerOutranks(p, best)) best = p;
   }
-  return bestId === selfId;
+  return best.peerId === selfId;
 }
 
 export const useNetStore = create<NetStore>((set, get) => ({
@@ -88,6 +101,7 @@ export const useNetStore = create<NetStore>((set, get) => ({
   peers: {},
   remotePlayers: {},
   isHost: true,
+  claimBounce: null,
 
   joined: (selfId, joinedAt, mode) => {
     const peers: Record<string, RoomPeer> = {
@@ -102,6 +116,7 @@ export const useNetStore = create<NetStore>((set, get) => ({
       myCharacterId: null,
       spectator: false,
       isHost: true,
+      claimBounce: null,
       connectionStatus: 'connected',
     });
   },
@@ -115,6 +130,7 @@ export const useNetStore = create<NetStore>((set, get) => ({
     myCharacterId: null,
     spectator: false,
     isHost: true,
+    claimBounce: null,
     connectionStatus: 'idle',
   }),
 
@@ -149,8 +165,10 @@ export const useNetStore = create<NetStore>((set, get) => ({
 
   setMyCharacter: (id) => {
     const selfId = get().selfId;
+    // A successful (non-null) claim retires any earlier "you got bounced" note.
+    const claimBounce = id ? null : get().claimBounce;
     if (!selfId) {
-      set({ myCharacterId: id });
+      set({ myCharacterId: id, claimBounce });
       return;
     }
     const peers = { ...get().peers };
@@ -165,8 +183,11 @@ export const useNetStore = create<NetStore>((set, get) => ({
       myCharacterId: id,
       spectator: false,
       isHost: computeHost(peers, selfId),
+      claimBounce,
     });
   },
+
+  noteClaimBounce: (characterId) => set({ claimBounce: { characterId, at: Date.now() } }),
 
   setSpectator: (v) => set({ spectator: v, myCharacterId: null }),
 

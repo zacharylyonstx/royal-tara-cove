@@ -28,6 +28,9 @@ interface ZoneStore {
 
   /** One-shot events (perf.now timestamps) consumed visually by components. */
   lastPetAt: number;
+  /** Which pet spot was petted last (sparky / duck-0 …) so only THAT animal reacts. */
+  lastPetId: string | null;
+  lastPetBy: CharacterId | null;
   lastTreatAt: number;
   fireInteract: (id: string, by: CharacterId) => void;
 }
@@ -59,11 +62,13 @@ export const useZoneStore = create<ZoneStore>((set, get) => ({
   },
 
   lastPetAt: 0,
+  lastPetId: null,
+  lastPetBy: null,
   lastTreatAt: 0,
-  fireInteract: (id) => {
+  fireInteract: (id, by) => {
     const i = get().interactables[id];
     if (!i) return;
-    if (i.kind === 'pet') set({ lastPetAt: performance.now() });
+    if (i.kind === 'pet') set({ lastPetAt: performance.now(), lastPetId: id, lastPetBy: by });
     else if (i.kind === 'icecream') set({ lastTreatAt: performance.now() });
   },
 }));

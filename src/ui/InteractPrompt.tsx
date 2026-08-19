@@ -2,6 +2,8 @@ import { useGameStore } from '../state/gameStore';
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
+import { useNetStore } from '../state/netStore';
+import { isTouchDevice } from '../systems/touchInput';
 
 const PLAY_LABELS: Record<string, string> = {
   ride: 'ride bike',
@@ -17,18 +19,24 @@ export function InteractPrompt() {
   const hoverDresser = useWardrobeStore((s) => s.hoverDresser);
   const hoverZoneId = useZoneStore((s) => s.hoverId);
   const zoneInteractables = useZoneStore((s) => s.interactables);
+  const me = useNetStore((s) => s.myCharacterId);
+  const ridingVehicle = usePlayStore((s) => (me ? s.riding[me]?.vehicle : undefined));
+  // On iPad the kid has no E key — show the on-screen button glyphs instead.
+  const touch = isTouchDevice();
 
-  // Wardrobe dresser first, then zone spots (Sparky, ice cream), then
-  // free-roam play cues, then doors — matches PlayerController's E priority.
+  // PlayerController publishes exactly ONE hover (best by distance + facing),
+  // so at most one of these is set; the order here is just a tie-break.
   let label: string | null = null;
-  let key = 'E';
+  let key = touch ? '✋' : 'E';
   if (hoverDresser) {
     label = 'open wardrobe 👗';
   } else if (hoverZoneId && zoneInteractables[hoverZoneId]) {
     label = zoneInteractables[hoverZoneId].label;
   } else if (hoverPlay === 'shoot') {
     label = 'shoot';
-    key = 'click';
+    key = touch ? '⤴' : 'click';
+  } else if (hoverPlay === 'getoff') {
+    label = ridingVehicle === 'car' ? 'hop out' : 'get off';
   } else if (hoverPlay && PLAY_LABELS[hoverPlay]) {
     label = PLAY_LABELS[hoverPlay];
   } else if (hover) {

@@ -8,6 +8,7 @@ import { CharacterModel, charDims } from './CharacterModel';
 import { GLBCharacterModel } from './GLBCharacterModel';
 import { GLBRiggedCharacter } from './GLBRiggedCharacter';
 import { defaultAppearance } from '../world/wardrobe';
+import { useGameStore } from '../state/gameStore';
 
 interface CharacterProps {
   def: CharacterDef;
@@ -21,6 +22,11 @@ interface CharacterProps {
  *  rig. Either way the outer group carries position/yaw + the riding (sit/flip/
  *  wipeout) transforms, so driving is unaffected. */
 export function Character({ def, positionRef, yawRef, isActive }: CharacterProps) {
+  // The hide-your-own-body gate exists for the FIRST-PERSON rig. Munchies
+  // (top-down) and Treehouse (behind-the-back) are third-person, so there the
+  // kid must SEE themself — this was the "we disappeared!" bug.
+  const gameMode = useGameStore((s) => s.gameMode);
+  const thirdPerson = gameMode === 'munchies' || gameMode === 'treehouse';
   const groupRef = useRef<Group>(null);
   const riding = usePlayStore((s) => s.riding[def.id]);
   const appearance = useWardrobeStore((s) => s.appearances[def.id]) ?? defaultAppearance(def.id);
@@ -84,7 +90,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   });
 
   return (
-    <group ref={groupRef} visible={!isActive || !!riding}>
+    <group ref={groupRef} visible={!isActive || !!riding || thirdPerson}>
       {action ? (
         <GLBRiggedCharacter
           baseUrl={`/assets/models/${def.id}-rig.glb`}

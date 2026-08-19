@@ -80,8 +80,10 @@ function FamilyDogInner() {
     const game = useGameStore.getState();
 
     // React to a fresh pet event (fired by PlayerController on E).
-    const petAt = useZoneStore.getState().lastPetAt;
-    if (petAt !== s.lastSeenPetAt) {
+    // Only react when it was SPARKY who got petted (the ducks share the event).
+    const zsNow = useZoneStore.getState();
+    const petAt = zsNow.lastPetAt;
+    if (petAt !== s.lastSeenPetAt && zsNow.lastPetId === 'sparky') {
       s.lastSeenPetAt = petAt;
       s.petUntil = t + 1.3;
       dogBark();

@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useNetStore } from '../state/netStore';
+import { useEffect, useMemo, useState } from 'react';
+import { useNetStore, peerOutranks } from '../state/netStore';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
 import { useGameStore } from '../state/gameStore';
@@ -8,6 +8,9 @@ import { useNightStore } from '../state/nightStore';
 import { claimCharacter, leaveRoom } from '../net/room';
 import { unlockAudio } from '../audio';
 import { MunchiesDifficultyToggle } from './MunchiesDifficultyToggle';
+
+/** How long the "someone already picked X" banner stays up after a bounce. */
+const BOUNCE_TTL_MS = 15_000;
 
 /**
  * Shown after a game mode is picked but before the game starts. Lets the
@@ -20,6 +23,7 @@ export function CharacterSelect() {
   const selfId = useNetStore((s) => s.selfId);
   const spectator = useNetStore((s) => s.spectator);
   const setSpectator = useNetStore((s) => s.setSpectator);
+  const claimBounce = useNetStore((s) => s.claimBounce);
 
   const closeWelcome = useGameStore((s) => s.closeWelcome);
   const resetTornadoGame = useGameStore((s) => s.resetTornadoGame);
@@ -44,10 +48,40 @@ export function CharacterSelect() {
 
   const allTaken = CHARACTER_ORDER.every((id) => owners[id]);
 
+  // "Someone already picked X" banner — only for a fresh bounce (<15 s), so a
+  // stale note from minutes ago doesn't confuse the next kid to open the picker.
+  const [, forceTick] = useState(0);
+  const bounceFresh = !!claimBounce && Date.now() - claimBounce.at < BOUNCE_TTL_MS;
+  useEffect(() => {
+    if (!claimBounce) return;
+    const left = BOUNCE_TTL_MS - (Date.now() - claimBounce.at);
+    if (left <= 0) return;
+    const h = window.setTimeout(() => forceTick((n) => n + 1), left + 50);
+    return () => window.clearTimeout(h);
+  }, [claimBounce]);
+
   const handlePick = async (id: CharacterId) => {
     if (owners[id] && owners[id] !== selfId) return; // can't pick taken
     unlockAudio();
     await claimCharacter(id);
+    // Race check: a whoami from another browser claiming the SAME character
+    // may have landed while our claim was in flight. Use the shared seniority
+    // rule (same as host election) — if they outrank us, let go gracefully and
+    // show the banner instead of starting the game as a ghost.
+    {
+      const net = useNetStore.getState();
+      // The whoami receiver may have already bounced us mid-await.
+      if (net.myCharacterId !== id) return;
+      const me = net.selfId ? { peerId: net.selfId, joinedAt: net.myJoinedAt ?? 0 } : null;
+      const rival = me
+        ? Object.values(net.peers).find((p) => p.peerId !== me.peerId && p.characterId === id)
+        : undefined;
+      if (me && rival && peerOutranks(rival, me)) {
+        net.setMyCharacter(null);
+        net.noteClaimBounce(id);
+        return;
+      }
+    }
     const becameHost = useNetStore.getState().isHost;
     if (becameHost) {
       // First-to-join: fresh game. Reset local state and start phase.
@@ -120,6 +154,23 @@ export function CharacterSelect() {
         <h1 style={{ fontSize: 32, margin: '4px 0 12px', color: modeAccent }}>
           {allTaken ? 'All characters are taken' : 'Pick your character'}
         </h1>
+
+        {bounceFresh && claimBounce && (
+          <div
+            style={{
+              background: 'rgba(255, 230, 150, 0.9)',
+              border: '2px solid #e0a030',
+              borderRadius: 12,
+              padding: '8px 14px',
+              margin: '0 0 10px',
+              fontSize: 15,
+              fontWeight: 700,
+              color: '#6a4a10',
+            }}
+          >
+            👋 Someone already picked {CHARACTERS[claimBounce.characterId].name} — pick another character!
+          </div>
+        )}
 
         {gameMode === 'munchies' && (
           <>
@@ -259,7 +310,7 @@ function CharCard({
         {name.toUpperCase()}
       </div>
       <div style={{ fontSize: 12, color: '#5a5040', minHeight: 18 }}>
-        {me ? '✅ You' : disabled ? 'Taken' : 'Available'}
+        {me ? '✅ You' : disabled ? 'Being played by a friend 👋' : 'Available'}
       </div>
     </button>
   );

@@ -53,13 +53,13 @@ export function ControlsHud() {
             <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
           </div>
           <div>
-            <kbd>E</kbd> ride bike · drive · ball · doors
+            <kbd>E</kbd> pet · ride · drive · doors (look at what you want!)
           </div>
           <div>
             🚲 <kbd>␣</kbd> hop · ramp + <kbd>W/S</kbd> flips!
           </div>
           <div>
-            <kbd>click</kbd> look around &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
+            <kbd>click</kbd> look around &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; hold <kbd>R</kbd> go home
           </div>
         </>
       ) : (
