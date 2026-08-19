@@ -14,6 +14,7 @@ import { InteractPrompt } from './ui/InteractPrompt';
 import { Scoreboard } from './ui/Scoreboard';
 import { TrickHud } from './ui/TrickHud';
 import { BasketToast } from './ui/BasketToast';
+import { FriendshipToast } from './ui/FriendshipToast';
 import { CombatHud } from './ui/CombatHud';
 import { Crosshair } from './ui/Crosshair';
 import { DamageFlash } from './ui/DamageFlash';
@@ -77,6 +78,7 @@ export default function App() {
       <Scoreboard />
       <TrickHud />
       <BasketToast />
+      <FriendshipToast />
       <CombatHud />
       <Crosshair />
       <DamageFlash />

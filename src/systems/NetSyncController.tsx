@@ -6,6 +6,7 @@ import { usePlayStore } from '../state/playStore';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom, recentParkMsgAt } from '../net/room';
+import { dogNetOut } from '../state/dogSync';
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
@@ -171,6 +172,7 @@ export function NetSyncController() {
           score: combat.score,
           kills: combat.kills,
           tornadoPhaseEnteredAt: tornado.phaseEnteredAt,
+          dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith } : undefined,
           tornadoZ: tornado.tornadoZ,
           tornadoX: tornado.tornadoX,
           stormIntensity: tornado.stormIntensity,

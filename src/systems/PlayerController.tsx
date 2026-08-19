@@ -19,7 +19,7 @@ import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInp
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
 import { useNightStore } from '../state/nightStore';
-import { sendEmote, sendChat, broadcastDoor, broadcastPark, isInRoom } from '../net/room';
+import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRoom } from '../net/room';
 import { icecreamJingle } from '../audio';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
@@ -51,6 +51,7 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
     const zs = useZoneStore.getState();
     const it = zs.interactables[c.id];
     zs.fireInteract(c.id, by);
+    if (it?.kind === 'pet') void broadcastPet(c.id, by); // hearts on every screen
     if (it?.kind === 'icecream') {
       // The treat is a shared moment: jingle + a 🍦 bubble over your head
       // on every screen (rides the chat channel like the emotes).

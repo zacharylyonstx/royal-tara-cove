@@ -5,6 +5,8 @@
 import { joinRoom as trysteroJoin, selfId } from '@trystero-p2p/torrent';
 import type { Room } from '@trystero-p2p/torrent';
 import { useNetStore, peerOutranks } from '../state/netStore';
+import { useZoneStore } from '../state/zoneStore';
+import { dogNetIn } from '../state/dogSync';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
@@ -110,6 +112,14 @@ export interface DoorMsg {
 /** Where cars are parked right now. Sent when a driver gets out (just that
  *  car) and by the host to a late joiner (every car) so nobody sees a truck
  *  teleport back to its driveway. */
+/** Someone petted an animal (Sparky / a duck) — everyone sees the hearts, and
+ *  the host's dog (whose position is authoritative) reacts. */
+export interface PetMsg {
+  id: string;
+  by: CharacterId;
+  t: number;
+}
+
 export interface ParkMsg {
   cars: { id: string; x: number; z: number; yaw: number }[];
   t: number;
@@ -157,6 +167,8 @@ export interface WorldStateMsg {
   t: number;
   /** munchies — undefined when not in munchies mode. */
   munchies?: MunchiesNetSnapshot;
+  /** Sparky (Free Play) — the host's dog is authoritative; guests lerp to it. */
+  dog?: { x: number; y: number; z: number; yaw: number; petting: boolean; rideWith: string | null };
   /** Siren Head Night — undefined when not in night mode. roundEndsInSeconds is
    *  a DELTA (not an absolute clock) so cross-machine skew never matters. */
   night?: {
@@ -182,6 +194,7 @@ let sendFireAction: ((data: FireMsg) => Promise<void[]>) | null = null;
 let sendSirenCaughtAction: ((data: SirenCaughtMsg) => Promise<void[]>) | null = null;
 let sendDoorAction: ((data: DoorMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendParkAction: ((data: ParkMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
+let sendPetAction: ((data: PetMsg) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 /** Last host regroup timestamp we applied (raw host clock); guests stamp their
  *  own perf.now() when it changes so the "Regroup!" toast times correctly. */
@@ -248,6 +261,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [sirenCaughtSender, sirenCaughtReceiver] = r.makeAction('sirenCaught');
   const [doorSender, doorReceiver] = r.makeAction('door');
   const [parkSender, parkReceiver] = r.makeAction('park');
+  const [petSender, petReceiver] = r.makeAction('pet');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
@@ -258,6 +272,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendSirenCaughtAction = sirenCaughtSender as unknown as typeof sendSirenCaughtAction;
   sendDoorAction = doorSender as unknown as typeof sendDoorAction;
   sendParkAction = parkSender as unknown as typeof sendParkAction;
+  sendPetAction = petSender as unknown as typeof sendPetAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
@@ -434,6 +449,14 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     }
   }));
 
+  petReceiver((rawData) => netGuard('pet', () => {
+    if (!isObj(rawData)) return;
+    const { id, by } = rawData;
+    if (typeof id !== 'string' || id.length === 0 || id.length >= 40) return;
+    if (by !== 'dad' && by !== 'penny' && by !== 'luke') return;
+    useZoneStore.getState().firePetRemote(id, by);
+  }));
+
   r.onPeerJoin((peerId) => {
     // Greet new peer with our identity so they learn about us.
     if (sendWhoami) {
@@ -494,6 +517,7 @@ export async function leaveRoom(): Promise<void> {
   sendFireAction = null;
   sendSirenCaughtAction = null;
   sendDoorAction = sendParkAction = null;
+  sendPetAction = null;
   useNetStore.getState().leftRoom();
 }
 
@@ -569,6 +593,11 @@ export async function broadcastDoor(msg: DoorMsg): Promise<void> {
   if (sendDoorAction) await sendDoorAction(msg).catch(() => {});
 }
 
+/** Tell peers I petted an animal. */
+export async function broadcastPet(id: string, by: CharacterId): Promise<void> {
+  if (sendPetAction) await sendPetAction({ id, by, t: Date.now() }).catch(() => {});
+}
+
 /** Tell peers where car(s) are now parked (call when a driver gets out). */
 export async function broadcastPark(cars: { id: string; x: number; z: number; yaw: number }[]): Promise<void> {
   if (!cars.length) return;
@@ -595,6 +624,14 @@ function safeAppearance(id: CharacterId, raw: unknown): Appearance {
  * can never throw on Object.keys/.map/index access.
  */
 function applyWorldSnapshot(s: Json): void {
+  // Sparky: the host's dog is the real one.
+  if (isObj(s.dog)) {
+    const d = s.dog;
+    dogNetIn.x = num(d.x); dogNetIn.y = num(d.y); dogNetIn.z = num(d.z); dogNetIn.yaw = num(d.yaw);
+    dogNetIn.petting = bool(d.petting);
+    dogNetIn.rideWith = typeof d.rideWith === 'string' ? d.rideWith : null;
+    dogNetIn.receivedAt = performance.now();
+  }
   // Game store: phase, hp, destroyed houses.
   const gs = useGameStore.getState();
   if (typeof s.phase === 'string' && gs.phase !== s.phase) gs.setPhase(s.phase as GamePhase);

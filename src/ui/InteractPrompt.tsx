@@ -4,6 +4,7 @@ import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
 import { useNetStore } from '../state/netStore';
 import { isTouchDevice } from '../systems/touchInput';
+import { friendLevel, heartBadge } from '../world/petStorage';
 
 const PLAY_LABELS: Record<string, string> = {
   ride: 'ride bike',
@@ -20,6 +21,9 @@ export function InteractPrompt() {
   const hoverZoneId = useZoneStore((s) => s.hoverId);
   const zoneInteractables = useZoneStore((s) => s.interactables);
   const me = useNetStore((s) => s.myCharacterId);
+  const fallbackMe = useGameStore((s) => s.activeCharacterId);
+  const meId = me ?? fallbackMe;
+  const affection = useZoneStore((s) => s.affection);
   const ridingVehicle = usePlayStore((s) => (me ? s.riding[me]?.vehicle : undefined));
   const hoverSeat = usePlayStore((s) => s.hoverSeat);
   // On iPad the kid has no E key — show the on-screen button glyphs instead.
@@ -33,6 +37,12 @@ export function InteractPrompt() {
     label = 'open wardrobe 👗';
   } else if (hoverZoneId && zoneInteractables[hoverZoneId]) {
     label = zoneInteractables[hoverZoneId].label;
+    // Friendship badge on pets: "pet Sparky 🐶 · ♥♥♡ Good Friend"
+    if (zoneInteractables[hoverZoneId].kind === 'pet' && meId) {
+      const n = affection[hoverZoneId]?.[meId] ?? 0;
+      const lv = friendLevel(n);
+      label = `${label} · ${heartBadge(lv.hearts)} ${lv.name}`;
+    }
   } else if (hoverPlay === 'shoot') {
     label = 'shoot';
     key = touch ? '⤴' : 'click';

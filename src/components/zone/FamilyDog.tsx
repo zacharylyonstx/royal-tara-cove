@@ -11,6 +11,8 @@ import { dogBark, petChime } from '../../audio';
 import { CHARACTER_ORDER } from '../../world/characters';
 import { usePlayStore } from '../../state/playStore';
 import { PET_SEAT, seatWorld } from '../../world/seats';
+import { friendLevel } from '../../world/petStorage';
+import { dogNetIn, dogNetOut } from '../../state/dogSync';
 import type { CharacterId } from '../../types';
 
 // Sparky — the friendly little dog from the treehouse letters — lives at
@@ -25,7 +27,8 @@ import type { CharacterId } from '../../types';
 const HOME_X = 4;
 const HOME_Z = 24; // 10600 front yard
 const WANDER_R = 7;
-const FOLLOW_RANGE = 13;   // comes over + bonds when you're this close
+const FOLLOW_RANGE = 13;   // comes over + bonds when you're this close (New)
+const FOLLOW_RANGE_BY_LEVEL = [FOLLOW_RANGE, 16, 22, 30]; // better friends pull him from farther
 const LOSE_RANGE = 120;    // bond breaks only if you're REALLY gone (he'd have caught up by then)
 const CATCH_UP_RANGE = 28; // fell this far behind → pops in behind you
 const HOP_IN_RANGE = 16;   // close enough to hop in the car as you pull away
@@ -34,6 +37,14 @@ const WALK_SPEED = 2.0;
 const TROT_SPEED = 4.6;
 const SPRINT_SPEED = 9.5;  // faster than a walking kid, slower than a running one
 const PET_RADIUS = 2.4;
+
+/** Guests follow the host's dog while the host is streaming him (fresh <2.5 s). */
+function isGuestDog(): boolean {
+  const net = useNetStore.getState();
+  if (net.isHost) return false;
+  if (Object.keys(net.peers).length < 2) return false;
+  return performance.now() - dogNetIn.receivedAt < 2500;
+}
 
 const HEART_COUNT = 7;
 const HEART_LIFE = 1.4;
@@ -58,6 +69,10 @@ function FamilyDogInner() {
     y: 0,
     bondId: null as CharacterId | null,   // the family member he's sticking with
     rideWith: null as CharacterId | null, // the DRIVER whose vehicle he's riding in
+    idleSince: 0,        // when he last stopped (for the Good-Friend sit)
+    togetherAccum: 0,    // seconds spent close to his person (passive friendship)
+    farFromBond: false,  // for the "you came back!" greeting woof
+    spinPhase: 0,        // Best-Friend happy spin while petted
   });
 
   // Register the pettable spot (position kept live below).
@@ -83,6 +98,69 @@ function FamilyDogInner() {
     [],
   );
 
+  /** Whole-group procedural animation (no skeleton): wiggle/hop while petted
+   *  (Best Friends get a happy SPIN), trot bob, idle breathing, Good-Friend sit,
+   *  plus the hearts burst. */
+  const animateDog = (t: number, petting: boolean, moving: boolean, riding: boolean, speedK: number, level: number, sitting: boolean) => {
+    const s = state.current;
+    const root = rootRef.current;
+    const body = bodyRef.current;
+    if (root) {
+      root.position.set(s.x, s.y, s.z);
+      root.rotation.y = s.yaw;
+    }
+    if (body) {
+      if (petting) {
+        // Happy wiggle + hop; Best Friends spin right around.
+        const k = Math.max(0, Math.min(1, (s.petUntil - t) / 1.3));
+        body.position.y = Math.abs(Math.sin(t * 14)) * 0.16 * Math.max(k, 0.4);
+        if (level >= 3) { s.spinPhase += 0.11; body.rotation.y = s.spinPhase; }
+        else body.rotation.y = Math.sin(t * 18) * 0.3 * Math.max(k, 0.4);
+        body.rotation.x = 0;
+      } else if (riding) {
+        // Ears in the wind: a gentle bounce with the truck.
+        body.position.y = Math.abs(Math.sin(t * 9)) * 0.03;
+        body.rotation.x = -0.08;
+        body.rotation.y = Math.sin(t * 0.7) * 0.15;
+      } else if (moving) {
+        body.position.y = Math.abs(Math.sin(t * speedK)) * 0.07;
+        body.rotation.x = Math.sin(t * speedK) * 0.05;
+        body.rotation.y = 0;
+      } else if (sitting) {
+        // Good Friend: sits when you stop (rump down, nose up).
+        body.position.y = -0.05;
+        body.rotation.x += (-0.42 - body.rotation.x) * 0.15;
+        body.rotation.y = Math.sin(t * 0.5) * 0.06;
+      } else {
+        // Idle breathing + the occasional ear-perk tilt.
+        body.position.y = Math.sin(t * 2.2) * 0.015;
+        body.rotation.x += (0 - body.rotation.x) * 0.15;
+        body.rotation.y = Math.sin(t * 0.4) * 0.08;
+      }
+    }
+    const hearts = heartsRef.current;
+    if (hearts) {
+      const shown = petting ? (level >= 3 ? HEART_COUNT : Math.max(4, HEART_COUNT - 2)) : 0;
+      for (let i = 0; i < hearts.children.length; i++) {
+        const h = hearts.children[i];
+        const mat = heartMats[i];
+        if (i < shown) {
+          const age = ((t * 0.9 + i / HEART_COUNT) % 1) * HEART_LIFE;
+          const a = (i / HEART_COUNT) * Math.PI * 2 + t * 0.6;
+          h.visible = true;
+          h.position.set(Math.cos(a) * 0.45, 0.7 + age * 0.9, Math.sin(a) * 0.45);
+          h.rotation.y = t * 2 + i;
+          const fade = 1 - age / HEART_LIFE;
+          mat.opacity = Math.max(0, Math.min(1, fade * 1.4));
+          h.scale.setScalar(0.7 + age * 0.4);
+        } else if (h.visible) {
+          h.visible = false;
+          mat.opacity = 0;
+        }
+      }
+    }
+  };
+
   useFrame(({ clock }, dtRaw) => {
     const s = state.current;
     const dt = Math.min(dtRaw, 0.1);
@@ -99,7 +177,29 @@ function FamilyDogInner() {
       dogBark();
       petChime();
     }
-    const petting = t < s.petUntil;
+    const petting = t < s.petUntil || (isGuestDog() && dogNetIn.petting);
+
+    // --- Guest: the host's Sparky is the real one — glide to where HE is. ---
+    if (isGuestDog()) {
+      const k = 1 - Math.exp(-14 * dt);
+      const far = Math.hypot(dogNetIn.x - s.x, dogNetIn.z - s.z) > 6;
+      if (far) { s.x = dogNetIn.x; s.y = dogNetIn.y; s.z = dogNetIn.z; s.yaw = dogNetIn.yaw; }
+      else {
+        s.x += (dogNetIn.x - s.x) * k;
+        s.y += (dogNetIn.y - s.y) * k;
+        s.z += (dogNetIn.z - s.z) * k;
+        let diff = dogNetIn.yaw - s.yaw;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        s.yaw += diff * k;
+      }
+      s.rideWith = (dogNetIn.rideWith as CharacterId | null) ?? null;
+      const movingGuest = Math.hypot(dogNetIn.x - s.x, dogNetIn.z - s.z) > 0.08 && !s.rideWith;
+      s.posPushAccum += dt;
+      if (s.posPushAccum > 0.2) { s.posPushAccum = 0; useZoneStore.getState().updatePos('sparky', s.x, s.z); }
+      animateDog(t, petting, movingGuest, !!s.rideWith, 12, 0, false);
+      return;
+    }
 
     // --- Brain: follow YOUR person (bond), ride along when they drive, else wander home ---
     // Who is claimed (so he ignores the frozen unclaimed family)?
@@ -110,18 +210,24 @@ function FamilyDogInner() {
     if (claimed.size === 0) claimed.add(game.activeCharacterId);
     let nearestD = Infinity;
     let nearId: CharacterId | null = null;
+    let bestScore = Infinity;
+    const affection = zsNow.affection['sparky'] ?? {};
     for (const id of CHARACTER_ORDER) {
       if (!claimed.has(id)) continue;
       const p = game.positions[id];
       if (!p) continue;
       const d = Math.hypot(p.x - s.x, p.z - s.z);
-      if (d < nearestD) { nearestD = d; nearId = id; }
+      // He gravitates to whoever loves him most: each friendship level counts
+      // as being ~1.5 m closer.
+      const score = d - friendLevel(affection[id] ?? 0).level * 1.5;
+      if (score < bestScore) { bestScore = score; nearestD = d; nearId = id; }
     }
     // Bond: he latches onto whoever comes close and STAYS with them — across
     // the map, into the truck, wherever — until they're truly gone (or someone
     // else is right next to him). The kids drove to the Plaza and "Sparky
-    // didn't make it"; now he does.
-    if (nearId && nearestD < FOLLOW_RANGE) s.bondId = nearId;
+    // didn't make it"; now he does. Better friends pull him from farther away.
+    const nearLevel = nearId ? friendLevel(affection[nearId] ?? 0).level : 0;
+    if (nearId && nearestD < FOLLOW_RANGE_BY_LEVEL[nearLevel]) s.bondId = nearId;
     if (s.bondId && !claimed.has(s.bondId)) s.bondId = null;
     let bondD = Infinity;
     let bondX = 0, bondZ = 0;
@@ -220,6 +326,24 @@ function FamilyDogInner() {
       }
     }
     const nearestDForAnim = bondD;
+    const bondLevel = s.bondId ? friendLevel(affection[s.bondId] ?? 0).level : 0;
+
+    // Passive friendship: hanging out together (heeling or riding along) counts —
+    // +1 every 30 s, so "taking Sparky places" matters, not just petting.
+    if (s.bondId && (s.rideWith || bondD < 6)) {
+      s.togetherAccum += dt;
+      if (s.togetherAccum > 30) { s.togetherAccum = 0; zsNow.bumpAffection('sparky', s.bondId); }
+    }
+    // "You came back!" — a greeting woof when his person returns after being away.
+    if (s.bondId) {
+      if (bondD > 20) s.farFromBond = true;
+      else if (s.farFromBond && bondD < 6) { s.farFromBond = false; dogBark(); s.petUntil = Math.max(s.petUntil, t + 0.7); }
+    }
+    if (moving || s.rideWith) s.idleSince = t;
+
+    // Host: publish the real dog for everyone else.
+    dogNetOut.x = s.x; dogNetOut.y = s.y; dogNetOut.z = s.z; dogNetOut.yaw = s.yaw;
+    dogNetOut.petting = petting; dogNetOut.rideWith = s.rideWith;
 
     // Keep the pettable spot tracking him (~5x/sec is plenty).
     s.posPushAccum += dt;
@@ -228,54 +352,9 @@ function FamilyDogInner() {
       useZoneStore.getState().updatePos('sparky', s.x, s.z);
     }
 
-    // --- Body animation (whole-group procedural — no skeleton, no monsters) ---
-    const root = rootRef.current;
-    const body = bodyRef.current;
-    if (root) {
-      root.position.set(s.x, s.y, s.z);
-      root.rotation.y = s.yaw;
-    }
-    if (body) {
-      if (petting) {
-        // Happy wiggle + hop.
-        const k = (s.petUntil - t) / 1.3;
-        body.position.y = Math.abs(Math.sin(t * 14)) * 0.16 * k;
-        body.rotation.y = Math.sin(t * 18) * 0.3 * k;
-        body.rotation.x = 0;
-      } else if (moving) {
-        const speedK = chasing && nearestDForAnim > 5 ? 13 : 9;
-        body.position.y = Math.abs(Math.sin(t * speedK)) * 0.07;
-        body.rotation.x = Math.sin(t * speedK) * 0.05;
-        body.rotation.y = 0;
-      } else {
-        // Idle breathing + the occasional ear-perk tilt.
-        body.position.y = Math.sin(t * 2.2) * 0.015;
-        body.rotation.x = 0;
-        body.rotation.y = Math.sin(t * 0.4) * 0.08;
-      }
-    }
-
-    // --- Hearts burst while petting ---
-    const hearts = heartsRef.current;
-    if (hearts) {
-      for (let i = 0; i < hearts.children.length; i++) {
-        const h = hearts.children[i];
-        const mat = heartMats[i];
-        if (petting) {
-          const age = ((t * 0.9 + i / HEART_COUNT) % 1) * HEART_LIFE;
-          const a = (i / HEART_COUNT) * Math.PI * 2 + t * 0.6;
-          h.visible = true;
-          h.position.set(Math.cos(a) * 0.45, 0.7 + age * 0.9, Math.sin(a) * 0.45);
-          h.rotation.y = t * 2 + i;
-          const fade = 1 - age / HEART_LIFE;
-          mat.opacity = Math.max(0, Math.min(1, fade * 1.4));
-          h.scale.setScalar(0.7 + age * 0.4);
-        } else {
-          h.visible = false;
-          mat.opacity = 0;
-        }
-      }
-    }
+    // --- Body animation + hearts (shared with the guest path) ---
+    const sitting = bondLevel >= 2 && chasing && !moving && !petting && t - s.idleSince > 1.5;
+    animateDog(t, petting, moving, !!s.rideWith, chasing && nearestDForAnim > 5 ? 13 : 9, bondLevel, sitting);
   });
 
   return (
