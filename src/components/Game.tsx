@@ -114,6 +114,12 @@ import { CameraExposer } from '../ui/Dialogue';
 import { Atmosphere } from './Atmosphere';
 import { NeighborhoodWildflowers } from './vegetation/Wildflowers';
 import { isTouchDevice } from '../systems/touchInput';
+import { DayNightController } from '../systems/DayNightController';
+import { SkyDome } from './sky/SkyDome';
+import { SkyLighting } from './sky/SkyLighting';
+import { StreetLamps } from './sky/StreetLamps';
+import { NightWindows } from './sky/NightWindows';
+import { buildStreetLampColliders } from '../world/streetLamps';
 
 // Crisper shadows on desktop; lighter on touch to protect iPad framerate.
 const SHADOW_RES = isTouchDevice() ? 1024 : 2048;
@@ -128,6 +134,8 @@ export function Game() {
   const yaws = useGameStore((s) => s.yaws);
   const setStaticColliders = useGameStore((s) => s.setStaticColliders);
   const setFloors = useGameStore((s) => s.setFloors);
+  // Street-lamp poles only exist in Free Play (visuals + colliders together).
+  const lampsOn = useGameStore((s) => s.gameMode) === 'freeplay';
 
   // Compute lots, props, and colliders once.
   const lots = useMemo(() => buildLots(HOUSES), []);
@@ -157,10 +165,10 @@ export function Game() {
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders()]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
     // Siren Head Night hide/safe zones (static layout — register once).
     useNightStore.getState().setZones(HIDE_ZONES, SAFE_ZONES);
-  }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors]);
+  }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors, lampsOn]);
 
   return (
     <>
@@ -245,6 +253,7 @@ export function Game() {
       <MunchiesModeSystems />
       <TreehouseModeSystems />
       <NightModeSystems />
+      <FreeplayModeSystems />
       <CameraRig />
       <CameraExposer />
       <NetSyncController />
@@ -253,6 +262,22 @@ export function Game() {
       {/* Self-gated on timeOfDay (visible only when dusk falls) — mounted
           globally so any mode that gets dark earns backyard fireflies. */}
       <Fireflies />
+    </>
+  );
+}
+
+/** Free Play only: the running world clock + realistic sky/lighting rig.
+ *  (The other modes keep DynamicSky/DynamicLights/SceneFog below.) */
+function FreeplayModeSystems() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode !== 'freeplay') return null;
+  return (
+    <>
+      <DayNightController />
+      <SkyDome />
+      <SkyLighting />
+      <StreetLamps />
+      <NightWindows />
     </>
   );
 }
@@ -375,6 +400,7 @@ function SceneFog() {
   const stormIntensity = useTornadoStore((s) => s.stormIntensity);
   const timeOfDay = useCombatStore((s) => s.timeOfDay);
   const gameMode = useGameStore((s) => s.gameMode);
+  if (gameMode === 'freeplay') return null; // SkyLighting owns the fog
   if (stormIntensity >= 0.1) {
     const near = 25 - stormIntensity * 8;
     const far = 130 - stormIntensity * 75;
@@ -402,6 +428,7 @@ function DynamicSky() {
   // it for a solid deep-night backdrop. Stars render against it; the cool fog
   // blends the horizon.
   if (gameMode === 'night') return <color attach="background" args={['#070a14']} />;
+  if (gameMode === 'freeplay') return null; // SkyDome owns the sky
   // 0..1 → angle around horizon. We compute a sun position via timeOfDay.
   // tod 0..0.5 = day, 0.5..1 = night (sun below).
   const elev = Math.max(0.05, Math.cos(timeOfDay * Math.PI)); // 1 at noon, -1 at midnight
@@ -425,6 +452,7 @@ function DynamicSky() {
 }
 
 function DynamicLights() {
+  const gameMode = useGameStore((s) => s.gameMode);
   const dirRef = useRef<DirectionalLight>(null);
   const hemiRef = useRef<HemisphereLight>(null);
   const ambRef = useRef<AmbientLight>(null);
@@ -481,6 +509,7 @@ function DynamicLights() {
       ambRef.current.color.setRGB(r, g, b);
     }
   });
+  if (gameMode === 'freeplay') return null; // SkyLighting owns the lights
   return (
     <>
       <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#6a9a4e" intensity={0.92} />

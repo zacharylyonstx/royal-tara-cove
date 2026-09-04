@@ -7,6 +7,7 @@ import type { Room } from '@trystero-p2p/torrent';
 import { useNetStore, peerOutranks } from '../state/netStore';
 import { useZoneStore } from '../state/zoneStore';
 import { dogNetIn } from '../state/dogSync';
+import { useSkyStore } from '../state/skyStore';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
@@ -171,6 +172,9 @@ export interface WorldStateMsg {
   t: number;
   /** munchies — undefined when not in munchies mode. */
   munchies?: MunchiesNetSnapshot;
+  /** Free Play world clock (dayFraction 0..1) — a phase, not a wall clock, so
+   *  machine clock skew never matters. Guests ease toward it. */
+  clock?: number;
   /** Sparky (Free Play) — the host's dog is authoritative; guests lerp to it. */
   dog?: { x: number; y: number; z: number; yaw: number; petting: boolean; rideWith: string | null };
   /** Siren Head Night — undefined when not in night mode. roundEndsInSeconds is
@@ -630,6 +634,8 @@ function safeAppearance(id: CharacterId, raw: unknown): Appearance {
  * can never throw on Object.keys/.map/index access.
  */
 function applyWorldSnapshot(s: Json): void {
+  // Free Play world clock: follow the host.
+  if (typeof s.clock === 'number' && Number.isFinite(s.clock)) useSkyStore.getState().setNetTarget(s.clock);
   // Sparky: the host's dog is the real one.
   if (isObj(s.dog)) {
     const d = s.dog;

@@ -78,6 +78,10 @@ function SunMotes() {
 }
 
 export function Atmosphere() {
+  const gameMode = useGameStore((s) => s.gameMode);
+  // Free Play: SkyLighting owns the IBL and the SkyDome draws real clouds;
+  // only the sun motes carry over.
+  if (gameMode === 'freeplay') return <SunMotes />;
   return (
     <>
       <SceneEnvironment />

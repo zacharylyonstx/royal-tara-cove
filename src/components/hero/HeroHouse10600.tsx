@@ -572,7 +572,7 @@ function CoachLight({ position }: { position: [number, number, number] }) {
       {/* glass insert */}
       <mesh position={[0, -0.18, 0.18]}>
         <boxGeometry args={[0.14, 0.26, 0.02]} />
-        <meshStandardMaterial color="#fff0a8" emissive="#ffd866" emissiveIntensity={0.85} />
+        <primitive object={mat.lampLens()} attach="material" />
       </mesh>
     </group>
   );
@@ -674,7 +674,7 @@ function StringLights({ z, width }: { z: number; width: number }) {
         <group key={i} position={b.pos}>
           <mesh castShadow>
             <sphereGeometry args={[0.06, 8, 8]} />
-            <meshStandardMaterial color="#fff0a8" emissive="#ffd866" emissiveIntensity={0.7} />
+            <primitive object={mat.lampLens()} attach="material" />
           </mesh>
         </group>
       ))}

@@ -7,6 +7,8 @@ import { Sedan } from './Sedan';
 import { GolfCart } from './GolfCart';
 import { usePlayStore } from '../../state/playStore';
 import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
+import { VehicleLights } from '../sky/VehicleLights';
 import { CHARACTER_ORDER } from '../../world/characters';
 import type { CharacterId } from '../../types';
 
@@ -26,6 +28,11 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
   const flipRef = useRef<Group>(null);
   const riding = usePlayStore((s) => s.riding[id]);
   const isCar = riding?.vehicle === 'car';
+  // Free Play night: headlights/taillights (+ a real spotlight for the local driver).
+  const freeplay = useGameStore((s) => s.gameMode) === 'freeplay';
+  const myId = useNetStore((s) => s.myCharacterId);
+  const fallbackId = useGameStore((s) => s.activeCharacterId);
+  const localId = myId ?? fallbackId;
   const prevAir = useRef(false);
   const squashAt = useRef(-1);
 
@@ -79,6 +86,12 @@ function OneRiddenBike({ id }: { id: CharacterId }) {
           )
         ) : (
           <Bike position={[0, 0, 0]} rotation={0} color={riding.bikeColor} scale={0.85} />
+        )}
+        {freeplay && (
+          <VehicleLights
+            kind={isCar ? (riding.carKind === 'truck' ? 'truck' : riding.carKind === 'golfcart' ? 'golfcart' : 'sedan') : 'bike'}
+            local={id === localId}
+          />
         )}
       </group>
     </group>

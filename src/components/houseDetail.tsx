@@ -139,7 +139,7 @@ export function CoachLight({ position }: { position: [number, number, number] })
       </mesh>
       <mesh position={[0, 0, 0.07]}>
         <boxGeometry args={[0.085, 0.17, 0.02]} />
-        <meshStandardMaterial color="#ffe9a8" emissive="#ffd45a" emissiveIntensity={0.85} />
+        <primitive object={mat.lampLens()} attach="material" />
       </mesh>
       <mesh position={[0, 0.16, 0.0]} castShadow>
         <boxGeometry args={[0.17, 0.05, 0.15]} />

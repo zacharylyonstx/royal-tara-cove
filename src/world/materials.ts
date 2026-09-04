@@ -31,6 +31,9 @@ const cached: {
   shingleCharcoal?: THREE.Material;
   fenceWood?: THREE.Material;
   glass?: THREE.Material;
+  lampLens?: THREE.Material;
+  headlightLens?: THREE.Material;
+  taillightLens?: THREE.Material;
   carWindow?: THREE.Material;
   woodFloor?: THREE.Material;
   tileFloor?: THREE.Material;
@@ -43,7 +46,7 @@ const brickCache = new Map<string, THREE.Material>();
 const sidingCache = new Map<string, THREE.Material>();
 const carCache = new Map<string, THREE.Material>();
 const glassCache = new Map<number, THREE.Material>();
-const GLASS_VARIANTS = 6;
+export const GLASS_VARIANTS = 6;
 
 // Inject a view-space Fresnel rim into MeshStandardMaterial's emissive, so glass
 // brightens at grazing angles and "catches the light" as you walk past — the cue
@@ -232,6 +235,29 @@ export const mat = {
   /** Back-compat default (BayWindow + any seedless caller) = a cool sky pane. */
   glass(): THREE.Material {
     return this.glassFor(0);
+  },
+  /** ONE shared warm lens for coach lights / porch lanterns / string lights,
+   *  so Free Play's night system can turn every porch on by driving a single
+   *  material's emissiveIntensity. */
+  headlightLens(): THREE.Material {
+    if (cached.headlightLens) return cached.headlightLens;
+    cached.headlightLens = new THREE.MeshStandardMaterial({ color: '#f4f6ff', emissive: '#fff6dc', emissiveIntensity: 0.3, roughness: 0.3 });
+    return cached.headlightLens;
+  },
+  taillightLens(): THREE.Material {
+    if (cached.taillightLens) return cached.taillightLens;
+    cached.taillightLens = new THREE.MeshStandardMaterial({ color: '#8a1010', emissive: '#ff2a1a', emissiveIntensity: 0.3, roughness: 0.3 });
+    return cached.taillightLens;
+  },
+  lampLens(): THREE.Material {
+    if (cached.lampLens) return cached.lampLens;
+    cached.lampLens = new THREE.MeshStandardMaterial({
+      color: '#ffe9a8',
+      emissive: '#ffd45a',
+      emissiveIntensity: 0.85,
+      roughness: 0.4,
+    });
+    return cached.lampLens;
   },
   carPaint(color: string): THREE.Material {
     const c = carCache.get(color);

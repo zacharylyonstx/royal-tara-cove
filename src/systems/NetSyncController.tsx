@@ -13,6 +13,7 @@ import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/
 import { useMunchiesStore } from '../state/munchiesStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useNightStore } from '../state/nightStore';
+import { useSkyStore } from '../state/skyStore';
 
 const PLAYER_RATE_HZ = 15;
 const WORLD_RATE_HZ = 10;
@@ -177,6 +178,7 @@ export function NetSyncController() {
           score: combat.score,
           kills: combat.kills,
           tornadoPhaseEnteredAt: tornado.phaseEnteredAt,
+          clock: game.gameMode === 'freeplay' ? useSkyStore.getState().dayFraction : undefined,
           dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith } : undefined,
           tornadoZ: tornado.tornadoZ,
           tornadoX: tornado.tornadoX,

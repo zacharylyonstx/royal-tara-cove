@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Points } from 'three';
 import { useCombatStore } from '../../state/combatStore';
+import { useGameStore } from '../../state/gameStore';
 
 /**
  * A dome of starfield Points that fades in as timeOfDay → 1 (night).
@@ -31,6 +32,7 @@ export function Stars() {
   }, [positions]);
   const ref = useRef<Points>(null);
   const timeOfDay = useCombatStore((s) => s.timeOfDay);
+  const gameMode = useGameStore((s) => s.gameMode);
 
   useFrame(() => {
     const r = ref.current;
@@ -39,6 +41,7 @@ export function Stars() {
     if (mat) mat.opacity = Math.max(0, (timeOfDay - 0.45) / 0.4);
   });
 
+  if (gameMode === 'freeplay') return null; // the Free Play sky dome draws its own stars
   return (
     <points ref={ref} geometry={geom}>
       <pointsMaterial color="#ffffff" size={1.2} sizeAttenuation transparent opacity={0} depthWrite={false} />

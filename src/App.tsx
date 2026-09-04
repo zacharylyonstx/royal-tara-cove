@@ -16,6 +16,7 @@ import { TrickHud } from './ui/TrickHud';
 import { BasketToast } from './ui/BasketToast';
 import { FriendshipToast } from './ui/FriendshipToast';
 import { LookHint } from './ui/LookHint';
+import { DayClock } from './ui/DayClock';
 import { CombatHud } from './ui/CombatHud';
 import { Crosshair } from './ui/Crosshair';
 import { DamageFlash } from './ui/DamageFlash';
@@ -76,6 +77,7 @@ export default function App() {
       <CharacterIndicator />
       <ControlsHud />
       <LookHint />
+      <DayClock />
       <InteractPrompt />
       <Scoreboard />
       <TrickHud />
