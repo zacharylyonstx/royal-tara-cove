@@ -263,7 +263,11 @@ void main() {
 
   // ----- sun disc (behind clouds it dims but still glows) -----
   float sundisk = smoothstep(SUN_COS, SUN_COS + 0.00004, cosTheta);
-  vec3 sunDisc = min(vec3(1.6), sunE * 19000.0 * Fex * sundisk * 0.04) * dayAmt;
+  // Hue-preserving clamp so the disc goes orange at the horizon (extinction
+  // reddens Fex) instead of clipping to white.
+  vec3 sd = sunE * 19000.0 * Fex * sundisk * 0.04;
+  float sdm = max(sd.r, max(sd.g, sd.b));
+  vec3 sunDisc = (sdm > 1e-4 ? sd / sdm : vec3(0.0)) * min(sdm, 1.6) * dayAmt;
   col += sunDisc * (1.0 - cloudA * 0.9);
 
   // ----- stars + Milky Way -----

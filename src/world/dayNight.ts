@@ -54,6 +54,28 @@ export function sunHourAngle(dayFraction: number): number {
   return (dayFraction * 24 - 13) * 15 * DEG;
 }
 
+/**
+ * Clock rate multiplier: time runs ~half speed while the sun is near the
+ * horizon (sunrise/sunset/twilight are the show) and a touch faster through
+ * midday and deep night, normalised so a full day still takes
+ * DAY_LENGTH_REAL_SEC. Monotonic, so host→guest sync is unaffected.
+ */
+const RATE_SLOW = 0.5;
+function rawRate(dayFraction: number): number {
+  const el = sunDirection(dayFraction).elevationDeg;
+  const bell = Math.exp(-(el * el) / (2 * 6 * 6));
+  return 1 - RATE_SLOW * bell;
+}
+const RATE_NORM = (() => {
+  const N = 2400;
+  let acc = 0;
+  for (let i = 0; i < N; i++) acc += rawRate(i / N);
+  return N / acc;
+})();
+export function clockRate(dayFraction: number): number {
+  return rawRate(dayFraction) * RATE_NORM;
+}
+
 export function sunDirection(dayFraction: number): SkyDir {
   return bodyDir(sunHourAngle(dayFraction), SUN_DECL);
 }
@@ -177,13 +199,15 @@ export function skyPalette(sunEl: number, moonEl: number): SkyPalette {
   const p = _p;
   p.sunEl = sunEl;
   p.moonEl = moonEl;
-  p.day = smoothstep(-8, 6, sunEl);
+  // Adapted-eye brightness: still bright AT sunset, dusk by −4°, dark by −9°.
+  p.day = smoothstep(-10, 1.5, sunEl);
   p.night = 1 - smoothstep(-13, -2, sunEl);
   p.dusk = Math.exp(-(sunEl * sunEl) / 90);
-  p.lamps = 1 - smoothstep(-0.5, 3.5, sunEl);
+  p.lamps = 1 - smoothstep(-3.5, 1.0, sunEl);
   ramp(SUN_COLOR, sunEl, p.sunColor);
   // Sun: 1.6 at high noon, tapering through golden hour, gone by civil dusk.
-  p.sunIntensity = 1.6 * smoothstep(-1.5, 9, sunEl) * (0.5 + 0.5 * smoothstep(0, 35, sunEl));
+  // Warm orange sun still lights the street at the horizon, then slips away.
+  p.sunIntensity = 1.6 * smoothstep(-3, 5, sunEl) * (0.42 + 0.58 * smoothstep(0, 35, sunEl));
   // Moon: only once the sun is properly down and the moon is up.
   const moonUp = smoothstep(-2, 8, moonEl);
   p.moonIntensity = 0.3 * (1 - smoothstep(-10, -3, sunEl)) * moonUp;

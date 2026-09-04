@@ -5,6 +5,7 @@ import { useCombatStore } from '../state/combatStore';
 import {
   DAY_LENGTH_REAL_SEC,
   START_DAY_FRACTION,
+  clockRate,
   legacyTimeOfDay,
   sunDirection,
 } from '../world/dayNight';
@@ -67,7 +68,7 @@ export function DayNightController() {
       if (d < -0.5) d += 1;
       f = Math.abs(d) > 0.02 ? sky.netTarget : f + d * Math.min(1, dt * 2) + dt / DAY_LENGTH_REAL_SEC;
     } else {
-      f += (dt * sky.speed) / DAY_LENGTH_REAL_SEC;
+      f += (dt * sky.speed * clockRate(f)) / DAY_LENGTH_REAL_SEC;
     }
     f = ((f % 1) + 1) % 1;
     useSkyStore.setState({
