@@ -2,18 +2,20 @@
  * Free Play day/night math — pure functions, no React/three state.
  *
  * `dayFraction` is the game clock: 0 = midnight, 0.25 = 6 AM, 0.5 = noon,
- * 0.75 = 6 PM. One game hour is one real minute (a 24-minute game day), so a
- * one-hour call always spans at least two full nights.
+ * 0.75 = 6 PM. One game hour is 45 real seconds (an 18-minute game day), so a
+ * one-hour call spans about three nights.
  *
  * Compass convention (matches streetLayout): the stick runs NORTH into −Z, so
  * east = +X, south = +Z, up = +Y. The sun rises over the boulevard side (+X),
  * crosses the southern sky (over 10600's backyard) and sets behind the west lots.
  */
 
-/** Real seconds per game day. 24 min → "every minute is an hour". */
-export const DAY_LENGTH_REAL_SEC = 24 * 60;
-/** Game time a fresh Free Play session starts at (8:00 AM). */
-export const START_DAY_FRACTION = 8 / 24;
+/** Real seconds per game day. 18 min → a game hour every 45 s, ~3.3 days per
+ *  hour-long call (Zak: "a little bit faster so it gets to night quicker"). */
+export const DAY_LENGTH_REAL_SEC = 18 * 60;
+/** Game time a fresh Free Play session starts at: 4:00 PM, so a call opens on
+ *  a late afternoon, rolls through sunset and into Siren Head's night. */
+export const START_DAY_FRACTION = 16 / 24;
 
 const DEG = Math.PI / 180;
 const LATITUDE = 30.3 * DEG;      // Austin, TX

@@ -11,7 +11,7 @@ import {
 } from '../world/dayNight';
 
 const STORAGE_KEY = 'sky.v1';
-const RESUME_WINDOW_MS = 2 * 60 * 60 * 1000;
+const RESUME_WINDOW_MS = 30 * 60 * 1000; // a mid-call reload resumes; a new call starts fresh at 4 PM
 const PERSIST_EVERY_SEC = 5;
 // Cloud shell drift (uv units per real second) — slow, steady breeze from the SW.
 const WIND_X = 0.011;
