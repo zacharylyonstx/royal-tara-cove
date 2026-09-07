@@ -180,6 +180,8 @@ export interface WorldStateMsg {
   /** Siren Head Night — undefined when not in night mode. roundEndsInSeconds is
    *  a DELTA (not an absolute clock) so cross-machine skew never matters. */
   night?: {
+    /** Free Play: Siren Head is out after dark (host-authoritative). */
+    stalkerActive?: boolean;
     sirenX: number; sirenZ: number; sirenYaw: number;
     sirenState: string; sirenTargetId: string | null;
     playerNightStates: Record<string, string>;
@@ -241,6 +243,14 @@ export function isInRoom(): boolean {
   return room !== null;
 }
 
+/** DEV only: `?room=xyz` isolates a test session from the shared live rooms
+ *  (so automated playtests never walk into the kids' real game). */
+function devRoomSuffix(): string {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return '';
+  const r = new URLSearchParams(window.location.search).get('room');
+  return r ? `-${r.replace(/[^a-z0-9]/gi, '').slice(0, 24)}` : '';
+}
+
 export async function joinRoom(mode: GameMode): Promise<void> {
   if (room) await leaveRoom();
   useNetStore.getState().setConnectionStatus('connecting');
@@ -252,7 +262,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     // the "API error" in console). redundancy:3 connects all three healthy
     // trackers so one going down doesn't stop kids from finding each other.
     { appId: APP_ID, relayConfig: { urls: RELAY_URLS, redundancy: 3 } },
-    `room-${mode}`,
+    `room-${mode}${devRoomSuffix()}`,
   );
   room = r;
 
@@ -706,6 +716,7 @@ function applyWorldSnapshot(s: Json): void {
 
 function applyNightSnapshot(n: Json): void {
   const ns = useNightStore.getState();
+  if (typeof n.stalkerActive === 'boolean') ns.setStalkerActive(n.stalkerActive);
   ns.setSiren(
     num(n.sirenX), num(n.sirenZ), num(n.sirenYaw),
     str(n.sirenState, 'patrol') as SirenState,

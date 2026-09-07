@@ -1908,6 +1908,40 @@ export function staticBurst() {
   src.stop(t0 + dur + 0.02);
 }
 
+// Siren Head's footfall — a deep ground thud you feel more than hear. `amp` 0..1
+// by proximity. Free Play after dark.
+export function sirenFootThud(amp = 0.5) {
+  const c = ensureCtx();
+  const grp = ensureNightGroup();
+  if (!c || !grp) return;
+  const t0 = c.currentTime;
+  const a = Math.max(0, Math.min(1, amp));
+  const osc = c.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(58, t0);
+  osc.frequency.exponentialRampToValueAtTime(30, t0 + 0.32);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.28 * a, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.38);
+  osc.connect(g).connect(grp);
+  osc.start(t0);
+  osc.stop(t0 + 0.4);
+  // gravel crunch
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, 0.12, 'white');
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 500;
+  const ng = c.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.linearRampToValueAtTime(0.06 * a, t0 + 0.005);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.11);
+  src.connect(lp).connect(ng).connect(grp);
+  src.start(t0);
+  src.stop(t0 + 0.13);
+}
+
 // Tense minor-key dread loop (nod to the kids' fave "Run Away") with a SUB-DRONE
 // foundation + a CHASE layer that slams in the instant Siren Head commits, then
 // eases back to relief when you break away. Built per the horror-audio research.

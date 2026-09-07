@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useNightStore } from '../../state/nightStore';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
+import { getGlowTex } from '../sky/StreetLamps';
 
 // SIREN HEAD — built procedurally (text-to-3D can't make a headless humanoid
 // whose head IS two opposed siren horns). Creepiness tuned from canon + research:
@@ -67,6 +68,9 @@ export function SirenHead() {
   const hornGlow = useRef<THREE.MeshStandardMaterial>(null);
   const hornGlow2 = useRef<THREE.MeshStandardMaterial>(null);
   const hornLight = useRef<THREE.PointLight>(null);
+  // Far-off red beacon: an additive glow on each horn that reads from the other
+  // end of the street (the point light only reaches ~24 m). Pulses with the throat.
+  const beaconMat = useRef<THREE.SpriteMaterial>(null);
 
   const rx = useRef(useNightStore.getState().sirenX);
   const rz = useRef(useNightStore.getState().sirenZ);
@@ -80,9 +84,13 @@ export function SirenHead() {
   useFrame((state, dtRaw) => {
     const g = group.current;
     if (!g) return;
-    if (useGameStore.getState().gameMode !== 'night') return;
-    const dt = Math.min(dtRaw, 0.1);
+    const mode = useGameStore.getState().gameMode;
     const ns = useNightStore.getState();
+    // Siren Head Night always; Free Play only while he's out after dark.
+    const shown = mode === 'night' || (mode === 'freeplay' && ns.stalkerActive);
+    if (g.visible !== shown) g.visible = shown;
+    if (!shown) return;
+    const dt = Math.min(dtRaw, 0.1);
 
     const prevX = rx.current, prevZ = rz.current;
     const k = 1 - Math.exp(-12 * dt);
@@ -161,6 +169,7 @@ export function SirenHead() {
     if (hornGlow.current) hornGlow.current.emissiveIntensity = em;
     if (hornGlow2.current) hornGlow2.current.emissiveIntensity = em;
     if (hornLight.current) hornLight.current.intensity = 1.6 + em * 1.9;
+    if (beaconMat.current) beaconMat.current.opacity = Math.min(1, 0.25 + em * 0.22);
   });
 
   return (
@@ -233,6 +242,13 @@ export function SirenHead() {
             <Horn glowRef={hornGlow2} />
           </group>
           <pointLight ref={hornLight} color="#ff3a1a" intensity={1.6} distance={24} decay={1.6} />
+          {/* red beacons in the horn mouths — visible from the far end of the street */}
+          <sprite position={[1.35, 0.08, 0]} scale={[1.6, 1.6, 1]} renderOrder={5}>
+            <spriteMaterial ref={beaconMat} map={getGlowTex()} color="#ff2a10" transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.4} toneMapped={false} />
+          </sprite>
+          <sprite position={[-1.3, 0, 0]} scale={[1.5, 1.5, 1]} renderOrder={5}>
+            <spriteMaterial map={getGlowTex()} color="#ff2a10" transparent depthWrite={false} blending={THREE.AdditiveBlending} opacity={0.4} toneMapped={false} />
+          </sprite>
         </group>
       </group>
     </group>

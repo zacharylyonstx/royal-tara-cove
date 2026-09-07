@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNightStore } from '../state/nightStore';
 import { startMusic, stopMusic, setMusicMix } from '../audio';
 
 const MAX_BLOBS_FOR_INTENSITY = 8;
@@ -40,6 +41,9 @@ export function MusicController() {
       });
       return;
     }
+    // Free Play with Siren Head out after dark: the cheerful pad ducks right
+    // down so the siren wail + horror bed own the night.
+    if (mode === 'freeplay' && useNightStore.getState().stalkerActive) { setMusicMix({ peaceful: 0.04, combat: 0.0, victory: 0.0 }); return; }
     // Free Play + aliens intro/free-roam → calm neighborhood music.
     setMusicMix({ peaceful: 0.3, combat: 0.0, victory: 0.0 });
   });

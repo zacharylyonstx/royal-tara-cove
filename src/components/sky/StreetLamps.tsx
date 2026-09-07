@@ -9,6 +9,8 @@ import { useNetStore } from '../../state/netStore';
 import { skyPalette, sunDirection, moonDirection } from '../../world/dayNight';
 import { isTouchDevice } from '../../systems/touchInput';
 import { mat } from '../../world/materials';
+import { useNightStore } from '../../state/nightStore';
+import { STALKER_LAMP_FLICKER_RADIUS } from '../../world/stalkerLayout';
 
 /**
  * Residential street lamps for Free Play. Every lamp gets cheap "fake" light
@@ -43,7 +45,7 @@ function getPoolTex() {
   if (!poolTex) poolTex = radialTexture(256, 'rgba(255,225,170,0.85)', 'rgba(255,215,150,0.35)', [[0.7, 'rgba(255,205,130,0.08)'], [1, 'rgba(255,200,120,0)']]);
   return poolTex;
 }
-function getGlowTex() {
+export function getGlowTex() {
   if (!glowTex) glowTex = radialTexture(128, 'rgba(255,245,220,1)', 'rgba(255,230,180,0.5)', [[0.7, 'rgba(255,220,160,0.12)'], [1, 'rgba(255,220,160,0)']]);
   return glowTex;
 }
@@ -119,11 +121,15 @@ export function StreetLamps() {
     map: getGlowTex(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0, toneMapped: false,
   }), []);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     const sky = useSkyStore.getState();
     const sun = sunDirection(sky.dayFraction);
     const p = skyPalette(sun.elevationDeg, moonDirection(sky.dayFraction).elevationDeg);
     const on = p.lamps;
+    // Siren Head after dark: lamps near him stutter and brown out.
+    const ns = useNightStore.getState();
+    const stalker = ns.stalkerActive;
+    const tt = clock.elapsedTime;
     poolMat.opacity = 0.55 * on;
     glowMat.opacity = 0.8 * on;
     // Pool lights → nearest lamps to the local player.
@@ -142,7 +148,17 @@ export function StreetLamps() {
       L.position.set(lp[0], lp[1] - 0.15, lp[2]);
       // Cobra heads are brighter/higher than acorn posts.
       const kind = STREET_LAMPS[pick.i].kind;
-      L.intensity = (kind === 'cobra' ? 95 : 32) * on;
+      let inten = (kind === 'cobra' ? 95 : 32) * on;
+      if (stalker) {
+        const dS = Math.hypot(lp[0] - ns.sirenX, lp[2] - ns.sirenZ);
+        if (dS < STALKER_LAMP_FLICKER_RADIUS) {
+          const near = 1 - dS / STALKER_LAMP_FLICKER_RADIUS;
+          const buzz = 0.55 + 0.45 * Math.sin(tt * 41 + pick.i * 7) * Math.sin(tt * 13.7 + pick.i);
+          const drop = Math.random() < 0.06 * (0.5 + near) ? 0.1 : 1;
+          inten *= (1 - near * 0.5) * buzz * drop;
+        }
+      }
+      L.intensity = inten;
       L.distance = kind === 'cobra' ? 30 : 16;
     }
   });

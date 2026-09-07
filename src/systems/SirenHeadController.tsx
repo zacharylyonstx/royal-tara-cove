@@ -53,7 +53,7 @@ function claimedPlayers(): CharacterId[] {
 
 /** Coarse line-of-sight: march the XZ segment at chest height; blocked if any
  *  sample lands inside a tall collider (houses, fences). */
-function hasLOS(ax: number, az: number, bx: number, bz: number, colliders: RectCollider[]): boolean {
+export function hasLOS(ax: number, az: number, bx: number, bz: number, colliders: RectCollider[]): boolean {
   const dx = bx - ax, dz = bz - az;
   const len = Math.hypot(dx, dz);
   const steps = Math.min(28, Math.max(6, Math.round(len / 1.2)));

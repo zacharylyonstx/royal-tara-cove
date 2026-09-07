@@ -7,6 +7,48 @@ import { useNightStore } from '../state/nightStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import { startRagdollWhoosh, tickRagdollWhoosh, stopRagdollWhoosh, wilhelmScream } from '../audio';
+import { usePlayStore } from '../state/playStore';
+import { broadcastPark } from '../net/room';
+import { clampToStreet } from './PlayerController';
+import { isIndoors } from '../world/indoors';
+import {
+  STALKER_TOSS_DURATION, STALKER_TOSS_PEAK, STALKER_TOSS_DIST, STALKER_TOSS_MIN_DIST,
+} from '../world/stalkerLayout';
+import type { RectCollider } from '../types';
+
+/** Is a ground point inside any solid (non-passable, ground-touching) collider? */
+function pointBlocked(x: number, z: number, colliders: RectCollider[]): boolean {
+  for (const c of colliders) {
+    if (c.passable) continue;
+    if ((c.minY ?? 0) > 0.6) continue;
+    let inside: boolean;
+    if (c.yaw) {
+      const cx = (c.minX + c.maxX) / 2, cz = (c.minZ + c.maxZ) / 2;
+      const hX = (c.maxX - c.minX) / 2 + 0.6, hZ = (c.maxZ - c.minZ) / 2 + 0.6;
+      const cn = Math.cos(-c.yaw), sn = Math.sin(-c.yaw);
+      const lx = (x - cx) * cn - (z - cz) * sn;
+      const lz = (x - cx) * sn + (z - cz) * cn;
+      inside = lx > -hX && lx < hX && lz > -hZ && lz < hZ;
+    } else {
+      inside = x > c.minX - 0.6 && x < c.maxX + 0.6 && z > c.minZ - 0.6 && z < c.maxZ + 0.6;
+    }
+    if (inside) return true;
+  }
+  return false;
+}
+
+/** Pick where the yeet lands: as far as STALKER_TOSS_DIST along `dir`, pulled
+ *  back until the spot is on the drivable street region and not inside a
+ *  house/fence/prop — so you never land stuck in a wall. */
+function findLanding(ox: number, oz: number, dirX: number, dirZ: number, colliders: RectCollider[]): { x: number; z: number } {
+  for (let d = STALKER_TOSS_DIST; d >= STALKER_TOSS_MIN_DIST; d -= 2) {
+    const px = ox + dirX * d, pz = oz + dirZ * d;
+    const c = clampToStreet(px, pz);
+    const x = c ? c.x : px, z = c ? c.z : pz;
+    if (!pointBlocked(x, z, colliders) && !isIndoors(x, z)) return { x, z };
+  }
+  return { x: ox + dirX * STALKER_TOSS_MIN_DIST, z: oz + dirZ * STALKER_TOSS_MIN_DIST };
+}
 
 // Defeat-throw cinematic. Active only while gameStore.ragdoll != null.
 // Drives:
@@ -44,6 +86,83 @@ export function RagdollController() {
 
   useFrame(() => {
     const g = useGameStore.getState();
+
+    // ---- Free Play: Siren Head's after-dark swat = tornado-style yeet ----
+    // Runs on the LOCAL caught client (host or guest); the arc reaches everyone
+    // through the normal position broadcast. You land on your feet, alive.
+    if (g.gameMode === 'freeplay') {
+      const rag = g.ragdoll;
+      if (!rag || !rag.active) {
+        if (nightLaunch.current) {
+          nightLaunch.current = null;
+          stopRagdollWhoosh();
+          useCombatStore.getState().endCinematic();
+          camera.up.set(0, 1, 0);
+        }
+        return;
+      }
+      const localId = useNetStore.getState().myCharacterId ?? g.activeCharacterId;
+      const player = g.positions[localId];
+      if (!player) return;
+      if (!nightLaunch.current) {
+        const ns = useNightStore.getState();
+        const ax = rag.originX - ns.sirenX;
+        const az = rag.originZ - ns.sirenZ;
+        const al = Math.hypot(ax, az) || 1;
+        const dirX = ax / al, dirZ = az / al;
+        const land = findLanding(rag.originX, rag.originZ, dirX, dirZ, g.staticColliders);
+        nightLaunch.current = { dirX: land.x - rag.originX, dirZ: land.z - rag.originZ, oy: rag.originY };
+        // Swatted out of the car: park it right here for everyone, hop out.
+        const ph = usePlayStore.getState();
+        const rid = ph.riding[localId];
+        if (rid) {
+          if (rid.vehicle === 'car' && !rid.passengerOf) {
+            ph.parkCar(rid.bikeId, player.x, player.z, rid.heading);
+            void broadcastPark([{ id: rid.bikeId, x: player.x, z: player.z, yaw: rid.heading }]);
+          }
+          ph.dismount(localId);
+        }
+        useCombatStore.getState().addShake(0.8);
+        startRagdollWhoosh();
+        wilhelmScream();
+        ns.setStalkerEvent({ kind: 'swat', at: performance.now() / 1000 });
+      }
+      const L = nightLaunch.current;
+      const now = performance.now() / 1000;
+      const t = Math.min(STALKER_TOSS_DURATION, now - rag.startedAt);
+      const p = t / STALKER_TOSS_DURATION;
+      // ease the horizontal travel so it launches hard and settles
+      const ph = 1 - Math.pow(1 - p, 1.6);
+      const x = rag.originX + L.dirX * ph;
+      const z = rag.originZ + L.dirZ * ph;
+      const y = Math.max(0, L.oy + Math.sin(p * Math.PI) * STALKER_TOSS_PEAK);
+      player.x = x; player.y = y; player.z = z;
+      const yaw = t * 7;
+      const pitch = Math.sin(t * 7.5) * 0.6 + Math.sin(t * 2.7) * 0.3;
+      const roll = Math.sin(t * 5.1) * 0.5;
+      const lookDir = new Vector3(0, 0, -1).applyEuler(new Euler(pitch, yaw, roll, 'YXZ'));
+      const headY = y + 0.4;
+      useCombatStore.setState({
+        cinematic: {
+          active: true,
+          cameraX: x, cameraY: headY, cameraZ: z,
+          targetX: x + lookDir.x * 5, targetY: headY + lookDir.y * 5, targetZ: z + lookDir.z * 5,
+          endsAt: now + STALKER_TOSS_DURATION,
+        },
+      });
+      camera.up.set(Math.sin(roll), Math.cos(roll), 0);
+      g.yaws[localId] = yaw;
+      tickRagdollWhoosh(t);
+      if (t >= STALKER_TOSS_DURATION) {
+        player.y = 0;
+        g.clearRagdoll();
+        nightLaunch.current = null;
+        stopRagdollWhoosh();
+        useCombatStore.getState().endCinematic();
+        camera.up.set(0, 1, 0);
+      }
+      return;
+    }
 
     // ---- Siren Head Night swat (runs on the local caught client, any peer) ----
     if (g.gameMode === 'night') {

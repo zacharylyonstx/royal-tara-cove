@@ -261,6 +261,9 @@ export function PlayerController() {
     if (useChatStore.getState().inputOpen) return;
     // The dress-up overlay owns input while open.
     if (useWardrobeStore.getState().open) return;
+    // Free Play: while Siren Head's swat is flinging me across the block, the
+    // RagdollController owns my position — no walking, gravity or vehicles.
+    if (useGameStore.getState().gameMode === 'freeplay' && useGameStore.getState().ragdoll?.active) return;
 
     // Fold on-screen touch controls into the SAME signals the keyboard drives,
     // so every movement path below (walk / munchies / treehouse / bike) works on
@@ -494,6 +497,7 @@ export function PlayerController() {
       }
     }
 
+    if (modeNow === 'freeplay') useNightStore.getState().setLocalRunning(false); // re-set below while moving
     if (!myRiding && (dx !== 0 || dz !== 0 || windDX !== 0 || windDZ !== 0)) {
       let moveX = 0;
       let moveZ = 0;
@@ -511,6 +515,7 @@ export function PlayerController() {
         const camRight = new Vector3().crossVectors(camDir, new Vector3(0, 1, 0)).normalize();
 
         const isRunning = !!k['shift'];
+        if (modeNow === 'freeplay') useNightStore.getState().setLocalRunning(isRunning);
         const speed = nightSpeedOverride ?? (isRunning ? RUN_SPEED : SPEED);
 
         moveDir = new Vector3()
@@ -799,7 +804,7 @@ const RIDE_BLVD_HALF_X = 74;                  // half the 140 m blvd + a little 
 const RIDE_BLVD_HALF_Z = 9;                   // blvd lanes + sidewalks + margin
 
 /** If (x,z) is outside the drivable area, return the nearest valid point; else null. */
-function clampToStreet(x: number, z: number): { x: number; z: number } | null {
+export function clampToStreet(x: number, z: number): { x: number; z: number } | null {
   const inStick = Math.abs(x) <= RIDE_STICK_HALF_X && z <= STRAIGHT_START_Z && z >= STRAIGHT_END_Z;
   const inBulb = x * x + z * z <= RIDE_BULB_R * RIDE_BULB_R;
   const inBlvd = Math.abs(x) <= RIDE_BLVD_HALF_X && Math.abs(z - RIDE_BLVD_Z) <= RIDE_BLVD_HALF_Z;

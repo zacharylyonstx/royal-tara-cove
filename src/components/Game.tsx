@@ -119,6 +119,7 @@ import { SkyDome } from './sky/SkyDome';
 import { SkyLighting } from './sky/SkyLighting';
 import { StreetLamps } from './sky/StreetLamps';
 import { NightWindows } from './sky/NightWindows';
+import { StalkerController } from '../systems/StalkerController';
 import { buildStreetLampColliders } from '../world/streetLamps';
 
 // Crisper shadows on desktop; lighter on touch to protect iPad framerate.
@@ -278,6 +279,10 @@ function FreeplayModeSystems() {
       <SkyLighting />
       <StreetLamps />
       <NightWindows />
+      {/* Siren Head after dark: roams the street once night falls. */}
+      <StalkerController />
+      <SirenHead />
+      <RagdollController />
     </>
   );
 }

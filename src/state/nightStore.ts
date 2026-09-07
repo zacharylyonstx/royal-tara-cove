@@ -87,6 +87,14 @@ interface NightStore {
   sirenProximity: number;
   setSirenProximity: (v: number) => void;
 
+  // ---- Free Play "Siren Head after dark" ----
+  /** Host-authoritative: is he out on the street right now? (synced) */
+  stalkerActive: boolean;
+  setStalkerActive: (v: boolean) => void;
+  /** Local toast cue (each client sets its own on transitions / its own swat). */
+  stalkerEvent: { kind: 'arrive' | 'swat' | 'dawn'; at: number } | null;
+  setStalkerEvent: (e: { kind: 'arrive' | 'swat' | 'dawn'; at: number } | null) => void;
+
   // ---- static layout (registered once on mode mount; survives reset) ----
   hideZones: NightZone[];
   safeZones: NightZone[];
@@ -138,6 +146,11 @@ export const useNightStore = create<NightStore>((set) => ({
   hideZones: [],
   safeZones: [],
   setZones: (hide, safe) => set({ hideZones: hide, safeZones: safe }),
+
+  stalkerActive: false,
+  setStalkerActive: (v) => set((st) => (st.stalkerActive === v ? st : { stalkerActive: v })),
+  stalkerEvent: null,
+  setStalkerEvent: (e) => set({ stalkerEvent: e }),
 
   reset: () =>
     set({

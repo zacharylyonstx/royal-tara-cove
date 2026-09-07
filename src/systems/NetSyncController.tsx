@@ -208,9 +208,10 @@ export function NetSyncController() {
           };
           snap.munchies = munchiesSnap;
         }
-        if (game.gameMode === 'night') {
+        if (game.gameMode === 'night' || game.gameMode === 'freeplay') {
           const ns = useNightStore.getState();
           snap.night = {
+            stalkerActive: ns.stalkerActive,
             sirenX: ns.sirenX, sirenZ: ns.sirenZ, sirenYaw: ns.sirenYaw,
             sirenState: ns.sirenState, sirenTargetId: ns.sirenTargetId,
             playerNightStates: { ...ns.playerNightStates },
