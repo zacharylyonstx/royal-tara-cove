@@ -84,6 +84,11 @@ interface PlayStore {
   familyBaskets: number;
   lastBasket: { by: CharacterId; at: number } | null;
 
+  /** Free Play camera: over-the-shoulder (true) or first-person (false).
+   *  Remembered per device. */
+  thirdPerson: boolean;
+  toggleThirdPerson: () => void;
+
   /** Last landed/attempted trick + a session counter, for the trick HUD. */
   lastTrick: { text: string; at: number } | null;
   trickCount: number;
@@ -137,12 +142,22 @@ declare global {
   interface Window { __play?: unknown; }
 }
 
+/** Third-person is the default: the kids want to SEE themselves. */
+function loadThirdPerson(): boolean {
+  try { return localStorage.getItem('cam.third') !== '0'; } catch { return true; }
+}
+
 export const usePlayStore = create<PlayStore>((set, get) => ({
   riding: { dad: null, penny: null, luke: null },
   heldBall: null,
   shotImpulse: null,
   familyBaskets: 0,
   lastBasket: null,
+  thirdPerson: loadThirdPerson(),
+  toggleThirdPerson: () => set((s) => {
+    try { localStorage.setItem('cam.third', s.thirdPerson ? '0' : '1'); } catch { /* no-op */ }
+    return { thirdPerson: !s.thirdPerson };
+  }),
   lastTrick: null,
   trickCount: 0,
   hoops: {},

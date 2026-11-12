@@ -15,6 +15,10 @@ import { useChatStore, EMOTES, type ChatMsg } from '../state/chatStore';
 import { useMunchiesStore, SLEEPWALKER_IDS, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
 import { MUNCHIES_PELLETS } from '../world/munchiesMap';
 import { ALL_TRICKS, type DogTrick } from '../world/pets';
+import { useNpcStore } from '../state/npcStore';
+import { NPCS } from '../world/npcs';
+
+const NPC_IDS = new Set(NPCS.map((n) => n.id));
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
@@ -215,6 +219,7 @@ let sendDoorAction: ((data: DoorMsg, peers?: string | string[]) => Promise<void[
 let sendParkAction: ((data: ParkMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendPetAction: ((data: PetMsg) => Promise<void[]>) | null = null;
 let sendMunchiesReqAction: ((data: { kind: string }) => Promise<void[]>) | null = null;
+let sendNpcAction: ((data: { id: string; text: string; by: CharacterId }) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 /** Last host regroup timestamp we applied (raw host clock); guests stamp their
  *  own perf.now() when it changes so the "Regroup!" toast times correctly. */
@@ -313,6 +318,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [parkSender, parkReceiver] = r.makeAction('park');
   const [petSender, petReceiver] = r.makeAction('pet');
   const [mreqSender, mreqReceiver] = r.makeAction('mreq');
+  const [npcSender, npcReceiver] = r.makeAction('npc');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
@@ -325,6 +331,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendParkAction = parkSender as unknown as typeof sendParkAction;
   sendPetAction = petSender as unknown as typeof sendPetAction;
   sendMunchiesReqAction = mreqSender as unknown as typeof sendMunchiesReqAction;
+  sendNpcAction = npcSender as unknown as typeof sendNpcAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
@@ -521,6 +528,15 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     } else useZoneStore.getState().firePetRemote(id, by);
   }));
 
+  // A townsperson said something to a friend — show the same speech bubble here.
+  npcReceiver((rawData) => netGuard('npc', () => {
+    if (!isObj(rawData) || !isCharId(rawData.by)) return;
+    const id = str(rawData.id);
+    const text = str(rawData.text).slice(0, 240);
+    if (!text || !NPC_IDS.has(id)) return;
+    useNpcStore.getState().say(id, text, rawData.by);
+  }));
+
   // Munchies: a guest tapped "Start" / "Play again" — only the host owns the
   // phase, so the request travels here and the host's controller acts on it.
   mreqReceiver((rawData) => netGuard('mreq', () => {
@@ -652,6 +668,11 @@ export async function broadcastDoor(msg: DoorMsg): Promise<void> {
 /** Tell peers I petted an animal. */
 export async function broadcastPet(id: string, by: CharacterId, stay = false, trick?: DogTrick): Promise<void> {
   if (sendPetAction) await sendPetAction({ id, by, stay: stay || undefined, trick, t: Date.now() }).catch(() => {});
+}
+
+/** Tell friends what a townsperson just said (so they see the bubble too). */
+export async function broadcastNpcSay(id: string, text: string, by: CharacterId): Promise<void> {
+  if (sendNpcAction) await sendNpcAction({ id, text, by }).catch(() => {});
 }
 
 /** Munchies "Start" / "Play again": the host acts on it directly; a guest asks

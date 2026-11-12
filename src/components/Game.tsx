@@ -91,6 +91,7 @@ import { NameTags } from '../ui/NameTags';
 import { AcrossTheBoulevard } from './zone/AcrossTheBoulevard';
 import { FamilyDog } from './zone/FamilyDog';
 import { Pups } from './zone/Pups';
+import { Npcs } from './npc/Npcs';
 import { buildAcrossBlvdColliders, buildAcrossBlvdFloors } from '../world/acrossBlvd';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
@@ -227,6 +228,8 @@ export function Game() {
       <FamilyDog />
       {/* Woof Gang's adoptable pups (Free Play only). */}
       <Pups />
+      {/* Neighbours, shopkeepers and the school's staff + students (Free Play only). */}
+      <Npcs />
 
       {/* Characters */}
       {CHARACTER_ORDER.map((id) => (

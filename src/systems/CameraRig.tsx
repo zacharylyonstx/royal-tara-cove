@@ -7,8 +7,10 @@ import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
 import { usePlayStore } from '../state/playStore';
 import { useNightStore } from '../state/nightStore';
-import { CHARACTER_ORDER } from '../world/characters';
+import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { isTouchDevice, TOUCH_LOOK_SENS } from './touchInput';
+import { isIndoors } from '../world/indoors';
+import type { RectCollider } from '../types';
 
 // First-person camera.
 // - Camera sits at the active character's eye height (1.7m).
@@ -22,6 +24,26 @@ const SENS = 0.0022;
 const EYE_HEIGHT = 1.7;
 const PITCH_LIMIT = Math.PI / 2 - 0.1;
 const SHAKE_AMP = 0.4; // smaller than 3rd-person since the cam is "on" the player
+
+const _euler = new Euler();
+
+/** Is a camera-sized point inside something solid? (Walls are checked with a
+ *  little padding; low things like fences only block a low camera.) */
+function boomBlocked(x: number, y: number, z: number, colliders: RectCollider[]): boolean {
+  const PAD = 0.22;
+  for (const c of colliders) {
+    if (c.passable) continue;
+    if (y < (c.minY ?? 0) - 0.1 || y > (c.maxY ?? 6) + 0.25) continue;
+    if (c.yaw) {
+      const cx = (c.minX + c.maxX) / 2, cz = (c.minZ + c.maxZ) / 2;
+      const cn = Math.cos(-c.yaw), sn = Math.sin(-c.yaw);
+      const lx = (x - cx) * cn - (z - cz) * sn;
+      const lz = (x - cx) * sn + (z - cz) * cn;
+      if (Math.abs(lx) < (c.maxX - c.minX) / 2 + PAD && Math.abs(lz) < (c.maxZ - c.minZ) / 2 + PAD) return true;
+    } else if (x > c.minX - PAD && x < c.maxX + PAD && z > c.minZ - PAD && z < c.maxZ + PAD) return true;
+  }
+  return false;
+}
 
 export function CameraRig() {
   const { camera, gl } = useThree();
@@ -42,6 +64,7 @@ export function CameraRig() {
   const yaw = useRef(Math.PI);
   const pitch = useRef(0);
   const locked = useRef(false);
+  const boomRef = useRef(3.5); // current third-person boom length (m)
   const eyeRef = useRef(EYE_HEIGHT); // smoothly lowers when crouching in night mode
 
   // DEV-only: drive the first-person look direction from the console / Playwright
@@ -269,7 +292,41 @@ export function CameraRig() {
 
     // Look quaternion from yaw + pitch. Euler order 'YXZ' is the standard
     // for FPS cams (yaw around Y first, then pitch around X, no roll).
-    camera.quaternion.setFromEuler(new Euler(pitch.current, yaw.current, 0, 'YXZ'));
+    camera.quaternion.setFromEuler(_euler.set(pitch.current, yaw.current, 0, 'YXZ'));
+
+    // --- Free Play over-the-shoulder view (V / 👁) ---
+    // Same look direction, but the camera hangs back on a boom behind the
+    // character so the kids can see themselves. The boom shortens when a wall,
+    // fence or ceiling is in the way, and never dips under the ground.
+    if (_camMode === 'freeplay' && usePlayStore.getState().thirdPerson) {
+      const cp = Math.cos(pitch.current);
+      const fx = -Math.sin(yaw.current) * cp;
+      const fy = Math.sin(pitch.current);
+      const fz = -Math.cos(yaw.current) * cp;
+      const h = CHARACTERS[activeId]?.height ?? 1.6;
+      const pivotY = pos.y + h * 0.86;
+      const indoors = isIndoors(pos.x, pos.z);
+      const want = indoors ? 2.3 : 3.1 + h * 0.6;
+      const colliders = useGameStore.getState().staticColliders;
+      let free = want;
+      for (let s = 0.5; s <= want + 0.01; s += 0.3) {
+        const cx = pos.x - fx * s, cy = pivotY - fy * s + 0.25, cz = pos.z - fz * s;
+        if (cy < pos.y + 0.3 || boomBlocked(cx, cy, cz, colliders)) { free = Math.max(0.5, s - 0.35); break; }
+      }
+      // Pull in instantly, ease back out (no popping through a wall and back).
+      boomRef.current = free < boomRef.current ? free : boomRef.current + (free - boomRef.current) * Math.min(1, 5 * dt);
+      const d = boomRef.current;
+      decayShake(dt);
+      const sk3 = shake > 0 ? shake * SHAKE_AMP : 0;
+      let camY = pivotY - fy * d + 0.25;
+      if (indoors) camY = Math.min(camY, pos.y + 2.55);
+      camera.position.set(
+        pos.x - fx * d + (Math.random() - 0.5) * sk3,
+        Math.max(pos.y + 0.35, camY) + (Math.random() - 0.5) * sk3,
+        pos.z - fz * d + (Math.random() - 0.5) * sk3,
+      );
+      return;
+    }
 
     // Camera shake (random per-axis jitter, decays over time).
     decayShake(dt);

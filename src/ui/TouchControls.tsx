@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { touchInput, isTouchDevice } from '../systems/touchInput';
 import { useGameStore } from '../state/gameStore';
+import { usePlayStore } from '../state/playStore';
 
 // On-screen controls for touch devices (iPad / phone): a left-hand virtual
 // joystick for movement and right-hand Jump + Action buttons. Hidden on
@@ -168,6 +169,9 @@ export function TouchControls() {
       >
         <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; touchInput.actionHeld = true; }} onRelease={() => { touchInput.actionHeld = false; }} size={Math.round(78 * scale)} />
         <ActionButton label="⤴" sub="Jump" color="#3a6db0" onPress={() => { touchInput.jumpQueued = true; }} size={Math.round(92 * scale)} />
+        {gameMode === 'freeplay' && (
+          <ActionButton label="👁" sub="View" color="#6b5aa8" onPress={() => usePlayStore.getState().toggleThirdPerson()} size={Math.round(60 * scale)} />
+        )}
       </div>
 
       {/* One-time look-gesture coach (FPS modes only). */}

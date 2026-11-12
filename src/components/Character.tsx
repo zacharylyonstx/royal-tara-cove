@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type { Group, Vector3 } from 'three';
+import type { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import type { CharacterDef } from '../types';
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
@@ -10,6 +10,10 @@ import { GLBRiggedCharacter } from './GLBRiggedCharacter';
 import { defaultAppearance } from '../world/wardrobe';
 import { useGameStore } from '../state/gameStore';
 import { SEATS, seatWorld } from '../world/seats';
+import { useChatStore, EMOTES } from '../state/chatStore';
+
+/** How long an emote's body move lasts (s). */
+const EMOTE_MOVE_S = 1.5;
 
 interface CharacterProps {
   def: CharacterDef;
@@ -27,7 +31,15 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   // (top-down) and Treehouse (behind-the-back) are third-person, so there the
   // kid must SEE themself — this was the "we disappeared!" bug.
   const gameMode = useGameStore((s) => s.gameMode);
-  const thirdPerson = gameMode === 'munchies' || gameMode === 'treehouse';
+  const tpFree = usePlayStore((s) => s.thirdPerson);
+  const thirdPerson = gameMode === 'munchies' || gameMode === 'treehouse' || (gameMode === 'freeplay' && tpFree);
+  const shadowRef = useRef<Mesh>(null);
+  // Body-language state (all visual — the real position/yaw are untouched).
+  const body = useRef({
+    lastY: positionRef.y, vy: 0, groundY: positionRef.y, squash: 1, squashV: 0,
+    faceYaw: yawRef.current, lastYaw: yawRef.current, bank: 0,
+    emote: '' as string, emoteId: '' as string, emoteAt: -10,
+  });
   const groupRef = useRef<Group>(null);
   const riding = usePlayStore((s) => s.riding[def.id]);
   const appearance = useWardrobeStore((s) => s.appearances[def.id]) ?? defaultAppearance(def.id);
@@ -65,23 +77,86 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
         yawRef.current = dr.heading;
       }
     }
-    g.position.copy(positionRef);
-    g.rotation.order = 'YXZ';
-    // Model front is +Z; the game's yaw convention is -Z-forward (yaw=π faces +Z).
-    g.rotation.y = yawRef.current + Math.PI;
-
-    // Sink the driver into the car seat (bikes stay at ground level).
-    if (live?.vehicle === 'car') g.position.y -= 0.45;
-    g.rotation.x = live?.flip ? live.flip.angle : 0;
-    const wipeActive = !!live && live.wipeoutUntil > performance.now();
-    g.rotation.z += ((wipeActive ? 1.15 : 0) - g.rotation.z) * Math.min(1, dt * 12);
-
+    const b = body.current;
+    const t = state.clock.elapsedTime;
     const dx = positionRef.x - lastPos.current.x;
     const dz = positionRef.z - lastPos.current.z;
     const speed = Math.hypot(dx, dz) / Math.max(dt, 0.001);
     speedRef.current = speed;
     lastPos.current.x = positionRef.x;
     lastPos.current.z = positionRef.z;
+
+    // --- which way the body faces ---
+    // Over-the-shoulder Free Play (my own character): turn to face the way I'm
+    // walking, and hold that pose when I stop — so I can swing the camera round
+    // and actually see my face. Everyone else just follows their synced yaw.
+    const ownTP = isActive && gameMode === 'freeplay' && tpFree && !live;
+    let targetYaw = yawRef.current;
+    if (ownTP) targetYaw = speed > 0.7 && speed < 40 ? Math.atan2(-dx, -dz) : b.faceYaw;
+    let dyaw = targetYaw - b.faceYaw;
+    while (dyaw > Math.PI) dyaw -= Math.PI * 2;
+    while (dyaw < -Math.PI) dyaw += Math.PI * 2;
+    b.faceYaw += dyaw * (ownTP ? Math.min(1, 11 * dt) : 1);
+
+    // --- squash & stretch on jumps, a bank into turns ---
+    const vy = (positionRef.y - b.lastY) / Math.max(dt, 0.001);
+    b.lastY = positionRef.y;
+    if (Math.abs(vy) < 0.2) b.groundY = positionRef.y;
+    if (!live) {
+      if (b.vy < -3.5 && vy > -0.5) b.squashV -= Math.min(5.5, -b.vy * 0.45);   // landed: squish
+      else if (b.vy < 1 && vy > 4) b.squashV += 2.2;                              // took off: stretch
+    }
+    b.vy = vy;
+    // Damped spring back to 1.
+    b.squashV += ((1 - b.squash) * 190 - b.squashV * 17) * dt;
+    b.squash = Math.max(0.72, Math.min(1.2, b.squash + b.squashV * dt));
+    let yawRate = (b.faceYaw - b.lastYaw) / Math.max(dt, 0.001);
+    b.lastYaw = b.faceYaw;
+    if (Math.abs(yawRate) > 30) yawRate = 0; // wrap / teleport
+    const bankWant = live ? 0 : Math.max(-0.16, Math.min(0.16, -yawRate * Math.min(speed, 10) * 0.012));
+    b.bank += (bankWant - b.bank) * Math.min(1, 8 * dt);
+
+    // --- emotes move the whole body (everyone sees it: it rides the chat bubble) ---
+    const bubble = useChatStore.getState().recentBubbleFor(def.id, Date.now());
+    if (bubble && bubble.id !== b.emoteId) {
+      b.emoteId = bubble.id;
+      if ((EMOTES as readonly string[]).includes(bubble.text)) { b.emote = bubble.text; b.emoteAt = t; }
+    }
+    const ep = (t - b.emoteAt) / EMOTE_MOVE_S;
+    let hop = 0, spin = 0, lean = 0, sway = 0;
+    if (ep >= 0 && ep < 1 && !live) {
+      const env = Math.sin(ep * Math.PI);
+      if (b.emote === '👋') { sway = Math.sin(t * 13) * 0.16 * env; hop = Math.abs(Math.sin(t * 6.5)) * 0.08 * env; }
+      else if (b.emote === '❤️') { hop = Math.abs(Math.sin(ep * Math.PI * 3)) * 0.2 * env; sway = Math.sin(ep * Math.PI * 3) * 0.1; }
+      else if (b.emote === '😂') { sway = Math.sin(t * 34) * 0.07 * env; lean = -0.2 * env; hop = Math.abs(Math.sin(t * 17)) * 0.04 * env; }
+      else if (b.emote === '🤩') { hop = Math.sin(ep * Math.PI) * 0.75; spin = ep * ep * (3 - 2 * ep) * Math.PI * 2; }
+    }
+
+    g.position.copy(positionRef);
+    g.position.y += hop;
+    g.rotation.order = 'YXZ';
+    // Model front is +Z; the game's yaw convention is -Z-forward (yaw=π faces +Z).
+    g.rotation.y = b.faceYaw + Math.PI + spin;
+    const sq = live ? 1 : b.squash;
+    const wide = 1 / Math.sqrt(sq);
+    g.scale.set(wide, sq, wide);
+
+    // Sink the driver into the car seat (bikes stay at ground level).
+    if (live?.vehicle === 'car') g.position.y -= 0.45;
+    g.rotation.x = live?.flip ? live.flip.angle : lean;
+    const wipeActive = !!live && live.wipeoutUntil > performance.now();
+    g.rotation.z += ((wipeActive ? 1.15 : b.bank + sway) - g.rotation.z) * Math.min(1, dt * 12);
+
+    // Soft contact shadow: stays on the ground and shrinks as you leave it.
+    const sh = shadowRef.current;
+    if (sh) {
+      const up = Math.max(0, positionRef.y + hop - b.groundY);
+      sh.visible = g.visible && live?.vehicle !== 'car' && up < 6;
+      sh.position.set(positionRef.x, b.groundY + 0.035, positionRef.z);
+      const k = 1 / (1 + up * 0.55);
+      sh.scale.setScalar(k);
+      (sh.material as MeshBasicMaterial).opacity = 0.3 * k;
+    }
 
     // Procedural limb swing — only when the dress-up avatar is shown (the photo-real
     // GLB does whole-body procedural animation; the rigged Action character plays
@@ -106,6 +181,11 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   });
 
   return (
+    <>
+    <mesh ref={shadowRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+      <circleGeometry args={[def.height * 0.24, 20]} />
+      <meshBasicMaterial color="#000000" transparent opacity={0.3} depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+    </mesh>
     <group ref={groupRef} visible={!isActive || !!riding || thirdPerson}>
       {action ? (
         <GLBRiggedCharacter
@@ -135,5 +215,6 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
         </mesh>
       )}
     </group>
+    </>
   );
 }

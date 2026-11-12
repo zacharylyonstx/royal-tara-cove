@@ -24,6 +24,7 @@ import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRo
 import { icecreamJingle, petChime } from '../audio';
 import { usePetStore, TREATS_PER_GRAB } from '../state/petStore';
 import { TRICKS, dogName, isDogZone, tricksFor } from '../world/pets';
+import { talkToNpc } from './npcTalk';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z, POND_X, POND_Z, POND_RX, POND_RZ, WEST_BLVD_X0, WEST_BLVD_X1, WEST_BLVD_Z, WEST_BULB_X, WEST_BULB_R, SCHOOL_DR_X, SCHOOL_DR_Z0, SCHOOL_DR_Z1 } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
 import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
@@ -61,6 +62,7 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
   if (c.kind === 'zone') {
     const zs = useZoneStore.getState();
     const it = zs.interactables[c.id];
+    if (it?.kind === 'talk') { talkToNpc(c.id, by); return; }
     if (it?.kind === 'treats') {
       // Woof Gang's treat jar: a handful of biscuits to hand out.
       usePetStore.getState().grabTreats();
@@ -154,6 +156,10 @@ export function PlayerController() {
   const { camera } = useThree();
   const keys = useRef<Record<string, boolean>>({});
   const yVel = useRef(0);
+  /** Smoothed on-foot velocity (Free Play) + when my feet last touched the floor. */
+  const walkVel = useRef({ x: 0, z: 0 });
+  const lastGroundedAt = useRef(0);
+  const jumpBufferedAt = useRef(-1);
   const trampCharge = useRef(0); // builds while jumping on the trampoline → higher bounces
 
   // In multiplayer the local browser only controls its claimed character.
@@ -229,6 +235,10 @@ export function PlayerController() {
         if (!eHoldStart.current) eHoldStart.current = performance.now();
       }
       // Siren Head Night: F toggles the flashlight (reveals you AND the way).
+      // Free Play: V swaps between first-person and the over-the-shoulder view.
+      if (k === 'v' && !e.repeat && useGameStore.getState().gameMode === 'freeplay' && !useChatStore.getState().inputOpen) {
+        usePlayStore.getState().toggleThirdPerson();
+      }
       if (k === 'f' && !e.repeat && useGameStore.getState().gameMode === 'night') {
         useNightStore.getState().toggleFlashlight();
       }
@@ -550,9 +560,16 @@ export function PlayerController() {
     }
 
     if (modeNow === 'freeplay') useNightStore.getState().setLocalRunning(false); // re-set below while moving
-    if (!myRiding && (dx !== 0 || dz !== 0 || windDX !== 0 || windDZ !== 0)) {
+    // Free Play: ease in and out of motion instead of snapping to full speed
+    // (so a coasting stop still needs this block for a few frames after release).
+    const easeMove = modeNow === 'freeplay';
+    const coasting = easeMove && Math.abs(walkVel.current.x) + Math.abs(walkVel.current.z) > 0.02;
+    if (myRiding) { walkVel.current.x = 0; walkVel.current.z = 0; }
+    if (!myRiding && (dx !== 0 || dz !== 0 || windDX !== 0 || windDZ !== 0 || coasting)) {
       let moveX = 0;
       let moveZ = 0;
+      let wantVX = 0;
+      let wantVZ = 0;
       let moveDir: Vector3 | null = null;
 
       if (dx !== 0 || dz !== 0) {
@@ -577,6 +594,16 @@ export function PlayerController() {
 
         moveX = moveDir.x * speed * dt;
         moveZ = moveDir.z * speed * dt;
+        wantVX = moveDir.x * speed;
+        wantVZ = moveDir.z * speed;
+      }
+      if (easeMove) {
+        // ~70 ms to get going, a touch quicker to stop: responsive, not robotic.
+        const kv = Math.min(1, (moveDir ? 15 : 19) * dt);
+        walkVel.current.x += (wantVX - walkVel.current.x) * kv;
+        walkVel.current.z += (wantVZ - walkVel.current.z) * kv;
+        moveX = walkVel.current.x * dt;
+        moveZ = walkVel.current.z * dt;
       }
 
       const desiredX = pos.x + moveX + windDX;
@@ -646,9 +673,18 @@ export function PlayerController() {
         }
       } else {
         trampCharge.current = 0;
-        // Normal jump (only when on the floor under us).
-        if (jumpHeld && pos.y - standingFloorY < 0.05) {
+        // Normal jump — forgiving: you can still jump a beat after running off
+        // a ledge ("coyote time"), and a press just before landing still counts.
+        const nowS = performance.now() / 1000;
+        const onFloor = pos.y - standingFloorY < 0.05;
+        if (onFloor && yVel.current <= 0) lastGroundedAt.current = nowS;
+        if (jumpedThisFrame) jumpBufferedAt.current = nowS;
+        const buffered = nowS - jumpBufferedAt.current < 0.14;
+        const canJump = onFloor || (nowS - lastGroundedAt.current < 0.12 && yVel.current <= 0);
+        if ((jumpHeld || buffered) && canJump && !usePlayStore.getState().heldBall && !nightDown) {
           yVel.current = JUMP_VELOCITY;
+          lastGroundedAt.current = -1;
+          jumpBufferedAt.current = -1;
           hopSound();
         }
         yVel.current -= GRAVITY * dt;

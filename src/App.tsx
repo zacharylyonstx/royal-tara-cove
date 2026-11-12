@@ -34,6 +34,7 @@ import { TornadoHud } from './ui/TornadoHud';
 import { StormVignette } from './ui/StormVignette';
 import { PowerFlash } from './ui/PowerFlash';
 import { MunchiesHud } from './ui/MunchiesHud';
+import { ErrandHud } from './ui/ErrandHud';
 import { MunchiesIntro } from './ui/MunchiesIntro';
 import { MunchiesLevelClear } from './ui/MunchiesLevelClear';
 import { MunchiesGameOver } from './ui/MunchiesGameOver';
@@ -98,6 +99,7 @@ export default function App() {
       <TornadoHud />
       <StormVignette />
       <PowerFlash />
+      <ErrandHud />
       <MunchiesHud />
       <MunchiesIntro />
       <MunchiesLevelClear />

@@ -8,7 +8,7 @@ import type { DogTrick } from '../world/pets';
 // proximity-scans + consumes E, InteractPrompt shows the label, and the
 // owning component reacts to the fired event for FX.
 
-export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt' | 'treats';
+export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt' | 'treats' | 'talk';
 
 export interface ZoneInteractable {
   id: string;
