@@ -36,8 +36,8 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   const shadowRef = useRef<Mesh>(null);
   // Body-language state (all visual — the real position/yaw are untouched).
   const body = useRef({
-    lastY: positionRef.y, vy: 0, groundY: positionRef.y, squash: 1, squashV: 0,
-    faceYaw: yawRef.current, lastYaw: yawRef.current, bank: 0,
+    init: false, lastY: 0, vy: 0, groundY: 0, squash: 1, squashV: 0,
+    faceYaw: 0, lastYaw: 0, bank: 0,
     emote: '' as string, emoteId: '' as string, emoteAt: -10,
   });
   const groupRef = useRef<Group>(null);
@@ -78,6 +78,11 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
       }
     }
     const b = body.current;
+    if (!b.init) {
+      b.init = true;
+      b.lastY = b.groundY = positionRef.y;
+      b.faceYaw = b.lastYaw = yawRef.current;
+    }
     const t = state.clock.elapsedTime;
     const dx = positionRef.x - lastPos.current.x;
     const dz = positionRef.z - lastPos.current.z;

@@ -1,9 +1,10 @@
 import { useMemo, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
+import { GableRoof } from './campusParts';
 import { Door } from '../Door';
 import {
-  SCHOOL_CX, SCHOOL_CZ, SCHOOL_YAW, SCHOOL_HALF_D,
+  SCHOOL_CX, SCHOOL_CZ, SCHOOL_YAW, SCHOOL_HALF_D, SCHOOL_SHIFT_X,
   SCHOOL_MIN_X, SCHOOL_MAX_X, SCHOOL_MIN_Z, SCHOOL_MAX_Z,
   SCHOOL_WALL_H, EXT_WALL_T, INT_WALL_T,
   SCHOOL_DOOR_ID, SCHOOL_DOOR_Z, SCHOOL_DOOR_W, SCHOOL_DOOR_H,
@@ -300,7 +301,7 @@ export function School() {
   );
 
   return (
-    <group position={[SCHOOL_CX, 0, SCHOOL_CZ]} rotation={[0, SCHOOL_YAW, 0]}>
+    <group position={[SCHOOL_CX + SCHOOL_SHIFT_X, 0, SCHOOL_CZ]} rotation={[0, SCHOOL_YAW, 0]}>
       {/* Floors (per-room tile planes) */}
       {F('fl-hall', SCHOOL_CX, (HALL_N_Z + HALL_S_Z) / 2, SCHOOL_MAX_X - SCHOOL_MIN_X, HALL_S_Z - HALL_N_Z, M.floorBeige)}
       {F('fl-classa', (SCHOOL_MIN_X + DIV_X) / 2, (SCHOOL_MIN_Z + HALL_N_Z) / 2, DIV_X - SCHOOL_MIN_X, HALL_N_Z - SCHOOL_MIN_Z, M.floorGreen)}
@@ -311,20 +312,18 @@ export function School() {
       {walls}
       {windows}
 
-      {/* Flat roof slab + parapet */}
-      {B('roof', SCHOOL_CX, SCHOOL_DOOR_Z, 4.38, SCHOOL_MAX_X - SCHOOL_MIN_X + 0.6, SCHOOL_MAX_Z - SCHOOL_MIN_Z + 0.6, 0.36, M.roof)}
-      {B('parapet-n', SCHOOL_CX, SCHOOL_MIN_Z - 0.15, 4.76, SCHOOL_MAX_X - SCHOOL_MIN_X + 0.6, 0.3, 0.44, M.parapet)}
-      {B('parapet-s', SCHOOL_CX, SCHOOL_MAX_Z + 0.15, 4.76, SCHOOL_MAX_X - SCHOOL_MIN_X + 0.6, 0.3, 0.44, M.parapet)}
-      {B('parapet-e', SCHOOL_MAX_X + 0.15, SCHOOL_DOOR_Z, 4.76, 0.3, SCHOOL_MAX_Z - SCHOOL_MIN_Z, 0.44, M.parapet)}
-      {B('parapet-w', SCHOOL_MIN_X - 0.15, SCHOOL_DOOR_Z, 4.76, 0.3, SCHOOL_MAX_Z - SCHOOL_MIN_Z, 0.44, M.parapet)}
+      {/* Silver standing-seam gable roof, like the real campus (was a flat slab).
+          A thin ceiling slab keeps the classrooms closed in from inside. */}
+      {B('ceiling', SCHOOL_CX, SCHOOL_DOOR_Z, 4.3, SCHOOL_MAX_X - SCHOOL_MIN_X + 0.3, SCHOOL_MAX_Z - SCHOOL_MIN_Z + 0.3, 0.16, M.cream)}
+      <GableRoof w={SCHOOL_MAX_Z - SCHOOL_MIN_Z + 1.1} len={SCHOOL_MAX_X - SCHOOL_MIN_X + 1.1} y={4.38} rise={2.3} ridgeAlong="z" />
 
       {/* Marquee over the front door */}
       {B('sign-board', SCHOOL_MAX_X + 0.2, SCHOOL_DOOR_Z, 3.35, 0.12, 9.6, 1.5, M.signGreen)}
       <Text position={lp(SCHOOL_MAX_X + 0.28, SCHOOL_DOOR_Z, 3.62)} rotation={[0, FACE_E, 0]} fontSize={0.55} color="#fff8ec" anchorX="center" anchorY="middle" letterSpacing={0.06}>
-        AVERY RANCH ELEMENTARY
+        RUTLEDGE ELEMENTARY
       </Text>
       <Text position={lp(SCHOOL_MAX_X + 0.28, SCHOOL_DOOR_Z, 2.98)} rotation={[0, FACE_E, 0]} fontSize={0.26} color="#e8d9a8" anchorX="center" anchorY="middle" letterSpacing={0.2}>
-        HOME OF THE ARMADILLOS
+        LEANDER ISD · PRE-K – 5
       </Text>
 
       {lights}
@@ -343,7 +342,7 @@ export function School() {
         height={SCHOOL_DOOR_H}
         color="#a8333d"
         trimColor="#f3eee4"
-        houseWorldX={SCHOOL_CX}
+        houseWorldX={SCHOOL_CX + SCHOOL_SHIFT_X}
         houseWorldZ={SCHOOL_CZ}
         houseYaw={SCHOOL_YAW}
         hinge="left"

@@ -56,6 +56,8 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
   const st = useRef({
     init: false, x: 0, z: 0, y: 0, yaw: 0, phase: Math.random() * 6, speed: 0,
     shown: true, near: false, waveUntil: 0, lastChatId: '', accum: 0, sit: 0,
+    /** How far along def.route I am: 0 = indoors side … route.length = outdoors. */
+    routeIdx: 0,
   });
   // React state only for things that change rarely (mount/unmount of DOM bits).
   const [shown, setShown] = useState(true);
@@ -92,7 +94,15 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
     const T = realSecondsAt(f);
     const night = sunElevation(f) < NPC_HOME_BELOW_EL;
     const plan = planNpc(def, index, T, night);
-    if (!s.init) { s.init = true; s.x = plan.x; s.z = plan.z; s.y = plan.y; s.yaw = plan.yaw ?? 0; }
+    const route = def.route;
+    if (!s.init) { s.init = true; s.x = plan.x; s.z = plan.z; s.y = plan.y; s.yaw = plan.yaw ?? 0; s.routeIdx = route && plan.outside ? route.length : 0; }
+    // Going in or out? Head for the next doorway on the way, not straight through the wall.
+    let tx = plan.x, tz = plan.z, viaDoor = false;
+    if (route) {
+      if (plan.outside && s.routeIdx < route.length) { [tx, tz] = route[s.routeIdx]; viaDoor = true; }
+      else if (!plan.outside && s.routeIdx > 0) { [tx, tz] = route[s.routeIdx - 1]; viaDoor = true; }
+      if (viaDoor && Math.hypot(tx - s.x, tz - s.z) < 0.45) s.routeIdx += plan.outside ? 1 : -1;
+    }
 
     // Far away? Skip everything but keeping the position current.
     const cdx = camera.position.x - s.x, cdz = camera.position.z - s.z;
@@ -111,13 +121,15 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
     const noticed = nd < NOTICE_DIST || (talking && nd < 6);
 
     // Chase the plan (unless someone has stopped for a chat).
-    const dx = plan.x - s.x, dz = plan.z - s.z;
+    const dx = tx - s.x, dz = tz - s.z;
     const dist = Math.hypot(dx, dz);
     let moving = false;
-    if (dist > 60) { s.x = plan.x; s.z = plan.z; }           // schedule jumped (clock set): just be there
+    if (Math.hypot(plan.x - s.x, plan.z - s.z) > 90) {        // schedule jumped (clock set): just be there
+      s.x = plan.x; s.z = plan.z; s.routeIdx = route && plan.outside ? route.length : 0;
+    }
     else if (dist > 0.12 && !(noticed && !plan.hide)) {
       moving = true;
-      const v = Math.min(dist / dt, dist > 5 ? Math.max(plan.speed * 2, 3.4) : plan.speed);
+      const v = Math.min(dist / dt, dist > 5 && !viaDoor ? Math.max(plan.speed * 2, 3.4) : plan.speed);
       s.x += (dx / dist) * v * dt;
       s.z += (dz / dist) * v * dt;
       s.speed = v;
@@ -161,7 +173,7 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
     if (!g.visible) return;
 
     // --- limbs ---
-    const sitting = plan.sit && !moving && dist < 0.3;
+    const sitting = plan.sit && !moving && !viaDoor && dist < 0.3;
     s.sit += ((sitting ? 1 : 0) - s.sit) * Math.min(1, 8 * dt);
     if (moving) s.phase += dt * Math.min(13, 4.5 + s.speed * 1.6);
     else s.phase += dt * 1.5 * -Math.sin(s.phase);

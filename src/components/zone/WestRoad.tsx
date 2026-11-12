@@ -10,6 +10,7 @@ import {
   WEST_MONUMENT_X, WEST_MONUMENT_Z,
   WEST_OAKS, WEST_BENCHES, westBenchYaw,
 } from '../../world/acrossBlvd';
+import { RAIL_X } from '../../world/westAvery';
 
 // Ground-plane heights are staggered so nothing z-fights the existing world:
 // blvd asphalt 0.016 > drive 0.015 > walkway 0.014 > paths 0.013 > playground
@@ -71,9 +72,11 @@ export function WestRoad() {
   const walkOff = WEST_BLVD_W / 2 + SIDEWALK_WIDTH / 2;
   // Center dashes continue the original blvd's 8.5 m rhythm, stopping short
   // of the turnaround bulb.
-  const dashXs = useMemo(() => Array.from({ length: 5 }, (_, i) => -73.5 - i * 8.5), []);
+  const dashXs = useMemo(() => Array.from({ length: Math.floor((-73.5 - (WEST_BULB_X + WEST_BULB_R + 4)) / 8.5) + 1 }, (_, i) => -73.5 - i * 8.5)
+    // …with a gap where the tracks cross.
+    .filter((x) => Math.abs(x - RAIL_X) > 7), []);
   const driveLen = 21; // z −187..−208 (the apron carries it on to −215)
-  const xwalkXs = useMemo(() => Array.from({ length: 5 }, (_, i) => -62.3 + i * 1.15), []);
+  const xwalkXs = useMemo(() => Array.from({ length: 5 }, (_, i) => SCHOOL_DR_X - 2.3 + i * 1.15), []);
 
   return (
     <group>

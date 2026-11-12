@@ -1,6 +1,6 @@
 import { HOUSES } from './houses';
 import { buildLots } from './lots';
-import { SCHOOL_MIN_X, SCHOOL_MAX_X, SCHOOL_MIN_Z, SCHOOL_MAX_Z } from './school';
+import { SCHOOL_MIN_X, SCHOOL_MAX_X, SCHOOL_MIN_Z, SCHOOL_MAX_Z, SCHOOL_SHIFT_X } from './school';
 import { WINGA_MIN_X, WINGA_MAX_X, WINGA_FRONT_Z, WINGA_BACK_Z, WINGB_FRONT_X, WINGB_BACK_X, WINGB_MIN_Z, WINGB_MAX_Z } from './acrossBlvd';
 
 /**
@@ -24,7 +24,7 @@ function buildRects(): Rect[] {
   // 10600's "68" playhouse (house-local [3,17] → world z + 37.9).
   rects.push({ cx: 3, cz: 54.9, yaw: 0, hw: 2.3, hd: 2.3 });
   // Avery Ranch Elementary.
-  rects.push({ cx: (SCHOOL_MIN_X + SCHOOL_MAX_X) / 2, cz: (SCHOOL_MIN_Z + SCHOOL_MAX_Z) / 2, yaw: 0, hw: (SCHOOL_MAX_X - SCHOOL_MIN_X) / 2 + MARGIN, hd: (SCHOOL_MAX_Z - SCHOOL_MIN_Z) / 2 + MARGIN });
+  rects.push({ cx: (SCHOOL_MIN_X + SCHOOL_MAX_X) / 2 + SCHOOL_SHIFT_X, cz: (SCHOOL_MIN_Z + SCHOOL_MAX_Z) / 2, yaw: 0, hw: (SCHOOL_MAX_X - SCHOOL_MIN_X) / 2 + MARGIN, hd: (SCHOOL_MAX_Z - SCHOOL_MIN_Z) / 2 + MARGIN });
   // The shops across the boulevard.
   // The covered storefront walkways count too: the boutique's dress-up spot and
   // the Woof Gang pen sit a couple of metres out from the wall, and a kid

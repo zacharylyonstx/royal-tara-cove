@@ -30,6 +30,7 @@ import {
   type ShopUnit,
   BOUTIQUE_X, BOUTIQUE_Z,
 } from '../../world/acrossBlvd';
+import { WestAvery } from './WestAvery';
 
 const ASPHALT = '#3d4045';
 const PATH_TAN = '#cbb693';
@@ -73,6 +74,8 @@ export function AcrossTheBoulevard() {
       <Plaza />
       <WestRoad />
       <School />
+      {/* West expansion: tracks + train, Rutledge campus, creek + trails, pool. */}
+      <WestAvery />
 
       {/* Playground corner (west of the pond, wood-chip pad). */}
       <mesh position={[PLAYGROUND_X, 0.012, PLAYGROUND_Z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

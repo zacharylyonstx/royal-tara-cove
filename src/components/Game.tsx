@@ -34,6 +34,8 @@ import { LiveOak } from './vegetation/LiveOak';
 import { RiddenBikes } from './props/RiddenBike';
 import { ParkedBikes } from './props/Bike';
 import { VehicleColliderSync } from '../systems/VehicleColliderSync';
+import { TerrainBackdrop } from './TerrainBackdrop';
+import { GROUND_CX, GROUND_CZ, GROUND_R } from '../world/terrain';
 import { VehicleFX } from './VehicleFX';
 import { DistantScenery } from './DistantScenery';
 import { Ramp, buildRampFloor, buildRampColliders } from './props/Ramp';
@@ -93,6 +95,7 @@ import { FamilyDog } from './zone/FamilyDog';
 import { Pups } from './zone/Pups';
 import { Npcs } from './npc/Npcs';
 import { buildAcrossBlvdColliders, buildAcrossBlvdFloors } from '../world/acrossBlvd';
+import { buildWestAveryFloors } from '../world/westAvery';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
 import { Hail } from './weather/Hail';
@@ -166,7 +169,7 @@ export function Game() {
         ...buildPlayhouseColliders(hero, heroLot),
       ];
       // ONE setFloors call for the whole world (it replaces wholesale).
-      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors()]);
+      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors(), ...buildWestAveryFloors()]);
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
@@ -184,10 +187,13 @@ export function Game() {
       <DynamicLights />
 
       {/* Ground plane (textured grass) */}
-      <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[600, 600]} />
+      {/* A disc, not a square: the flat play surface ends where the modelled
+          terrain (real relief — world/terrain.ts) takes over. */}
+      <mesh position={[GROUND_CX, 0, GROUND_CZ]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <circleGeometry args={[GROUND_R + 1.5, 96]} />
         <primitive object={mat.grass()} attach="material" />
       </mesh>
+      <TerrainBackdrop />
 
       <Street />
       <Ramp />

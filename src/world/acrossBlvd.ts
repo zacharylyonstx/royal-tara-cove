@@ -15,6 +15,8 @@
 // zone stays z ≥ -250, x within ±70 (vehicle clamp ZONE_* below).
 import { rectAt } from './colliders';
 import { buildSchoolColliders } from './school';
+import { buildWestAveryColliders } from './westAvery';
+import * as WA from './westAvery';
 import type { Floor, RectCollider } from '../types';
 
 // --- Duck pond (west pocket between the blvd and Casitas) ---
@@ -254,6 +256,7 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
 
   // Avery Ranch Elementary (west of the pond — walls, lockers, desks, yard).
   out.push(...buildSchoolColliders());
+  out.push(...buildWestAveryColliders());
 
   // West Road extension (blvd continues west + School Dr): monument, oaks, benches.
   out.push(...buildWestRoadColliders());
@@ -270,23 +273,23 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
 // is wired separately off the exported constants below.
 
 /** Boulevard extension: asphalt continues west at the same centerline. */
-export const WEST_BLVD_X0 = -124;
+export const WEST_BLVD_X0 = -262; // (was −124: the boulevard now runs on west, over the tracks, to the school)
 export const WEST_BLVD_X1 = -70;
 export const WEST_BLVD_Z = -183.5; // centerline (Street.tsx avenueZ = STRAIGHT_END_Z − 4)
 export const WEST_BLVD_W = 12;     // asphalt width (matches Street.tsx avenueWidth)
 
 /** West turnaround bulb — cars loop here instead of dead-ending. */
-export const WEST_BULB_X = -124;
+export const WEST_BULB_X = -262;
 export const WEST_BULB_R = 10;
 
 /** School Dr: north-south driveway serving the school's front door. */
-export const SCHOOL_DR_X = -60;   // centerline (east of the school, x −88..−66)
+export const SCHOOL_DR_X = -230;  // Staked Plains Dr — centerline, just east of Rutledge's front door
 export const SCHOOL_DR_Z0 = -187; // leaves the blvd
 export const SCHOOL_DR_Z1 = -214; // far end of the drop-off apron
 export const SCHOOL_DR_W = 6;
 
 /** "AVERY RANCH" monument sign on the turnaround's west rim. */
-export const WEST_MONUMENT_X = -135.3;
+export const WEST_MONUMENT_X = -273.3;
 export const WEST_MONUMENT_Z = WEST_BLVD_Z;
 
 /** Live oaks lining the extension's far (school) side. */
@@ -313,6 +316,10 @@ export function westBenchYaw(b: { x: number; z: number }): number {
  * the turnaround circle, the School Dr strip, and the school walkway band all
  * stay collider-free so every inch of the extension is drivable/walkable.
  */
+if (import.meta.env?.DEV && (WA.WEST_BLVD_Z !== WEST_BLVD_Z || WA.POND_X !== POND_X || WA.POND_Z !== POND_Z || WA.POND_RX !== POND_RX || WA.POND_RZ !== POND_RZ)) {
+  console.error('[world] westAvery.ts mirrors of the pond / boulevard constants are out of date');
+}
+
 export function buildWestRoadColliders(): RectCollider[] {
   const out: RectCollider[] = [];
   // Monument (plinth footprint; runs along Z because the sign faces east).

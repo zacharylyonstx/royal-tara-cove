@@ -141,6 +141,50 @@ export function dogBark(pitch = 1) {
   }
 }
 
+/** Railroad-crossing bell: one "ding" (call it on a ~0.45 s beat while the gates are down). */
+export function crossingBell(volume = 1) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  for (const f of [1480, 2210]) {
+    const o = c.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = f;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.09 * volume, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.32);
+    o.connect(g).connect(master(c));
+    o.start(t0);
+    o.stop(t0 + 0.34);
+  }
+}
+
+/** Commuter-train horn: a friendly two-note toot. */
+export function trainHorn(volume = 1) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  [[0, 0.5], [0.62, 0.95]].forEach(([at, len]) => {
+    for (const f of [311, 370, 466]) {
+      const o = c.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      const lp = c.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1400;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.linearRampToValueAtTime(0.055 * volume, t0 + at + 0.05);
+      g.gain.setValueAtTime(0.055 * volume, t0 + at + len - 0.1);
+      g.gain.exponentialRampToValueAtTime(0.0008, t0 + at + len);
+      o.connect(lp).connect(g).connect(master(c));
+      o.start(t0 + at);
+      o.stop(t0 + at + len + 0.02);
+    }
+  });
+}
+
 /** Soft happy chime for petting — gentle major third shimmer. */
 export function petChime() {
   const c = ensureCtx();

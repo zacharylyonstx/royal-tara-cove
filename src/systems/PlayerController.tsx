@@ -25,7 +25,8 @@ import { icecreamJingle, petChime } from '../audio';
 import { usePetStore, TREATS_PER_GRAB } from '../state/petStore';
 import { TRICKS, dogName, isDogZone, tricksFor } from '../world/pets';
 import { talkToNpc } from './npcTalk';
-import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z, POND_X, POND_Z, POND_RX, POND_RZ, WEST_BLVD_X0, WEST_BLVD_X1, WEST_BLVD_Z, WEST_BULB_X, WEST_BULB_R, SCHOOL_DR_X, SCHOOL_DR_Z0, SCHOOL_DR_Z1 } from '../world/acrossBlvd';
+import { WEST_DRIVE_REGIONS, wadeDepthAt, type DriveRegion } from '../world/westAvery';
+import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z, WEST_BLVD_Z, WEST_BULB_X, WEST_BULB_R } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
 import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
 import { CHARACTER_ORDER } from '../world/characters';
@@ -40,8 +41,8 @@ const FREEPLAY_HOME: Record<CharacterId, [number, number]> = {
 };
 const R_HOLD_MS = 900;
 const STAY_HOLD_MS = 800;
-/** How deep you stand in the duck pond while wading (shin-deep, kid-safe). */
-const WADE_Y = -0.32;
+
+
 
 function isCarDriven(riding: Record<CharacterId, RidingState | null>, carId: string): boolean {
   for (const r of Object.values(riding)) if (r && r.vehicle === 'car' && r.bikeId === carId) return true;
@@ -640,9 +641,9 @@ export function PlayerController() {
       let standingFloorY = floorAt(pos.x, pos.z, pos.y, floors);
       // Wading: inside the pond (and off the dock) you sink to your shins.
       if (modeNow === 'freeplay' && standingFloorY <= 0) {
-        const pdx = (pos.x - POND_X) / POND_RX;
-        const pdz = (pos.z - POND_Z) / POND_RZ;
-        if (pdx * pdx + pdz * pdz < 1) standingFloorY = WADE_Y;
+        // Pond, creek and pool (world/westAvery.ts wadeDepthAt).
+        const wade = wadeDepthAt(pos.x, pos.z);
+        if (wade < 0) standingFloorY = wade;
       }
       // jumpedThisFrame folds in the touch Jump button (edge-triggered): one tap
       // = one jump/bounce, alongside held Space on keyboard.
@@ -898,44 +899,38 @@ const RIDE_BLVD_HALF_X = 74;                  // half the 140 m blvd + a little 
 const RIDE_BLVD_HALF_Z = 9;                   // blvd lanes + sidewalks + margin
 
 /** If (x,z) is outside the drivable area, return the nearest valid point; else null. */
-export function clampToStreet(x: number, z: number): { x: number; z: number } | null {
-  const inStick = Math.abs(x) <= RIDE_STICK_HALF_X && z <= STRAIGHT_START_Z && z >= STRAIGHT_END_Z;
-  const inBulb = x * x + z * z <= RIDE_BULB_R * RIDE_BULB_R;
-  const inBlvd = Math.abs(x) <= RIDE_BLVD_HALF_X && Math.abs(z - RIDE_BLVD_Z) <= RIDE_BLVD_HALF_Z;
+/** Every place a bike / car / golf cart may be. Data-driven (world/westAvery.ts
+ *  DriveRegion) so a new road is one line, not another hand-written clamp. */
+const DRIVE_REGIONS: DriveRegion[] = [
+  { kind: 'rect', minX: -RIDE_STICK_HALF_X, maxX: RIDE_STICK_HALF_X, minZ: STRAIGHT_END_Z, maxZ: STRAIGHT_START_Z },
+  { kind: 'circle', x: 0, z: 0, r: RIDE_BULB_R },
+  { kind: 'rect', minX: -RIDE_BLVD_HALF_X, maxX: RIDE_BLVD_HALF_X, minZ: RIDE_BLVD_Z - RIDE_BLVD_HALF_Z, maxZ: RIDE_BLVD_Z + RIDE_BLVD_HALF_Z },
   // Across-the-boulevard park zone (pond / shops / playground).
-  const inZone = Math.abs(x) <= ZONE_HALF_X && z <= ZONE_MAX_Z && z >= ZONE_MIN_Z;
-  // West extension: the continued blvd, its turnaround bulb, School Dr + the
-  // schoolyard apron — "make sure all the map is drivable".
-  const inWestBlvd = x >= WEST_BLVD_X0 && x <= WEST_BLVD_X1 && Math.abs(z - WEST_BLVD_Z) <= RIDE_BLVD_HALF_Z;
-  const inWestBulb = (x - WEST_BULB_X) ** 2 + (z - WEST_BLVD_Z) ** 2 <= (WEST_BULB_R + 3) ** 2;
-  const inSchoolDr = Math.abs(x - SCHOOL_DR_X) <= 9 && z <= SCHOOL_DR_Z0 && z >= SCHOOL_DR_Z1 - 2;
-  if (inStick || inBulb || inBlvd || inZone || inWestBlvd || inWestBulb || inSchoolDr) return null;
-  // Outside all regions: clamp to whichever region edge is nearest.
-  const sx = Math.max(-RIDE_STICK_HALF_X, Math.min(RIDE_STICK_HALF_X, x));
-  const sz = Math.max(STRAIGHT_END_Z, Math.min(STRAIGHT_START_Z, z));
-  const dStick = (x - sx) ** 2 + (z - sz) ** 2;
-  const vx = Math.max(-RIDE_BLVD_HALF_X, Math.min(RIDE_BLVD_HALF_X, x));
-  const vz = Math.max(RIDE_BLVD_Z - RIDE_BLVD_HALF_Z, Math.min(RIDE_BLVD_Z + RIDE_BLVD_HALF_Z, z));
-  const dBlvd = (x - vx) ** 2 + (z - vz) ** 2;
-  const dd = Math.hypot(x, z) || 1;
-  const bx = (x / dd) * RIDE_BULB_R;
-  const bz = (z / dd) * RIDE_BULB_R;
-  const dBulb = (x - bx) ** 2 + (z - bz) ** 2;
-  const zx = Math.max(-ZONE_HALF_X, Math.min(ZONE_HALF_X, x));
-  const zz = Math.max(ZONE_MIN_Z, Math.min(ZONE_MAX_Z, z));
-  const dZone = (x - zx) ** 2 + (z - zz) ** 2;
-  const wx = Math.max(WEST_BLVD_X0, Math.min(WEST_BLVD_X1, x));
-  const wz = Math.max(WEST_BLVD_Z - RIDE_BLVD_HALF_Z, Math.min(WEST_BLVD_Z + RIDE_BLVD_HALF_Z, z));
-  const dWest = (x - wx) ** 2 + (z - wz) ** 2;
-  const dx2 = Math.max(SCHOOL_DR_X - 9, Math.min(SCHOOL_DR_X + 9, x));
-  const dz2 = Math.max(SCHOOL_DR_Z1 - 2, Math.min(SCHOOL_DR_Z0, z));
-  const dDr = (x - dx2) ** 2 + (z - dz2) ** 2;
-  const best = Math.min(dStick, dBlvd, dBulb, dZone, dWest, dDr);
-  if (best === dStick) return { x: sx, z: sz };
-  if (best === dBlvd) return { x: vx, z: vz };
-  if (best === dZone) return { x: zx, z: zz };
-  if (best === dWest) return { x: wx, z: wz };
-  if (best === dDr) return { x: dx2, z: dz2 };
+  { kind: 'rect', minX: -ZONE_HALF_X, maxX: ZONE_HALF_X, minZ: ZONE_MIN_Z, maxZ: ZONE_MAX_Z },
+  { kind: 'circle', x: WEST_BULB_X, z: WEST_BLVD_Z, r: WEST_BULB_R + 3 },
+  ...WEST_DRIVE_REGIONS,
+];
+
+export function clampToStreet(x: number, z: number): { x: number; z: number } | null {
+  let bestD = Infinity;
+  let bx = x, bz = z;
+  for (const r of DRIVE_REGIONS) {
+    let cx: number, cz: number;
+    if (r.kind === 'rect') {
+      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return null;
+      cx = Math.max(r.minX, Math.min(r.maxX, x));
+      cz = Math.max(r.minZ, Math.min(r.maxZ, z));
+    } else {
+      const dx = x - r.x, dz = z - r.z;
+      const d = Math.hypot(dx, dz) || 1;
+      if (d <= r.r) return null;
+      cx = r.x + (dx / d) * r.r;
+      cz = r.z + (dz / d) * r.r;
+    }
+    const dd = (x - cx) ** 2 + (z - cz) ** 2;
+    if (dd < bestD) { bestD = dd; bx = cx; bz = cz; }
+  }
+  // Outside every region: snap to the nearest region edge.
   return { x: bx, z: bz };
 }
 

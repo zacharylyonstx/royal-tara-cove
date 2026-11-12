@@ -68,7 +68,7 @@ export function WelcomeScreen() {
           <GameCard
             emoji="🏘️"
             title="FREE PLAY"
-            blurb="Just play! Ride together in the truck, pet Sparky and the ducks, go shopping at the Plaza, and hang out in our house. No aliens, no storms — just our neighborhood."
+            blurb="Just play! Ride to Rutledge Elementary (wait for the train!), talk to the neighbors and run errands for helper stars, swim at the pool, adopt a Pomeranian, and hang out in our house."
             accent="#e09028"
             onPlay={() => pick('freeplay')}
           />

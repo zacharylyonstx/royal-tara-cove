@@ -1,11 +1,11 @@
 // The townsfolk of Royal Tara Cove (Free Play): neighbours, shopkeepers, and the
 // staff + students of the school. All fictional. Pure data + a pure planner:
 // "where should NPC X be at real-second T?" — the same answer on every client.
-import type { CharacterId } from '../types';
-import type { Appearance } from './wardrobe';
 import { hash01 } from './npcTime';
 import { CART_X, CART_Z, DOCK_END_Z, DOCK_Y, GARDEN_HOMES, PEN_X, PLAYGROUND_X, PLAYGROUND_Z, POND_X } from './acrossBlvd';
 import { SCHOOL_NPCS } from './schoolNpcs';
+import { npcAppearance as A, npcLook } from './npcLook';
+import { SCHOOL_MIN_X, SCHOOL_MAX_X, SCHOOL_MIN_Z, SCHOOL_MAX_Z, SCHOOL_SHIFT_X } from './school';
 
 export type NpcPlace =
   /** Stands (or sits) at one spot. */
@@ -17,13 +17,8 @@ export type NpcPlace =
   /** A pupil: desk during lessons, playground at recess. */
   | { kind: 'student'; seat: [number, number, number]; recess: [number, number, number] };
 
-export interface NpcLook {
-  /** Which family rig to borrow face details from ('dad' = bearded). */
-  base: CharacterId;
-  height: number;
-  skin: string;
-  appearance: Appearance;
-}
+export type { NpcLook } from './npcLook';
+import type { NpcLook } from './npcLook';
 
 export interface Errand {
   id: string;
@@ -43,6 +38,10 @@ export interface NpcDef {
   /** After dark: a place to be, or 'home' = walk to `home` and go indoors. */
   night: NpcPlace | 'home';
   home?: [number, number];
+  /** Doorways between this NPC's INDOOR spots and the outdoors, ordered from
+   *  the inside out — so pupils use the classroom door, the hall and the front
+   *  door instead of gliding through walls. */
+  route?: [number, number][];
   /** "…at the school", for errand directions. */
   where: string;
   lines: string[];
@@ -51,16 +50,7 @@ export interface NpcDef {
   errands?: Errand[];
 }
 
-const A = (
-  hair: [string, string], top: [string, string], bottom: [string, string], shoes: [string, string],
-  hat: [string, string] = ['none', ''], accessory: [string, string] = ['none', ''],
-): Appearance => ({
-  hair: { item: hair[0], color: hair[1] }, top: { item: top[0], color: top[1] },
-  bottom: { item: bottom[0], color: bottom[1] }, shoes: { item: shoes[0], color: shoes[1] },
-  hat: { item: hat[0], color: hat[1] }, accessory: { item: accessory[0], color: accessory[1] },
-});
-export const npcLook = (base: CharacterId, height: number, skin: string, appearance: Appearance): NpcLook => ({ base, height, skin, appearance });
-export const npcAppearance = A;
+
 
 const bakery = GARDEN_HOMES.find((h) => h.bakery) ?? GARDEN_HOMES[0];
 
@@ -211,17 +201,19 @@ export interface NpcPlan {
   hide: boolean;
   /** Preferred walking speed (m/s). */
   speed: number;
+  /** Is this spot outdoors? (Only matters for NPCs with a `route`.) */
+  outside: boolean;
 }
 
 function planPlace(p: NpcPlace, T: number, salt: number): NpcPlan {
   switch (p.kind) {
     case 'post':
-      return { x: p.x, z: p.z, y: p.y ?? 0, yaw: p.yaw, sit: !!p.sit, hide: false, speed: 1.5 };
+      return { x: p.x, z: p.z, y: p.y ?? 0, yaw: p.yaw, sit: !!p.sit, hide: false, speed: 1.5, outside: true };
     case 'wander': {
       const k = Math.floor(T / p.period);
       const a = hash01(k, salt) * Math.PI * 2;
       const r = Math.sqrt(hash01(k + 17, salt)) * p.r;
-      return { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r, y: p.y ?? 0, yaw: null, sit: false, hide: false, speed: 1.3 };
+      return { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r, y: p.y ?? 0, yaw: null, sit: false, hide: false, speed: 1.3, outside: true };
     }
     case 'patrol': {
       const pts = p.path;
@@ -237,30 +229,41 @@ function planPlace(p: NpcPlace, T: number, salt: number): NpcPlan {
         if (s <= seg[i]) {
           const b = pts[(i + 1) % pts.length];
           const k = seg[i] > 0 ? s / seg[i] : 0;
-          return { x: pts[i][0] + (b[0] - pts[i][0]) * k, z: pts[i][1] + (b[1] - pts[i][1]) * k, y: 0, yaw: null, sit: false, hide: false, speed: p.speed };
+          return { x: pts[i][0] + (b[0] - pts[i][0]) * k, z: pts[i][1] + (b[1] - pts[i][1]) * k, y: 0, yaw: null, sit: false, hide: false, speed: p.speed, outside: true };
         }
         s -= seg[i];
       }
-      return { x: pts[0][0], z: pts[0][1], y: 0, yaw: null, sit: false, hide: false, speed: p.speed };
+      return { x: pts[0][0], z: pts[0][1], y: 0, yaw: null, sit: false, hide: false, speed: p.speed, outside: true };
     }
     case 'student': {
       if (isRecess(T)) {
         const k = Math.floor(T / 6);
         const a = hash01(k, salt) * Math.PI * 2;
         const r = Math.sqrt(hash01(k + 5, salt)) * p.recess[2];
-        return { x: p.recess[0] + Math.cos(a) * r, z: p.recess[1] + Math.sin(a) * r, y: 0, yaw: null, sit: false, hide: false, speed: 2.6 };
+        return { x: p.recess[0] + Math.cos(a) * r, z: p.recess[1] + Math.sin(a) * r, y: 0, yaw: null, sit: false, hide: false, speed: 2.6, outside: true };
       }
-      return { x: p.seat[0], z: p.seat[1], y: 0, yaw: p.seat[2], sit: true, hide: false, speed: 2.0 };
+      return { x: p.seat[0], z: p.seat[1], y: 0, yaw: p.seat[2], sit: true, hide: false, speed: 2.0, outside: true };
     }
   }
 }
 
+/** The school building's footprint (world), for "is this spot indoors?". */
+function inSchool(x: number, z: number): boolean {
+  return x > SCHOOL_MIN_X + SCHOOL_SHIFT_X && x < SCHOOL_MAX_X + SCHOOL_SHIFT_X && z > SCHOOL_MIN_Z && z < SCHOOL_MAX_Z;
+}
+
 /** Where should this NPC be heading right now? */
 export function planNpc(def: NpcDef, index: number, T: number, night: boolean): NpcPlan {
+  const p = planNpcRaw(def, index, T, night);
+  p.outside = !inSchool(p.x, p.z);
+  return p;
+}
+
+function planNpcRaw(def: NpcDef, index: number, T: number, night: boolean): NpcPlan {
   if (night) {
     if (def.night === 'home') {
       const h = def.home ?? [0, 0];
-      return { x: h[0], z: h[1], y: 0, yaw: null, sit: false, hide: true, speed: 2.4 };
+      return { x: h[0], z: h[1], y: 0, yaw: null, sit: false, hide: true, speed: 2.4, outside: true };
     }
     return planPlace(def.night, T, index + 1);
   }

@@ -130,7 +130,21 @@ export const ZONE_SIGN_Z = -211.5;
  * door and each room doorway; furniture gets small low colliders so kids
  * never get stuck (main aisles stay ≥1.4 m; the front door gap is 1.6 m).
  */
+/**
+ * The school was first built beside the duck pond; it now stands on the real
+ * Rutledge Elementary site, west across the tracks. Every constant in this file
+ * is still in the ORIGINAL authoring frame — the whole building is slid west by
+ * this much at the edges (render group, door, colliders, indoor test, NPCs).
+ */
+export const SCHOOL_SHIFT_X = -170;
+/** Authoring-frame x → world x. */
+export const schoolX = (x: number): number => x + SCHOOL_SHIFT_X;
+
 export function buildSchoolColliders(): RectCollider[] {
+  return buildSchoolCollidersLocal().map((c) => ({ ...c, minX: c.minX + SCHOOL_SHIFT_X, maxX: c.maxX + SCHOOL_SHIFT_X }));
+}
+
+function buildSchoolCollidersLocal(): RectCollider[] {
   const out: RectCollider[] = [];
   const H = SCHOOL_WALL_H;
   const doorHalf = SCHOOL_DOOR_W / 2;

@@ -2,15 +2,18 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../state/gameStore';
 import { isTouchDevice } from '../systems/touchInput';
+import { GROUND_CX, GROUND_CZ, GROUND_R, terrainHeight } from '../world/terrain';
 
 // A ring of distant, hazy trees around the neighborhood so the now-drivable
 // open edges (greenbelt, boulevard) have a believable backdrop instead of
 // fading into empty grass. Fully static + instanced (2 draw calls), placed well
 // beyond the drivable region and inside the fog far-plane so it reads as depth.
 
-const COUNT = isTouchDevice() ? 90 : 150;
-const CX = 0;
-const CZ = -67; // rough center of the neighborhood (bulb at +z, blvd at -185)
+const COUNT = isTouchDevice() ? 120 : 200;
+// The treeline stands just past the edge of the flat play disc, on the modelled
+// terrain (world/terrain.ts), so it rides the real ridges and dips.
+const CX = GROUND_CX;
+const CZ = GROUND_CZ;
 
 function mulberry32(seed: number): () => number {
   let s = seed >>> 0;
@@ -35,10 +38,10 @@ export function DistantScenery() {
       // Two staggered rings of small trees so the line reads as a continuous,
       // hazy treeline on the horizon — never a single big blob looming close.
       const a = (i / COUNT) * Math.PI * 2 + (rng() - 0.5) * 0.05;
-      const rad = (i % 2 === 0 ? 210 : 234) + rng() * 26;
+      const rad = GROUND_R + (i % 2 === 0 ? 14 : 44) + rng() * 30;
       arr.push({
         x: CX + Math.cos(a) * rad,
-        z: CZ + Math.sin(a) * rad * 0.92, // gentle ellipse to hug the long stick
+        z: CZ + Math.sin(a) * rad,
         s: 2.4 + rng() * 1.9,
       });
     }
@@ -54,11 +57,12 @@ export function DistantScenery() {
     const sc = new THREE.Vector3();
     const p = new THREE.Vector3();
     data.forEach((d, i) => {
-      p.set(d.x, d.s * 1.5, d.z);
+      const gy = terrainHeight(d.x, d.z);
+      p.set(d.x, gy + d.s * 1.5, d.z);
       sc.set(d.s, d.s * 1.25, d.s);
       m.compose(p, q, sc);
       f.setMatrixAt(i, m);
-      p.set(d.x, d.s * 0.6, d.z);
+      p.set(d.x, gy + d.s * 0.6, d.z);
       sc.set(d.s * 0.16, d.s * 1.2, d.s * 0.16);
       m.compose(p, q, sc);
       tk.setMatrixAt(i, m);
