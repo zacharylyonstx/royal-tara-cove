@@ -8,6 +8,7 @@ import { useTornadoStore } from '../state/tornadoStore';
 import { broadcastPlayerState, broadcastWorldState, broadcastWardrobe, isInRoom, recentParkMsgAt } from '../net/room';
 import { dogNetOut } from '../state/dogSync';
 import { usePetStore } from '../state/petStore';
+import { CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
@@ -49,8 +50,9 @@ function shortestAngle(from: number, to: number): number {
 export function NetSyncController() {
   const playerAccum = useRef(0);
   const worldAccum = useRef(0);
-  const lastRunningRef = useRef(false);
   const lastYRef = useRef(0);
+  /** Characters whose leave-cleanup already ran (re-armed when they come back). */
+  const departed = useRef(new Set<CharacterId>());
   const lastWardrobeRev = useRef(-1);
 
   useFrame((_, dtRaw) => {
@@ -125,12 +127,35 @@ export function NetSyncController() {
         // (their last synced position/heading) BEFORE dismounting, so the
         // ParkedCar reappears there instead of snapping back to its driveway
         // for the few frames until the driver's ParkMsg lands.
-        if (cur.vehicle === 'car' && cur.bikeId && performance.now() - (recentParkMsgAt.get(cur.bikeId) ?? 0) > 1500) {
-          play.parkCar(cur.bikeId, rp.x, rp.z, cur.heading);
+        if (cur.bikeId && !cur.passengerOf && performance.now() - (recentParkMsgAt.get(cur.bikeId) ?? 0) > 1500) {
+          if (cur.vehicle === 'car') play.parkCar(cur.bikeId, rp.x, rp.z, cur.heading);
+          else play.parkBike(cur.bikeId, rp.x, rp.z, cur.heading);
         }
         play.dismount(cid);
       }
     }
+
+    // ---- Tidy up after players who LEFT (closed tab / iPad asleep / pruned) ----
+    // The loop above only visits live remotes, so a kid who vanished mid-drive
+    // left their riding state behind forever: the car stayed hidden + undrivable
+    // and "ride along" prompts pointed at a ghost truck.
+    for (const id of CHARACTER_ORDER) {
+      if (id === net.myCharacterId || net.remotePlayers[id]) continue;
+      if (departed.current.has(id)) continue;
+      const cur = play.riding[id];
+      if (cur) {
+        if (!cur.passengerOf && cur.bikeId) {
+          const p = game.positions[id];
+          if (cur.vehicle === 'car') play.parkCar(cur.bikeId, p.x, p.z, cur.heading);
+          else play.parkBike(cur.bikeId, p.x, p.z, cur.heading);
+        }
+        play.dismount(id);
+      }
+      // Their pup goes back to whatever THIS device remembers for that character.
+      usePetStore.getState().clearRemotePet(id);
+      departed.current.add(id);
+    }
+    for (const id of Object.keys(net.remotePlayers)) departed.current.delete(id as CharacterId);
 
     // ---- Outgoing: my player state ----
     if (net.myCharacterId) {
@@ -147,7 +172,9 @@ export function NetSyncController() {
         const msg: PlayerStateMsg = {
           characterId: net.myCharacterId,
           x: pos.x, y: pos.y, z: pos.z, yaw,
-          running: lastRunningRef.current,
+          // (Was a ref nobody ever wrote → always false, so a sprinting guest made
+          // no more noise for Siren Head than a tiptoeing one.)
+          running: useNightStore.getState().localRunning,
           jumping,
           crouching: useNightStore.getState().crouching,
           riding: myRiding ? { bikeId: myRiding.bikeId, bikeColor: myRiding.bikeColor, heading: myRiding.heading, y: myRiding.y, flipAngle: myRiding.flip?.angle ?? 0, vehicle: myRiding.vehicle === 'car' ? 'car' : 'bike', carKind: myRiding.carKind, passengerOf: myRiding.passengerOf, seat: myRiding.seat } : null,

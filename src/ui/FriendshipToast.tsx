@@ -5,11 +5,13 @@ import { useGameStore } from '../state/gameStore';
 import { CHARACTERS } from '../world/characters';
 import { FRIEND_LEVELS } from '../world/petStorage';
 import { petChime } from '../audio';
+import { dogName } from '../world/pets';
 
 const PET_NAMES: Record<string, string> = { sparky: 'Sparky' };
 function petName(id: string): string {
   if (PET_NAMES[id]) return PET_NAMES[id];
   if (id.startsWith('duck-')) return 'the duck';
+  if (id.startsWith('pup-')) return dogName(id); // was the raw id: "Dad and pup-peaches…"
   return id;
 }
 

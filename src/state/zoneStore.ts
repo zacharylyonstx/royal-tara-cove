@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import type { CharacterId } from '../types';
 import { loadAffection, saveAffection, friendLevel, type Affection } from '../world/petStorage';
+import type { DogTrick } from '../world/pets';
 
 // Lightweight registry for zone interactables (pet the dog, get ice cream…).
 // Mirrors the dresser pattern: components register a spot, PlayerController
 // proximity-scans + consumes E, InteractPrompt shows the label, and the
 // owning component reacts to the fired event for FX.
 
-export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt';
+export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt' | 'treats';
 
 export interface ZoneInteractable {
   id: string;
@@ -47,6 +48,11 @@ interface ZoneStore {
   lastStayId: string | null;
   fireStay: (id: string) => void;
   fireInteract: (id: string, by: CharacterId) => void;
+  /** A dog was just given a TREAT and is doing a trick (one-shot, perf.now).
+   *  Fired locally by the feeder and by the 'pet' net action on everyone else,
+   *  so the whole family watches the same backflip. */
+  lastTrick: { id: string; trick: DogTrick; by: CharacterId; at: number } | null;
+  fireTreat: (id: string, by: CharacterId, trick: DogTrick) => void;
   /** A pet event from a PEER (so everyone sees the hearts + the host's dog reacts). */
   firePetRemote: (id: string, by: CharacterId) => void;
 }
@@ -111,6 +117,13 @@ export const useZoneStore = create<ZoneStore>((set, get) => ({
       set({ lastPetAt: performance.now(), lastPetId: id, lastPetBy: by });
       get().bumpAffection(id, by);
     } else if (i.kind === 'icecream') set({ lastTreatAt: performance.now() });
+  },
+  lastTrick: null,
+  fireTreat: (id, by, trick) => {
+    const now = performance.now();
+    // A treat is also a pet (hearts + happy bark) and worth a lot more love.
+    set({ lastPetAt: now, lastPetId: id, lastPetBy: by, lastTrick: { id, trick, by, at: now } });
+    get().bumpAffection(id, by, 3);
   },
   firePetRemote: (id, by) => {
     set({ lastPetAt: performance.now(), lastPetId: id, lastPetBy: by });

@@ -20,14 +20,32 @@ interface BikeProps {
  * +PI/2 yaw offset); MODELS.bike.rotationY aligns the model to that axis.
  */
 export function Bike({ position, rotation = 0, color = '#c8392a', scale = 1, id }: BikeProps) {
-  const ridden = usePlayStore((s) =>
-    id != null && Object.values(s.riding).some((r) => r?.bikeId === id),
+  // Hidden while someone rides it — or once it's been left somewhere else (then
+  // <ParkedBikes/> draws it in world space where the rider hopped off).
+  const away = usePlayStore((s) =>
+    id != null && (!!s.bikes[id]?.parked || Object.values(s.riding).some((r) => r?.bikeId === id)),
   );
-  if (ridden) return null;
+  if (away) return null;
   const cfg = MODELS.bike;
   return (
     <group position={position} rotation={[0, rotation, 0]} scale={scale}>
       <GLBModel url={cfg.url} fitHeight={cfg.fitHeight} rotationY={cfg.rotationY} tint={color} />
     </group>
+  );
+}
+
+/** Bikes resting wherever their last rider left them (world space). "I rode to
+ *  the pond, hopped off to pet a duck, and my bike was gone" — not any more. */
+export function ParkedBikes() {
+  const bikes = usePlayStore((s) => s.bikes);
+  const riding = usePlayStore((s) => s.riding);
+  const ridden = new Set(Object.values(riding).map((r) => r?.bikeId).filter(Boolean));
+  return (
+    <>
+      {Object.values(bikes).filter((b) => b.parked && !ridden.has(b.id)).map((b) => (
+        // RiddenBike draws bikes at heading + π/2 (model forward is +X) — match it.
+        <Bike key={b.id} position={[b.x, 0, b.z]} rotation={(b.parked?.yaw ?? 0) + Math.PI / 2} color={b.color} scale={b.scale ?? 1} />
+      ))}
+    </>
   );
 }

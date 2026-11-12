@@ -17,6 +17,11 @@ export interface BikeReg {
   x: number;
   z: number;
   color: string;
+  /** Kid bikes are smaller. */
+  scale?: number;
+  /** Set once someone has ridden it somewhere: the bike now rests at (x, z) in
+   *  WORLD space facing `yaw`, instead of in its driveway slot. */
+  parked?: { yaw: number };
 }
 
 /** A parked, drivable car (truck/sedan) registered by HouseProps. */
@@ -109,6 +114,8 @@ interface PlayStore {
   registerCar: (reg: CarReg) => void;
   /** Update a car's parked spot (called when a driver gets out) so it stays put. */
   parkCar: (id: string, x: number, z: number, yaw: number) => void;
+  /** Leave a bike where its rider hopped off (it used to snap back home). */
+  parkBike: (id: string, x: number, z: number, yaw: number) => void;
   registerRamp: (reg: RampReg) => void;
   registerTrampoline: (reg: { x: number; z: number; half: number; padY: number }) => void;
   /** Record a landed trick (or a wipeout) for the HUD; bumps the counter for real tricks. */
@@ -168,6 +175,8 @@ export const usePlayStore = create<PlayStore>((set, get) => ({
   registerCar: (reg) => set((s) => ({ cars: { ...s.cars, [reg.id]: reg } })),
   parkCar: (id, x, z, yaw) =>
     set((s) => (s.cars[id] ? { cars: { ...s.cars, [id]: { ...s.cars[id], x, z, yaw } } } : s)),
+  parkBike: (id, x, z, yaw) =>
+    set((s) => (s.bikes[id] ? { bikes: { ...s.bikes, [id]: { ...s.bikes[id], x, z, parked: { yaw } } } } : s)),
   registerTrampoline: (reg) => set(() => ({ trampoline: reg })),
   registerRamp: (reg) => set({ ramp: reg }),
   setTrick: (text, scored) =>

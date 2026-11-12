@@ -90,11 +90,20 @@ export const WINGA_SHOPS: ShopUnit[] = [
   // really works: mannequins out front, E → the dress-up wardrobe.
   { name: 'PENNY & LUKE\'S', sub: 'KIDS\' BOUTIQUE 🛍️', accent: '#d64a7a', min: 37, max: 44 },
 ];
-/** Woof Gang puppy pen (on the Wing B walkway in front of the south unit). */
+/** Woof Gang puppy pens (on the Wing B walkway in front of the south unit):
+ *  the retriever pups on the left, the POMERANIAN pen on the right, and the
+ *  treat jar on its little stand between them. */
 export const PEN_X = WINGB_FRONT_X - 2.6;
-export const PEN_Z = -200.75;
 export const PEN_W = 3.0;
-export const PEN_D = 3.4;
+export const PEN_D = 3.0;
+export interface PenDef { id: 'pups' | 'poms'; x: number; z: number; w: number; d: number; sign: string; accent: string }
+export const PENS: PenDef[] = [
+  { id: 'pups', x: PEN_X, z: -203.1, w: PEN_W, d: PEN_D, sign: '🐶 ADOPT ME!', accent: '#3a6db0' },
+  { id: 'poms', x: PEN_X, z: -198.4, w: PEN_W, d: PEN_D, sign: '🧡 POMERANIANS!', accent: '#e07a2e' },
+];
+/** The treat jar stand, between the two pens. */
+export const TREAT_X = PEN_X + 0.2;
+export const TREAT_Z = -200.75;
 /** Where the boutique's "shop outfits" spot + mannequins sit (on the Wing A walkway). */
 export const BOUTIQUE_X = 40.5;
 export const BOUTIQUE_Z = WINGA_FRONT_Z + 1.9;
@@ -228,11 +237,16 @@ export function buildAcrossBlvdColliders(): RectCollider[] {
   // Oak trunks (pond ring + parking islands).
   for (const o of POND_OAKS) out.push(rectAt(o.x, o.z, 1.2, 1.2, { maxY: 6, tag: 'zone-oak' }));
   // Woof Gang puppy pen: thin rails (north/south/east) + two west stubs with a gap.
-  out.push(rectAt(PEN_X, PEN_Z - PEN_D / 2, PEN_W, 0.12, { maxY: 0.7, tag: 'pen' }));
-  out.push(rectAt(PEN_X, PEN_Z + PEN_D / 2, PEN_W, 0.12, { maxY: 0.7, tag: 'pen' }));
-  out.push(rectAt(PEN_X + PEN_W / 2, PEN_Z, 0.12, PEN_D, { maxY: 0.7, tag: 'pen' }));
-  out.push(rectAt(PEN_X - PEN_W / 2, PEN_Z - PEN_D / 2 + 0.55, 0.12, 1.1, { maxY: 0.7, tag: 'pen' }));
-  out.push(rectAt(PEN_X - PEN_W / 2, PEN_Z + PEN_D / 2 - 0.55, 0.12, 1.1, { maxY: 0.7, tag: 'pen' }));
+  for (const p of PENS) {
+    const stub = (p.d - 1.0) / 2; // west side: two stubs with a 1 m gap in the middle
+    out.push(rectAt(p.x, p.z - p.d / 2, p.w, 0.12, { maxY: 0.7, tag: 'pen' }));
+    out.push(rectAt(p.x, p.z + p.d / 2, p.w, 0.12, { maxY: 0.7, tag: 'pen' }));
+    out.push(rectAt(p.x + p.w / 2, p.z, 0.12, p.d, { maxY: 0.7, tag: 'pen' }));
+    out.push(rectAt(p.x - p.w / 2, p.z - p.d / 2 + stub / 2, 0.12, stub, { maxY: 0.7, tag: 'pen' }));
+    out.push(rectAt(p.x - p.w / 2, p.z + p.d / 2 - stub / 2, 0.12, stub, { maxY: 0.7, tag: 'pen' }));
+  }
+  // Treat jar stand.
+  out.push(rectAt(TREAT_X, TREAT_Z, 0.7, 0.7, { maxY: 1.1, tag: 'treat-stand' }));
   // Boutique storefront props (three mannequin plinths + a clothes rack).
   for (const dx of [-1.7, 0, 1.7]) out.push(rectAt(BOUTIQUE_X + dx, BOUTIQUE_Z - 1.1, 0.8, 0.8, { maxY: 1.9, tag: 'boutique' }));
   out.push(rectAt(BOUTIQUE_X + 3.2, BOUTIQUE_Z - 0.9, 1.6, 0.5, { maxY: 1.5, tag: 'boutique' }));

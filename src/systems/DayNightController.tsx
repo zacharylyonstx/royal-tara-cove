@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useSkyStore } from '../state/skyStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
 import {
   DAY_LENGTH_REAL_SEC,
   START_DAY_FRACTION,
@@ -61,7 +62,12 @@ export function DayNightController() {
     const dt = Math.min(dtRaw, 0.25);
     const sky = useSkyStore.getState();
     let f = sky.dayFraction;
-    if (sky.netTarget !== null) {
+    // The host OWNS the clock. A guest promoted to host (the old host tapped
+    // 🏠 Games, reloaded, or their iPad slept) still had the last synced target
+    // set, kept easing toward that frozen value and then broadcast it — time
+    // stopped for everyone (endless day, or Siren Head all night forever).
+    if (sky.netTarget !== null && useNetStore.getState().isHost) sky.setNetTarget(null);
+    if (sky.netTarget !== null && !useNetStore.getState().isHost) {
       // Guest: ease toward the host (shortest way around the day wrap).
       let d = sky.netTarget - f;
       if (d > 0.5) d -= 1;

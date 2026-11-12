@@ -166,8 +166,8 @@ export function HousePropsRenderer({ config, lot, data }: HousePropsRendererProp
     if (data.tags.has('kidsBikes')) {
       const a = toWorld(garageCenterX - 1.5, 0, -halfD - 1.4, pivot, yaw);
       const b = toWorld(garageCenterX - 0.4, 0, -halfD - 1.6, pivot, yaw);
-      usePlayStore.getState().registerBike({ id: `${config.address}-kbike-0`, x: a[0], z: a[2], color: '#e26aa1' });
-      usePlayStore.getState().registerBike({ id: `${config.address}-kbike-1`, x: b[0], z: b[2], color: '#5cb85c' });
+      usePlayStore.getState().registerBike({ id: `${config.address}-kbike-0`, x: a[0], z: a[2], color: '#e26aa1', scale: 0.78 });
+      usePlayStore.getState().registerBike({ id: `${config.address}-kbike-1`, x: b[0], z: b[2], color: '#5cb85c', scale: 0.7 });
     }
     // Register the parked car (truck/sedan) so the player can hop in and drive it.
     const carKind: 'truck' | 'sedan' | null = data.tags.has('truck') ? 'truck' : (data.tags.has('sedan') ? 'sedan' : null);

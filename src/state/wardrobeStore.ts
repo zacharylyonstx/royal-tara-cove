@@ -63,7 +63,12 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   hoverDresser: null,
 
   source: 'dresser',
-  openWardrobe: (owner, source = 'dresser') => set({ open: true, openFor: owner, source, hoverDresser: null }),
+  openWardrobe: (owner, source = 'dresser') => {
+    // Free the mouse: the overlay is all buttons, and a still-locked pointer
+    // left the cursor captured + invisible until Esc.
+    if (typeof document !== 'undefined') document.exitPointerLock?.();
+    set({ open: true, openFor: owner, source, hoverDresser: null });
+  },
   close: () => set({ open: false, openFor: null }),
   setHoverDresser: (owner) => {
     if (get().hoverDresser !== owner) set({ hoverDresser: owner });

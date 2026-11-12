@@ -115,11 +115,12 @@ export function trampolineBoing(charge = 0) {
 }
 
 /** Friendly double woof — band-passed noise bursts with a falling formant. */
-export function dogBark() {
+/** A bark. `pitch` > 1 = a smaller dog (the Pomeranians yip up around 1.9). */
+export function dogBark(pitch = 1) {
   const c = ensureCtx();
   if (!c) return;
   const t0 = c.currentTime;
-  const v = 0.92 + Math.random() * 0.16;
+  const v = (0.92 + Math.random() * 0.16) * pitch;
   for (let i = 0; i < 2; i++) {
     const ts = t0 + i * 0.16;
     const buf = makeNoiseBuffer(c, 0.14, 'white');

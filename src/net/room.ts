@@ -14,6 +14,7 @@ import { useTornadoStore } from '../state/tornadoStore';
 import { useChatStore, EMOTES, type ChatMsg } from '../state/chatStore';
 import { useMunchiesStore, SLEEPWALKER_IDS, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
 import { MUNCHIES_PELLETS } from '../world/munchiesMap';
+import { ALL_TRICKS, type DogTrick } from '../world/pets';
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
@@ -123,6 +124,8 @@ export interface PetMsg {
   by: CharacterId;
   /** true = "stay!" (stop following / go home) instead of a pet. */
   stay?: boolean;
+  /** Set when the pet was a TREAT: the trick the dog performs (same on every screen). */
+  trick?: string;
   t: number;
 }
 
@@ -234,6 +237,8 @@ const bool = (v: unknown): boolean => v === true;
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const obj = (v: unknown): Json => (isObj(v) ? v : {});
 
+const isCharId = (v: unknown): v is CharacterId => v === 'dad' || v === 'penny' || v === 'luke';
+
 function netGuard(kind: string, fn: () => void): void {
   try {
     fn();
@@ -256,6 +261,26 @@ function devRoomSuffix(): string {
   if (!import.meta.env.DEV || typeof window === 'undefined') return '';
   const r = new URLSearchParams(window.location.search).get('room');
   return r ? `-${r.replace(/[^a-z0-9]/gi, '').slice(0, 24)}` : '';
+}
+
+/** Host → late joiner: world bits that only change on interaction (so they're
+ *  not in the 10 Hz snapshot) — which doors are open, where every car is parked. */
+function sendCatchUp(peerId: string): void {
+  const t = Date.now();
+  if (sendDoorAction) {
+    const doors = useGameStore.getState().doors;
+    for (const id of Object.keys(doors)) {
+      if (doors[id].open) sendDoorAction({ id, open: true, t }, peerId).catch(() => {});
+    }
+  }
+  if (sendParkAction) {
+    const ps = usePlayStore.getState();
+    const cars = [
+      ...Object.values(ps.cars).map((c) => ({ id: c.id, x: c.x, z: c.z, yaw: c.yaw })),
+      ...Object.values(ps.bikes).filter((b) => b.parked).map((b) => ({ id: b.id, x: b.x, z: b.z, yaw: b.parked?.yaw ?? 0 })),
+    ];
+    if (cars.length) sendParkAction({ cars, t }, peerId).catch(() => {});
+  }
 }
 
 export async function joinRoom(mode: GameMode): Promise<void> {
@@ -303,14 +328,21 @@ export async function joinRoom(mode: GameMode): Promise<void> {
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
-    const theirCharacterId = (typeof rawData.characterId === 'string'
-      ? rawData.characterId
-      : null) as CharacterId | null;
+    // Only real family ids — an unknown id (stale cached build, a stranger on the
+    // public tracker) would crash every CHARACTERS[id] lookup in the HUD.
+    const theirCharacterId: CharacterId | null = isCharId(rawData.characterId) ? rawData.characterId : null;
     const theirJoinedAt = num(rawData.joinedAt, Date.now());
+    const firstContact = !useNetStore.getState().peers[peerId];
     useNetStore.getState().upsertPeer(peerId, {
       characterId: theirCharacterId,
       joinedAt: theirJoinedAt,
     });
+    // Catch a NEW peer up — from here, not onPeerJoin: a fresh joiner still
+    // believes it is the host inside onPeerJoin (it hasn't heard anyone's
+    // joinedAt yet), so it used to "catch up" the real host with its own default
+    // driveway positions and every re-parked truck snapped home. Seniority is
+    // only known once their whoami has been applied, i.e. right here.
+    if (firstContact && useNetStore.getState().isHost) sendCatchUp(peerId);
 
     // Duplicate claim: both of us say we're the same character (two kids both
     // tapped Dad before either saw the other's claim). Left alone, each side
@@ -333,7 +365,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   }));
 
   playerReceiver((rawData) => netGuard('player', () => {
-    if (!isObj(rawData) || typeof rawData.characterId !== 'string') return;
+    if (!isObj(rawData) || !isCharId(rawData.characterId)) return;
     const r = rawData.riding;
     const riding = isObj(r)
       ? {
@@ -371,10 +403,10 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     if (!isObj(rawData)) return;
     const text = str(rawData.text).slice(0, 120);
     const characterId = rawData.characterId;
-    if (!text || typeof characterId !== 'string') return;
+    if (!text || !isCharId(characterId)) return;
     useChatStore.getState().appendMessage({
       id: str(rawData.id, `${peerId}-${num(rawData.sentAt)}`),
-      characterId: characterId as CharacterId,
+      characterId,
       text,
       sentAt: num(rawData.sentAt, Date.now()),
     });
@@ -473,6 +505,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
       if (typeof c.x !== 'number' || typeof c.z !== 'number' || typeof c.yaw !== 'number') continue;
       if (!Number.isFinite(c.x) || !Number.isFinite(c.z) || !Number.isFinite(c.yaw)) continue;
       play.parkCar(c.id, c.x, c.z, c.yaw); // no-ops on unknown ids
+      play.parkBike(c.id, c.x, c.z, c.yaw); // (same message carries bikes)
       recentParkMsgAt.set(c.id, now);
     }
   }));
@@ -483,7 +516,9 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     if (typeof id !== 'string' || id.length === 0 || id.length >= 40) return;
     if (by !== 'dad' && by !== 'penny' && by !== 'luke') return;
     if (rawData.stay === true) useZoneStore.getState().fireStay(id);
-    else useZoneStore.getState().firePetRemote(id, by);
+    else if (typeof rawData.trick === 'string' && (ALL_TRICKS as string[]).includes(rawData.trick)) {
+      useZoneStore.getState().fireTreat(id, by, rawData.trick as DogTrick);
+    } else useZoneStore.getState().firePetRemote(id, by);
   }));
 
   // Munchies: a guest tapped "Start" / "Play again" — only the host owns the
@@ -509,23 +544,6 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     if (sendWardrobe && myId) {
       const ws = useWardrobeStore.getState();
       sendWardrobe({ characterId: myId, appearance: ws.appearances[myId], realMode: ws.realMode[myId], actionMode: ws.actionMode[myId] }, peerId).catch(() => {});
-    }
-    // Host catches the late joiner up on world bits that only change on
-    // interaction (not in the 10 Hz snapshot): which doors are open, and
-    // where every car is parked right now.
-    if (useNetStore.getState().isHost) {
-      const t = Date.now();
-      if (sendDoorAction) {
-        const doors = useGameStore.getState().doors;
-        for (const id of Object.keys(doors)) {
-          if (doors[id].open) sendDoorAction({ id, open: true, t }, peerId).catch(() => {});
-        }
-      }
-      if (sendParkAction) {
-        const cars = Object.values(usePlayStore.getState().cars)
-          .map((c) => ({ id: c.id, x: c.x, z: c.z, yaw: c.yaw }));
-        if (cars.length) sendParkAction({ cars, t }, peerId).catch(() => {});
-      }
     }
   });
 
@@ -632,8 +650,8 @@ export async function broadcastDoor(msg: DoorMsg): Promise<void> {
 }
 
 /** Tell peers I petted an animal. */
-export async function broadcastPet(id: string, by: CharacterId, stay = false): Promise<void> {
-  if (sendPetAction) await sendPetAction({ id, by, stay: stay || undefined, t: Date.now() }).catch(() => {});
+export async function broadcastPet(id: string, by: CharacterId, stay = false, trick?: DogTrick): Promise<void> {
+  if (sendPetAction) await sendPetAction({ id, by, stay: stay || undefined, trick, t: Date.now() }).catch(() => {});
 }
 
 /** Munchies "Start" / "Play again": the host acts on it directly; a guest asks

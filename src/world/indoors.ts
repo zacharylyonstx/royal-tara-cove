@@ -26,8 +26,13 @@ function buildRects(): Rect[] {
   // Avery Ranch Elementary.
   rects.push({ cx: (SCHOOL_MIN_X + SCHOOL_MAX_X) / 2, cz: (SCHOOL_MIN_Z + SCHOOL_MAX_Z) / 2, yaw: 0, hw: (SCHOOL_MAX_X - SCHOOL_MIN_X) / 2 + MARGIN, hd: (SCHOOL_MAX_Z - SCHOOL_MIN_Z) / 2 + MARGIN });
   // The shops across the boulevard.
-  rects.push({ cx: (WINGA_MIN_X + WINGA_MAX_X) / 2, cz: (WINGA_FRONT_Z + WINGA_BACK_Z) / 2, yaw: 0, hw: (WINGA_MAX_X - WINGA_MIN_X) / 2 + MARGIN, hd: Math.abs(WINGA_FRONT_Z - WINGA_BACK_Z) / 2 + MARGIN });
-  rects.push({ cx: (WINGB_FRONT_X + WINGB_BACK_X) / 2, cz: (WINGB_MIN_Z + WINGB_MAX_Z) / 2, yaw: 0, hw: Math.abs(WINGB_BACK_X - WINGB_FRONT_X) / 2 + MARGIN, hd: (WINGB_MAX_Z - WINGB_MIN_Z) / 2 + MARGIN });
+  // The covered storefront walkways count too: the boutique's dress-up spot and
+  // the Woof Gang pen sit a couple of metres out from the wall, and a kid
+  // input-locked in the wardrobe (or cuddling a puppy) must not get swatted.
+  const WALK_A = 3.4; // Wing A faces south (+Z)
+  const WALK_B = 5.0; // Wing B faces west (−X) — covers the pup pens + treat jar
+  rects.push({ cx: (WINGA_MIN_X + WINGA_MAX_X) / 2, cz: (WINGA_FRONT_Z + WALK_A + WINGA_BACK_Z) / 2, yaw: 0, hw: (WINGA_MAX_X - WINGA_MIN_X) / 2 + MARGIN, hd: Math.abs(WINGA_FRONT_Z + WALK_A - WINGA_BACK_Z) / 2 + MARGIN });
+  rects.push({ cx: (WINGB_FRONT_X - WALK_B + WINGB_BACK_X) / 2, cz: (WINGB_MIN_Z + WINGB_MAX_Z) / 2, yaw: 0, hw: Math.abs(WINGB_BACK_X - (WINGB_FRONT_X - WALK_B)) / 2 + MARGIN, hd: (WINGB_MAX_Z - WINGB_MIN_Z) / 2 + MARGIN });
   return rects;
 }
 
@@ -37,7 +42,9 @@ export function isIndoors(x: number, z: number): boolean {
   if (!RECTS) RECTS = buildRects();
   for (const r of RECTS) {
     const dx = x - r.cx, dz = z - r.cz;
-    const c = Math.cos(-r.yaw), s = Math.sin(-r.yaw);
+    // r.yaw is a three.js rotation.y (house → world), so world → house-local is
+    // this rotation (the old −yaw mirrored the two angled houses' footprints).
+    const c = Math.cos(r.yaw), s = Math.sin(r.yaw);
     const lx = dx * c - dz * s;
     const lz = dx * s + dz * c;
     if (lx > -r.hw && lx < r.hw && lz > -r.hd && lz < r.hd) return true;

@@ -90,7 +90,13 @@ export function StalkerController() {
 
     // ----- activate / deactivate with the sky -----
     if (r.phase === 'off') {
-      if (!dark) return;
+      if (!dark) {
+        // A NEW host starts 'off' but may inherit stalkerActive=true from the old
+        // host's last snapshot (host changed during the dawn walk-off) — clear it
+        // or Siren Head stands frozen with the siren wailing all day.
+        if (ns.stalkerActive) ns.setStalkerActive(false);
+        return;
+      }
       r.phase = 'arrive';
       r.huntAllowedAt = now + STALKER_FIRST_HUNT_DELAY;
       r.patrolTX = 0; r.patrolTZ = -120; r.patrolPickedAt = now; r.pauseUntil = 0;
@@ -250,7 +256,9 @@ export function StalkerController() {
     const g = useGameStore.getState();
     const ns = useNightStore.getState();
     const r = rt.current;
-    const active = g.gameMode === 'freeplay' && ns.stalkerActive;
+    // (…and not while I'm sitting on the game picker — the siren + heartbeat used
+    // to keep wailing over the menu.)
+    const active = g.gameMode === 'freeplay' && ns.stalkerActive && !g.welcomeOpen;
     const now = performance.now() / 1000;
     if (active !== r.wasActive) {
       r.wasActive = active;

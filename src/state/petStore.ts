@@ -7,6 +7,8 @@ import { pupById } from '../world/pets';
 
 const KEY = 'adoptions.v1';
 const IDS: CharacterId[] = ['dad', 'penny', 'luke'];
+/** How many treats one scoop from the Woof Gang treat jar gives you. */
+export const TREATS_PER_GRAB = 3;
 
 type Pets = Record<CharacterId, string | null>;
 
@@ -25,8 +27,17 @@ function load(): Pets {
   }
   return out;
 }
-function save(p: Pets): void {
-  try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* no-op */ }
+
+/** Persist ONE owner's pup. Read-modify-write on that key only: the live `pets`
+ *  map also carries friends' pups from the network, and saving the whole map
+ *  used to write THEIR dogs into this device's storage (and could wipe a
+ *  sibling's adoption made earlier on the same iPad). */
+function saveOwner(owner: CharacterId, pupId: string | null): void {
+  try {
+    const stored = load();
+    stored[owner] = pupId;
+    localStorage.setItem(KEY, JSON.stringify(stored));
+  } catch { /* no-op */ }
 }
 
 interface PetStore {
@@ -36,6 +47,14 @@ interface PetStore {
   release: (owner: CharacterId) => void;
   /** From the network: what a peer's character currently has. */
   setRemotePet: (owner: CharacterId, pupId: string | null) => void;
+  /** A peer left: their character goes back to what THIS device remembers. */
+  clearRemotePet: (owner: CharacterId) => void;
+
+  /** Dog treats in MY hand (from the Woof Gang treat jar). Not persisted. */
+  treats: number;
+  grabTreats: () => void;
+  /** Spend one treat. Returns false when the hand is empty. */
+  useTreat: () => boolean;
 }
 
 declare global {
@@ -46,15 +65,13 @@ export const usePetStore = create<PetStore>((set, get) => ({
   pets: typeof localStorage !== 'undefined' ? load() : { dad: null, penny: null, luke: null },
   adopt: (owner, pupId) => {
     if (!pupById(pupId)) return false;
-    const pets = { ...get().pets, [owner]: pupId };
-    set({ pets });
-    save(pets);
+    set({ pets: { ...get().pets, [owner]: pupId } });
+    saveOwner(owner, pupId);
     return true;
   },
   release: (owner) => {
-    const pets = { ...get().pets, [owner]: null };
-    set({ pets });
-    save(pets);
+    set({ pets: { ...get().pets, [owner]: null } });
+    saveOwner(owner, null);
   },
   setRemotePet: (owner, pupId) => {
     const cur = get().pets[owner];
@@ -62,6 +79,20 @@ export const usePetStore = create<PetStore>((set, get) => ({
     if (cur === next) return;
     // Remote state is NOT persisted here — it's their dog, saved in their browser.
     set({ pets: { ...get().pets, [owner]: next } });
+  },
+  clearRemotePet: (owner) => {
+    const stored = typeof localStorage !== 'undefined' ? load()[owner] : null;
+    if (get().pets[owner] === stored) return;
+    set({ pets: { ...get().pets, [owner]: stored } });
+  },
+
+  treats: 0,
+  grabTreats: () => set({ treats: TREATS_PER_GRAB }),
+  useTreat: () => {
+    const n = get().treats;
+    if (n <= 0) return false;
+    set({ treats: n - 1 });
+    return true;
   },
 }));
 

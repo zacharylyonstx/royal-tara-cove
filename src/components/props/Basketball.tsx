@@ -45,7 +45,7 @@ export function Basketball({ position, id }: BasketballProps) {
       const hy = yaws[play.heldBall.by];
       pos.current.x = holder.x - Math.sin(hy) * 0.5;
       pos.current.z = holder.z - Math.cos(hy) * 0.5;
-      pos.current.y = 1.3;
+      pos.current.y = holder.y + 1.3; // chest height on whatever floor they're on
       velocity.current.x = velocity.current.y = velocity.current.z = 0;
       inFlight.current = false;
       m.position.set(pos.current.x, pos.current.y, pos.current.z);

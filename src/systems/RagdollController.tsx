@@ -81,8 +81,10 @@ export function RagdollController() {
       if (cs.cinematic.active) {
         cs.endCinematic();
       }
+      // The tumble rolls the camera; never leave it tilted for the next mode.
+      camera.up.set(0, 1, 0);
     };
-  }, []);
+  }, [camera]);
 
   useFrame(() => {
     const g = useGameStore.getState();

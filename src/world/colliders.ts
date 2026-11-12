@@ -35,7 +35,12 @@ export function buildColliders(houses: HouseConfig[], lots: Lot[]): RectCollider
     const sy = Math.sin(yaw);
     const wx = pivotX + lcx * cy + lcz * sy;
     const wz = pivotZ - lcx * sy + lcz * cy;
-    out.push({ minX: wx - sx / 2, maxX: wx + sx / 2, minZ: wz - sz / 2, maxZ: wz + sz / 2, minY: 0, maxY, yaw, tag });
+    // RectCollider.yaw uses the COLLISION convention (see pushOutOfOBB), which
+    // turns the opposite way from three.js rotation.y — so store −yaw. With the
+    // raw yaw, the two angled houses beside 10600 (10601 @ 50°, 10604 @ −56°)
+    // had every wall collider ~100° off: invisible walls across their front
+    // yards and walk-through real walls. (Invisible at 0° / ±90°.)
+    out.push({ minX: wx - sx / 2, maxX: wx + sx / 2, minZ: wz - sz / 2, maxZ: wz + sz / 2, minY: 0, maxY, yaw: -yaw || 0, tag });
   };
   for (const h of houses) {
     if (h.isHero) continue;
@@ -152,7 +157,7 @@ export function buildPropColliders(
       minX: wx - sizeX / 2, maxX: wx + sizeX / 2,
       minZ: wz - sizeZ / 2, maxZ: wz + sizeZ / 2,
       minY, maxY,
-      yaw,
+      yaw: -yaw || 0, // collision convention = −(three.js rotation.y); see buildColliders
       tag,
     });
   };

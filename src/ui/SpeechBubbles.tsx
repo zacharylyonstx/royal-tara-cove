@@ -40,7 +40,7 @@ export function SpeechBubbles() {
         if (!pos) return null;
         // One-tap emotes (and the ice cream treat) render as one big bouncy
         // emoji, not a text bubble.
-        const isEmote = (EMOTES as readonly string[]).includes(msg.text) || msg.text === '🍦';
+        const isEmote = (EMOTES as readonly string[]).includes(msg.text) || msg.text === '🍦' || msg.text === '🐶' || msg.text === '👋🐶';
         return (
           <Html
             key={`${id}-${msg.id}`}

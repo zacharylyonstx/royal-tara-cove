@@ -22,7 +22,8 @@ import { useZoneStore } from '../state/zoneStore';
 import { useNightStore } from '../state/nightStore';
 import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRoom } from '../net/room';
 import { icecreamJingle, petChime } from '../audio';
-import { usePetStore } from '../state/petStore';
+import { usePetStore, TREATS_PER_GRAB } from '../state/petStore';
+import { TRICKS, dogName, isDogZone, tricksFor } from '../world/pets';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z, POND_X, POND_Z, POND_RX, POND_RZ, WEST_BLVD_X0, WEST_BLVD_X1, WEST_BLVD_Z, WEST_BULB_X, WEST_BULB_R, SCHOOL_DR_X, SCHOOL_DR_Z0, SCHOOL_DR_Z1 } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
 import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
@@ -49,12 +50,34 @@ function isCarDriven(riding: Record<CharacterId, RidingState | null>, carId: str
 /** Fire a pass-1 interactable (dresser → wardrobe UI; zone spot → pet / treat). */
 function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
   if (c.kind === 'dresser') {
-    useWardrobeStore.getState().openWardrobe(c.id as CharacterId);
+    // A dresser dresses its OWNER — unless a friend is playing that character
+    // right now: then the change could never reach anyone (only your own look is
+    // broadcast), so it opens for you instead.
+    const owner = c.id as CharacterId;
+    const ownerIsRemote = owner !== by && !!useNetStore.getState().remotePlayers[owner];
+    useWardrobeStore.getState().openWardrobe(ownerIsRemote ? by : owner);
     return;
   }
   if (c.kind === 'zone') {
     const zs = useZoneStore.getState();
     const it = zs.interactables[c.id];
+    if (it?.kind === 'treats') {
+      // Woof Gang's treat jar: a handful of biscuits to hand out.
+      usePetStore.getState().grabTreats();
+      petChime();
+      usePlayStore.setState({ lastTrick: { text: `🦴 ×${TREATS_PER_GRAB} — give one to a dog!`, at: performance.now() } });
+      return;
+    }
+    // Holding a treat and facing a dog (yours, Sparky, or a pup in the pen):
+    // feed it — it does a trick on everyone's screen and loves you more.
+    if ((it?.kind === 'pet' || it?.kind === 'adopt') && isDogZone(c.id) && usePetStore.getState().useTreat()) {
+      const known = tricksFor(c.id);
+      const trick = known[Math.floor(Math.random() * known.length)];
+      zs.fireTreat(c.id, by, trick);
+      void broadcastPet(c.id, by, false, trick);
+      usePlayStore.setState({ lastTrick: { text: `🐶 ${dogName(c.id)}: ${TRICKS[trick].label}`, at: performance.now() } });
+      return;
+    }
     if (it?.kind === 'adopt') {
       // Woof Gang: the pup becomes YOURS (follows you, rides along, pettable);
       // peers learn via PlayerStateMsg.pet.
@@ -198,9 +221,12 @@ export function PlayerController() {
           pos.set(0, 0, -90);
         }
       }
-      if (k === 'e') {
+      // One press = one interact. Without the repeat guard a HELD E re-fired
+      // ~30×/s via OS key-repeat: doors flapped, bikes mount/dismount-flickered,
+      // and the "hold E: stay" gesture was immediately un-done by the next pet.
+      if (k === 'e' && !e.repeat) {
         interactPressedRef.current = true;
-        if (!e.repeat && !eHoldStart.current) eHoldStart.current = performance.now();
+        if (!eHoldStart.current) eHoldStart.current = performance.now();
       }
       // Siren Head Night: F toggles the flashlight (reveals you AND the way).
       if (k === 'f' && !e.repeat && useGameStore.getState().gameMode === 'night') {
@@ -233,6 +259,7 @@ export function PlayerController() {
       touchInput.moveY = 0;
       touchInput.jumpQueued = false;
       touchInput.actionQueued = false;
+      touchInput.actionHeld = false;
     };
     const onVisibility = () => {
       if (document.hidden) clearAllInput();
@@ -264,7 +291,15 @@ export function PlayerController() {
     if (useWardrobeStore.getState().open) return;
     // Free Play: while Siren Head's swat is flinging me across the block, the
     // RagdollController owns my position — no walking, gravity or vehicles.
-    if (useGameStore.getState().gameMode === 'freeplay' && useGameStore.getState().ragdoll?.active) return;
+    if (useGameStore.getState().gameMode === 'freeplay' && useGameStore.getState().ragdoll?.active) {
+      // Drop any taps made mid-toss so they don't fire the instant you land.
+      interactPressedRef.current = false;
+      jumpPressedRef.current = false;
+      shootRef.current = false;
+      touchInput.jumpQueued = false;
+      touchInput.actionQueued = false;
+      return;
+    }
 
     // Fold on-screen touch controls into the SAME signals the keyboard drives,
     // so every movement path below (walk / munchies / treehouse / bike) works on
@@ -295,6 +330,10 @@ export function PlayerController() {
     jumpPressedRef.current = false;
 
     const modeNow = useGameStore.getState().gameMode;
+    // Where I'm AIMING this frame. The body-yaw lerp further down nudges
+    // yaws[activeId] toward the move direction before CameraRig restores it, so
+    // reading it late skewed the interact facing / basketball shot while strafing.
+    const aimYaw = yaws[activeId];
 
     // ---- Interactables, pass 1: house + zone spots (freeplay / treehouse) ----
     // Dressers (open wardrobe) and zone spots (pet Sparky, pet a duck, ice
@@ -403,14 +442,21 @@ export function PlayerController() {
         if (play.heldBall && play.heldBall.by === activeId) { interactPressedRef.current = false; play.dropBall(); }
         else if (play.hoverPlay === 'pickup' && play.hoverBallId) { interactPressedRef.current = false; play.pickUpBall(play.hoverBallId, activeId); }
         else if (play.hoverPlay === 'ride' && play.hoverBikeId) { interactPressedRef.current = false; mountBike(activeId, play.hoverBikeId, play.bikes[play.hoverBikeId]?.color ?? '#3a6db0', yaws[activeId]); }
-        else if (play.hoverPlay === 'getoff') { interactPressedRef.current = false; dismountBike(activeId, pos, staticColliders); }
+        else if (play.hoverPlay === 'getoff') {
+          interactPressedRef.current = false;
+          if (myRiding && myRiding.vehicle !== 'car') {
+            play.parkBike(myRiding.bikeId, pos.x, pos.z, myRiding.heading);
+            void broadcastPark([{ id: myRiding.bikeId, x: pos.x, z: pos.z, yaw: myRiding.heading }]);
+          }
+          dismountBike(activeId, pos, staticColliders);
+        }
       }
 
       // Shoot a held ball (space / click).
       if (shootRef.current) {
         shootRef.current = false;
         const p2 = usePlayStore.getState();
-        if (p2.heldBall && p2.heldBall.by === activeId) doShoot(p2, activeId, pos, yaws[activeId]);
+        if (p2.heldBall && p2.heldBall.by === activeId) doShoot(p2, activeId, pos, aimYaw);
       }
 
       if (play.riding[activeId]) {
@@ -546,7 +592,9 @@ export function PlayerController() {
         if (door.open) continue;
         allColliders.push(door.aabbWhenClosed);
       }
-      const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders, pos.y);
+      // max(0, y): while wading (y ≈ −0.3) a raw y sits BELOW every collider's
+      // minY, which skipped them all — kids walked through the dock posts.
+      const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders, Math.max(0, pos.y));
       pos.x = resolved.x;
       pos.z = resolved.z;
 
@@ -660,7 +708,7 @@ export function PlayerController() {
         cands.push({ kind: 'door', id, x: door.centerX, z: door.centerZ, radius: INTERACT_RADIUS });
       }
     }
-    const facing = facingFromYaw(yaws[activeId]);
+    const facing = facingFromYaw(aimYaw);
     const best = ridingNow || holdingBall ? null : selectInteractable(pos.x, pos.z, facing.fx, facing.fz, cands);
 
     // Publish exactly ONE hover so InteractPrompt shows a single label.
@@ -725,6 +773,10 @@ export function PlayerController() {
         if (cur.vehicle === 'car' && !cur.passengerOf) {
           ph.parkCar(cur.bikeId, pos.x, pos.z, cur.heading);
           void broadcastPark([{ id: cur.bikeId, x: pos.x, z: pos.z, yaw: cur.heading }]);
+        } else if (cur.vehicle !== 'car') {
+          // Bikes stay where you hop off too (they used to teleport home).
+          ph.parkBike(cur.bikeId, pos.x, pos.z, cur.heading);
+          void broadcastPark([{ id: cur.bikeId, x: pos.x, z: pos.z, yaw: cur.heading }]);
         }
         dismountBike(activeId, pos, staticColliders);
       } else if (best) {
@@ -763,7 +815,7 @@ export function PlayerController() {
       shootRef.current = false;
       const ph = usePlayStore.getState();
       if (playActive && ph.heldBall && ph.heldBall.by === activeId) {
-        doShoot(ph, activeId, pos, yaws[activeId]);
+        doShoot(ph, activeId, pos, aimYaw);
       }
     }
   });
@@ -1183,7 +1235,7 @@ function doShoot(
   const fz = -Math.cos(yaw);
   const x0 = pos.x + fx * 0.5;
   const z0 = pos.z + fz * 0.5;
-  const y0 = 1.3;
+  const y0 = pos.y + 1.3; // chest height wherever you're standing (loft, dock…)
 
   // Aim-assist ONLY for a hoop you're actually facing and near. Otherwise the
   // ball just flies where you pointed (and clanks).

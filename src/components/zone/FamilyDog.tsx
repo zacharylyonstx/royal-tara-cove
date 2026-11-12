@@ -74,7 +74,7 @@ function FamilyDogInner() {
     idleSince: 0,        // when he last stopped (for the Good-Friend sit)
     togetherAccum: 0,    // seconds spent close to his person (passive friendship)
     farFromBond: false,  // for the "you came back!" greeting woof
-    spinPhase: 0,        // Best-Friend happy spin while petted
+    spinPhase: 0, treatSpinUntil: 0,        // Best-Friend happy spin while petted
   });
 
   // Register the pettable spot (position kept live below).
@@ -116,7 +116,9 @@ function FamilyDogInner() {
         // Happy wiggle + hop; Best Friends spin right around.
         const k = Math.max(0, Math.min(1, (s.petUntil - t) / 1.3));
         body.position.y = Math.abs(Math.sin(t * 14)) * 0.16 * Math.max(k, 0.4);
-        if (level >= 3) { s.spinPhase += 0.11; body.rotation.y = s.spinPhase; }
+        // Best Friends (and anyone who just got a TREAT) spin right around.
+        // Time-based, so it's the same speed on a 120 Hz iPad as a 60 Hz laptop.
+        if (level >= 3 || t < s.treatSpinUntil) body.rotation.y = t * 6.6;
         else body.rotation.y = Math.sin(t * 18) * 0.3 * Math.max(k, 0.4);
         body.rotation.x = 0;
       } else if (riding) {
@@ -176,6 +178,9 @@ function FamilyDogInner() {
     if (petAt !== s.lastSeenPetAt && zsNow.lastPetId === 'sparky') {
       s.lastSeenPetAt = petAt;
       s.petUntil = t + 1.3;
+      // A treat from the Woof Gang jar: Sparky does his happy spin for anyone.
+      const lt = zsNow.lastTrick;
+      if (lt && lt.id === 'sparky' && lt.at === petAt) { s.petUntil = t + 1.9; s.treatSpinUntil = t + 1.9; }
       s.stayHome = false; // a pet is an invitation — he's back on the team
       dogBark();
       petChime();

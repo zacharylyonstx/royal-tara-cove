@@ -32,6 +32,8 @@ import {
 } from './hero/HeroHouse10600';
 import { LiveOak } from './vegetation/LiveOak';
 import { RiddenBikes } from './props/RiddenBike';
+import { ParkedBikes } from './props/Bike';
+import { VehicleColliderSync } from '../systems/VehicleColliderSync';
 import { VehicleFX } from './VehicleFX';
 import { DistantScenery } from './DistantScenery';
 import { Ramp, buildRampFloor, buildRampColliders } from './props/Ramp';
@@ -241,6 +243,8 @@ export function Game() {
       ))}
 
       <RiddenBikes />
+      <ParkedBikes />
+      <VehicleColliderSync />
       <VehicleFX />
 
       <AliensModeSystems />

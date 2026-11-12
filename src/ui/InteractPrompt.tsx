@@ -6,6 +6,7 @@ import { useNetStore } from '../state/netStore';
 import { isTouchDevice } from '../systems/touchInput';
 import { friendLevel, heartBadge } from '../world/petStorage';
 import { usePetStore } from '../state/petStore';
+import { dogName, isDogZone } from '../world/pets';
 
 const PLAY_LABELS: Record<string, string> = {
   ride: 'ride bike',
@@ -26,6 +27,7 @@ export function InteractPrompt() {
   const meId = me ?? fallbackMe;
   const affection = useZoneStore((s) => s.affection);
   const myPup = usePetStore((s) => (meId ? s.pets[meId] : null));
+  const treats = usePetStore((s) => s.treats);
   const ridingVehicle = usePlayStore((s) => (me ? s.riding[me]?.vehicle : undefined));
   const hoverSeat = usePlayStore((s) => s.hoverSeat);
   // On iPad the kid has no E key — show the on-screen button glyphs instead.
@@ -39,13 +41,18 @@ export function InteractPrompt() {
     label = 'open wardrobe 👗';
   } else if (hoverZoneId && zoneInteractables[hoverZoneId]) {
     label = zoneInteractables[hoverZoneId].label;
+    const zk = zoneInteractables[hoverZoneId].kind;
+    // A treat in hand changes what E does on any dog.
+    const feeding = treats > 0 && (zk === 'pet' || zk === 'adopt') && isDogZone(hoverZoneId);
+    if (feeding) label = `give ${dogName(hoverZoneId)} a treat 🦴`;
     // Friendship badge on pets: "pet Sparky 🐶 · ♥♥♡ Good Friend"
     if (zoneInteractables[hoverZoneId].kind === 'pet' && meId) {
       const n = affection[hoverZoneId]?.[meId] ?? 0;
       const lv = friendLevel(n);
       label = `${label} · ${heartBadge(lv.hearts)} ${lv.name}`;
       // Hold = "stay": Sparky goes home; your own pup returns to the pen.
-      if (hoverZoneId === 'sparky') label += ` · hold ${key}: stay home`;
+      if (feeding) { /* keep the treat prompt short */ }
+      else if (hoverZoneId === 'sparky') label += ` · hold ${key}: stay home`;
       else if (meId && hoverZoneId === `pup-${myPup ?? ''}`) label += ` · hold ${key}: back to pen`;
     }
   } else if (hoverPlay === 'shoot') {
@@ -60,9 +67,11 @@ export function InteractPrompt() {
   } else if (hover) {
     label = doors[hover]?.open ? 'close door' : 'open door';
   }
-  if (!label) return null;
+  if (!label) return treats > 0 ? <TreatChip n={treats} /> : null;
 
   return (
+    <>
+    {treats > 0 && <TreatChip n={treats} />}
     <div
       style={{
         position: 'fixed',
@@ -94,6 +103,24 @@ export function InteractPrompt() {
         {key}
       </kbd>
       {label}
+    </div>
+    </>
+  );
+}
+
+/** "You're holding dog treats" — a little chip above the prompt. */
+function TreatChip({ n }: { n: number }) {
+  return (
+    <div
+      style={{
+        position: 'fixed', left: '50%', bottom: 148, transform: 'translateX(-50%)',
+        background: 'rgba(255,248,236,0.95)', color: '#7a4a1a', border: '2px solid #d9a866',
+        padding: '4px 14px', borderRadius: 999, fontSize: 16, fontWeight: 800,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        boxShadow: '0 3px 10px rgba(0,0,0,0.25)', pointerEvents: 'none', zIndex: 60, whiteSpace: 'nowrap',
+      }}
+    >
+      {'🦴'.repeat(n)} treats
     </div>
   );
 }

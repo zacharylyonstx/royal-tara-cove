@@ -211,6 +211,7 @@ export function CameraRig() {
     }
 
     if (riding) {
+      decayShake(dt); // keep draining — it used to pile up while driving and dump on dismount
       const fx = -Math.sin(riding.heading);
       const fz = -Math.cos(riding.heading);
       const k = Math.min(1, 6 * dt);
@@ -245,6 +246,7 @@ export function CameraRig() {
     // own RagdollController), so it's safe to honor on guests too — otherwise a
     // caught kid (guest) wouldn't get the "tossed" view.
     if (cin.active && (isHost || _camMode === 'night' || _camMode === 'freeplay')) {
+      decayShake(dt);
       const blendK = Math.min(1, 4 * dt);
       const targetCam = new Vector3(cin.cameraX, cin.cameraY, cin.cameraZ);
       const lookTarget = new Vector3(cin.targetX, cin.targetY, cin.targetZ);
