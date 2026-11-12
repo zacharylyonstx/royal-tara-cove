@@ -75,6 +75,7 @@ import { BonusCookieLive } from './munchies/BonusCookie';
 import { BedsLive } from './munchies/Bed';
 import { SleepwalkersLive } from './munchies/Sleepwalker';
 import { SiblingBond } from './munchies/SiblingBond';
+import { MazeForts, MunchiesCutaway, SneakerMarkers } from './munchies/MazeForts';
 import { RagdollController } from '../systems/RagdollController';
 import { SirenHeadController } from '../systems/SirenHeadController';
 import { SirenHead } from './horror/SirenHead';
@@ -294,6 +295,9 @@ function MunchiesModeSystems() {
   return (
     <>
       <NightAtmosphere />
+      <MunchiesCutaway />
+      <MazeForts />
+      <SneakerMarkers />
       <MunchiesCamera />
       <MunchiesController />
       <SleepwalkerController />

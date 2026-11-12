@@ -1,20 +1,22 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGameStore } from '../state/gameStore';
+import { useGameStore, type GamePhase } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
-import { useMunchiesStore, type SleepwalkerId, type SleepwalkerState } from '../state/munchiesStore';
 import {
-  generatePellets,
-  buildMilks,
-  BONUS_SPAWN_POS,
-} from '../world/munchiesPellets';
+  useMunchiesStore, SLEEPWALKER_IDS,
+  type PelletPosition, type SleepwalkerId, type SleepwalkerState,
+} from '../state/munchiesStore';
 import {
   munchiesCrunch, munchiesGlug, munchiesShh,
   munchiesPowerUp, munchiesTuckIn, munchiesLevelClear, munchiesVictoryFanfare,
   startMunchiesLullaby, stopMunchiesLullaby,
 } from '../audio';
-import { getNode, SLEEPWALKER_BEDS } from '../world/munchiesGraph';
+import {
+  MUNCHIES_PELLETS, MUNCHIES_MILKS, MUNCHIES_BONUS_POS,
+  MUNCHIES_SPAWN, MUNCHIES_SPAWN_YAW, WALKER_HOME,
+} from '../world/munchiesMap';
+import { worldToHero } from '../world/heroPlace';
 import {
   CATCH_RADIUS,
   PELLET_PICKUP_RADIUS,
@@ -23,7 +25,6 @@ import {
   BONUS_DESPAWN_S,
   BONUS_FIRST_SPAWN_FRAC,
   BONUS_SECOND_SPAWN_FRAC,
-  PLAYER_SPAWN,
   MAX_LEVEL,
   CAUGHT_CINEMATIC_S,
   LEVEL_CLEAR_BANNER_S,
@@ -32,11 +33,14 @@ import {
   DIFFICULTY_MULT,
   SIBLING_BOND_DIST,
   SIBLING_BOND_MULT,
+  COOKIE_POINTS,
+  RESPAWN_GRACE_S,
   type PlayableCharacter,
 } from '../world/munchiesConfig';
 import { ghostRosterFor, activePlayers } from '../world/munchiesRoster';
 import { saveBestScore } from '../world/munchiesScoreStorage';
-
+import { requestMunchies } from '../net/room';
+import type { CharacterId } from '../types';
 
 export function MunchiesController() {
   const gameMode = useGameStore((s) => s.gameMode);
@@ -45,12 +49,17 @@ export function MunchiesController() {
 }
 
 function MunchiesControllerInner() {
-  // Initialize to Infinity so timer checks (now - phaseChangeAt > threshold) never
-  // fire spuriously on the first frame before a real timestamp is stamped.
-  const phaseChangeAt = useRef(Infinity);
-  const introInputDetected = useRef(false);
+  // When the CURRENT phase began (perf seconds). Tracked from the frame loop —
+  // not a store subscription — so it is also correct for a guest who becomes
+  // host mid-phase (a subscription-stamped ref stayed at Infinity there and the
+  // "caught" cinematic never ended).
+  const phaseChangeAt = useRef(0);
+  const lastPhase = useRef<GamePhase | null>(null);
+  // Per-CLIENT bookkeeping for "put my own character back at the start".
+  const myLastPhase = useRef<GamePhase | null>(null);
+  const myLastLevel = useRef(0);
 
-  // On mount: set time of day to night and close all doors.
+  // On mount: night-time, all doors shut (they're part of the maze walls).
   useEffect(() => {
     useCombatStore.setState({ timeOfDay: 1.0 });
     startMunchiesLullaby();
@@ -64,56 +73,102 @@ function MunchiesControllerInner() {
     };
   }, []);
 
-  // Phase transitions: start level on intro entry; stamp phase-change timestamps.
-  useEffect(() => {
-    const unsub = useGameStore.subscribe((s, prev) => {
-      const isHost = useNetStore.getState().isHost;
-      if (s.phase === 'munchies-intro' && prev.phase !== 'munchies-intro') {
-        if (isHost) startLevel(1);
-        phaseChangeAt.current = performance.now() / 1000;
-        introInputDetected.current = false;
-      }
-      if (s.phase === 'munchies-level-clear' && prev.phase !== 'munchies-level-clear') {
-        phaseChangeAt.current = performance.now() / 1000;
-      }
-      if (s.phase === 'munchies-caught' && prev.phase !== 'munchies-caught') {
-        phaseChangeAt.current = performance.now() / 1000;
-      }
-      if (s.phase === 'munchies-powered' && prev.phase !== 'munchies-powered') {
-        phaseChangeAt.current = performance.now() / 1000;
-      }
-    });
-    // Initial run if we're already in munchies-intro on mount.
-    const phaseNow = useGameStore.getState().phase;
-    const isHost = useNetStore.getState().isHost;
-    if (isHost && phaseNow === 'munchies-intro' && Object.keys(useMunchiesStore.getState().pellets).length === 0) {
-      startLevel(1);
-      phaseChangeAt.current = performance.now() / 1000;
-    }
-    return unsub;
-  }, []);
-
-  // First WASD press dismisses intro.
+  // Any movement key starts the game from the intro card (the on-screen Start
+  // button covers mouse + touch; guests' presses are relayed to the host).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!useNetStore.getState().isHost) return;
+      if (useGameStore.getState().phase !== 'munchies-intro') return;
+      if (useGameStore.getState().welcomeOpen) return;
       const k = e.key.toLowerCase();
-      const phase = useGameStore.getState().phase;
-      if (phase !== 'munchies-intro') return;
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
-        introInputDetected.current = true;
-        useGameStore.getState().setPhase('munchies-play');
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', ' '].includes(k)) {
+        requestMunchies('start');
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Guests don't run the simulation, so they'd play in silence — derive the
+  // sound effects from the synced state instead.
+  useEffect(() => {
+    const unsubMunchies = useMunchiesStore.subscribe((s, prev) => {
+      if (useNetStore.getState().isHost) return;
+      const np = Object.keys(s.pellets).length, pp = Object.keys(prev.pellets).length;
+      if (np < pp && pp - np < 20) munchiesCrunch();
+      if (Object.keys(s.milks).length < Object.keys(prev.milks).length) { munchiesGlug(); munchiesPowerUp(); }
+      if (s.sleepwalkers !== prev.sleepwalkers) {
+        for (const id of s.activeRoster) {
+          if (s.sleepwalkers[id]?.mode === 'tucked' && prev.sleepwalkers[id]?.mode === 'normal' && prev.activeRoster.includes(id)) {
+            munchiesTuckIn();
+            break;
+          }
+        }
+      }
+    });
+    const unsubGame = useGameStore.subscribe((s, prev) => {
+      if (useNetStore.getState().isHost || s.phase === prev.phase) return;
+      if (s.phase === 'munchies-caught') munchiesShh();
+      else if (s.phase === 'munchies-level-clear') munchiesLevelClear();
+      else if (s.phase === 'munchies-victory') munchiesVictoryFanfare();
+    });
+    return () => { unsubMunchies(); unsubGame(); };
+  }, []);
+
   useFrame(() => {
-    if (!useNetStore.getState().isHost) return;
     const gs = useGameStore.getState();
-    const phase = gs.phase;
     const now = performance.now() / 1000;
+
+    // --- Every client: teleport MY OWN character on resets ---
+    // Positions are client-authoritative (each player simulates themselves), so
+    // the host can't move a guest: when the host "sent everyone back to the
+    // door" after a catch, a guest's own client instantly overwrote it and the
+    // kid stayed standing next to the sleepwalker that just caught them.
+    {
+      const me = useNetStore.getState().myCharacterId ?? gs.activeCharacterId;
+      const players = activePlayers();
+      const slot = players.indexOf(me);
+      const level = useMunchiesStore.getState().level;
+      const ph = gs.phase;
+      if (slot >= 0 && !gs.welcomeOpen) {
+        const pos = gs.positions[me];
+        const l = worldToHero(pos.x, pos.z);
+        const outside = Math.abs(l.x) > 12 || Math.abs(l.z) > 9;
+        const reset =
+          (ph === 'munchies-intro' && myLastPhase.current !== 'munchies-intro') ||
+          (myLastPhase.current === 'munchies-caught' && ph !== 'munchies-caught') ||
+          (level !== myLastLevel.current) ||
+          (outside && ph.startsWith('munchies-'));
+        if (reset) {
+          // Side by side just inside the front door (never stacked on one spot).
+          pos.set(MUNCHIES_SPAWN.x - slot * 0.9, 0, MUNCHIES_SPAWN.z);
+          gs.yaws[me] = MUNCHIES_SPAWN_YAW;
+        }
+      }
+      myLastPhase.current = ph;
+      myLastLevel.current = level;
+    }
+
+    if (!useNetStore.getState().isHost) { lastPhase.current = null; return; }
+
+    // --- "Start" / "Play again" requests (from any player) ---
+    const req = useMunchiesStore.getState().pendingRequest;
+    if (req) {
+      useMunchiesStore.getState().setPendingRequest(null);
+      if (req === 'start' && gs.phase === 'munchies-intro') {
+        gs.setPhase('munchies-play');
+      } else if (req === 'again' && (gs.phase === 'munchies-game-over' || gs.phase === 'munchies-victory')) {
+        useMunchiesStore.getState().reset();
+        gs.setPhase('munchies-intro');
+      }
+    }
+
+    const phase = useGameStore.getState().phase;
+    if (phase !== lastPhase.current) {
+      lastPhase.current = phase;
+      phaseChangeAt.current = now;
+      // (Re)deal the maze whenever the intro card comes up.
+      if (phase === 'munchies-intro') startLevel(1);
+    }
     const ms = useMunchiesStore.getState();
 
     // Intro auto-dismiss after N seconds.
@@ -124,19 +179,19 @@ function MunchiesControllerInner() {
     if (phase === 'munchies-play' || phase === 'munchies-powered') {
       const players = activePlayers();
       if (players.length === 0) return;
+      syncRoster(players);
 
+      let caught = false;
       for (const pid of players) {
         const pl = gs.positions[pid];
         const stats = CHARACTER_STATS[pid as PlayableCharacter];
 
-        // Sibling bond: only in co-op when both players are within bond distance.
-        let siblingBonusActive = false;
-        if (players.length === 2) {
-          const otherId = players.find((p) => p !== pid)!;
-          const other = gs.positions[otherId];
-          if (Math.hypot(pl.x - other.x, pl.z - other.z) < SIBLING_BOND_DIST) {
-            siblingBonusActive = true;
-          }
+        // Sibling bond: in co-op, cookies are worth more while you stick together.
+        let bondActive = false;
+        for (const other of players) {
+          if (other === pid) continue;
+          const o = gs.positions[other];
+          if (Math.hypot(pl.x - o.x, pl.z - o.z) < SIBLING_BOND_DIST) { bondActive = true; break; }
         }
 
         // Pellet pickup
@@ -144,8 +199,8 @@ function MunchiesControllerInner() {
           const p = ms.pellets[id];
           if (Math.hypot(p.x - pl.x, p.z - pl.z) < PELLET_PICKUP_RADIUS) {
             useMunchiesStore.getState().eatPellet(id);
-            if (siblingBonusActive) {
-              useMunchiesStore.getState().addScore(Math.round(10 * (SIBLING_BOND_MULT - 1)));
+            if (bondActive) {
+              useMunchiesStore.getState().addScore(Math.round(COOKIE_POINTS * (SIBLING_BOND_MULT - 1)));
             }
             munchiesCrunch();
           }
@@ -166,11 +221,13 @@ function MunchiesControllerInner() {
         }
 
         // Bonus pickup
-        if (ms.bonus && !ms.bonus.eaten) {
-          if (Math.hypot(ms.bonus.x - pl.x, ms.bonus.z - pl.z) < BONUS_PICKUP_RADIUS) {
+        const bonus = useMunchiesStore.getState().bonus;
+        if (bonus && !bonus.eaten) {
+          if (Math.hypot(bonus.x - pl.x, bonus.z - pl.z) < BONUS_PICKUP_RADIUS) {
             useMunchiesStore.getState().eatBonus();
+            munchiesPowerUp();
             setTimeout(() => useMunchiesStore.getState().clearBonus(), 300);
-          } else if (now - ms.bonus.spawnedAt > BONUS_DESPAWN_S) {
+          } else if (now - bonus.spawnedAt > BONUS_DESPAWN_S) {
             useMunchiesStore.getState().clearBonus();
           }
         }
@@ -183,8 +240,8 @@ function MunchiesControllerInner() {
         // just bumped into the future — so contacting a sleepwalker now must tuck
         // them in, not get the player caught (which would cost a life unfairly).
         const powered = useMunchiesStore.getState().poweredUntil > now;
-        for (const id of ms.activeRoster) {
-          const sw = ms.sleepwalkers[id];
+        for (const id of useMunchiesStore.getState().activeRoster) {
+          const sw = useMunchiesStore.getState().sleepwalkers[id];
           if (!sw || sw.mode === 'tucked') continue;
           const d = Math.hypot(sw.x - pl.x, sw.z - pl.z);
           if (d < catchR) {
@@ -194,20 +251,22 @@ function MunchiesControllerInner() {
             } else if (now > invincibleUntil) {
               useMunchiesStore.getState().setCaught(id, now);
               gs.setPhase('munchies-caught');
-              phaseChangeAt.current = now;
               munchiesShh();
+              caught = true;
               break;
             }
           }
         }
+        if (caught) break;
       }
+      if (caught) return;
 
       maybeSpawnBonus(now);
 
       // Powered timer expiry — read poweredUntil live so a same-frame re-grab
       // that extends the window isn't expired against a stale snapshot.
       const livePoweredUntil = useMunchiesStore.getState().poweredUntil;
-      if (phase === 'munchies-powered' && livePoweredUntil > 0 && now > livePoweredUntil) {
+      if (useGameStore.getState().phase === 'munchies-powered' && livePoweredUntil > 0 && now > livePoweredUntil) {
         useMunchiesStore.getState().endPowered();
         gs.setPhase('munchies-play');
       }
@@ -215,26 +274,26 @@ function MunchiesControllerInner() {
       // Level clear — read pellets live so clearing the final pellet this frame
       // is detected immediately rather than one frame late.
       if (Object.keys(useMunchiesStore.getState().pellets).length === 0) {
+        useMunchiesStore.getState().endPowered();
         gs.setPhase('munchies-level-clear');
         munchiesLevelClear();
-        phaseChangeAt.current = now;
       }
     }
 
     if (phase === 'munchies-caught' && now - phaseChangeAt.current > CAUGHT_CINEMATIC_S) {
       useMunchiesStore.getState().loseLife();
       const lives = useMunchiesStore.getState().lives;
-      const players = activePlayers();
-      for (const pid of players) {
-        gs.positions[pid].set(PLAYER_SPAWN[0], 0, PLAYER_SPAWN[1]);
-      }
+      // Classic reset: everyone back to their corners, so nobody respawns
+      // straight into the arms of the sleepwalker who just caught them. (Each
+      // client moves its own player — see the top of this loop.)
+      sendWalkersHome();
       useMunchiesStore.getState().clearCaught();
       if (lives <= 0) {
         saveAllBestScores();
         gs.setPhase('munchies-game-over');
       } else {
         useMunchiesStore.getState().endPowered();
-        useMunchiesStore.getState().setInvincibleUntil(now + 2.0);
+        useMunchiesStore.getState().setInvincibleUntil(now + RESPAWN_GRACE_S);
         gs.setPhase('munchies-play');
       }
     }
@@ -247,6 +306,7 @@ function MunchiesControllerInner() {
         munchiesVictoryFanfare();
       } else {
         startLevel(nextLevel);
+        useMunchiesStore.getState().setInvincibleUntil(now + RESPAWN_GRACE_S);
         gs.setPhase('munchies-play');
       }
     }
@@ -255,68 +315,70 @@ function MunchiesControllerInner() {
   return null;
 }
 
+function spawnWalker(id: SleepwalkerId, active: boolean): SleepwalkerState {
+  const home = WALKER_HOME[id === 'luke' ? 'penny' : id];
+  // Luke shares the kids' side of the den; nudge him so he and Penny (when both
+  // sleepwalk) don't start stacked on the same spot.
+  const dz = id === 'luke' ? 1.0 : 0;
+  return { id, x: home.x, z: home.z + dz, yaw: -Math.PI / 2, mode: active ? 'normal' : 'tucked', tuckedAt: 0 };
+}
+
 function startLevel(level: number) {
-  const pellets = generatePellets();
-  const milks = buildMilks();
-  // Compute roster from currently-claimed players.
+  const pellets: Record<string, PelletPosition> = {};
+  for (const p of MUNCHIES_PELLETS) pellets[p.id] = p;
+  const milks: Record<string, PelletPosition> = {};
+  for (const m of MUNCHIES_MILKS) milks[m.id] = m;
+
   const players = activePlayers();
   const roster = ghostRosterFor(players);
   useMunchiesStore.getState().setActiveRoster(roster);
 
-  // Build spawn objects for ALL possible sleepwalkers, mark inactive ones as 'tucked'
-  // so the renderer hides them (visibility check in Sleepwalker.tsx).
-  const sleepwalkers: Record<SleepwalkerId, SleepwalkerState> = {
-    dad:           makeSpawn('dad'),
-    penny:         makeSpawn('penny'),
-    dog:           makeSpawn('dog'),
-    schmorgesblob: makeSpawn('schmorgesblob'),
-  };
-  for (const id of (['dad', 'penny', 'dog', 'schmorgesblob'] as const)) {
-    if (!roster.includes(id)) sleepwalkers[id].mode = 'tucked';
-  }
+  // Spawn objects for ALL possible sleepwalkers; the ones not in tonight's
+  // roster stay 'tucked' (hidden — see Sleepwalker.tsx) with tuckedAt 0 so the
+  // controller never wakes them.
+  const sleepwalkers = {} as Record<SleepwalkerId, SleepwalkerState>;
+  for (const id of SLEEPWALKER_IDS) sleepwalkers[id] = spawnWalker(id, roster.includes(id));
   useMunchiesStore.getState().setLevelData(level, pellets, milks, sleepwalkers);
-  LEVEL_INITIAL_PELLET_COUNT = Object.keys(pellets).length;
+}
 
-  // Teleport every active player to the munchies spawn.
-  const gs = useGameStore.getState();
-  for (const id of players) {
-    gs.positions[id].set(PLAYER_SPAWN[0], 0, PLAYER_SPAWN[1]);
-    gs.yaws[id] = Math.PI;
+/** A kid joined (or left) mid-level: whoever is now PLAYING stops sleepwalking,
+ *  and the roster is topped back up. */
+function syncRoster(players: CharacterId[]) {
+  const ms = useMunchiesStore.getState();
+  const want = ghostRosterFor(players);
+  const have = ms.activeRoster;
+  if (want.length === have.length && want.every((id, i) => id === have[i])) return;
+  const sleepwalkers = { ...ms.sleepwalkers };
+  for (const id of SLEEPWALKER_IDS) {
+    const wasActive = have.includes(id);
+    const isActive = want.includes(id);
+    if (isActive && !wasActive) sleepwalkers[id] = spawnWalker(id, true);
+    else if (!isActive && wasActive) sleepwalkers[id] = { ...sleepwalkers[id], mode: 'tucked', tuckedAt: 0 };
   }
+  useMunchiesStore.setState({ activeRoster: want, sleepwalkers });
+}
+
+function sendWalkersHome() {
+  const ms = useMunchiesStore.getState();
+  const sleepwalkers = { ...ms.sleepwalkers };
+  for (const id of ms.activeRoster) sleepwalkers[id] = spawnWalker(id, true);
+  useMunchiesStore.setState({ sleepwalkers });
 }
 
 function saveAllBestScores() {
   const ms = useMunchiesStore.getState();
-  for (const id of activePlayers()) {
-    if (id === 'luke' || id === 'penny') saveBestScore(id, ms.score);
-  }
+  for (const id of activePlayers()) saveBestScore(id, ms.score);
 }
-
-function makeSpawn(id: SleepwalkerId) {
-  const bed = getNode(SLEEPWALKER_BEDS[id]);
-  return {
-    id,
-    x: bed.x,
-    z: bed.z,
-    yaw: 0,
-    targetNodeId: bed.neighbors[0] ?? bed.id,
-    lastNodeId: bed.id,
-    mode: 'normal' as const,
-    tuckedAt: 0,
-  };
-}
-
-let LEVEL_INITIAL_PELLET_COUNT = 0;
 
 function maybeSpawnBonus(now: number) {
   const ms = useMunchiesStore.getState();
   if (ms.bonus || ms.bonusSpawnsRemaining <= 0) return;
-  if (LEVEL_INITIAL_PELLET_COUNT === 0) return;
-  const remaining = Object.keys(ms.pellets).length;
-  const frac = remaining / LEVEL_INITIAL_PELLET_COUNT;
+  const total = MUNCHIES_PELLETS.length;
+  if (total === 0) return;
+  const frac = Object.keys(ms.pellets).length / total;
   if (ms.bonusSpawnsRemaining === 2 && frac <= BONUS_FIRST_SPAWN_FRAC) {
-    ms.spawnBonus(BONUS_SPAWN_POS[0], BONUS_SPAWN_POS[1], now);
+    ms.spawnBonus(MUNCHIES_BONUS_POS.x, MUNCHIES_BONUS_POS.z, now);
   } else if (ms.bonusSpawnsRemaining === 1 && frac <= BONUS_SECOND_SPAWN_FRAC) {
-    ms.spawnBonus(BONUS_SPAWN_POS[0], BONUS_SPAWN_POS[1], now);
+    ms.spawnBonus(MUNCHIES_BONUS_POS.x, MUNCHIES_BONUS_POS.z, now);
   }
 }

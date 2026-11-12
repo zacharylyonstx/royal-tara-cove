@@ -1,26 +1,27 @@
 import { useGameStore } from '../state/gameStore';
 import { useMunchiesStore } from '../state/munchiesStore';
 import { useNetStore } from '../state/netStore';
+import { requestMunchies } from '../net/room';
+import { activePlayers } from '../world/munchiesRoster';
+import { CHARACTERS } from '../world/characters';
 
 export function MunchiesVictoryScreen() {
   const gameMode = useGameStore((s) => s.gameMode);
   const phase = useGameStore((s) => s.phase);
   const score = useMunchiesStore((s) => s.score);
-  const setPhase = useGameStore((s) => s.setPhase);
-  const reset = useMunchiesStore((s) => s.reset);
   const myCharacterId = useNetStore((s) => s.myCharacterId);
 
   if (gameMode !== 'munchies') return null;
   if (phase !== 'munchies-victory') return null;
 
-  const playAgain = () => {
-    reset();
-    setPhase('munchies-intro');
-  };
+  // The host owns the phase — a guest's tap is relayed (it used to do nothing).
+  const playAgain = () => requestMunchies('again');
 
-  const isPenny = myCharacterId === 'penny';
-  const winLine = isPenny
-    ? 'Penny wins midnight. Snack queen crowned.'
+  const team = activePlayers();
+  const winLine = team.length > 1
+    ? `${team.map((id) => CHARACTERS[id].name).join(' + ')} win midnight. Snack team crowned!`
+    : myCharacterId === 'penny' ? 'Penny wins midnight. Snack queen crowned.'
+    : myCharacterId === 'dad' ? 'Dad wins midnight. Snack champ crowned.'
     : 'Luke wins midnight. Snack king crowned.';
 
   return (
@@ -46,6 +47,7 @@ export function MunchiesVictoryScreen() {
           style={{
             marginTop: 8, padding: '12px 28px', fontSize: 16, fontWeight: 700,
             background: '#5fa86a', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer',
+            minHeight: 48, touchAction: 'manipulation',
           }}
         >Play again ▶</button>
       </div>

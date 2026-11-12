@@ -134,6 +134,7 @@ function NameLabel({ name, yOffset }: { name: string; yOffset: number }) {
 const SLEEPWALKER_LABEL: Record<string, string> = {
   dad: '👨 Dad',
   penny: '👧 Penny',
+  luke: '👦 Luke',
   dog: '🐕 Doggie',
   schmorgesblob: '👽 Blob',
 };

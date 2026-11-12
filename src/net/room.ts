@@ -12,7 +12,8 @@ import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore'
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useChatStore, EMOTES, type ChatMsg } from '../state/chatStore';
-import { useMunchiesStore, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
+import { useMunchiesStore, SLEEPWALKER_IDS, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
+import { MUNCHIES_PELLETS } from '../world/munchiesMap';
 import { usePlayStore } from '../state/playStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { type Appearance, SLOTS, getItem, defaultAppearance } from '../world/wardrobe';
@@ -137,12 +138,17 @@ export const recentParkMsgAt = new Map<string, number>();
 export interface MunchiesNetSnapshot {
   level: number;
   score: number;
+  eaten: number;
   lives: number;
   sleepwalkers: Record<string, { x: number; z: number; yaw: number; mode: string; tuckedAt: number }>;
-  pellets: { id: string; x: number; z: number }[];
+  /** Indices (into the deterministic world/munchiesMap MUNCHIES_PELLETS list) of
+   *  the cookies still on the floor — every peer builds the same maze, so the
+   *  positions never need to cross the wire. */
+  pelletIdx: number[];
   milks: { id: string; x: number; z: number }[];
   bonus: { x: number; z: number; spawnedAt: number; eaten: boolean } | null;
-  poweredUntil: number;
+  /** Seconds of milk power LEFT (a delta — each machine has its own clock). */
+  poweredLeft: number;
   difficulty: string;
   roster: string[];
 }
@@ -205,6 +211,7 @@ let sendSirenCaughtAction: ((data: SirenCaughtMsg) => Promise<void[]>) | null = 
 let sendDoorAction: ((data: DoorMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendParkAction: ((data: ParkMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendPetAction: ((data: PetMsg) => Promise<void[]>) | null = null;
+let sendMunchiesReqAction: ((data: { kind: string }) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 /** Last host regroup timestamp we applied (raw host clock); guests stamp their
  *  own perf.now() when it changes so the "Regroup!" toast times correctly. */
@@ -280,6 +287,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [doorSender, doorReceiver] = r.makeAction('door');
   const [parkSender, parkReceiver] = r.makeAction('park');
   const [petSender, petReceiver] = r.makeAction('pet');
+  const [mreqSender, mreqReceiver] = r.makeAction('mreq');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
   sendWorld = worldSender as unknown as typeof sendWorld;
@@ -291,6 +299,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendDoorAction = doorSender as unknown as typeof sendDoorAction;
   sendParkAction = parkSender as unknown as typeof sendParkAction;
   sendPetAction = petSender as unknown as typeof sendPetAction;
+  sendMunchiesReqAction = mreqSender as unknown as typeof sendMunchiesReqAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
     if (!isObj(rawData)) return;
@@ -477,6 +486,15 @@ export async function joinRoom(mode: GameMode): Promise<void> {
     else useZoneStore.getState().firePetRemote(id, by);
   }));
 
+  // Munchies: a guest tapped "Start" / "Play again" — only the host owns the
+  // phase, so the request travels here and the host's controller acts on it.
+  mreqReceiver((rawData) => netGuard('mreq', () => {
+    if (!isObj(rawData) || !useNetStore.getState().isHost) return;
+    if (rawData.kind === 'start' || rawData.kind === 'again') {
+      useMunchiesStore.getState().setPendingRequest(rawData.kind);
+    }
+  }));
+
   r.onPeerJoin((peerId) => {
     // Greet new peer with our identity so they learn about us.
     if (sendWhoami) {
@@ -618,6 +636,16 @@ export async function broadcastPet(id: string, by: CharacterId, stay = false): P
   if (sendPetAction) await sendPetAction({ id, by, stay: stay || undefined, t: Date.now() }).catch(() => {});
 }
 
+/** Munchies "Start" / "Play again": the host acts on it directly; a guest asks
+ *  the host (who owns the phase). Works from keyboard, mouse AND touch. */
+export function requestMunchies(kind: 'start' | 'again'): void {
+  if (useNetStore.getState().isHost || !sendMunchiesReqAction) {
+    useMunchiesStore.getState().setPendingRequest(kind);
+    return;
+  }
+  void sendMunchiesReqAction({ kind }).catch(() => {});
+}
+
 /** Tell peers where car(s) are now parked (call when a driver gets out). */
 export async function broadcastPark(cars: { id: string; x: number; z: number; yaw: number }[]): Promise<void> {
   if (!cars.length) return;
@@ -756,14 +784,18 @@ function applyNightSnapshot(n: Json): void {
 
 function applyMunchiesSnapshot(m: Json): void {
   const ms = useMunchiesStore.getState();
-  const pellets = arr(m.pellets) as { id: string; x: number; z: number }[];
   const milks = arr(m.milks) as { id: string; x: number; z: number }[];
 
-  // Replace pellets/milks if sizes differ (cheap signal).
-  if (Object.keys(ms.pellets).length !== pellets.length) {
-    useMunchiesStore.setState({
-      pellets: Object.fromEntries(pellets.map((p) => [p.id, p])),
-    });
+  // Cookies only ever disappear within a level (and a new level refills them
+  // all), so a count mismatch is a complete "something changed" signal.
+  const idx = arr(m.pelletIdx);
+  if (Object.keys(ms.pellets).length !== idx.length) {
+    const next: Record<string, { id: string; x: number; z: number }> = {};
+    for (const i of idx) {
+      const p = typeof i === 'number' ? MUNCHIES_PELLETS[i] : undefined;
+      if (p) next[p.id] = p;
+    }
+    useMunchiesStore.setState({ pellets: next });
   }
   if (Object.keys(ms.milks).length !== milks.length) {
     useMunchiesStore.setState({
@@ -796,6 +828,7 @@ function applyMunchiesSnapshot(m: Json): void {
   useMunchiesStore.setState({
     level: num(m.level, ms.level),
     score: num(m.score, ms.score),
+    cookiesEaten: num(m.eaten, ms.cookiesEaten),
     lives: num(m.lives, ms.lives),
     bonus: isObj(m.bonus)
       ? {
@@ -803,12 +836,12 @@ function applyMunchiesSnapshot(m: Json): void {
           spawnedAt: num(m.bonus.spawnedAt), eaten: bool(m.bonus.eaten),
         }
       : null,
-    poweredUntil: num(m.poweredUntil),
+    poweredUntil: num(m.poweredLeft) > 0 ? performance.now() / 1000 + num(m.poweredLeft) : 0,
     difficulty: (m.difficulty === 'awake' ? 'awake' : 'sleepy'),
     activeRoster: arr(m.roster).filter((s2): s2 is string => typeof s2 === 'string').filter(isSleepwalkerId),
   });
 }
 
-function isSleepwalkerId(s: string): s is 'dad' | 'penny' | 'dog' | 'schmorgesblob' {
-  return s === 'dad' || s === 'penny' || s === 'dog' || s === 'schmorgesblob';
+function isSleepwalkerId(s: string): s is SleepwalkerId {
+  return (SLEEPWALKER_IDS as string[]).includes(s);
 }

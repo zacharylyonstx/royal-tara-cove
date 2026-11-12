@@ -3,9 +3,12 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
+import { activePlayers } from '../world/munchiesRoster';
 
-const HEIGHT = 14;
-const SOUTH_OFFSET = 1.5;
+// A slightly tilted bird's-eye view: high enough to plan a route, tilted enough
+// that the kids read as little people instead of the tops of heads.
+const HEIGHT = 12.5;
+const SOUTH_OFFSET = 4.4;
 const LERP_K = 6;
 const FOV = 50;
 const TELEPORT_THRESHOLD = 3.0;  // m — snap instead of lerp if target jumped this far
@@ -43,7 +46,12 @@ export function MunchiesCamera() {
   useFrame((_, dtRaw) => {
     if (gameMode !== 'munchies') return;
     const dt = Math.min(dtRaw, 0.05);
-    const id = myCharacterId ?? fallbackActive;
+    // Follow my own sneaker — or, if I'm just watching (no character claimed, or
+    // one who isn't in the game), ride along with the first player so a
+    // spectating grown-up sees the action instead of an empty cul-de-sac.
+    const players = activePlayers();
+    const mine = myCharacterId ?? fallbackActive;
+    const id = players.includes(mine) ? mine : (players[0] ?? mine);
     const pos = useGameStore.getState().positions[id];
     if (!pos) return;
 

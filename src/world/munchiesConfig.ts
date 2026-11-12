@@ -28,8 +28,7 @@ export const BONUS_SECOND_SPAWN_FRAC = 0.30;
 // Catch detection
 export const CATCH_RADIUS = 0.7;
 
-// Spawn
-export const PLAYER_SPAWN: [number, number] = [-5.0, -3.0];   // great room couch area
+// (Spawn points, milk spots and the maze itself live in world/munchiesMap.ts.)
 
 // Scoring
 export const COOKIE_POINTS = 10;
@@ -40,7 +39,8 @@ export const TUCK_POINTS_COMBO_MULT = 2;             // doubles per tuck-in with
 
 // --- v2 additions ---
 
-export type PlayableCharacter = 'luke' | 'penny';
+/** Anyone in the family can sneak for cookies — whoever ISN'T playing sleepwalks. */
+export type PlayableCharacter = 'luke' | 'penny' | 'dad';
 
 /** Per-character gameplay tweaks. */
 export const CHARACTER_STATS: Record<PlayableCharacter, {
@@ -49,7 +49,20 @@ export const CHARACTER_STATS: Record<PlayableCharacter, {
 }> = {
   luke:  { catchRadius: 0.65, poweredDurationS: 8.0 },
   penny: { catchRadius: 0.72, poweredDurationS: 10.0 },
+  // Dad is the biggest target and gets the shortest milk — the kids are the stars.
+  dad:   { catchRadius: 0.8,  poweredDurationS: 7.0 },
 };
+
+/** Sleepwalkers alternate between hunting and aimless shuffling (like the
+ *  classic scatter/chase rhythm) so little kids get breathing room. Seconds. */
+export const WALKER_RHYTHM: Record<Difficulty, { chase: number; wander: number }> = {
+  sleepy: { chase: 7, wander: 5 },
+  awake:  { chase: 12, wander: 3 },
+};
+/** How often a sleepwalker re-plans its route (s). */
+export const WALKER_REPATH_S = 0.35;
+/** After being caught, everyone gets this long before a sleepwalker can tag again. */
+export const RESPAWN_GRACE_S = 2.5;
 
 export type Difficulty = 'sleepy' | 'awake';
 

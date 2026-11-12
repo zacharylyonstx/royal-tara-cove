@@ -197,12 +197,13 @@ export function NetSyncController() {
           const munchiesSnap: MunchiesNetSnapshot = {
             level: ms.level,
             score: ms.score,
+            eaten: ms.cookiesEaten,
             lives: ms.lives,
             sleepwalkers: swSerial,
-            pellets: Object.values(ms.pellets),
+            pelletIdx: Object.keys(ms.pellets).map((id) => Number(id.slice(1))),
             milks: Object.values(ms.milks),
             bonus: ms.bonus,
-            poweredUntil: ms.poweredUntil,
+            poweredLeft: Math.max(0, ms.poweredUntil - performance.now() / 1000),
             difficulty: ms.difficulty,
             roster: ms.activeRoster,
           };

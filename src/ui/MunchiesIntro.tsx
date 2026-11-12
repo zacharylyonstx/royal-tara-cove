@@ -1,11 +1,15 @@
 import { useGameStore } from '../state/gameStore';
+import { requestMunchies } from '../net/room';
+import { isTouchDevice } from '../systems/touchInput';
 
 export function MunchiesIntro() {
   const gameMode = useGameStore((s) => s.gameMode);
   const phase = useGameStore((s) => s.phase);
+  const welcomeOpen = useGameStore((s) => s.welcomeOpen);
 
   if (gameMode !== 'munchies') return null;
-  if (phase !== 'munchies-intro') return null;
+  if (phase !== 'munchies-intro' || welcomeOpen) return null;
+  const touch = isTouchDevice();
 
   return (
     <div
@@ -30,6 +34,7 @@ export function MunchiesIntro() {
           padding: '24px 32px',
           textAlign: 'center',
           maxWidth: 540,
+          pointerEvents: 'auto',
         }}
       >
         <div style={{ fontSize: 56 }}>🥛</div>
@@ -41,18 +46,31 @@ export function MunchiesIntro() {
           <div style={{ fontSize: 14 }}>Eat <strong>every cookie</strong> in the house to win.</div>
 
           <div style={{ fontSize: 28, textAlign: 'center' }}>😴</div>
-          <div style={{ fontSize: 14 }}>Don't let sleepwalkers tag you — they'll walk you back to bed and you lose a life.</div>
+          <div style={{ fontSize: 14 }}>Don't let the sleepwalkers tag you — they'll walk you back to the door and you lose a ❤️.</div>
 
           <div style={{ fontSize: 28, textAlign: 'center' }}>🥛</div>
           <div style={{ fontSize: 14 }}>Drink a <strong>glowing milk</strong> in the corner and they all turn <span style={{ color: '#8acfff', fontWeight: 700 }}>BLUE</span> for a few seconds.</div>
 
           <div style={{ fontSize: 28, textAlign: 'center' }}>💥</div>
-          <div style={{ fontSize: 14 }}>While they're blue, <strong>tap them</strong> to tuck them back in bed for big points!</div>
+          <div style={{ fontSize: 14 }}>While they're blue, <strong>bump into them</strong> to tuck them back in bed for big points!</div>
         </div>
 
-        <p style={{ margin: '14px 0 0', fontSize: 16, fontWeight: 700 }}>
-          Press <kbd style={kbd}>W</kbd> <kbd style={kbd}>A</kbd> <kbd style={kbd}>S</kbd> <kbd style={kbd}>D</kbd> to start
-        </p>
+        {/* A real button: the old "press WASD" was the ONLY way to start, which
+            did nothing on an iPad (no keys) or for whoever wasn't the host. */}
+        <button
+          onClick={() => requestMunchies('start')}
+          style={{
+            marginTop: 6, padding: '14px 40px', fontSize: 20, fontWeight: 800,
+            background: '#ffd86a', color: '#3a2a10', border: 'none', borderRadius: 14,
+            cursor: 'pointer', minHeight: 52, touchAction: 'manipulation',
+            boxShadow: '0 6px 0 #b8902a',
+          }}
+        >Start ▶</button>
+        {!touch && (
+          <p style={{ margin: '12px 0 0', fontSize: 13, opacity: 0.8 }}>
+            …or press <kbd style={kbd}>W</kbd> <kbd style={kbd}>A</kbd> <kbd style={kbd}>S</kbd> <kbd style={kbd}>D</kbd>
+          </p>
+        )}
       </div>
     </div>
   );

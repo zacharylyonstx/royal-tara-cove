@@ -12,7 +12,8 @@ import {
 import type { Difficulty } from '../world/munchiesConfig';
 import { loadDifficulty, saveDifficulty } from '../world/munchiesScoreStorage';
 
-export type SleepwalkerId = 'dad' | 'penny' | 'dog' | 'schmorgesblob';
+export type SleepwalkerId = 'dad' | 'penny' | 'luke' | 'dog' | 'schmorgesblob';
+export const SLEEPWALKER_IDS: SleepwalkerId[] = ['dad', 'penny', 'luke', 'dog', 'schmorgesblob'];
 export type SleepwalkerMode = 'normal' | 'powered' | 'tucked';
 
 export interface PelletPosition {
@@ -27,10 +28,6 @@ export interface SleepwalkerState {
   x: number;
   z: number;
   yaw: number;
-  /** Graph node the walker is heading toward. */
-  targetNodeId: string;
-  /** Anti-backtrack hint. */
-  lastNodeId: string;
   mode: SleepwalkerMode;
   /** seconds (now()) when 'tucked' began. */
   tuckedAt: number;
@@ -39,6 +36,8 @@ export interface SleepwalkerState {
 interface MunchiesStore {
   level: number;                          // 1-based; ends at MAX_LEVEL
   score: number;
+  /** Cookies eaten this run (all levels) — for the end-of-game card. */
+  cookiesEaten: number;
   lives: number;
   pellets: Record<string, PelletPosition>;
   milks: Record<string, PelletPosition>;
@@ -53,6 +52,10 @@ interface MunchiesStore {
   invincibleUntil: number;               // perf seconds; while now < this, catch detection is suppressed
   difficulty: Difficulty;
   activeRoster: SleepwalkerId[];
+  /** "Start" / "Play again" asked for by anyone in the room; the HOST's
+   *  controller consumes it (see net/room.ts requestMunchies). */
+  pendingRequest: 'start' | 'again' | null;
+  setPendingRequest: (r: 'start' | 'again' | null) => void;
 
   // Setters / actions
   setLevelData: (
@@ -80,16 +83,18 @@ interface MunchiesStore {
   reset: () => void;
 }
 
-const EMPTY_SLEEPWALKERS: Record<SleepwalkerId, SleepwalkerState> = {
-  dad:           { id: 'dad',           x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
-  penny:         { id: 'penny',         x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
-  dog:           { id: 'dog',           x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
-  schmorgesblob: { id: 'schmorgesblob', x: 0, z: 0, yaw: 0, targetNodeId: '', lastNodeId: '', mode: 'normal', tuckedAt: 0 },
-};
+function emptySleepwalkers(): Record<SleepwalkerId, SleepwalkerState> {
+  // Fresh objects every time: SleepwalkerController mutates x/z/yaw in place, so
+  // a shared constant would leak one session's positions into the next.
+  const out = {} as Record<SleepwalkerId, SleepwalkerState>;
+  for (const id of SLEEPWALKER_IDS) out[id] = { id, x: 0, z: 0, yaw: 0, mode: 'tucked', tuckedAt: 0 };
+  return out;
+}
 
 export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   level: 1,
   score: 0,
+  cookiesEaten: 0,
   lives: STARTING_LIVES,
   pellets: {},
   milks: {},
@@ -97,13 +102,15 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   bonusSpawnsRemaining: 2,
   poweredUntil: 0,
   poweredCombo: 0,
-  sleepwalkers: EMPTY_SLEEPWALKERS,
+  sleepwalkers: emptySleepwalkers(),
   caughtAt: null,
   caughtBy: null,
   lastCaughtBy: null,
   invincibleUntil: 0,
   difficulty: loadDifficulty(),
-  activeRoster: ['dad', 'dog', 'penny'],
+  activeRoster: ['dad', 'penny', 'dog'],
+  pendingRequest: null,
+  setPendingRequest: (r) => set({ pendingRequest: r }),
 
   setLevelData: (level, pellets, milks, sleepwalkers) => set({
     level, pellets, milks, sleepwalkers,
@@ -120,7 +127,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   eatPellet: (id) => set((s) => {
     if (!s.pellets[id]) return s;
     const { [id]: _gone, ...rest } = s.pellets;
-    return { pellets: rest, score: s.score + COOKIE_POINTS };
+    return { pellets: rest, score: s.score + COOKIE_POINTS, cookiesEaten: s.cookiesEaten + 1 };
   }),
 
   eatMilk: (id, now) => set((s) => {
@@ -184,6 +191,7 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
   reset: () => set((s) => ({
     level: 1,
     score: 0,
+    cookiesEaten: 0,
     lives: STARTING_LIVES,
     pellets: {},
     milks: {},
@@ -191,11 +199,12 @@ export const useMunchiesStore = create<MunchiesStore>((set, get) => ({
     bonusSpawnsRemaining: 2,
     poweredUntil: 0,
     poweredCombo: 0,
-    sleepwalkers: EMPTY_SLEEPWALKERS,
+    sleepwalkers: emptySleepwalkers(),
     caughtAt: null,
     caughtBy: null,
     lastCaughtBy: null,
     invincibleUntil: 0,
+    pendingRequest: null,
     // keep difficulty + activeRoster (session-level)
     activeRoster: s.activeRoster,
     difficulty: s.difficulty,

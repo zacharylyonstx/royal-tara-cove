@@ -89,7 +89,7 @@ export function WelcomeScreen() {
           <GameCard
             emoji="🥛"
             title="MIDNIGHT MUNCHIES"
-            blurb="It's midnight. Sneak through the house, grab every cookie, and don't let sleepwalking Dad and Penny catch you!"
+            blurb="It's midnight. Sneak through our house, grab every cookie, and don't let the sleepwalkers catch you! Play together — whoever isn't sneaking is sleepwalking."
             accent="#7a5cad"
             onPlay={() => pick('munchies')}
           />

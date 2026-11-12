@@ -30,7 +30,8 @@ export function CharacterSelect() {
   const resetHp = useGameStore((s) => s.resetHp);
   const gameMode = useGameStore((s) => s.gameMode);
 
-  const visibleChars = (gameMode === 'munchies' || gameMode === 'treehouse')
+  // Munchies: the whole family can sneak (whoever isn't playing sleepwalks).
+  const visibleChars = gameMode === 'treehouse'
     ? CHARACTER_ORDER.filter((id) => id === 'luke' || id === 'penny')
     : CHARACTER_ORDER;
 
@@ -175,7 +176,7 @@ export function CharacterSelect() {
         {gameMode === 'munchies' && (
           <>
             <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 8px' }}>
-              Pick a sneaker. Penny and Luke can both play — or team up in two windows.
+              Pick a cookie sneaker! Everyone can play together — whoever isn't playing sleepwalks.
             </p>
             <MunchiesDifficultyToggle />
           </>

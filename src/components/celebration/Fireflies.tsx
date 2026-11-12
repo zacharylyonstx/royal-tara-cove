@@ -31,9 +31,15 @@ export function Fireflies() {
     return Array.from({ length: COUNT }, (_, i) => {
       const ang = (i / COUNT) * Math.PI * 2;
       const r = 4 + Math.random() * RADIUS;
+      const baseX = CENTER_X + Math.cos(ang) * r;
+      let baseZ = CENTER_Z + Math.sin(ang) * r;
+      // Fireflies belong in the YARD: any that would spawn inside the house
+      // footprint (x ±12.5, z < 47.5) are mirrored out past the back wall —
+      // they used to float through the living room.
+      if (Math.abs(baseX) < 12.5 && baseZ < 47.5) baseZ = 47.5 + (47.5 - baseZ) * 0.6 + 0.8;
       return {
-        baseX: CENTER_X + Math.cos(ang) * r,
-        baseZ: CENTER_Z + Math.sin(ang) * r,
+        baseX,
+        baseZ,
         baseY: 0.6 + Math.random() * 1.8,
         pulsePhase: Math.random() * Math.PI * 2,
         pulseSpeed: 1.5 + Math.random() * 2,

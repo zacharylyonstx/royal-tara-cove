@@ -12,6 +12,7 @@ import { HOUSES } from '../world/houses';
 import { buildLots } from '../world/lots';
 import { STRAIGHT_START_Z, STRAIGHT_END_Z } from '../world/streetLayout';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
+import { MUNCHIES_SPAWN, buildMunchiesColliders, clampToHouse } from '../world/munchiesMap';
 import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
 import { treehousePickup, hopSound, trampolineBoing } from '../audio';
@@ -187,8 +188,8 @@ export function PlayerController() {
         // reset to spawn (mode-aware)
         const pos = positions[activeId];
         if (modeForReset === 'munchies') {
-          // Munchies spawn is the great-room couch, not the cul-de-sac.
-          pos.set(-5.0, 0, -3.0);
+          // Munchies spawn is just inside 10600's front door, not the cul-de-sac.
+          pos.set(MUNCHIES_SPAWN.x, 0, MUNCHIES_SPAWN.z);
         } else if (modeForReset === 'treehouse') {
           // Treehouse spawn is 10600's backyard near the live oak.
           const sp = treehouseSpawnPoint();
@@ -350,7 +351,12 @@ export function PlayerController() {
     }
 
     if (modeNow === 'munchies') {
-      munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors);
+      // Only while the round is live — no wandering off during the intro card,
+      // the "caught" beat or the level-clear banner.
+      const ph = useGameStore.getState().phase;
+      if (ph === 'munchies-play' || ph === 'munchies-powered') {
+        munchiesTick(positions[activeId], yaws, activeId, keys.current, dtRaw, staticColliders, doors);
+      }
       return;
     }
 
@@ -1237,7 +1243,10 @@ function munchiesTick(
   // The maze is on the ground: a kid arriving from the treehouse (y≈8) used to
   // keep "flying" over it. Stay planted.
   if (pos.y !== 0) pos.y = 0;
-  // 4-direction movement, world-axis, no diagonal.
+  // World-axis movement (the camera looks straight down, so W = up the screen).
+  // Diagonals are allowed + normalised: the rooms are open, and on the touch
+  // joystick the old "one axis at a time" rule made up/down nearly impossible
+  // to hit (any sideways lean won).
   let dx = 0;
   let dz = 0;
   if (keys['w'] || keys['arrowup']) dz -= 1;
@@ -1245,38 +1254,36 @@ function munchiesTick(
   if (keys['a'] || keys['arrowleft']) dx -= 1;
   if (keys['d'] || keys['arrowright']) dx += 1;
 
-  // Prefer X-axis when both axes pressed (no diagonal drift).
-  if (dx !== 0 && dz !== 0) {
-    dz = 0;
+  // Touch: steer with the stick's true angle (any direction, not just 8).
+  if (touchInput.active && Math.hypot(touchInput.moveX, touchInput.moveY) > 0.2) {
+    dx = touchInput.moveX;
+    dz = touchInput.moveY;
   }
 
   if (dx === 0 && dz === 0) return;
+  const inv = 1 / Math.hypot(dx, dz);
+  dx *= inv;
+  dz *= inv;
 
-  const moveX = dx * MUNCHIES_PLAYER_SPEED * dt;
-  const moveZ = dz * MUNCHIES_PLAYER_SPEED * dt;
-  const desiredX = pos.x + moveX;
-  const desiredZ = pos.z + moveZ;
-  const allColliders = [...staticColliders];
+  const desiredX = pos.x + dx * MUNCHIES_PLAYER_SPEED * dt;
+  const desiredZ = pos.z + dz * MUNCHIES_PLAYER_SPEED * dt;
+  const allColliders = [...staticColliders, ...MUNCHIES_COLLIDERS];
   for (const door of Object.values(doors)) {
     if (door.open) continue;
     allColliders.push(door.aabbWhenClosed);
   }
-  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
+  // py = 0 → Y-aware: the upstairs walls (minY ≈ 3) must not block the ground floor.
+  const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders, 0);
   pos.x = resolved.x;
   pos.z = resolved.z;
-  // Belt-and-suspenders: clamp to hero house interior bounds (matches floorPlan.ts).
-  // Even if a door collider has a gap, this guarantees Luke can't escape the maze.
-  const HOUSE_MIN_X = -8.8;
-  const HOUSE_MAX_X = 1.9;     // exclude garage (x>=2)
-  const HOUSE_MIN_Z = -7.8;
-  const HOUSE_MAX_Z = 7.8;
-  if (pos.x < HOUSE_MIN_X) pos.x = HOUSE_MIN_X;
-  if (pos.x > HOUSE_MAX_X) pos.x = HOUSE_MAX_X;
-  if (pos.z < HOUSE_MIN_Z) pos.z = HOUSE_MIN_Z;
-  if (pos.z > HOUSE_MAX_Z) pos.z = HOUSE_MAX_Z;
-  // Snap yaw to movement direction (Pac-Man-feel).
+  // Belt-and-suspenders: never leave the house shell, even if a door is ajar.
+  clampToHouse(pos);
+  // Face the way you're moving.
   yaws[activeId] = Math.atan2(-dx, -dz);
 }
+
+/** Furniture + fort walls of the Munchies maze (static for the session). */
+const MUNCHIES_COLLIDERS = buildMunchiesColliders();
 
 const TREEHOUSE_SPEED = 5.0;
 const TREEHOUSE_RUN_SPEED = 8.5;

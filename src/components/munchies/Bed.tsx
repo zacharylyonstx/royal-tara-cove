@@ -1,36 +1,50 @@
 import { Html } from '@react-three/drei';
-import { SLEEPWALKER_BEDS, getNode } from '../../world/munchiesGraph';
-import type { SleepwalkerId } from '../../state/munchiesStore';
+import { MAZE_BLOCKS, WALKER_HOME } from '../../world/munchiesMap';
+import { HERO_PIVOT_X, HERO_PIVOT_Z, HERO_YAW } from '../../world/heroPlace';
+import { useMunchiesStore } from '../../state/munchiesStore';
+
+// The sleepwalkers' beds. For Midnight Munchies the family is camping out in
+// the den (the maze's "ghost house") — the bed rects come from MAZE_BLOCKS so
+// what you see is exactly what you bump into.
 
 export function BedsLive() {
+  const roster = useMunchiesStore((s) => s.activeRoster);
+  const kid = roster.includes('penny') ? 'penny' : roster.includes('luke') ? 'luke' : null;
   return (
     <>
-      <Bed who="dad" />
-      <Bed who="penny" />
+      <group position={[HERO_PIVOT_X, 0, HERO_PIVOT_Z]} rotation={[0, HERO_YAW, 0]}>
+        <Bed blockId="bed-dad" sheetColor="#3a5a8a" label={"👨 Dad's bed"} />
+        <Bed
+          blockId="bed-penny"
+          sheetColor={kid === 'luke' ? '#4f9a5c' : '#e26aa1'}
+          label={kid === 'penny' ? "👧 Penny's bed" : kid === 'luke' ? "👦 Luke's bed" : '🛏️ comfy bed'}
+        />
+      </group>
       <DogBed />
     </>
   );
 }
 
-function Bed({ who }: { who: SleepwalkerId }) {
-  const node = getNode(SLEEPWALKER_BEDS[who]);
-  const sheetColor = who === 'dad' ? '#3a5a8a' : '#e26aa1';
-  const label = who === 'dad' ? "👨 Dad's bed" : "👧 Penny's bed";
+function Bed({ blockId, sheetColor, label }: { blockId: string; sheetColor: string; label: string }) {
+  const b = MAZE_BLOCKS.find((m) => m.id === blockId);
+  if (!b) return null;
+  const w = b.maxX - b.minX;
+  const d = b.maxZ - b.minZ;
   return (
-    <group position={[node.x, 0.2, node.z]}>
+    <group position={[(b.minX + b.maxX) / 2, 0.33, (b.minZ + b.maxZ) / 2]}>
       {/* frame */}
       <mesh castShadow receiveShadow>
-        <boxGeometry args={[1.6, 0.4, 2.2]} />
+        <boxGeometry args={[w, 0.4, d]} />
         <meshStandardMaterial color="#5a3a22" roughness={0.85} />
       </mesh>
       {/* sheet */}
-      <mesh position={[0, 0.22, 0]} castShadow>
-        <boxGeometry args={[1.45, 0.05, 2.0]} />
+      <mesh position={[0, 0.22, 0.1]} castShadow>
+        <boxGeometry args={[w - 0.15, 0.06, d - 0.4]} />
         <meshStandardMaterial color={sheetColor} roughness={0.8} />
       </mesh>
       {/* pillow */}
-      <mesh position={[0, 0.28, -0.8]} castShadow>
-        <boxGeometry args={[1.0, 0.08, 0.4]} />
+      <mesh position={[0, 0.3, -d / 2 + 0.3]} castShadow>
+        <boxGeometry args={[w * 0.62, 0.1, 0.4]} />
         <meshStandardMaterial color="#fff7e6" roughness={0.8} />
       </mesh>
       <Html
@@ -58,9 +72,9 @@ function Bed({ who }: { who: SleepwalkerId }) {
 }
 
 function DogBed() {
-  const node = getNode(SLEEPWALKER_BEDS.dog);
+  const node = WALKER_HOME.dog;
   return (
-    <group position={[node.x, 0.05, node.z]}>
+    <group position={[node.x, 0.2, node.z]}>
       <mesh receiveShadow>
         <cylinderGeometry args={[0.5, 0.55, 0.15, 16]} />
         <meshStandardMaterial color="#a04848" roughness={0.9} />

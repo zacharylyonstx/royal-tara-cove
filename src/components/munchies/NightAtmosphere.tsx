@@ -1,10 +1,10 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { PointLight } from 'three';
+import { HERO_PIVOT_X, HERO_PIVOT_Z, HERO_YAW } from '../../world/heroPlace';
 
-// Dim the overall scene and add three small light sources that hint at a
-// real sleeping house: bathroom nightlight, moonlight through bay window,
-// and TV flicker in the great room.
+// Small light sources that hint at a real sleeping house: a kitchen nightlight,
+// moonlight through the front window, the projector left on, fireplace embers.
 
 export function NightAtmosphere() {
   const tvRef = useRef<PointLight>(null);
@@ -20,19 +20,23 @@ export function NightAtmosphere() {
     }
   });
 
+  // Authored in house-local coordinates (see components/hero/floorPlan.ts).
   return (
-    <>
-      {/* Bathroom nightlight — bath-center ≈ (-1.75, 5.0) */}
-      <pointLight position={[-1.75, 0.5, 5.0]} color="#ffcf66" intensity={0.45} distance={3.5} decay={2} />
+    <group position={[HERO_PIVOT_X, 0, HERO_PIVOT_Z]} rotation={[0, HERO_YAW, 0]}>
+      {/* Kitchen nightlight over the counter. */}
+      <pointLight position={[3.2, 1.3, 7.6]} color="#ffcf66" intensity={1.4} distance={6} decay={2} />
 
-      {/* Moonlight — fakes a slanted beam from outside the bay window. */}
-      <pointLight ref={moonRef} position={[-4.5, 3, -9.5]} color="#9bb4f0" intensity={0.7} distance={14} decay={1.4} castShadow />
+      {/* Moonlight slanting in through the tall front window. */}
+      <pointLight ref={moonRef} position={[0.9, 3, -8.2]} color="#9bb4f0" intensity={0.7} distance={14} decay={1.4} />
 
-      {/* TV in the great room — flickering blue/white light near south wall. */}
-      <pointLight ref={tvRef} position={[-5.0, 1.0, -7.5]} color="#8ab4ff" intensity={1.0} distance={6} decay={2} />
+      {/* Projector screen left on — flickering blue/white on the great-room wall. */}
+      <pointLight ref={tvRef} position={[10.6, 1.4, -4]} color="#8ab4ff" intensity={1.0} distance={7} decay={2} />
+
+      {/* Embers in the den fireplace. */}
+      <pointLight position={[-10.2, 0.8, 7.2]} color="#ff7a30" intensity={1.6} distance={6} decay={2} />
 
       {/* Soft ambient cool fill. */}
       <ambientLight color="#5a6a8a" intensity={0.18} />
-    </>
+    </group>
   );
 }
