@@ -4,39 +4,34 @@ import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import type { BlobKind } from '../state/combatStore';
-import { BLOB_SPAWN } from '../components/aliens/UFOCrash';
 import { victoryFanfare, stopCrackleLoop, waveAlarm, bossRoar } from '../audio';
+import { SPAWN_SITES, WAVE_COUNT, sitesForWave, spawnQueueFor } from '../world/blobWaves';
+import type { SpawnSiteId } from '../world/blobWaves';
+import { ensureBlobNav, blobSafeSpot } from '../world/blobNav';
 
 const SPAWN_INTERVAL = 0.55;
-const INTERMISSION_LEN = 5.0;
-const CINEMATIC_DURATION = 2.0;
+const INTERMISSION_LEN = 6.0;
+/** Length of the "here they come" camera shot at the start of each wave. */
+export const WAVE_SHOT_S = 2.8;
+/** Pods take this long to fall — nothing climbs out before they land. */
+export const POD_FALL_S = 1.5;
 
-export const WAVES: { kind: BlobKind; count: number }[][] = [
-  // Wave 1 — easier intro
-  [{ kind: 'hopper', count: 4 }],
-  // Wave 2 — variety, slightly harder
-  [
-    { kind: 'hopper', count: 2 },
-    { kind: 'sprinter', count: 2 },
-    { kind: 'splitter', count: 2 },
-  ],
-  // Wave 3 — boss + minions
-  [
-    { kind: 'boss', count: 1 },
-    { kind: 'hopper', count: 4 },
-  ],
-];
+/** How many humans are playing (1 in solo). */
+function humanCount(): number {
+  let n = 0;
+  for (const p of Object.values(useNetStore.getState().peers)) if (p.characterId) n++;
+  return Math.max(1, n);
+}
 
 /**
  * Owns the wave state machine. When the player enters combat, runs:
- *   spawning(N) → fighting → cleared → intermission(5s) → next wave
+ *   spawning(N) → fighting → cleared → intermission → next wave
  * Until all waves are cleared, then victory.
  */
 export function WaveController() {
   const phase = useGameStore((s) => s.phase);
   const setPhase = useGameStore((s) => s.setPhase);
   const blobs = useCombatStore((s) => s.blobs);
-  const blobsToSpawn = useCombatStore((s) => s.blobsToSpawn);
   const waveIndex = useCombatStore((s) => s.waveIndex);
   const waveState = useCombatStore((s) => s.waveState);
   const intermissionEndsAt = useCombatStore((s) => s.intermissionEndsAt);
@@ -47,15 +42,25 @@ export function WaveController() {
   const consumeBlobToSpawn = useCombatStore((s) => s.consumeBlobToSpawn);
   const pushDialogue = useCombatStore((s) => s.pushDialogue);
   const startGame = useCombatStore((s) => s.startGame);
-  const startCinematic = useCombatStore((s) => s.startCinematic);
-  const endCinematic = useCombatStore((s) => s.endCinematic);
-  const cinematic = useCombatStore((s) => s.cinematic);
   const spawnDebris = useCombatStore((s) => s.spawnDebris);
   const addShake = useCombatStore((s) => s.addShake);
 
   const spawnAccum = useRef(0);
   const enteredCombatRef = useRef(false);
-  const cinematicTriggeredFor = useRef<number>(-1);
+  /** Host-side spawn order for the current wave (site + kind per blob). */
+  const queue = useRef<{ site: SpawnSiteId; kind: BlobKind }[]>([]);
+  const queueFor = useRef(-1);
+  const waveStartedAt = useRef(0);
+
+  const beginWave = (index: number) => {
+    const q = spawnQueueFor(index, humanCount());
+    queue.current = q;
+    queueFor.current = index;
+    waveStartedAt.current = performance.now() / 1000;
+    const byKind = new Map<BlobKind, number>();
+    for (const e of q) byKind.set(e.kind, (byKind.get(e.kind) ?? 0) + 1);
+    setWave(index, [...byKind].map(([kind, count]) => ({ kind, count })));
+  };
 
   // When combat begins for the first time, kick off Wave 1.
   useEffect(() => {
@@ -63,70 +68,73 @@ export function WaveController() {
     if (phase === 'combat' && !enteredCombatRef.current) {
       enteredCombatRef.current = true;
       startGame();
-      setWave(1, WAVES[0]);
+      beginWave(1);
       pushDialogue('dad', 'Time to test the ray gun.');
     }
     if (phase === 'intro') {
       enteredCombatRef.current = false;
     }
+    // beginWave only touches refs + stable store actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, setWave, startGame, pushDialogue]);
 
-  useFrame((state, dtRaw) => {
+  useFrame((_, dtRaw) => {
     if (!useNetStore.getState().isHost) return;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     const dt = Math.min(dtRaw, 0.1);
-    const now = state.clock.elapsedTime;
+    const now = performance.now() / 1000;
 
-    // Trigger spawn cinematic the first time we enter spawning for this wave.
-    // Camera high above & slightly south of the portal looking down at the
-    // backyard — sees the portal beam, the back of the hero house, and the
-    // path the blobs will take toward the cul-de-sac.
-    if (waveState === 'spawning' && cinematicTriggeredFor.current !== waveIndex) {
-      cinematicTriggeredFor.current = waveIndex;
-      startCinematic(
-        [BLOB_SPAWN[0], BLOB_SPAWN[1] + 2, BLOB_SPAWN[2]],
-        [BLOB_SPAWN[0] + 8, 32, BLOB_SPAWN[2] - 12], // up high, slightly south & east
-        CINEMATIC_DURATION,
-      );
+    // A guest promoted to host mid-wave has no queue of its own: rebuild what's
+    // left from the synced counts so the wave can still finish.
+    if (waveState === 'spawning' && queueFor.current !== waveIndex) {
+      queue.current = spawnQueueFor(waveIndex, humanCount()).slice(blobs.length);
+      queueFor.current = waveIndex;
+      waveStartedAt.current = now - POD_FALL_S;
     }
-    // While cinematic is active, pause spawning. End cinematic after duration.
-    if (cinematic.active) {
-      if (now > cinematic.endsAt) endCinematic();
-      return;
-    }
+
+    // Hold the spawns for the first beat of the establishing shot (see
+    // WaveCinematic), then let them pour out while everyone is still watching.
+    const cin = useCombatStore.getState().cinematic;
+    if (waveState === 'spawning' && cin.active && now < cin.endsAt - (WAVE_SHOT_S - 0.9)) return;
 
     // Spawn blobs from the current wave's queue.
     if (waveState === 'spawning') {
+      ensureBlobNav(useGameStore.getState().staticColliders);
       spawnAccum.current += dt;
       if (spawnAccum.current >= SPAWN_INTERVAL) {
         spawnAccum.current = 0;
-        const next = blobsToSpawn.find((b) => b.count > 0);
-        if (next) {
+        // Pods have to land before anything can climb out of them.
+        const podsDown = now - waveStartedAt.current >= POD_FALL_S;
+        const idx = queue.current.findIndex((e) => podsDown || !SPAWN_SITES[e.site].pod);
+        if (idx >= 0) {
+          const next = queue.current.splice(idx, 1)[0];
+          const site = SPAWN_SITES[next.site];
           // Wider scatter so blobs don't stack on top of each other.
           const ang = Math.random() * Math.PI * 2;
-          const r = 2 + Math.random() * 4;
-          const jx = Math.cos(ang) * r;
-          const jz = Math.sin(ang) * r;
-          spawnBlob(next.kind, BLOB_SPAWN[0] + jx, BLOB_SPAWN[1], BLOB_SPAWN[2] + jz);
+          const r = next.kind === 'boss' ? 0 : 2 + Math.random() * 3.5;
+          const spot = blobSafeSpot(site.x + Math.cos(ang) * r, site.z + Math.sin(ang) * r);
+          // The big one toughens up when the whole family is fighting it.
+          const hp = next.kind === 'boss' ? Math.round(60 * (1 + 0.4 * (humanCount() - 1))) : undefined;
+          spawnBlob(next.kind, spot.x, 0.6, spot.z, { hp });
           consumeBlobToSpawn(next.kind);
           if (next.kind === 'boss') {
             bossRoar();
             pushDialogue('dad', 'That one\'s HUGE.');
             // Boss "smashes through the back fence" — spawn debris burst + shake
-            spawnDebris(BLOB_SPAWN[0], 0.5, BLOB_SPAWN[2] + 4, 18);
+            spawnDebris(site.x, 0.5, site.z + 4, 18);
             addShake(0.6);
           }
-        } else {
+        } else if (queue.current.length === 0) {
           // Done spawning
           setWaveState('fighting');
         }
       }
     } else if (waveState === 'fighting') {
       const aliveCount = blobs.filter((b) => b.alive).length;
-      if (aliveCount === 0 && blobsToSpawn.length === 0) {
+      if (aliveCount === 0) {
         setWaveState('cleared');
-        if (waveIndex >= WAVES.length) {
+        if (waveIndex >= WAVE_COUNT) {
           // Victory
           setPhase('victory');
           stopCrackleLoop();
@@ -136,21 +144,23 @@ export function WaveController() {
           setIntermissionEnd(now + INTERMISSION_LEN);
           setWaveState('intermission');
           if (waveIndex === 1) pushDialogue('penny', 'We got \'em!');
+          if (waveIndex === 3) pushDialogue('luke', 'Take THAT, blobs!');
         }
       }
     } else if (waveState === 'intermission') {
       if (now >= intermissionEndsAt) {
         // Next wave
         const nextIdx = waveIndex + 1;
-        if (nextIdx > WAVES.length) {
+        if (nextIdx > WAVE_COUNT) {
           setPhase('victory');
           stopCrackleLoop();
           victoryFanfare();
         } else {
           waveAlarm();
-          setWave(nextIdx, WAVES[nextIdx - 1]);
-          if (nextIdx === 2) pushDialogue('luke', 'More are coming!');
-          if (nextIdx === 3) pushDialogue('luke', 'Look at the size of that one!');
+          beginWave(nextIdx);
+          const pod = sitesForWave(nextIdx).find((s) => SPAWN_SITES[s].pod);
+          if (nextIdx === WAVE_COUNT) pushDialogue('luke', 'Look at the size of that one!');
+          else if (pod) pushDialogue(nextIdx % 2 === 0 ? 'luke' : 'penny', `They're landing ${SPAWN_SITES[pod].label}!`);
         }
       }
     }

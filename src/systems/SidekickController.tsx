@@ -5,6 +5,7 @@ import { useCombatStore } from '../state/combatStore';
 import { useNetStore } from '../state/netStore';
 import type { CharacterId } from '../types';
 import { laserZap } from '../audio';
+import { blobLineOfSight } from '../world/blobNav';
 
 const FIRE_INTERVAL = 2.0;
 const RANGE = 18;
@@ -48,7 +49,7 @@ export function SidekickController() {
       if (p.characterId) claimed.add(p.characterId);
     }
 
-    for (const id of ['penny', 'luke'] as CharacterId[]) {
+    for (const id of ['dad', 'penny', 'luke'] as CharacterId[]) {
       if (claimed.has(id)) continue;
       if (id === activeId && Object.keys(net.peers).length === 0) continue;
       cooldowns.current[id] -= dt;
@@ -60,7 +61,7 @@ export function SidekickController() {
       let bestBlob = null as null | typeof blobs[number];
       for (const b of blobs) {
         const d = Math.hypot(b.x - pos.x, b.z - pos.z);
-        if (d < bestDist) {
+        if (d < bestDist && blobLineOfSight(pos.x, pos.z, b.x, b.z)) {
           bestDist = d;
           bestBlob = b;
         }
@@ -78,10 +79,10 @@ export function SidekickController() {
       recordShotFired();
       const cy = Math.cos(yaw);
       const sy = Math.sin(yaw);
-      const HAND_X = 0.28;
-      const MUZZLE_Z = -0.5;
+      const HAND_X = id === 'dad' ? 0.35 : 0.28;
+      const MUZZLE_Z = id === 'dad' ? -0.8 : -0.5;
       const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z * sy;
-      const muzzleY = 0.95;
+      const muzzleY = id === 'dad' ? 1.16 : 0.95;
       const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z * cy;
 
       // Raycast against the chosen blob (we already know it's nearest in range)
@@ -94,7 +95,7 @@ export function SidekickController() {
       const bb = 2 * (fx * dirX + fz * dirZ);
       const cc = fx * fx + fy * fy + fz * fz - (BLOB_RADIUS * bestBlob.scale) ** 2;
       const disc = bb * bb - 4 * a * cc;
-      const tint = id === 'penny' ? 'pink' : 'green';
+      const tint = id === 'penny' ? 'pink' : id === 'luke' ? 'green' : 'cyan';
       if (disc < 0) {
         // Miss — beam to a far point
         spawnBeam([muzzleX, muzzleY, muzzleZ], [muzzleX + dirX * RANGE, muzzleY, muzzleZ + dirZ * RANGE], tint);

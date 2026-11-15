@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type BlobKind = 'hopper' | 'sprinter' | 'splitter' | 'boss';
+export type BlobKind = 'hopper' | 'sprinter' | 'splitter' | 'brute' | 'boss';
 
 export interface Blob {
   id: number;
@@ -20,11 +20,6 @@ export interface Blob {
   deathAt: number;
   /** When the blob spawned (for erupt scale-in animation). */
   spawnedAt: number;
-  /** Detour waypoint world XZ — blob steers here before targeting player. */
-  waypointX: number;
-  waypointZ: number;
-  /** True when blob has reached its waypoint (or doesn't have one). */
-  waypointReached: boolean;
   /** Boss-specific cooldowns (ignored for non-boss). */
   slamCooldown?: number;
   summonCooldown?: number;
@@ -67,7 +62,7 @@ export interface DialogueLine {
 
 export type WaveState = 'pre-waves' | 'spawning' | 'fighting' | 'cleared' | 'intermission' | 'won';
 
-export type PowerUpKind = 'rapidFire' | 'bigLaser' | 'freezeRay' | 'shield' | 'tripleShot';
+export type PowerUpKind = 'rapidFire' | 'bigLaser' | 'freezeRay' | 'shield' | 'tripleShot' | 'heal';
 
 export interface PowerUpDrop {
   id: number;
@@ -117,13 +112,17 @@ export interface Cinematic {
 }
 
 export const POWERUP_BASE_DROP_RATE = 0.32;
+/** The timed weapon boosts a kill can drop ('heal' is rolled separately — it
+ *  only shows up when the family is actually hurt). */
 export const POWERUP_KINDS: PowerUpKind[] = ['rapidFire', 'bigLaser', 'freezeRay', 'shield', 'tripleShot'];
+export const HEAL_AMOUNT = 6;
 export const POWERUP_DURATION: Record<PowerUpKind, number> = {
   rapidFire: 8,
   bigLaser: 6,
   freezeRay: 8,
   shield: 6,
   tripleShot: 6,
+  heal: 0,
 };
 export const POWERUP_LABEL: Record<PowerUpKind, string> = {
   rapidFire: '⚡ Rapid Fire',
@@ -131,6 +130,7 @@ export const POWERUP_LABEL: Record<PowerUpKind, string> = {
   freezeRay: '❄️ Freeze Ray',
   shield: '🛡️ Shield',
   tripleShot: '⭐ Triple Shot',
+  heal: '💚 Health',
 };
 export const POWERUP_COLOR: Record<PowerUpKind, string> = {
   rapidFire: '#fff15a',
@@ -138,11 +138,13 @@ export const POWERUP_COLOR: Record<PowerUpKind, string> = {
   freezeRay: '#5acdff',
   shield: '#a0e84a',
   tripleShot: '#e26aa1',
+  heal: '#4ade80',
 };
 export const BLOB_BASE_SCORE: Record<BlobKind, number> = {
   hopper: 10,
   sprinter: 15,
   splitter: 20,
+  brute: 60,
   boss: 200,
 };
 
@@ -184,7 +186,7 @@ interface CombatStore {
   pushDialogue: (speaker: 'dad' | 'penny' | 'luke', text: string, duration?: number) => void;
   reapDialogue: (now: number) => void;
 
-  spawnBlob: (kind: BlobKind, x: number, y: number, z: number, opts?: { variant?: number }) => void;
+  spawnBlob: (kind: BlobKind, x: number, y: number, z: number, opts?: { variant?: number; hp?: number }) => void;
   damageBlob: (id: number, amount?: number) => void;
   reapDeadBlobs: (now: number) => void;
   setWave: (index: number, composition: { kind: BlobKind; count: number }[]) => void;
@@ -270,7 +272,8 @@ function blobDefaultsFor(kind: BlobKind): { hp: number; scale: number } {
     case 'hopper': return { hp: 3, scale: 1 };
     case 'sprinter': return { hp: 1, scale: 0.85 };
     case 'splitter': return { hp: 2, scale: 1.1 };
-    case 'boss': return { hp: 25, scale: 3 };
+    case 'brute': return { hp: 13, scale: 1.9 };
+    case 'boss': return { hp: 60, scale: 3 };
   }
 }
 
@@ -318,23 +321,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
   },
 
   spawnBlob: (kind, x, y, z, opts) => {
-    const { hp, scale } = blobDefaultsFor(kind);
+    const base = blobDefaultsFor(kind);
+    const scale = base.scale;
+    const hp = opts?.hp ?? base.hp;
     const id = get().nextBlobId;
     const variant = opts?.variant ?? get().spawnedBlobsCount % 4;
-    // Compute detour waypoint: route around hero house (10600 lives at the
-    // bulb at angleDeg=90, world ~(0, +37), 18m wide). Side chosen randomly
-    // so blobs fan around both sides. Boss skips waypoint.
-    const HERO_X = 0;
-    const HERO_Z = 37;
-    const HERO_HALF_W = 11;
-    const isBoss = kind === 'boss';
-    const side = Math.random() < 0.5 ? -1 : 1;
-    // Non-boss: corner of hero house. Boss: wider arc — uses x = ±(half + 5)
-    // and z slightly past house, so it visibly walks the long way around.
-    const waypointX = isBoss
-      ? HERO_X + side * (HERO_HALF_W + 5)
-      : HERO_X + side * HERO_HALF_W;
-    const waypointZ = isBoss ? HERO_Z + 4 : HERO_Z;
     set((s) => ({
       nextBlobId: id + 1,
       spawnedBlobsCount: s.spawnedBlobsCount + 1,
@@ -347,8 +338,6 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
           lastDamagedAt: -999,
           variant, alive: true, deathAt: 0,
           spawnedAt: performance.now() / 1000,
-          waypointX, waypointZ,
-          waypointReached: false,
           slamCooldown: kind === 'boss' ? 5 : undefined,
           summonCooldown: kind === 'boss' ? 6 : undefined,
           chargeCooldown: kind === 'boss' ? 8 : undefined,
@@ -493,6 +482,11 @@ export const useCombatStore = create<CombatStore>((set, get) => ({
   pickupPowerUp: (id) => {
     const drop = get().powerUpDrops.find((p) => p.id === id);
     if (!drop) return;
+    if (drop.kind === 'heal') {
+      // Instant: the controller heals the family; nothing to keep ticking.
+      set((s) => ({ powerUpDrops: s.powerUpDrops.filter((p) => p.id !== id) }));
+      return;
+    }
     const dur = POWERUP_DURATION[drop.kind];
     const now = performance.now() / 1000;
     set((s) => ({
@@ -622,12 +616,14 @@ export const BLOB_COLORS: { body: string; glow: string }[] = [
   { body: '#ff6a3a', glow: '#a82a08' }, // sprinter (orange-red)
   { body: '#a832c8', glow: '#5a1080' }, // splitter (poison purple)
   { body: '#3afff0', glow: '#1a8090' }, // boss (cyan-king)
+  { body: '#f2b632', glow: '#a8650a' }, // brute (big amber bruiser)
 ];
 
 export const BLOB_COLOR_FOR_KIND = (kind: BlobKind, variantIdx: number): { body: string; glow: string } => {
   if (kind === 'sprinter') return BLOB_COLORS[4];
   if (kind === 'splitter') return BLOB_COLORS[5];
   if (kind === 'boss') return BLOB_COLORS[6];
+  if (kind === 'brute') return BLOB_COLORS[7];
   return BLOB_COLORS[variantIdx % 4];
 };
 

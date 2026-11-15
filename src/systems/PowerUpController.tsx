@@ -2,8 +2,8 @@ import { useFrame } from '@react-three/fiber';
 import { useCombatStore } from '../state/combatStore';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
-import { POWERUP_LABEL } from '../state/combatStore';
-import { gunWind } from '../audio';
+import { POWERUP_LABEL, HEAL_AMOUNT } from '../state/combatStore';
+import { gunWind, petChime } from '../audio';
 
 const PICKUP_RADIUS = 1.6;
 
@@ -29,9 +29,16 @@ export function PowerUpController() {
       }
       if (pickedUpBy) {
         c.pickupPowerUp(drop.id);
-        gunWind();
-        c.spawnFloatingText(drop.x, 1.5, drop.z, POWERUP_LABEL[drop.kind].toUpperCase(), '#fff7d0', true);
-        c.pushDialogue(pickedUpBy as 'dad' | 'penny' | 'luke', '✨ Got one!');
+        if (drop.kind === 'heal') {
+          g.healPlayer(HEAL_AMOUNT);
+          petChime();
+          c.spawnFloatingText(drop.x, 1.5, drop.z, `+${HEAL_AMOUNT} 💚`, '#8dffb0', true);
+          c.pushDialogue(pickedUpBy as 'dad' | 'penny' | 'luke', 'Phew — that helps!');
+        } else {
+          gunWind();
+          c.spawnFloatingText(drop.x, 1.5, drop.z, POWERUP_LABEL[drop.kind].toUpperCase(), '#fff7d0', true);
+          c.pushDialogue(pickedUpBy as 'dad' | 'penny' | 'luke', '✨ Got one!');
+        }
       }
     }
   });

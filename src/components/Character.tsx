@@ -32,7 +32,7 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
   // kid must SEE themself — this was the "we disappeared!" bug.
   const gameMode = useGameStore((s) => s.gameMode);
   const tpFree = usePlayStore((s) => s.thirdPerson);
-  const thirdPerson = gameMode === 'munchies' || gameMode === 'treehouse' || (gameMode === 'freeplay' && tpFree);
+  const thirdPerson = gameMode === 'munchies' || gameMode === 'treehouse' || ((gameMode === 'freeplay' || gameMode === 'aliens') && tpFree);
   const shadowRef = useRef<Mesh>(null);
   // Body-language state (all visual — the real position/yaw are untouched).
   const body = useRef({

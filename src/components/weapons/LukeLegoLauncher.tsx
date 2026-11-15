@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useGameStore } from '../../state/gameStore';
-import { useNetStore } from '../../state/netStore';
+import { isHumanControlled, showsWeapon } from '../../systems/combatRoles';
 
 const HAND_X = 0.32;
 const HAND_Z = -0.22;
@@ -12,17 +12,15 @@ const Y = 0.95;
 export function LukeLegoLauncher() {
   const groupRef = useRef<Group>(null);
   const phase = useGameStore((s) => s.phase);
-  const myCharacterId = useNetStore((s) => s.myCharacterId);
-  const fallbackActive = useGameStore((s) => s.activeCharacterId);
-  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
 
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
-    // FPS: hide own weapon; show Luke's launcher only when he's an NPC.
-    if (phase !== 'combat' || activeId === 'luke' || useGameStore.getState().gameMode !== 'aliens') {
+    // The real weapon — only when a person is playing Luke (a sidekick Luke
+    // carries the little auto-blaster instead), and not in my own first-person view.
+    if (phase !== 'combat' || !isHumanControlled('luke') || !showsWeapon('luke') || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }

@@ -25,7 +25,7 @@ export function PostFX() {
   // prop and the postprocessing wrapper JSON-stringifies its props → circular.
   const freeBloom = useMemo(() => new BloomEffect({ intensity: 0.42, luminanceThreshold: 0.82, luminanceSmoothing: 0.3, mipmapBlur: true, kernelSize: KernelSize.LARGE }), []);
   useFrame(() => {
-    if (gameMode !== 'freeplay') return;
+    if (gameMode !== 'freeplay' && gameMode !== 'aliens') return;
     const tod = useCombatStore.getState().timeOfDay;
     const night = Math.max(0, Math.min(1, (tod - 0.45) / 0.45));
     freeBloom.intensity = 0.42 + 0.25 * night;
@@ -38,7 +38,7 @@ export function PostFX() {
   // grain effect is a clean conditional child.)
   const effects = [
     <N8AO key="ao" halfRes aoRadius={1.1} intensity={horror ? 2.1 : 1.25} distanceFalloff={1.0} color="#0c1018" />,
-    gameMode === 'freeplay'
+    gameMode === 'freeplay' || gameMode === 'aliens'
       ? <primitive key="bloom-free" object={freeBloom} />
       : <Bloom key="bloom" intensity={horror ? 0.5 : 0.42} luminanceThreshold={horror ? 0.7 : 0.82} luminanceSmoothing={0.3} mipmapBlur />,
     <Vignette key="vig" offset={horror ? 0.18 : 0.3} darkness={horror ? 0.82 : 0.5} eskil={false} />,

@@ -47,6 +47,12 @@ function shortestAngle(from: number, to: number): number {
  *  3. Apply incoming remote player positions into gameStore.positions for
  *     non-local characters (so Characters render driven by network).
  */
+/** The newest family call-out, for guests (who otherwise never hear them). */
+function lastLine(lines: { id: number; speaker: string; text: string }[]): { id: number; speaker: string; text: string } | undefined {
+  const l = lines[lines.length - 1];
+  return l ? { id: l.id, speaker: l.speaker, text: l.text } : undefined;
+}
+
 export function NetSyncController() {
   const playerAccum = useRef(0);
   const worldAccum = useRef(0);
@@ -200,10 +206,14 @@ export function NetSyncController() {
           waveIndex: combat.waveIndex,
           waveState: combat.waveState,
           intermissionEndsAt: combat.intermissionEndsAt,
+          // Clocks differ per machine — send the time LEFT so guests' countdowns are right.
+          intermissionLeft: Math.max(0, combat.intermissionEndsAt - performance.now() / 1000),
           powerUpDrops: combat.powerUpDrops,
           activePowerUps: combat.activePowerUps,
+          powerLeft: combat.activePowerUps.map((a) => ({ kind: a.kind, left: a.expiresAt - performance.now() / 1000 })),
           score: combat.score,
           kills: combat.kills,
+          say: lastLine(combat.dialogue),
           tornadoPhaseEnteredAt: tornado.phaseEnteredAt,
           clock: game.gameMode === 'freeplay' ? useSkyStore.getState().dayFraction : undefined,
           dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith } : undefined,

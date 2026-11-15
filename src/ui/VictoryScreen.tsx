@@ -24,13 +24,18 @@ export function VictoryScreen() {
   const shotsHit = useCombatStore((s) => s.shotsHit);
   const startedAt = useCombatStore((s) => s.gameStartedAt);
   const score = useCombatStore((s) => s.score);
+  const hp = useGameStore((s) => s.playerHp);
+  const maxHp = useGameStore((s) => s.maxHp);
   if (phase !== 'victory' || gameMode !== 'aliens') return null;
   const elapsed = (performance.now() / 1000) - startedAt;
   const accuracy = shotsFired > 0 ? (shotsHit / shotsFired) * 100 : 0;
-  let rating = 'C';
-  if (accuracy >= 80 && elapsed < 90) rating = 'S';
-  else if (accuracy >= 60 && elapsed < 120) rating = 'A';
-  else if (accuracy >= 40) rating = 'B';
+  // Stars, not letter grades: winning is a star, keeping the family healthy is
+  // a second, doing it briskly is a third. (The old S/A/B/C needed 80% accuracy
+  // in under 90 seconds — nobody holding a trigger down ever saw better than C.)
+  const hpFrac = hp / maxHp;
+  const stars = 1 + (hpFrac >= 0.5 ? 1 : 0) + (hpFrac >= 0.5 && elapsed < 330 ? 1 : 0);
+  const rating = stars === 3 ? 'S' : stars === 2 ? 'A' : 'B';
+  const praise = stars === 3 ? 'Super squad!' : stars === 2 ? 'Great teamwork!' : 'Phew — close one!';
 
   return (
     <div
@@ -65,7 +70,7 @@ export function VictoryScreen() {
           <Stat label="Kills" value={String(kills)} />
           <Stat label="Accuracy" value={`${accuracy.toFixed(1)}%`} />
           <Stat label="Shots" value={`${shotsHit} / ${shotsFired}`} />
-          <Stat label="Status" value="🎉 PARTY!" />
+          <Stat label="Family HP" value={`${Math.round(hp)} / ${maxHp}`} />
         </div>
         <div
           style={{
@@ -75,12 +80,14 @@ export function VictoryScreen() {
             color: 'white',
             borderRadius: 10,
             fontWeight: 800,
-            fontSize: 36,
+            fontSize: 30,
+            lineHeight: 1.15,
             marginBottom: 18,
             boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
           }}
         >
-          RANK: {rating}
+          {'⭐'.repeat(stars)}<span style={{ opacity: 0.35 }}>{'⭐'.repeat(3 - stars)}</span>
+          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2 }}>{praise}</div>
         </div>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           {/* Phase is host-authoritative in co-op — a guest's restart would be

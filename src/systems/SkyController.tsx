@@ -21,7 +21,9 @@ export function SkyController() {
 
   useFrame((_, dtRaw) => {
     const mode = useGameStore.getState().gameMode;
-    if (mode === 'munchies') return;
+    // Free Play and Alien Invasion run the real sky rig (their own drivers
+    // mirror timeOfDay) — tweening it here too just made the two fight.
+    if (mode === 'munchies' || mode === 'aliens' || mode === 'freeplay') return;
     // Siren Head Night: snap to deep night instantly (no dawn-to-dusk tween).
     if (mode === 'night') {
       if (timeOfDay !== 0.92) setTimeOfDay(0.92);

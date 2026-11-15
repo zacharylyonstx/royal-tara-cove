@@ -10,6 +10,7 @@ import { useNightStore } from '../state/nightStore';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { isTouchDevice, TOUCH_LOOK_SENS } from './touchInput';
 import { isIndoors } from '../world/indoors';
+import { aimAssist } from './aimAssist';
 import type { RectCollider } from '../types';
 
 // First-person camera.
@@ -268,7 +269,13 @@ export function CameraRig() {
     // Night mode's only cinematic is the local swat tumble (set by THIS client's
     // own RagdollController), so it's safe to honor on guests too — otherwise a
     // caught kid (guest) wouldn't get the "tossed" view.
-    if (cin.active && (isHost || _camMode === 'night' || _camMode === 'freeplay')) {
+    // Aliens: every client plays its own intro / wave shots (started locally
+    // from synced state), and they expire by the clock — so a shot can never
+    // strand the camera if whoever started it stops being the host.
+    if (cin.active && _camMode === 'aliens' && performance.now() / 1000 > cin.endsAt) {
+      useCombatStore.getState().endCinematic();
+    }
+    if (useCombatStore.getState().cinematic.active && (isHost || _camMode === 'night' || _camMode === 'freeplay' || _camMode === 'aliens')) {
       decayShake(dt);
       const blendK = Math.min(1, 4 * dt);
       const targetCam = new Vector3(cin.cameraX, cin.cameraY, cin.cameraZ);
@@ -286,6 +293,17 @@ export function CameraRig() {
     const baseY = pos.y + eyeRef.current;
     const baseZ = pos.z;
 
+    // Alien Invasion aim-assist: ease the view toward the blob the combat
+    // controller picked while the trigger is held.
+    if (_camMode === 'aliens' && aimAssist.active && aimAssist.rate > 0) {
+      let d = aimAssist.yaw - yaw.current;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      yaw.current += d * Math.min(1, aimAssist.rate * dt);
+      // Blobs live on the ground: level a wildly tilted view back toward them.
+      pitch.current += (-0.16 - pitch.current) * Math.min(1, aimAssist.rate * 0.4 * dt);
+    }
+
     // Sync the active character's body yaw with the camera so combat aiming
     // (which reads yaws[activeId]) fires where the player is looking.
     yaws[activeId] = yaw.current;
@@ -298,19 +316,25 @@ export function CameraRig() {
     // Same look direction, but the camera hangs back on a boom behind the
     // character so the kids can see themselves. The boom shortens when a wall,
     // fence or ceiling is in the way, and never dips under the ground.
-    if (_camMode === 'freeplay' && usePlayStore.getState().thirdPerson) {
+    const combatTP = _camMode === 'aliens';
+    if ((_camMode === 'freeplay' || combatTP) && usePlayStore.getState().thirdPerson) {
       const cp = Math.cos(pitch.current);
       const fx = -Math.sin(yaw.current) * cp;
       const fy = Math.sin(pitch.current);
       const fz = -Math.cos(yaw.current) * cp;
       const h = CHARACTERS[activeId]?.height ?? 1.6;
-      const pivotY = pos.y + h * 0.86;
+      // Combat: a true over-the-shoulder shot — the camera sits up and to the
+      // right, so the hero is down-left of the crosshair and you can see what
+      // you're zapping (and what's sneaking up beside you).
+      const pivotY = pos.y + h * (combatTP ? 0.98 : 0.86);
+      const sideX = combatTP ? Math.cos(yaw.current) * 0.62 : 0;
+      const sideZ = combatTP ? -Math.sin(yaw.current) * 0.62 : 0;
       const indoors = isIndoors(pos.x, pos.z);
-      const want = indoors ? 2.3 : 3.1 + h * 0.6;
+      const want = indoors ? 2.3 : combatTP ? 3.6 + h * 0.5 : 3.1 + h * 0.6;
       const colliders = useGameStore.getState().staticColliders;
       let free = want;
       for (let s = 0.5; s <= want + 0.01; s += 0.3) {
-        const cx = pos.x - fx * s, cy = pivotY - fy * s + 0.25, cz = pos.z - fz * s;
+        const cx = pos.x + sideX - fx * s, cy = pivotY - fy * s + 0.25, cz = pos.z + sideZ - fz * s;
         if (cy < pos.y + 0.3 || boomBlocked(cx, cy, cz, colliders)) { free = Math.max(0.5, s - 0.35); break; }
       }
       // Pull in instantly, ease back out (no popping through a wall and back).
@@ -321,9 +345,9 @@ export function CameraRig() {
       let camY = pivotY - fy * d + 0.25;
       if (indoors) camY = Math.min(camY, pos.y + 2.55);
       camera.position.set(
-        pos.x - fx * d + (Math.random() - 0.5) * sk3,
+        pos.x + sideX - fx * d + (Math.random() - 0.5) * sk3,
         Math.max(pos.y + 0.35, camY) + (Math.random() - 0.5) * sk3,
-        pos.z - fz * d + (Math.random() - 0.5) * sk3,
+        pos.z + sideZ - fz * d + (Math.random() - 0.5) * sk3,
       );
       return;
     }

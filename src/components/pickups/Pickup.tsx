@@ -10,10 +10,13 @@ export function Pickup({ drop }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const color = POWERUP_COLOR[drop.kind];
+  // When THIS screen first saw the drop (its spawnedAt is on the host's clock).
+  const seenAt = useRef(-1);
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    const age = t - drop.spawnedAt;
+    if (seenAt.current < 0) seenAt.current = t;
+    const age = t - seenAt.current;
     if (groupRef.current) {
       groupRef.current.position.y = 0.85 + Math.sin(t * 3 + drop.id) * 0.18;
       groupRef.current.rotation.y = t * 1.5 + drop.id;

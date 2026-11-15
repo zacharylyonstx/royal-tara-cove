@@ -31,6 +31,7 @@ export function LookHint() {
   const chatOpen = useChatStore((s) => s.inputOpen);
   const wardrobeOpen = useWardrobeStore((s) => s.open);
   const riding = usePlayStore((s) => (me ? !!s.riding[me] : false));
+  const phase = useGameStore((s) => s.phase);
 
   if (isTouchDevice()) return null;
   if (locked || welcomeOpen || !me || spectator || chatOpen || wardrobeOpen || riding) return null;
@@ -40,7 +41,8 @@ export function LookHint() {
     <div
       style={{
         position: 'fixed',
-        top: 14,
+        // Alien Invasion keeps its wave counter top-centre — sit under it.
+        top: gameMode === 'aliens' && (phase === 'combat' || phase === 'intro') ? 84 : 14,
         left: '50%',
         transform: 'translateX(-50%)',
         padding: '7px 14px',

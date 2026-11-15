@@ -5,6 +5,7 @@ import type { Group, Mesh } from 'three';
 import { BLOB_COLOR_FOR_KIND, type Blob } from '../../state/combatStore';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
+import { newBlobView, updateBlobView, toBlobLocal } from './blobView';
 
 interface BlobProps {
   blob: Blob;
@@ -15,6 +16,7 @@ interface BlobProps {
 const DAMAGE_HOPPER = new THREE.Color('#ff3a3a');
 const DAMAGE_SPRINTER = new THREE.Color('#ffd83a');
 const DAMAGE_SPLITTER = new THREE.Color('#ff4040');
+const DAMAGE_BRUTE = new THREE.Color('#ffffff');
 
 export function Schmorgesblob({ blob }: BlobProps) {
   if (blob.kind === 'sprinter') return <Sprinter blob={blob} />;
@@ -37,25 +39,30 @@ function Hopper({ blob }: BlobProps) {
   const activeId = myCharacterId ?? fallbackActive;
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
   const baseColor = useMemo(() => new THREE.Color(color.body), [color.body]);
-  const damageColor = DAMAGE_HOPPER;
+  const brute = blob.kind === 'brute';
+  const damageColor = brute ? DAMAGE_BRUTE : DAMAGE_HOPPER;
+  const view = useRef(newBlobView());
 
-  useFrame((state) => {
+  useFrame((state, dtRaw) => {
     const t = state.clock.elapsedTime;
     if (!group.current) return;
-    group.current.position.set(blob.x, blob.y, blob.z);
+    const now = performance.now() / 1000;
+    const v = view.current;
+    const player = positions[activeId];
+    updateBlobView(v, blob, now, Math.min(dtRaw, 0.1), player.x, player.z);
+    group.current.position.set(v.x, v.y, v.z);
+    group.current.rotation.y = v.yaw;
     group.current.scale.setScalar(blob.scale);
 
-    const player = positions[activeId];
-    const dx = player.x - blob.x;
-    const dz = player.z - blob.z;
+    const dx = player.x - v.x;
+    const dz = player.z - v.z;
     const dist = Math.hypot(dx, dz);
-    const ux = dist > 0 ? dx / dist : 0;
-    const uz = dist > 0 ? dz / dist : 1;
+    const [ux, uz] = toBlobLocal(v, dist > 0 ? dx / dist : 0, dist > 0 ? dz / dist : 1);
 
-    const isAttacking = dist < 1.5;
+    const isAttacking = dist < (brute ? 2.2 : 1.5);
 
     if (!blob.alive) {
-      const age = t - blob.deathAt;
+      const age = now - v.deadAt;
       const k = Math.max(0, Math.min(1, age / 0.4));
       const s = blob.scale * (1 - k);
       group.current.scale.set(s, s * 0.5, s);
@@ -65,7 +72,7 @@ function Hopper({ blob }: BlobProps) {
     group.current.visible = true;
 
     // Erupt scale-in: 0 → 1.15 → 1 over 0.4s with overshoot
-    const sinceSpawn = t - blob.spawnedAt;
+    const sinceSpawn = now - v.seenAt;
     if (sinceSpawn < 0.4) {
       const k = sinceSpawn / 0.4;
       const overshoot = k < 0.7 ? (k / 0.7) * 1.15 : 1.15 - ((k - 0.7) / 0.3) * 0.15;
@@ -77,7 +84,7 @@ function Hopper({ blob }: BlobProps) {
       const sx = isAttacking ? 1.18 - wob * 0.3 : 1 - wob * 0.55;
       const sy = isAttacking ? 0.7 + wob * 0.3 : 1 + wob;
       body.current.scale.set(sx, sy, sx);
-      const sinceDamage = t - blob.lastDamagedAt;
+      const sinceDamage = now - v.hitAt;
       const flash = sinceDamage < 0.15 ? Math.max(0, 1 - sinceDamage / 0.15) : 0;
       const mat = body.current.material as THREE.MeshPhysicalMaterial;
       if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
@@ -94,13 +101,13 @@ function Hopper({ blob }: BlobProps) {
       leftEye.current.children.forEach((child, idx) => {
         if (idx === 1) {
           child.position.x = ux * pupilOffset;
-          child.position.z = uz * pupilOffset;
+          child.position.z = 0.105 + Math.max(0, uz) * 0.03; // keep the pupil proud of the eyeball
         }
       });
       rightEye.current.children.forEach((child, idx) => {
         if (idx === 1) {
           child.position.x = ux * pupilOffset;
-          child.position.z = uz * pupilOffset;
+          child.position.z = 0.105 + Math.max(0, uz) * 0.03; // keep the pupil proud of the eyeball
         }
       });
     }
@@ -116,8 +123,6 @@ function Hopper({ blob }: BlobProps) {
       tg.rotation.z = Math.cos(t * 4 + phase) * 0.3;
     });
   });
-
-  if (!blob.alive && performance.now() / 1000 - blob.deathAt > 0.5) return null;
 
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
@@ -260,20 +265,24 @@ function Sprinter({ blob }: BlobProps) {
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
   const baseColor = useMemo(() => new THREE.Color(color.body), [color.body]);
   const damageColor = DAMAGE_SPRINTER;
+  const view = useRef(newBlobView());
 
-  useFrame((state) => {
+  useFrame((state, dtRaw) => {
     const t = state.clock.elapsedTime;
     if (!group.current) return;
-    group.current.position.set(blob.x, blob.y, blob.z);
-    group.current.scale.setScalar(blob.scale);
+    const now = performance.now() / 1000;
+    const v = view.current;
     const player = positions[activeId];
-    const dx = player.x - blob.x;
-    const dz = player.z - blob.z;
+    updateBlobView(v, blob, now, Math.min(dtRaw, 0.1), player.x, player.z);
+    group.current.position.set(v.x, v.y, v.z);
+    group.current.rotation.y = v.yaw;
+    group.current.scale.setScalar(blob.scale);
+    const dx = player.x - v.x;
+    const dz = player.z - v.z;
     const dist = Math.hypot(dx, dz);
-    const ux = dist > 0 ? dx / dist : 0;
-    const uz = dist > 0 ? dz / dist : 1;
+    const [ux, uz] = toBlobLocal(v, dist > 0 ? dx / dist : 0, dist > 0 ? dz / dist : 1);
     if (!blob.alive) {
-      const age = t - blob.deathAt;
+      const age = now - v.deadAt;
       const k = Math.max(0, Math.min(1, age / 0.3));
       const s = blob.scale * (1 - k);
       group.current.scale.set(s, s * 0.4, s);
@@ -282,13 +291,10 @@ function Sprinter({ blob }: BlobProps) {
     }
     group.current.visible = true;
     if (body.current) {
-      // Lean forward in direction of travel
-      const yaw = Math.atan2(ux, uz);
-      group.current.rotation.y = yaw;
       // Stretch
       const stretch = 1 + Math.sin(t * 16 + blob.phase) * 0.06;
       body.current.scale.set(0.85, 0.7, stretch);
-      const flash = Math.max(0, 1 - (t - blob.lastDamagedAt) / 0.15);
+      const flash = Math.max(0, 1 - (now - v.hitAt) / 0.15);
       const mat = body.current.material as THREE.MeshPhysicalMaterial;
       if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
     }
@@ -296,13 +302,11 @@ function Sprinter({ blob }: BlobProps) {
       eye.current.children.forEach((child, idx) => {
         if (idx === 1) {
           child.position.x = ux * 0.04;
-          child.position.z = 0.12 + uz * 0.04;
+          child.position.z = 0.12 + Math.max(0, uz) * 0.04;
         }
       });
     }
   });
-
-  if (!blob.alive && performance.now() / 1000 - blob.deathAt > 0.4) return null;
 
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>
@@ -341,14 +345,21 @@ function Splitter({ blob }: BlobProps) {
   const color = BLOB_COLOR_FOR_KIND(blob.kind, blob.variant);
   const baseColor = useMemo(() => new THREE.Color(color.body), [color.body]);
   const damageColor = DAMAGE_SPLITTER;
+  const view = useRef(newBlobView());
+  const positions = useGameStore((s) => s.positions);
 
-  useFrame((state) => {
+  useFrame((state, dtRaw) => {
     const t = state.clock.elapsedTime;
     if (!group.current) return;
-    group.current.position.set(blob.x, blob.y, blob.z);
+    const now = performance.now() / 1000;
+    const v = view.current;
+    const me = positions[useNetStore.getState().myCharacterId ?? useGameStore.getState().activeCharacterId];
+    updateBlobView(v, blob, now, Math.min(dtRaw, 0.1), me.x, me.z);
+    group.current.position.set(v.x, v.y, v.z);
+    group.current.rotation.y = v.yaw;
     group.current.scale.setScalar(blob.scale);
     if (!blob.alive) {
-      const age = t - blob.deathAt;
+      const age = now - v.deadAt;
       const k = Math.max(0, Math.min(1, age / 0.3));
       const s = blob.scale * (1 - k);
       group.current.scale.set(s, s, s);
@@ -368,7 +379,7 @@ function Splitter({ blob }: BlobProps) {
       // Bulgy bob
       const wob = Math.sin(t * 4 + blob.phase) * 0.15;
       body.current.scale.set(1.15 - wob * 0.5, 0.85 + wob, 1.15 - wob * 0.5);
-      const flash = Math.max(0, 1 - (t - blob.lastDamagedAt) / 0.15);
+      const flash = Math.max(0, 1 - (now - v.hitAt) / 0.15);
       const mat = body.current.material as THREE.MeshPhysicalMaterial;
       if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
     }
@@ -378,8 +389,6 @@ function Splitter({ blob }: BlobProps) {
       if (mat) mat.emissiveIntensity = 0.8 + Math.sin(t * 5 + i) * 0.4;
     });
   });
-
-  if (!blob.alive && performance.now() / 1000 - blob.deathAt > 0.4) return null;
 
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>

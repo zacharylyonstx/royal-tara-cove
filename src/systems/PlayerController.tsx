@@ -107,6 +107,9 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
 
 const SPEED = 5.5;
 const RUN_SPEED = 10.0;
+/** Where each family member starts in the cul-de-sac (mirrors gameStore). */
+const SPAWN_POINTS: Record<CharacterId, [number, number]> = { dad: [-2.5, 10], penny: [0, 11], luke: [2.5, 10] };
+
 // Siren Head Night locomotion. Walk is a touch slower than Siren's chase (4.7)
 // so plain walking can't outrun him — you sprint in bursts (stamina-limited,
 // noisy) and hide. Crouch is slow + quiet.
@@ -225,7 +228,10 @@ export function PlayerController() {
           const sp = treehouseSpawnPoint();
           pos.set(sp.x, 0, sp.z);
         } else {
-          pos.set(0, 0, -90);
+          // Back to my spot in the cul-de-sac (this used to drop you 100 m up
+          // the street, a leftover from an older map).
+          const home = SPAWN_POINTS[activeId];
+          pos.set(home[0], 0, home[1]);
         }
       }
       // One press = one interact. Without the repeat guard a HELD E re-fired
@@ -237,7 +243,8 @@ export function PlayerController() {
       }
       // Siren Head Night: F toggles the flashlight (reveals you AND the way).
       // Free Play: V swaps between first-person and the over-the-shoulder view.
-      if (k === 'v' && !e.repeat && useGameStore.getState().gameMode === 'freeplay' && !useChatStore.getState().inputOpen) {
+      const vMode = useGameStore.getState().gameMode;
+      if (k === 'v' && !e.repeat && (vMode === 'freeplay' || vMode === 'aliens') && !useChatStore.getState().inputOpen) {
         usePlayStore.getState().toggleThirdPerson();
       }
       if (k === 'f' && !e.repeat && useGameStore.getState().gameMode === 'night') {
@@ -271,6 +278,7 @@ export function PlayerController() {
       touchInput.jumpQueued = false;
       touchInput.actionQueued = false;
       touchInput.actionHeld = false;
+      touchInput.fireHeld = false;
     };
     const onVisibility = () => {
       if (document.hidden) clearAllInput();

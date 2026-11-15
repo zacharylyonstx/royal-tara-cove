@@ -47,6 +47,18 @@ export function ControlsHud() {
             <kbd>E</kbd> climb / open / pick up &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
           </div>
         </>
+      ) : gameMode === 'aliens' ? (
+        <>
+          <div>
+            <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
+          </div>
+          <div>
+            hold <kbd>click</kbd> or <kbd>F</kbd> zap &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>R</kbd> back to the cul-de-sac
+          </div>
+          <div>
+            <kbd>click</kbd> look around &nbsp; <kbd>esc</kbd> release cursor &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
+          </div>
+        </>
       ) : gameMode === 'freeplay' ? (
         <>
           <div>
@@ -59,7 +71,7 @@ export function ControlsHud() {
             🚲 <kbd>␣</kbd> hop · ramp + <kbd>W/S</kbd> flips!
           </div>
           <div>
-            <kbd>click</kbd> look around &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; hold <kbd>R</kbd> go home
+            <kbd>click</kbd> look around &nbsp; <kbd>V</kbd> camera &nbsp; <kbd>M</kbd> map &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; hold <kbd>R</kbd> go home
           </div>
         </>
       ) : (

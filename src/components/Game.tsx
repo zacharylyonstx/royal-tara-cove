@@ -115,7 +115,7 @@ import { Confetti } from './celebration/Confetti';
 import { DiscoLights } from './celebration/DiscoLights';
 import { DancingBlobs } from './celebration/DancingBlobs';
 import { Fireflies } from './celebration/Fireflies';
-import { BackyardPortal } from './celebration/BackyardPortal';
+import { SpawnPortals } from './aliens/SpawnPortals';
 import { useCombatStore } from '../state/combatStore';
 import { CameraExposer } from '../ui/Dialogue';
 import { Atmosphere } from './Atmosphere';
@@ -127,6 +127,12 @@ import { SkyLighting } from './sky/SkyLighting';
 import { StreetLamps } from './sky/StreetLamps';
 import { NightWindows } from './sky/NightWindows';
 import { StalkerController } from '../systems/StalkerController';
+import { AliensSkyDriver } from '../systems/AliensSkyDriver';
+import { GuideBeacon } from './zone/GuideBeacon';
+
+/** Modes lit by the realistic sky rig (SkyDome + SkyLighting) rather than the
+ *  legacy drei <Sky> + DynamicLights. */
+const usesSkyRig = (m: string) => m === 'freeplay' || m === 'aliens';
 import { buildStreetLampColliders } from '../world/streetLamps';
 
 // Crisper shadows on desktop; lighter on touch to protect iPad framerate.
@@ -142,8 +148,8 @@ export function Game() {
   const yaws = useGameStore((s) => s.yaws);
   const setStaticColliders = useGameStore((s) => s.setStaticColliders);
   const setFloors = useGameStore((s) => s.setFloors);
-  // Street-lamp poles only exist in Free Play (visuals + colliders together).
-  const lampsOn = useGameStore((s) => s.gameMode) === 'freeplay';
+  // Street-lamp poles exist wherever the sky rig runs (visuals + colliders together).
+  const lampsOn = usesSkyRig(useGameStore((s) => s.gameMode));
 
   // Compute lots, props, and colliders once.
   const lots = useMemo(() => buildLots(HOUSES), []);
@@ -289,6 +295,8 @@ function FreeplayModeSystems() {
   return (
     <>
       <DayNightController />
+      {/* The "show me the way" light from the map. */}
+      <GuideBeacon />
       <SkyDome />
       <SkyLighting />
       <StreetLamps />
@@ -390,6 +398,12 @@ function AliensModeSystems() {
   if (gameMode !== 'aliens') return null;
   return (
     <>
+      {/* The invasion's own clock on the shared sky rig: afternoon → dusk. */}
+      <AliensSkyDriver />
+      <SkyDome />
+      <SkyLighting />
+      <StreetLamps />
+      <NightWindows />
       {/* Aliens + combat */}
       <UFOCrash />
       <BlobRenderer />
@@ -403,7 +417,7 @@ function AliensModeSystems() {
       <KidBlaster who="luke" color="#5cb85c" />
       <PickupsLive />
       <Projectiles />
-      <BackyardPortal />
+      <SpawnPortals />
       <VictoryOnly />
       <BlobController />
       <CombatController />
@@ -422,7 +436,7 @@ function SceneFog() {
   const stormIntensity = useTornadoStore((s) => s.stormIntensity);
   const timeOfDay = useCombatStore((s) => s.timeOfDay);
   const gameMode = useGameStore((s) => s.gameMode);
-  if (gameMode === 'freeplay') return null; // SkyLighting owns the fog
+  if (usesSkyRig(gameMode)) return null; // SkyLighting owns the fog
   if (stormIntensity >= 0.1) {
     const near = 25 - stormIntensity * 8;
     const far = 130 - stormIntensity * 75;
@@ -450,7 +464,7 @@ function DynamicSky() {
   // it for a solid deep-night backdrop. Stars render against it; the cool fog
   // blends the horizon.
   if (gameMode === 'night') return <color attach="background" args={['#070a14']} />;
-  if (gameMode === 'freeplay') return null; // SkyDome owns the sky
+  if (usesSkyRig(gameMode)) return null; // SkyDome owns the sky
   // 0..1 → angle around horizon. We compute a sun position via timeOfDay.
   // tod 0..0.5 = day, 0.5..1 = night (sun below).
   const elev = Math.max(0.05, Math.cos(timeOfDay * Math.PI)); // 1 at noon, -1 at midnight
@@ -531,7 +545,7 @@ function DynamicLights() {
       ambRef.current.color.setRGB(r, g, b);
     }
   });
-  if (gameMode === 'freeplay') return null; // SkyLighting owns the lights
+  if (usesSkyRig(gameMode)) return null; // SkyLighting owns the lights
   return (
     <>
       <hemisphereLight ref={hemiRef} color="#fff5d8" groundColor="#6a9a4e" intensity={0.92} />

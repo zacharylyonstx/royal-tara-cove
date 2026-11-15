@@ -9,15 +9,12 @@ import { CrashFX, Debris } from './CrashFX';
 import { GLBModel } from '../GLBModel';
 import { MODELS } from '../../world/models';
 import { SmokeColumn } from './SmokeColumn';
+import { SPAWN_SITES } from '../../world/blobWaves';
 
-// Crash target — middle of 10600's expanded backyard. House pivot is at
-// (cos(90°)*38.4, sin(90°)*38.4) = (0, 38.4); back-fence radius is
-// HOUSE_FRONT_RADIUS + depth + HERO_BACKYARD_DEPTH = 30.4 + 16 + 24 = 70.4.
-// Land midway in the backyard at radius ~52.
-const CRASH_X = 0;
-// Moved deeper into the backyard (was 56) so the saucer lands BEHIND the trampoline
-// + playhouse, which were pulled forward/together to match the photo.
-const CRASH_Z = 62;
+// Crash target — deep in 10600's back yard, BEHIND the trampoline + playhouse.
+// The spot lives in world/blobWaves.ts (it's also wave 1's spawn site).
+const CRASH_X = SPAWN_SITES.backyard.x;
+const CRASH_Z = SPAWN_SITES.backyard.z;
 const SKY_START_Y = 80;
 const HOVER_Y = 14;
 const GROUND_Y = 1.2;
@@ -25,7 +22,15 @@ const GROUND_Y = 1.2;
 const INTRO_DURATION = 6.4;
 const PLUMMET_AT = 4.0;
 const IMPACT_AT = 4.6;
-const COMBAT_HANDOFF_AT = 6.2;
+const COMBAT_HANDOFF_AT = 5.9;
+
+// The opening shot. The saucer comes down BEHIND the two-storey house, so from
+// the cul-de-sac nobody could actually see the crash the whole mode is about.
+// Shot A: low behind the family, watching it wobble down over the roof.
+// Shot B: craning up over the house as it plummets into the back yard.
+const CAM_A: [number, number, number] = [9, 8.5, -7];
+const CAM_B: [number, number, number] = [19, 29, 22];
+const CAM_SWITCH_AT = 3.3;
 
 export function UFOCrash() {
   const phase = useGameStore((s) => s.phase);
@@ -61,6 +66,12 @@ export function UFOCrash() {
       handedOffCombat.current = false;
       reset();
       ufoDescend();
+      // Every screen plays its own copy of the shot (phase is synced; the
+      // camera is local). It's given spare time on purpose: the intro runs on
+      // game time (slower on a struggling iPad), and the first wave's "here
+      // they come" shot takes over the moment combat starts — so there's never
+      // a blink back to gameplay in between.
+      useCombatStore.getState().startCinematic([CRASH_X, SKY_START_Y * 0.6, CRASH_Z], CAM_A, COMBAT_HANDOFF_AT + 4);
     }
   }, [phase, reset]);
 
@@ -79,6 +90,17 @@ export function UFOCrash() {
     if (beaconR.current) beaconR.current.intensity = 0.6 + Math.abs(Math.sin(t * 12 + Math.PI)) * 1.6;
 
     if (phase === 'intro') {
+      // Keep the opening shot trained on the saucer (mutated in place — the
+      // camera rig reads it every frame; nothing needs to re-render).
+      const cin = useCombatStore.getState().cinematic;
+      if (cin.active) {
+        const cam = t < CAM_SWITCH_AT ? CAM_A : CAM_B;
+        cin.cameraX = cam[0]; cin.cameraY = cam[1]; cin.cameraZ = cam[2];
+        cin.targetX = g.position.x;
+        // Don't tilt all the way up at the start — ease the saucer into frame.
+        cin.targetY = Math.min(g.position.y, 34) + (t < CAM_SWITCH_AT ? 0 : 1.5);
+        cin.targetZ = g.position.z;
+      }
       if (t < PLUMMET_AT) {
         const k = t / PLUMMET_AT;
         const y = SKY_START_Y - (SKY_START_Y - HOVER_Y) * easeInOut(k);
@@ -235,5 +257,4 @@ function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-export const BLOB_SPAWN: [number, number, number] = [CRASH_X, 0.6, CRASH_Z];
 void INTRO_DURATION; // referenced in spec; unused at runtime

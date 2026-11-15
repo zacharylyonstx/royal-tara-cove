@@ -28,6 +28,14 @@ export function TouchControls() {
   // Detect once; touch capability doesn't change within a session.
   const [enabled] = useState(isTouchDevice);
   const welcomeOpen = useGameStore((s) => s.welcomeOpen);
+  const gameMode = useGameStore((s) => s.gameMode);
+  const phase = useGameStore((s) => s.phase);
+  const combat = gameMode === 'aliens' && phase === 'combat';
+  // Leaving the fight (win, lose, menu) with a thumb still on Zap must not
+  // leave the trigger stuck down for the next round.
+  useEffect(() => {
+    if (!combat) touchInput.fireHeld = false;
+  }, [combat]);
 
   const baseRef = useRef<HTMLDivElement>(null);
   const dragId = useRef<number | null>(null);
@@ -75,7 +83,6 @@ export function TouchControls() {
   const BASE = Math.round(BASE_AT_1X * scale);
   const THUMB = Math.round(THUMB_AT_1X * scale);
   const RADIUS = (BASE - THUMB) / 2; // max thumb travel from centre
-  const gameMode = useGameStore.getState().gameMode;
   const fpsMode = gameMode !== 'munchies' && gameMode !== 'treehouse';
 
   const updateFromPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -167,9 +174,15 @@ export function TouchControls() {
           pointerEvents: 'auto',
         }}
       >
-        <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; touchInput.actionHeld = true; }} onRelease={() => { touchInput.actionHeld = false; }} size={Math.round(78 * scale)} />
-        <ActionButton label="⤴" sub="Jump" color="#3a6db0" onPress={() => { touchInput.jumpQueued = true; }} size={Math.round(92 * scale)} />
-        {gameMode === 'freeplay' && (
+        {combat ? (
+          // The fight has one job for the right thumb: hold to zap. (Aim-assist
+          // turns you toward the nearest blob, so little hands just hold it.)
+          <ActionButton label="⚡" sub="ZAP!" color="#12a594" onPress={() => { touchInput.fireHeld = true; }} onRelease={() => { touchInput.fireHeld = false; }} size={Math.round(112 * scale)} />
+        ) : (
+          <ActionButton label="✋" sub="Use" color="#5a8a3e" onPress={() => { touchInput.actionQueued = true; touchInput.actionHeld = true; }} onRelease={() => { touchInput.actionHeld = false; }} size={Math.round(78 * scale)} />
+        )}
+        <ActionButton label="⤴" sub="Jump" color="#3a6db0" onPress={() => { touchInput.jumpQueued = true; }} size={Math.round((combat ? 74 : 92) * scale)} />
+        {(gameMode === 'freeplay' || gameMode === 'aliens') && (
           <ActionButton label="👁" sub="View" color="#6b5aa8" onPress={() => usePlayStore.getState().toggleThirdPerson()} size={Math.round(60 * scale)} />
         )}
       </div>

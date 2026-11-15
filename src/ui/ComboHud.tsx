@@ -25,7 +25,7 @@ export function ComboHud() {
     <div
       style={{
         position: 'fixed',
-        top: 110, left: 16,
+        top: 166, left: 16,
         padding: '10px 16px',
         background: 'rgba(20, 30, 40, 0.7)', color: 'white',
         borderRadius: 12,

@@ -171,6 +171,12 @@ export interface WorldStateMsg {
   waveIndex: number;
   waveState: WaveState;
   intermissionEndsAt: number;
+  /** Seconds of intermission left (a delta — each machine has its own clock). */
+  intermissionLeft?: number;
+  /** The family's newest call-out ("WATCH OUT!"), so guests see it too. */
+  say?: { id: number; speaker: string; text: string };
+  /** Active power-ups as seconds LEFT (same reason). */
+  powerLeft?: { kind: string; left: number }[];
   powerUpDrops: PowerUpDrop[];
   activePowerUps: ActivePowerUp[];
   score: number;
@@ -710,6 +716,7 @@ function safeAppearance(id: CharacterId, raw: unknown): Appearance {
  * field defensively (missing collections default to {}/[]) so a partial packet
  * can never throw on Object.keys/.map/index access.
  */
+let lastSayId = -1;
 function applyWorldSnapshot(s: Json): void {
   // Free Play world clock: follow the host.
   if (typeof s.clock === 'number' && Number.isFinite(s.clock)) useSkyStore.getState().setNetTarget(s.clock);
@@ -749,13 +756,23 @@ function applyWorldSnapshot(s: Json): void {
       cs.addShake(0.1);
     }
   }
+  if (isObj(s.say) && typeof s.say.text === 'string' && typeof s.say.id === 'number' && s.say.id !== lastSayId) {
+    lastSayId = s.say.id;
+    const sp = s.say.speaker;
+    if (sp === 'dad' || sp === 'penny' || sp === 'luke') useCombatStore.getState().pushDialogue(sp, s.say.text.slice(0, 80));
+  }
   useCombatStore.setState({
     blobs: nextBlobs,
     waveIndex: num(s.waveIndex),
     waveState: s.waveState as WaveState,
-    intermissionEndsAt: num(s.intermissionEndsAt),
+    intermissionEndsAt: typeof s.intermissionLeft === 'number'
+      ? performance.now() / 1000 + num(s.intermissionLeft)
+      : num(s.intermissionEndsAt),
     powerUpDrops: arr(s.powerUpDrops) as PowerUpDrop[],
-    activePowerUps: arr(s.activePowerUps) as ActivePowerUp[],
+    activePowerUps: Array.isArray(s.powerLeft)
+      ? (s.powerLeft as Json[]).filter((a) => isObj(a) && typeof a.kind === 'string')
+        .map((a) => ({ kind: a.kind, expiresAt: performance.now() / 1000 + num(a.left) })) as ActivePowerUp[]
+      : arr(s.activePowerUps) as ActivePowerUp[],
     score: num(s.score),
     kills: num(s.kills),
   });

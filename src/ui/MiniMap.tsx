@@ -63,7 +63,7 @@ export function MiniMap() {
     >
       <svg width={MAP_SIZE} height={MAP_SIZE} style={{ display: 'block' }}>
         {/* Other characters (yellow) */}
-        {(['penny', 'luke'] as const).filter((id) => id !== activeId).map((id) => {
+        {(['dad', 'penny', 'luke'] as const).filter((id) => id !== activeId).map((id) => {
           const p = toMap(positions[id].x, positions[id].z);
           if (!p) return null;
           return <circle key={id} cx={p.x} cy={p.y} r={3} fill="#ffd866" />;
@@ -72,8 +72,8 @@ export function MiniMap() {
         {blobs.filter((b) => b.alive).map((b) => {
           const p = toMap(b.x, b.z);
           if (!p) return null;
-          const r = b.kind === 'boss' ? 7 : 3.5;
-          const color = b.kind === 'boss' ? '#ff3a3a' : b.kind === 'sprinter' ? '#ff9a3a' : b.kind === 'splitter' ? '#a832c8' : '#a0e84a';
+          const r = b.kind === 'boss' ? 7 : b.kind === 'brute' ? 5 : 3.5;
+          const color = b.kind === 'boss' ? '#ff3a3a' : b.kind === 'brute' ? '#f2b632' : b.kind === 'sprinter' ? '#ff9a3a' : b.kind === 'splitter' ? '#a832c8' : '#a0e84a';
           return <circle key={b.id} cx={p.x} cy={p.y} r={r} fill={color} stroke="#1a1a1c" strokeWidth={0.7} />;
         })}
         {/* Player triangle pointing up (already rotated frame) */}

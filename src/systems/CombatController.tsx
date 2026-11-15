@@ -6,15 +6,19 @@ import { useNetStore } from '../state/netStore';
 import { useChatStore } from '../state/chatStore';
 import { laserZap, blobSquish } from '../audio';
 import { broadcastFire, isInRoom } from '../net/room';
+import { touchInput } from './touchInput';
+import { usePlayStore } from '../state/playStore';
+import { useWardrobeStore } from '../state/wardrobeStore';
+import { WEAPON_Y } from './combatRoles';
+import { aimAssist } from './aimAssist';
+import { ensureBlobNav, blobLineOfSight, blobRayReach } from '../world/blobNav';
 
-const FIRE_COOLDOWN_BASE = 0.18;
+const FIRE_COOLDOWN_BASE = 0.21;
 const RAPID_FIRE_COOLDOWN = 0.06;
-const RANGE = 55;                     // long enough to snipe blobs detouring around the house
+const RANGE = 38;                     // a generous street's length — but walls stop a zap now
 const BLOB_RADIUS = 0.55;
 const AIM_CONE_DEG = 40;             // forgiving snap so kids hit but not 50° free-shots
-const PASSIVE_AIM_NEAR = 6;           // melee range still requires aiming
-const PASSIVE_AIM_FAR = 24;           // active out to 24m (slightly farther)
-const PASSIVE_AIM_LERP = 4.0;         // brisk tracking so kids find threats
+const ASSIST_RANGE = 30;              // aim-assist looks this far for a blob to turn you toward
 const PREFER_LOW_HP_DELTA = 4;        // prefer finishing if within 4m of nearest
 
 const BOMB_COOLDOWN = 0.6;
@@ -41,6 +45,7 @@ export function CombatController() {
 
   const cooldown = useRef(0);
   const wantsFire = useRef(false);
+  const keyFire = useRef(false);
   const lastTargetId = useRef<number | null>(null);
   const lastActiveId = useRef(activeId);
 
@@ -59,21 +64,40 @@ export function CombatController() {
       wantsFire.current = true;
     };
     const onMouseUp = () => { wantsFire.current = false; };
+    // F also fires (hold it) — click-and-hold while steering is awkward on a
+    // laptop trackpad, and that's what the kids play on.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (useGameStore.getState().phase !== 'combat') return;
+      if (useChatStore.getState().inputOpen || useWardrobeStore.getState().open) return;
+      keyFire.current = true;
+    };
+    const onKeyUp = (e: KeyboardEvent) => { if (e.key === 'f' || e.key === 'F') keyFire.current = false; };
+    const release = () => { wantsFire.current = false; keyFire.current = false; };
     canvas.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', release);
     return () => {
       canvas.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', release);
     };
   }, [gl]);
 
   useFrame((_, dtRaw) => {
+    aimAssist.active = false;
     if (useGameStore.getState().gameMode !== 'aliens') return;
     if (phase !== 'combat') return;
     // Don't fire while chatting.
     if (useChatStore.getState().inputOpen) return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
     cooldown.current = Math.max(0, cooldown.current - dt);
+    // Guests aim too — they need the wall map as much as the host does.
+    ensureBlobNav(useGameStore.getState().staticColliders);
 
     // Gentle health regen: if you haven't been hit for a few seconds, slowly heal
     // back up. Keeps Aliens from feeling unfair for a 6-year-old without any
@@ -86,28 +110,39 @@ export function CombatController() {
       }
     }
 
-    // --- Passive aim assist ---
-    {
+    // --- Aim assist ---
+    // While the trigger is held, swing the view toward the nearest blob. On
+    // touch it always helps (dragging to aim with a thumb on Zap is a lot to
+    // ask of a 6-year-old); with a mouse it only steps in when nothing is in
+    // front of you, so it never wrestles a deliberate aim.
+    const firing = wantsFire.current || keyFire.current || touchInput.fireHeld;
+    if (firing) {
       const pos = positions[activeId];
-      const blobsAlive = useCombatStore.getState().blobs.filter((b) => b.alive);
-      let nearest: typeof blobsAlive[number] | null = null;
-      let nearestD = PASSIVE_AIM_FAR;
-      for (const b of blobsAlive) {
-        const d = Math.hypot(b.x - pos.x, b.z - pos.z);
-        if (d < nearestD && d >= PASSIVE_AIM_NEAR) { nearestD = d; nearest = b; }
+      const yawNow = yaws[activeId];
+      const fx = -Math.sin(yawNow), fz = -Math.cos(yawNow);
+      const coneCos = Math.cos((AIM_CONE_DEG * 0.8 * Math.PI) / 180);
+      let nearest: { x: number; z: number } | null = null;
+      let nearestD = ASSIST_RANGE;
+      let inCone = false;
+      for (const b of useCombatStore.getState().blobs) {
+        if (!b.alive) continue;
+        const dx = b.x - pos.x, dz = b.z - pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d > ASSIST_RANGE || d < 0.01) continue;
+        if (!blobLineOfSight(pos.x, pos.z, b.x, b.z)) continue; // can't zap through a house
+        if ((dx / d) * fx + (dz / d) * fz > coneCos) inCone = true;
+        if (d < nearestD) { nearestD = d; nearest = b; }
       }
       if (nearest) {
-        const dx = nearest.x - pos.x;
-        const dz = nearest.z - pos.z;
-        const targetYaw = Math.atan2(-dx, -dz);
-        let diff = targetYaw - yaws[activeId];
-        while (diff > Math.PI) diff -= 2 * Math.PI;
-        while (diff < -Math.PI) diff += 2 * Math.PI;
-        yaws[activeId] = yaws[activeId] + diff * Math.min(1, PASSIVE_AIM_LERP * dt);
+        aimAssist.active = true;
+        aimAssist.yaw = Math.atan2(-(nearest.x - pos.x), -(nearest.z - pos.z));
+        aimAssist.rate = touchInput.fireHeld ? 5 : inCone ? 0 : 2.6;
       }
     }
 
-    if (!wantsFire.current || cooldown.current > 0) return;
+    // No shooting while the wave's camera shot has the screen.
+    if (useCombatStore.getState().cinematic.active) return;
+    if (!firing || cooldown.current > 0) return;
 
     // Dispatch by active character
     if (activeId === 'penny') {
@@ -123,6 +158,12 @@ export function CombatController() {
     }
   });
 
+  /** First person: from eye level so you see your own beam. Over the shoulder:
+   *  from the weapon in your character's hand. */
+  function muzzleHeight(): number {
+    return usePlayStore.getState().thirdPerson ? positions[activeId].y + WEAPON_Y[activeId] + 0.06 : 1.55;
+  }
+
   function getAimVectors() {
     const pos = positions[activeId];
     const yaw = yaws[activeId];
@@ -131,7 +172,7 @@ export function CombatController() {
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
     const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z_LOCAL * sy;
-    const muzzleY = 1.55;
+    const muzzleY = muzzleHeight();
     const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z_LOCAL * cy;
     const dirX = -Math.sin(yaw);
     const dirZ = -Math.cos(yaw);
@@ -153,6 +194,9 @@ export function CombatController() {
       const uz = dz / dist;
       const dot = ux * facingX + uz * facingZ;
       if (dot < coneCos) continue;
+      // Walls block the beam: the blobs used to get sniped straight through
+      // 10600 the moment they spawned in the back yard.
+      if (!blobLineOfSight(posX, posZ, b.x, b.z)) continue;
       candidates.push({ blob: b, dist });
     }
     if (candidates.length === 0) return null;
@@ -175,7 +219,7 @@ export function CombatController() {
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
     const muzzleX = pos.x + HAND_X * cy + MUZZLE_Z_LOCAL * sy;
-    const muzzleY = 1.55;
+    const muzzleY = muzzleHeight();
     const muzzleZ = pos.z - HAND_X * sy + MUZZLE_Z_LOCAL * cy;
     const dirX = -Math.sin(yaw);
     const dirZ = -Math.cos(yaw);
@@ -185,7 +229,8 @@ export function CombatController() {
 
     const snapTarget = snapTargetForYaw(yaw, pos.x, pos.z);
     let bestId: number | null = null;
-    let bestPoint: [number, number, number] = [muzzleX + dirX * RANGE, muzzleY, muzzleZ + dirZ * RANGE];
+    const reach = blobRayReach(pos.x, pos.z, dirX, dirZ, RANGE);
+    let bestPoint: [number, number, number] = [muzzleX + dirX * reach, muzzleY, muzzleZ + dirZ * reach];
     let bestVariant = 0;
 
     if (snapTarget) {
@@ -206,7 +251,7 @@ export function CombatController() {
         const disc = bb * bb - 4 * a * cc;
         if (disc < 0) continue;
         const t = (-bb - Math.sqrt(disc)) / (2 * a);
-        if (t < 0 || t > RANGE) continue;
+        if (t < 0 || t > reach) continue;
         if (t < bestT) {
           bestT = t;
           bestId = b.id;

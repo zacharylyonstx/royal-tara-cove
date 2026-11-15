@@ -3,8 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Group, PointLight, Mesh } from 'three';
 import { useGameStore } from '../../state/gameStore';
-import { useNetStore } from '../../state/netStore';
 import { useCombatStore } from '../../state/combatStore';
+import { showsWeapon } from '../../systems/combatRoles';
 
 const HAND_X = 0.35;   // hand offset to the right (in player local)
 const HAND_Z = -0.25;  // forward, just in front of the chest
@@ -27,9 +27,6 @@ export function RayGun() {
   const bobPhase = useRef(0);
   const beams = useCombatStore((s) => s.beams);
   const phase = useGameStore((s) => s.phase);
-  const myCharacterId = useNetStore((s) => s.myCharacterId);
-  const fallbackActive = useGameStore((s) => s.activeCharacterId);
-  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
 
@@ -37,24 +34,27 @@ export function RayGun() {
   const lastFireAt = useRef(-999);
   useEffect(() => {
     if (beams.length === 0) return;
-    const latest = beams[beams.length - 1];
-    lastFireAt.current = latest.spawnedAt;
+    // Only Dad's own (cyan) beams flash his muzzle.
+    for (let i = beams.length - 1; i >= 0; i--) {
+      if (beams[i].tint === 'cyan') { lastFireAt.current = beams[i].spawnedAt; break; }
+    }
   }, [beams]);
 
-  useFrame((state, dtRaw) => {
+  useFrame((_, dtRaw) => {
     const g = groupRef.current;
     if (!g) return;
     const dt = Math.min(dtRaw, 0.1);
-    // FPS: hide own weapon (you're holding it but can't see your hands).
-    // Show Dad's gun to other characters when Dad is an NPC.
-    if (phase !== 'combat' || activeId === 'dad' || useGameStore.getState().gameMode !== 'aliens') {
+    // Dad's ray gun rides in DAD's hand (it used to follow whoever was
+    // playing, so the kids saw a spare ray gun floating at their own hip).
+    // Hidden only for Dad himself in first person, where it'd block the lens.
+    if (phase !== 'combat' || !showsWeapon('dad') || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }
     g.visible = true;
 
-    const pos = positions[activeId];
-    const yaw = yaws[activeId];
+    const pos = positions.dad;
+    const yaw = yaws.dad;
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
     const wx = pos.x + HAND_X * cy + HAND_Z * sy;
@@ -71,7 +71,7 @@ export function RayGun() {
     g.rotation.set(0, yaw, 0);
 
     // Muzzle flash fade
-    const now = state.clock.elapsedTime;
+    const now = performance.now() / 1000; // same clock the beams are stamped with
     const since = now - lastFireAt.current;
     const flash = Math.max(0, 1 - since / 0.09);
     if (muzzleLight.current) muzzleLight.current.intensity = flash * 4.5;

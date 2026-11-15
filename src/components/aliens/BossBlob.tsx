@@ -5,6 +5,7 @@ import type { Group, Mesh } from 'three';
 import { BLOB_COLOR_FOR_KIND, type Blob } from '../../state/combatStore';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
+import { newBlobView, updateBlobView, toBlobLocal } from './blobView';
 
 interface Props {
   blob: Blob;
@@ -29,15 +30,21 @@ export function BossBlob({ blob }: Props) {
   const baseColor = new THREE.Color(color.body);
   const damageColor = new THREE.Color('#ff4040');
   const hpRatio = blob.hp / blob.maxHp;
+  const view = useRef(newBlobView());
 
-  useFrame((state) => {
+  useFrame((state, dtRaw) => {
     const t = state.clock.elapsedTime;
     if (!group.current) return;
-    group.current.position.set(blob.x, blob.y, blob.z);
+    const now = performance.now() / 1000;
+    const v = view.current;
+    const player = positions[activeId];
+    updateBlobView(v, blob, now, Math.min(dtRaw, 0.1), player.x, player.z);
+    group.current.position.set(v.x, v.y, v.z);
+    group.current.rotation.y = v.yaw;
     group.current.scale.setScalar(blob.scale);
 
     if (!blob.alive) {
-      const age = t - blob.deathAt;
+      const age = now - v.deadAt;
       const k = Math.max(0, Math.min(1, age / 1.0));
       const s = blob.scale * (1 - k);
       group.current.scale.set(s, s * 0.3, s);
@@ -49,7 +56,7 @@ export function BossBlob({ blob }: Props) {
     if (body.current) {
       const wob = Math.sin(t * 3 + blob.phase) * 0.07;
       body.current.scale.set(1 - wob * 0.4, 1 + wob, 1 - wob * 0.4);
-      const flash = Math.max(0, 1 - (t - blob.lastDamagedAt) / 0.18);
+      const flash = Math.max(0, 1 - (now - v.hitAt) / 0.18);
       const mat = body.current.material as THREE.MeshPhysicalMaterial;
       if (mat?.color) mat.color.copy(baseColor).lerp(damageColor, flash);
     }
@@ -58,18 +65,16 @@ export function BossBlob({ blob }: Props) {
       crown.current.rotation.y += 0.02;
     }
 
-    const player = positions[activeId];
-    const dx = player.x - blob.x;
-    const dz = player.z - blob.z;
+    const dx = player.x - v.x;
+    const dz = player.z - v.z;
     const dist = Math.hypot(dx, dz);
-    const ux = dist > 0 ? dx / dist : 0;
-    const uz = dist > 0 ? dz / dist : 1;
+    const [ux, uz] = toBlobLocal(v, dist > 0 ? dx / dist : 0, dist > 0 ? dz / dist : 1);
     eyes.current.forEach((eye) => {
       if (!eye) return;
       eye.children.forEach((child, idx) => {
         if (idx === 1) {
           child.position.x = ux * 0.06;
-          child.position.z = uz * 0.06;
+          child.position.z = 0.105 + Math.max(0, uz) * 0.03;
         }
       });
     });
@@ -80,8 +85,6 @@ export function BossBlob({ blob }: Props) {
       tg.rotation.z = Math.cos(t * 2.5 + i * 1.2) * 0.4;
     });
   });
-
-  if (!blob.alive && performance.now() / 1000 - blob.deathAt > 1.2) return null;
 
   return (
     <group ref={group} position={[blob.x, blob.y, blob.z]} scale={blob.scale}>

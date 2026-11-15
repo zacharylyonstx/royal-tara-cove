@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group } from 'three';
 import { useGameStore } from '../../state/gameStore';
-import { useNetStore } from '../../state/netStore';
+import { isHumanControlled } from '../../systems/combatRoles';
 import type { CharacterId } from '../../types';
 
 interface KidBlasterProps {
@@ -21,16 +21,14 @@ const Y = 0.85;
 export function KidBlaster({ who, color }: KidBlasterProps) {
   const groupRef = useRef<Group>(null);
   const phase = useGameStore((s) => s.phase);
-  const myCharacterId = useNetStore((s) => s.myCharacterId);
-  const fallbackActive = useGameStore((s) => s.activeCharacterId);
-  const activeId = myCharacterId ?? fallbackActive;
   const positions = useGameStore((s) => s.positions);
   const yaws = useGameStore((s) => s.yaws);
 
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
-    if (phase !== 'combat' || activeId === who || useGameStore.getState().gameMode !== 'aliens') {
+    // Sidekicks only: a kid somebody is actually playing holds their real weapon.
+    if (phase !== 'combat' || isHumanControlled(who) || useGameStore.getState().gameMode !== 'aliens') {
       g.visible = false;
       return;
     }

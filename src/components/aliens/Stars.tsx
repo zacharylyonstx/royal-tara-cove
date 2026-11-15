@@ -41,7 +41,7 @@ export function Stars() {
     if (mat) mat.opacity = Math.max(0, (timeOfDay - 0.45) / 0.4);
   });
 
-  if (gameMode === 'freeplay') return null; // the Free Play sky dome draws its own stars
+  if (gameMode === 'freeplay' || gameMode === 'aliens') return null; // the sky dome draws its own stars
   return (
     <points ref={ref} geometry={geom}>
       <pointsMaterial color="#ffffff" size={1.2} sizeAttenuation transparent opacity={0} depthWrite={false} />

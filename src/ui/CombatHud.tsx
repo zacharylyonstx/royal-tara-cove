@@ -1,5 +1,14 @@
 import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
+import { useNetStore } from '../state/netStore';
+import { WAVE_COUNT } from '../world/blobWaves';
+import { isTouchDevice } from '../systems/touchInput';
+
+const WEAPON_HINT: Record<string, string> = {
+  dad: 'zap with the ray gun',
+  penny: 'lob a bouncy bomb',
+  luke: 'launch LEGO bricks',
+};
 
 export function CombatHud() {
   const phase = useGameStore((s) => s.phase);
@@ -8,9 +17,13 @@ export function CombatHud() {
   const blobs = useCombatStore((s) => s.blobs);
   const blobsToSpawn = useCombatStore((s) => s.blobsToSpawn);
   const waveIndex = useCombatStore((s) => s.waveIndex);
+  const waveState = useCombatStore((s) => s.waveState);
+  const me = useNetStore((s) => s.myCharacterId) ?? 'dad';
   if (phase !== 'combat' && phase !== 'intro') return null;
   const aliveBlobs = blobs.filter((b) => b.alive).length;
+  // Guests don't get the host's spawn queue — "more coming" covers the gap.
   const queued = blobsToSpawn.reduce((s, x) => s + x.count, 0);
+  const moreComing = queued === 0 && waveState === 'spawning';
 
   return (
     <>
@@ -55,11 +68,11 @@ export function CombatHud() {
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: 2 }}>WAVE {waveIndex || 1} / 3</div>
-        <div>🛸 SCHMORGESBLOBS: <span style={{ color: '#a0e84a' }}>{aliveBlobs + queued}</span></div>
+        <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: 2 }}>WAVE {waveIndex || 1} / {WAVE_COUNT}</div>
+        <div>🛸 SCHMORGESBLOBS: <span style={{ color: '#a0e84a' }}>{aliveBlobs + queued}{moreComing ? '+' : ''}</span></div>
       </div>
 
-      {phase === 'combat' && (
+      {phase === 'combat' && !isTouchDevice() && (
         <div
           style={{
             position: 'fixed', bottom: 80,
@@ -73,10 +86,15 @@ export function CombatHud() {
             zIndex: 90,
           }}
         >
-          <kbd style={{ padding: '2px 8px', background: '#3a5a25', borderRadius: 4, marginRight: 6, fontWeight: 700 }}>
+          hold{' '}
+          <kbd style={{ padding: '2px 8px', background: '#3a5a25', borderRadius: 4, margin: '0 4px', fontWeight: 700 }}>
             CLICK
           </kbd>
-          fire ray gun
+          or
+          <kbd style={{ padding: '2px 8px', background: '#3a5a25', borderRadius: 4, margin: '0 6px', fontWeight: 700 }}>
+            F
+          </kbd>
+          {WEAPON_HINT[me] ?? WEAPON_HINT.dad}
         </div>
       )}
     </>
