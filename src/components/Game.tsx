@@ -129,6 +129,8 @@ import { NightWindows } from './sky/NightWindows';
 import { StalkerController } from '../systems/StalkerController';
 import { AliensSkyDriver } from '../systems/AliensSkyDriver';
 import { GuideBeacon } from './zone/GuideBeacon';
+import { HideSeekWorld } from './zone/HideSeekWorld';
+import { HideSeekController } from '../systems/HideSeekController';
 
 /** Modes lit by the realistic sky rig (SkyDome + SkyLighting) rather than the
  *  legacy drei <Sky> + DynamicLights. */
@@ -297,6 +299,9 @@ function FreeplayModeSystems() {
       <DayNightController />
       {/* The "show me the way" light from the map. */}
       <GuideBeacon />
+      {/* Hide-and-seek: the game loop, the Home Base sign and the force field. */}
+      <HideSeekController />
+      <HideSeekWorld />
       <SkyDome />
       <SkyLighting />
       <StreetLamps />

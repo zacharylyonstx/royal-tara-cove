@@ -8,6 +8,8 @@ import { useGameStore } from '../../state/gameStore';
 import { usePlayStore } from '../../state/playStore';
 import { usePetStore } from '../../state/petStore';
 import { useZoneStore } from '../../state/zoneStore';
+import { hsLive, hsRole } from '../../state/hideSeekStore';
+import { HS_PET_WAIT } from '../../world/hideSeek';
 import { resolveMotion } from '../../systems/collision';
 import { dogBark, petChime } from '../../audio';
 import {
@@ -173,6 +175,8 @@ const ease = (p: number) => p * p * (3 - 2 * p);
 const hold = (p: number) => Math.min(1, p / 0.18, (1 - p) / 0.15);
 
 function Pup({ def }: { def: PupDef }) {
+  // My own spot in the row of pups waiting at Home Base during hide-and-seek.
+  const waitIdx = Math.max(0, PUPS.findIndex((p) => p.id === def.id));
   const rootRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
   const pivotRef = useRef<THREE.Group>(null);
@@ -259,7 +263,11 @@ function Pup({ def }: { def: PupDef }) {
     let pace = 0;
     let riding = false;
     if (owner) {
-      const op = game.positions[owner];
+      // Hide-and-seek: pups wait by the Home Base tree (a loyal puppy sitting
+      // outside your hiding spot would give you away every time).
+      const op = hsLive() && hsRole(owner) !== 'none'
+        ? { x: HS_PET_WAIT.x + (waitIdx % 3) * 0.95, z: HS_PET_WAIT.z + Math.floor(waitIdx / 3) * 0.95 }
+        : game.positions[owner];
       const rs = usePlayStore.getState().riding;
       const orid = rs[owner];
       const drvId = orid ? (orid.passengerOf ?? owner) : null;

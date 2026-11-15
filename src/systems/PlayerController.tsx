@@ -17,11 +17,14 @@ import { useTreehouseStore } from '../state/treehouseStore';
 import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
 import { treehousePickup, hopSound, trampolineBoing } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
+import { useHideSeekStore } from '../state/hideSeekStore';
+import { HS_COUNT_SPOT, hsClamp, hsInBounds } from '../world/hideSeek';
+import { humanCharacters } from './combatRoles';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useZoneStore } from '../state/zoneStore';
 import { useNightStore } from '../state/nightStore';
-import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRoom } from '../net/room';
-import { icecreamJingle, petChime } from '../audio';
+import { sendEmote, sendChat, broadcastDoor, broadcastPark, broadcastPet, isInRoom, requestHideSeek } from '../net/room';
+import { icecreamJingle, petChime, hsBump } from '../audio';
 import { usePetStore, TREATS_PER_GRAB } from '../state/petStore';
 import { TRICKS, dogName, isDogZone, tricksFor } from '../world/pets';
 import { talkToNpc } from './npcTalk';
@@ -64,6 +67,17 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
     const zs = useZoneStore.getState();
     const it = zs.interactables[c.id];
     if (it?.kind === 'talk') { talkToNpc(c.id, by); return; }
+    // Hide-and-seek: start a game at the Home Base tree / call "found you!".
+    if (it?.kind === 'hsbase') {
+      if (humanCharacters().length < 2) useHideSeekStore.getState().say('Hide-and-seek needs at least two players 👋');
+      else requestHideSeek({ type: 'start', by });
+      return;
+    }
+    if (it?.kind === 'hstag') {
+      const who = c.id.replace(/^hs-tag-/, '');
+      if (who === 'dad' || who === 'penny' || who === 'luke') requestHideSeek({ type: 'tag', who, by });
+      return;
+    }
     if (it?.kind === 'treats') {
       // Woof Gang's treat jar: a handful of biscuits to hand out.
       usePetStore.getState().grabTreats();
@@ -163,6 +177,8 @@ export function PlayerController() {
   /** Smoothed on-foot velocity (Free Play) + when my feet last touched the floor. */
   const walkVel = useRef({ x: 0, z: 0 });
   const lastGroundedAt = useRef(0);
+  const hsRoundSeen = useRef(-1);   // the hide-and-seek game I've already set up for
+  const hsBumpAt = useRef(0);       // last time I bonked the force field (ms)
   const jumpBufferedAt = useRef(-1);
   const trampCharge = useRef(0); // builds while jumping on the trampoline → higher bounces
 
@@ -354,6 +370,37 @@ export function PlayerController() {
     // reading it late skewed the interact facing / basketball shot while strafing.
     const aimYaw = yaws[activeId];
 
+    // ---- Hide-and-seek (Free Play) ----
+    // A game just began: everyone playing gets off their bike / out of the
+    // truck, the seeker goes to the tree to count, and anyone off at the pool
+    // or the school is brought back inside the play area. (Each client moves
+    // its OWN character — positions are client-authoritative.)
+    const hsS = useHideSeekStore.getState();
+    const hsPlaying = modeNow === 'freeplay' && (hsS.phase === 'counting' || hsS.phase === 'seeking') && hsS.players.includes(activeId);
+    if (hsPlaying && hsS.round !== hsRoundSeen.current) {
+      hsRoundSeen.current = hsS.round;
+      const p0 = positions[activeId];
+      const ps = usePlayStore.getState();
+      const cur = ps.riding[activeId];
+      if (cur) {
+        if (cur.vehicle === 'car' && !cur.passengerOf) {
+          ps.parkCar(cur.bikeId, p0.x, p0.z, cur.heading);
+          void broadcastPark([{ id: cur.bikeId, x: p0.x, z: p0.z, yaw: cur.heading }]);
+        } else if (cur.vehicle !== 'car') {
+          ps.parkBike(cur.bikeId, p0.x, p0.z, cur.heading);
+          void broadcastPark([{ id: cur.bikeId, x: p0.x, z: p0.z, yaw: cur.heading }]);
+        }
+        dismountBike(activeId, p0, staticColliders);
+      }
+      if (ps.heldBall && ps.heldBall.by === activeId) ps.dropBall();
+      if (hsS.seeker === activeId) p0.set(HS_COUNT_SPOT.x, 0, HS_COUNT_SPOT.z);
+      else if (!hsInBounds(p0.x, p0.z)) p0.set(SPAWN_POINTS[activeId][0], 0, SPAWN_POINTS[activeId][1]);
+      yVel.current = 0;
+      walkVel.current.x = 0; walkVel.current.z = 0;
+    }
+    /** The seeker stands still with their eyes shut while they count. */
+    const hsFrozen = hsPlaying && hsS.phase === 'counting' && hsS.seeker === activeId;
+
     // ---- Interactables, pass 1: house + zone spots (freeplay / treehouse) ----
     // Dressers (open wardrobe) and zone spots (pet Sparky, pet a duck, ice
     // cream…) are collected as CANDIDATES. In Free Play the single best one is
@@ -498,6 +545,7 @@ export function PlayerController() {
     if (k['s'] || k['arrowdown']) dz += 1;
     if (k['a'] || k['arrowleft']) dx -= 1;
     if (k['d'] || k['arrowright']) dx += 1;
+    if (hsFrozen) { dx = 0; dz = 0; }
 
     // ---- Siren Head Night: sprint stamina, crouch, and down-lock ----
     let nightDown = false;
@@ -633,6 +681,15 @@ export function PlayerController() {
       const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders, Math.max(0, pos.y));
       pos.x = resolved.x;
       pos.z = resolved.z;
+      // Hide-and-seek: the force field around our end of the street.
+      if (hsPlaying && hsClamp(pos)) {
+        walkVel.current.x = 0; walkVel.current.z = 0;
+        if (performance.now() - hsBumpAt.current > 900) {
+          hsBumpAt.current = performance.now();
+          hsBump();
+          useHideSeekStore.getState().bump();
+        }
+      }
 
       // Rotate character to face movement direction (smoother lerp = finer turning).
       if (moveDir) {
@@ -754,7 +811,23 @@ export function PlayerController() {
       }
     }
     const facing = facingFromYaw(aimYaw);
-    const best = ridingNow || holdingBall ? null : selectInteractable(pos.x, pos.z, facing.fx, facing.fz, cands);
+    // Hide-and-seek: no driving off mid-game, and a hider you can SEE beats
+    // every other prompt (the door next to them can wait).
+    const pickFrom = hsPlaying ? cands.filter((c) => c.kind !== 'bike' && c.kind !== 'car' && c.kind !== 'seat') : cands;
+    const hsTag = hsPlaying ? pickFrom.find((c) => c.kind === 'zone' && c.id.startsWith('hs-tag-')) : undefined;
+    let best = ridingNow || holdingBall || hsFrozen
+      ? null
+      : hsTag ?? selectInteractable(pos.x, pos.z, facing.fx, facing.fz, pickFrom);
+    // Sparky lives right beside the Home Base tree and loves to stand on the
+    // prompt. If you're LOOKING at the tree, the tree wins over a pet.
+    if (best?.kind === 'zone' && best.id !== 'hs-base' && useZoneStore.getState().interactables[best.id]?.kind === 'pet') {
+      const base = pickFrom.find((c) => c.id === 'hs-base');
+      if (base) {
+        const bx = base.x - pos.x, bz = base.z - pos.z;
+        const bd = Math.hypot(bx, bz);
+        if (bd < base.radius && bd > 0.01 && (bx / bd) * facing.fx + (bz / bd) * facing.fz > 0.6) best = base;
+      }
+    }
 
     // Publish exactly ONE hover so InteractPrompt shows a single label.
     setHoverDoor(best?.kind === 'door' ? best.id : null);

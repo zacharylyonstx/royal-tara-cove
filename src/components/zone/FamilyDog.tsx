@@ -6,6 +6,7 @@ import { MODELS } from '../../world/models';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
 import { useZoneStore } from '../../state/zoneStore';
+import { hsLive } from '../../state/hideSeekStore';
 import { resolveMotion } from '../../systems/collision';
 import { dogBark, petChime } from '../../audio';
 import { CHARACTER_ORDER } from '../../world/characters';
@@ -248,6 +249,9 @@ function FamilyDogInner() {
     // didn't make it"; now he does. Better friends pull him from farther away.
     const nearLevel = nearId ? friendLevel(affection[nearId] ?? 0).level : 0;
     if (!s.stayHome && nearId && nearestD < FOLLOW_RANGE_BY_LEVEL[nearLevel]) s.bondId = nearId;
+    // Hide-and-seek: Sparky doesn't tail anyone (he'd lead the seeker straight
+    // to them) — he waits it out at home, which is right by the Home Base tree.
+    if (hsLive()) { s.bondId = null; if (s.rideWith) { s.rideWith = null; s.y = 0; } }
     if (s.bondId && !claimed.has(s.bondId)) s.bondId = null;
     let bondD = Infinity;
     let bondX = 0, bondZ = 0;

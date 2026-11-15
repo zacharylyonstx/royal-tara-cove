@@ -13,6 +13,7 @@ import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type W
 import { useTornadoStore } from '../state/tornadoStore';
 import { useChatStore, EMOTES, type ChatMsg } from '../state/chatStore';
 import { useMunchiesStore, SLEEPWALKER_IDS, type SleepwalkerId, type SleepwalkerMode } from '../state/munchiesStore';
+import { useHideSeekStore, type HsRequest } from '../state/hideSeekStore';
 import { MUNCHIES_PELLETS } from '../world/munchiesMap';
 import { ALL_TRICKS, type DogTrick } from '../world/pets';
 import { useNpcStore } from '../state/npcStore';
@@ -173,6 +174,12 @@ export interface WorldStateMsg {
   intermissionEndsAt: number;
   /** Seconds of intermission left (a delta — each machine has its own clock). */
   intermissionLeft?: number;
+  /** Free Play hide-and-seek (host-owned). `left` = seconds until the phase ends. */
+  hs?: {
+    phase: string; round: number; seeker: string | null; players: string[];
+    found: Record<string, number>; foundBy: Record<string, string>;
+    left: number; seekSecs: number; stars: Record<string, number>;
+  };
   /** The family's newest call-out ("WATCH OUT!"), so guests see it too. */
   say?: { id: number; speaker: string; text: string };
   /** Active power-ups as seconds LEFT (same reason). */
@@ -225,6 +232,7 @@ let sendDoorAction: ((data: DoorMsg, peers?: string | string[]) => Promise<void[
 let sendParkAction: ((data: ParkMsg, peers?: string | string[]) => Promise<void[]>) | null = null;
 let sendPetAction: ((data: PetMsg) => Promise<void[]>) | null = null;
 let sendMunchiesReqAction: ((data: { kind: string }) => Promise<void[]>) | null = null;
+let sendHideSeekReqAction: ((data: HsRequest) => Promise<void[]>) | null = null;
 let sendNpcAction: ((data: { id: string; text: string; by: CharacterId }) => Promise<void[]>) | null = null;
 let myJoinedAt = 0;
 /** Last host regroup timestamp we applied (raw host clock); guests stamp their
@@ -324,6 +332,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   const [parkSender, parkReceiver] = r.makeAction('park');
   const [petSender, petReceiver] = r.makeAction('pet');
   const [mreqSender, mreqReceiver] = r.makeAction('mreq');
+  const [hsreqSender, hsreqReceiver] = r.makeAction('hsreq');
   const [npcSender, npcReceiver] = r.makeAction('npc');
   sendWhoami = whoamiSender as unknown as typeof sendWhoami;
   sendPlayer = playerSender as unknown as typeof sendPlayer;
@@ -337,6 +346,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   sendParkAction = parkSender as unknown as typeof sendParkAction;
   sendPetAction = petSender as unknown as typeof sendPetAction;
   sendMunchiesReqAction = mreqSender as unknown as typeof sendMunchiesReqAction;
+  sendHideSeekReqAction = hsreqSender as unknown as typeof sendHideSeekReqAction;
   sendNpcAction = npcSender as unknown as typeof sendNpcAction;
 
   whoamiReceiver((rawData, peerId) => netGuard('whoami', () => {
@@ -545,6 +555,15 @@ export async function joinRoom(mode: GameMode): Promise<void> {
 
   // Munchies: a guest tapped "Start" / "Play again" — only the host owns the
   // phase, so the request travels here and the host's controller acts on it.
+  // Hide-and-seek: a guest asks the host to start a game / call "found you!" / stop.
+  hsreqReceiver((rawData) => netGuard('hsreq', () => {
+    if (!isObj(rawData) || !useNetStore.getState().isHost || !isCharId(rawData.by)) return;
+    const hs = useHideSeekStore.getState();
+    if (rawData.type === 'start') hs.push({ type: 'start', by: rawData.by });
+    else if (rawData.type === 'stop') hs.push({ type: 'stop', by: rawData.by });
+    else if (rawData.type === 'tag' && isCharId(rawData.who)) hs.push({ type: 'tag', who: rawData.who, by: rawData.by });
+  }));
+
   mreqReceiver((rawData) => netGuard('mreq', () => {
     if (!isObj(rawData) || !useNetStore.getState().isHost) return;
     if (rawData.kind === 'start' || rawData.kind === 'again') {
@@ -683,6 +702,16 @@ export async function broadcastNpcSay(id: string, text: string, by: CharacterId)
 
 /** Munchies "Start" / "Play again": the host acts on it directly; a guest asks
  *  the host (who owns the phase). Works from keyboard, mouse AND touch. */
+/** Ask for a hide-and-seek action. The host just queues it for its own game
+ *  loop; a guest sends it to the host. */
+export function requestHideSeek(req: HsRequest): void {
+  if (useNetStore.getState().isHost || !sendHideSeekReqAction) {
+    useHideSeekStore.getState().push(req);
+    return;
+  }
+  void sendHideSeekReqAction(req).catch(() => {});
+}
+
 export function requestMunchies(kind: 'start' | 'again'): void {
   if (useNetStore.getState().isHost || !sendMunchiesReqAction) {
     useMunchiesStore.getState().setPendingRequest(kind);
@@ -716,6 +745,39 @@ function safeAppearance(id: CharacterId, raw: unknown): Appearance {
  * field defensively (missing collections default to {}/[]) so a partial packet
  * can never throw on Object.keys/.map/index access.
  */
+function applyHideSeek(h: Json): void {
+  const phase = h.phase === 'counting' || h.phase === 'seeking' || h.phase === 'results' ? h.phase : 'idle';
+  const store = useHideSeekStore.getState();
+  const players = arr(h.players).filter(isCharId);
+  const found: Partial<Record<CharacterId, number>> = {};
+  const foundBy: Partial<Record<CharacterId, CharacterId>> = {};
+  const stars: Partial<Record<CharacterId, number>> = {};
+  const rawFound = obj(h.found), rawBy = obj(h.foundBy), rawStars = obj(h.stars);
+  for (const id of ['dad', 'penny', 'luke'] as CharacterId[]) {
+    if (typeof rawFound[id] === 'number') found[id] = num(rawFound[id]);
+    if (isCharId(rawBy[id])) foundBy[id] = rawBy[id];
+    if (typeof rawStars[id] === 'number') stars[id] = Math.max(0, Math.min(999, num(rawStars[id])));
+  }
+  const round = num(h.round, store.round);
+  // A "found you!" this client hasn't celebrated yet → toast + sparkle here too.
+  if (round === store.round) {
+    for (const id of Object.keys(found) as CharacterId[]) {
+      if (store.found[id] === undefined) store.markFound(id, foundBy[id] ?? null);
+    }
+  }
+  const now = performance.now() / 1000;
+  const endsAt = now + Math.max(0, num(h.left));
+  store.setCore({
+    phase, round,
+    seeker: isCharId(h.seeker) ? h.seeker : null,
+    players, found, foundBy, stars,
+    seekSecs: num(h.seekSecs),
+    // Don't jitter the countdown by a few ms every snapshot.
+    endsAt: Math.abs(endsAt - store.endsAt) > 0.35 || phase !== store.phase ? endsAt : store.endsAt,
+    seekStartedAt: phase === 'seeking' && (store.phase !== 'seeking' || round !== store.round) ? now : store.seekStartedAt,
+  });
+}
+
 let lastSayId = -1;
 function applyWorldSnapshot(s: Json): void {
   // Free Play world clock: follow the host.
@@ -728,6 +790,8 @@ function applyWorldSnapshot(s: Json): void {
     dogNetIn.rideWith = typeof d.rideWith === 'string' ? d.rideWith : null;
     dogNetIn.receivedAt = performance.now();
   }
+  // Hide-and-seek: the host's game, with the clock re-based onto OUR clock.
+  if (isObj(s.hs)) applyHideSeek(s.hs);
   // Game store: phase, hp, destroyed houses.
   const gs = useGameStore.getState();
   if (typeof s.phase === 'string' && gs.phase !== s.phase) gs.setPhase(s.phase as GamePhase);

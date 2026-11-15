@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
 import { useNightStore } from '../state/nightStore';
 import { useNetStore } from '../state/netStore';
+import { hsLive } from '../state/hideSeekStore';
 import { useSkyStore } from '../state/skyStore';
 import { useCombatStore } from '../state/combatStore';
 import type { CharacterId } from '../types';
@@ -86,7 +87,9 @@ export function StalkerController() {
     const r = rt.current;
 
     const sunEl = sunDirection(useSkyStore.getState().dayFraction).elevationDeg;
-    const dark = sunEl < STALKER_ACTIVE_BELOW_EL;
+    // He sits out hide-and-seek: no patrols, no swats while a game is on (if
+    // he's already out when one starts, he turns round and walks off).
+    const dark = sunEl < STALKER_ACTIVE_BELOW_EL && !hsLive();
 
     // ----- activate / deactivate with the sky -----
     if (r.phase === 'off') {

@@ -26,3 +26,8 @@ export function showsWeapon(id: CharacterId): boolean {
 
 /** Height of each character's weapon muzzle above their feet. */
 export const WEAPON_Y: Record<CharacterId, number> = { dad: 1.1, penny: 0.95, luke: 0.88 };
+
+/** Every character a real person is playing right now, in family order. */
+export function humanCharacters(): CharacterId[] {
+  return (['dad', 'penny', 'luke'] as CharacterId[]).filter(isHumanControlled);
+}

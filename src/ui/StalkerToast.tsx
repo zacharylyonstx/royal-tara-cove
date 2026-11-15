@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { useNightStore } from '../state/nightStore';
+import { useHideSeekStore } from '../state/hideSeekStore';
 
 /**
  * Free Play Siren Head toasts: "he's out there" at dusk, "BONK" when you get
@@ -11,12 +12,14 @@ export function StalkerToast() {
   const gameMode = useGameStore((s) => s.gameMode);
   const event = useNightStore((s) => s.stalkerEvent);
   const [dismissed, setDismissed] = useState(-1);
+  const hsOn = useHideSeekStore((s) => s.phase === 'counting' || s.phase === 'seeking');
   useEffect(() => {
     if (!event) return;
     const t = setTimeout(() => setDismissed(event.at), event.kind === 'swat' ? 3200 : 4500);
     return () => clearTimeout(t);
   }, [event]);
-  if (gameMode !== 'freeplay' || !event || dismissed === event.at) return null;
+  // No Siren Head warnings over a hide-and-seek game (he's sitting it out).
+  if (gameMode !== 'freeplay' || !event || dismissed === event.at || hsOn) return null;
   const msg =
     event.kind === 'arrive' ? '🚨 Siren Head is out there… get inside a house!' :
     event.kind === 'swat' ? '💥 BONK! Siren Head swatted you across the block!' :

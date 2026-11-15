@@ -8,7 +8,9 @@ import type { DogTrick } from '../world/pets';
 // proximity-scans + consumes E, InteractPrompt shows the label, and the
 // owning component reacts to the fired event for FX.
 
-export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt' | 'treats' | 'talk';
+export type ZoneInteractKind = 'pet' | 'icecream' | 'shop' | 'adopt' | 'treats' | 'talk'
+  /** Hide-and-seek: the Home Base tree, and a hider I can see right now. */
+  | 'hsbase' | 'hstag';
 
 export interface ZoneInteractable {
   id: string;

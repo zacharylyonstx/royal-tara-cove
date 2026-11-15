@@ -8,6 +8,7 @@ import { useNpcStore } from '../state/npcStore';
 import { useSkyStore } from '../state/skyStore';
 import { dogNetIn, dogNetOut } from '../state/dogSync';
 import { petChime, cheerSound } from '../audio';
+import { hsHiddenFrom } from '../state/hideSeekStore';
 import { HOUSES } from '../world/houses';
 import { houseTransform, STREET_RADIUS, STRAIGHT_END_Z, STRAIGHT_HALF_ROAD } from '../world/streetLayout';
 import { HERO_PIVOT_X, HERO_PIVOT_Z, HERO_YAW } from '../world/heroPlace';
@@ -227,6 +228,7 @@ function LiveMarkers({ big }: { big: boolean }) {
   humans.add(me);
   for (const id of CHARACTER_ORDER) {
     if (!humans.has(id) || id === me) continue;
+    if (hsHiddenFrom(me, id)) continue; // hide-and-seek: no peeking at the map
     const p = g.positions[id];
     out.push(
       <g key={id}>

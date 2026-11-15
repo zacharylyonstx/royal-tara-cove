@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGameStore } from '../state/gameStore';
 import { useNetStore } from '../state/netStore';
+import { hsHiddenFrom, useHideSeekStore } from '../state/hideSeekStore';
 import { CHARACTERS } from '../world/characters';
 import type { CharacterId } from '../types';
 
@@ -20,9 +21,16 @@ export function NameTags() {
   const peers = useNetStore((s) => s.peers);
   const myCharacterId = useNetStore((s) => s.myCharacterId);
 
+  // Hide-and-seek: no floating name over someone who's hiding from me — a tag
+  // shows straight through walls. (Subscribed so tags come and go with the
+  // game; the tag has to UNMOUNT, an invisible group doesn't hide drei <Html>.)
+  useHideSeekStore((s) => `${s.phase}|${s.seeker}|${s.players.join()}|${Object.keys(s.found).join()}`);
+
   const remoteClaimed = new Set<CharacterId>();
   for (const p of Object.values(peers)) {
-    if (p.characterId && p.characterId !== myCharacterId) remoteClaimed.add(p.characterId);
+    if (!p.characterId || p.characterId === myCharacterId) continue;
+    if (myCharacterId && hsHiddenFrom(myCharacterId, p.characterId)) continue;
+    remoteClaimed.add(p.characterId);
   }
 
   return (

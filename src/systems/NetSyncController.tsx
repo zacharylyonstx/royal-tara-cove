@@ -12,6 +12,7 @@ import { CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
 import type { PlayerStateMsg, WorldStateMsg, MunchiesNetSnapshot } from '../net/room';
 import { useMunchiesStore } from '../state/munchiesStore';
+import { useHideSeekStore } from '../state/hideSeekStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useNightStore } from '../state/nightStore';
 import { useSkyStore } from '../state/skyStore';
@@ -47,6 +48,17 @@ function shortestAngle(from: number, to: number): number {
  *  3. Apply incoming remote player positions into gameStore.positions for
  *     non-local characters (so Characters render driven by network).
  */
+/** Hide-and-seek as the host sees it, with the clock sent as "seconds left". */
+function hideSeekSnapshot(): WorldStateMsg['hs'] {
+  const h = useHideSeekStore.getState();
+  return {
+    phase: h.phase, round: h.round, seeker: h.seeker, players: h.players,
+    found: h.found as Record<string, number>, foundBy: h.foundBy as Record<string, string>,
+    left: Math.max(0, h.endsAt - performance.now() / 1000),
+    seekSecs: h.seekSecs, stars: h.stars as Record<string, number>,
+  };
+}
+
 /** The newest family call-out, for guests (who otherwise never hear them). */
 function lastLine(lines: { id: number; speaker: string; text: string }[]): { id: number; speaker: string; text: string } | undefined {
   const l = lines[lines.length - 1];
@@ -214,6 +226,7 @@ export function NetSyncController() {
           score: combat.score,
           kills: combat.kills,
           say: lastLine(combat.dialogue),
+          hs: game.gameMode === 'freeplay' ? hideSeekSnapshot() : undefined,
           tornadoPhaseEnteredAt: tornado.phaseEnteredAt,
           clock: game.gameMode === 'freeplay' ? useSkyStore.getState().dayFraction : undefined,
           dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith } : undefined,

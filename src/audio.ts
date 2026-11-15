@@ -2141,3 +2141,89 @@ export function resetNightAudio() {
     nightGroup.gain.setValueAtTime(1, c.currentTime);
   }
 }
+
+// --- Hide-and-seek ---
+
+/** One count of the seeker's "…28, 27, 26…" (a woodblock tock; brighter for the last five). */
+export function hsTick(strong = false, volume = 1) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(strong ? 990 : 660, t0);
+  osc.frequency.exponentialRampToValueAtTime(strong ? 700 : 520, t0 + 0.07);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime((strong ? 0.2 : 0.12) * volume, t0 + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.11);
+  osc.connect(gain).connect(master(c));
+  osc.start(t0);
+  osc.stop(t0 + 0.13);
+}
+
+/** "Ready or not, here I come!" — a playground whistle: two rising toots. */
+export function hsReadyOrNot() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  [0, 0.26].forEach((off, i) => {
+    const osc = c.createOscillator();
+    const lfo = c.createOscillator();
+    const lfoGain = c.createGain();
+    const gain = c.createGain();
+    osc.type = 'square';
+    const f = i === 0 ? 1560 : 1960;
+    osc.frequency.setValueAtTime(f, t0 + off);
+    lfo.frequency.value = 38; // the pea rattling in the whistle
+    lfoGain.gain.value = 55;
+    lfo.connect(lfoGain).connect(osc.frequency);
+    const len = i === 0 ? 0.18 : 0.46;
+    gain.gain.setValueAtTime(0.0001, t0 + off);
+    gain.gain.linearRampToValueAtTime(0.085, t0 + off + 0.02);
+    gain.gain.setValueAtTime(0.085, t0 + off + len - 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + off + len);
+    osc.connect(gain).connect(master(c));
+    osc.start(t0 + off); lfo.start(t0 + off);
+    osc.stop(t0 + off + len + 0.02); lfo.stop(t0 + off + len + 0.02);
+  });
+}
+
+/** Round over — a happy little five-note flourish for the score card. */
+export function hsFanfare() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  [523.25, 659.25, 783.99, 659.25, 1046.5].forEach((f, i) => {
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    const t = t0 + i * 0.13;
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(f, t);
+    const len = i === 4 ? 0.5 : 0.16;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(0.16, t + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + len);
+    osc.connect(gain).connect(master(c));
+    osc.start(t);
+    osc.stop(t + len + 0.02);
+  });
+}
+
+/** Bonk into the force field: a soft rubbery "bwomp". */
+export function hsBump() {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(210, t0);
+  osc.frequency.exponentialRampToValueAtTime(95, t0 + 0.2);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.2, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.26);
+  osc.connect(gain).connect(master(c));
+  osc.start(t0);
+  osc.stop(t0 + 0.28);
+}
