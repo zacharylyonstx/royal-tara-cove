@@ -19,6 +19,8 @@ export interface ZoneInteractable {
   x: number;
   z: number;
   radius: number;
+  /** For treat spots: the bubble that pops over your head (default 🍦). */
+  emoji?: string;
 }
 
 interface ZoneStore {

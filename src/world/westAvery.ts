@@ -29,45 +29,23 @@ export const WEST_BLVD_Z = -183.5;
 export const POND_X = -40, POND_Z = -212, POND_RX = 13, POND_RZ = 10;
 
 // ------------------------------------------------------------------- rail --
-export const RAIL_X = -178;          // track centreline (runs north–south)
+// The MetroRail Red Line. Two tracks, 8.2 m apart, so each station can be an
+// island platform between them (as the real Howard station is). The trains,
+// stations and timetable live in world/redLine.ts.
+export const RAIL_X = -178;          // west track centreline (runs north–south)
+export const RAIL_X_B = RAIL_X + 8.2; // east track
+export const RAIL_MID_X = (RAIL_X + RAIL_X_B) / 2;
 export const RAIL_Z_N = -330;
-export const RAIL_Z_S = -40;
 export const RAIL_BED_W = 3.6;
-/** Crossing gates stand this far either side of the track on the boulevard. */
+/** Crossing gates stand this far outside the outer tracks on the boulevard. */
 export const GATE_DX = 5.2;
+export const GATE_X_W = RAIL_X - GATE_DX;
+export const GATE_X_E = RAIL_X_B + GATE_DX;
 /** Red Line Trail: the hike-and-bike path that shadows the tracks (east side). */
-export const RAIL_TRAIL_X = RAIL_X + 7.5;
+export const RAIL_TRAIL_X = RAIL_X_B + 8.4;
 export const RAIL_TRAIL_Z_S = -92;   // meets the greenbelt connector
 export const RAIL_TRAIL_Z_N = -176;  // meets the boulevard sidewalk
 export const TRAIL_W = 2.6;
-
-/** The train runs on the shared NPC clock (seconds): one pass every period. */
-export const TRAIN_PERIOD_S = 100;
-export const TRAIN_PASS_S = 15;      // time for the train to cross the map
-export const TRAIN_WARN_S = 6;       // gates drop this long before it arrives
-export const TRAIN_LEN = 30;
-export const TRAIN_HALF_W = 1.45;
-
-export interface TrainState {
-  /** Gates down + bells. */
-  warning: boolean;
-  /** Train on the map (z of its centre); null when away. */
-  z: number | null;
-  /** +1 = heading south (+Z), −1 = heading north. */
-  dir: 1 | -1;
-}
-export function trainAt(T: number): TrainState {
-  const k = Math.floor(T / TRAIN_PERIOD_S);
-  const ph = T - k * TRAIN_PERIOD_S;
-  const dir: 1 | -1 = k % 2 === 0 ? 1 : -1;
-  const start = TRAIN_WARN_S;
-  const warning = ph < start + TRAIN_PASS_S + 1.5;
-  if (ph < start || ph > start + TRAIN_PASS_S) return { warning, z: null, dir };
-  const p = (ph - start) / TRAIN_PASS_S;
-  const span = RAIL_Z_S - RAIL_Z_N + TRAIN_LEN * 2;
-  const z = dir === 1 ? RAIL_Z_N - TRAIN_LEN + span * p : RAIL_Z_S + TRAIN_LEN - span * p;
-  return { warning, z, dir };
-}
 
 // ----------------------------------------------------------------- campus --
 // Rutledge Elementary. The enterable building is the game's original school
@@ -215,13 +193,14 @@ export function buildWestAveryColliders(): RectCollider[] {
 
   // Rail crossing: signal masts (the gates themselves are dynamic — WestAvery.tsx).
   for (const sx of [-1, 1]) {
-    out.push(rectAt(RAIL_X + sx * GATE_DX, WEST_BLVD_Z + sx * 7.6, 0.4, 0.4, { maxY: 4.2, tag: 'rail-mast' }));
+    out.push(rectAt(sx < 0 ? GATE_X_W : GATE_X_E, WEST_BLVD_Z + sx * 7.6, 0.4, 0.4, { maxY: 4.2, tag: 'rail-mast' }));
   }
 
-  // Crossing gates: full-width barriers that only exist while a train is due
-  // (zone/WestAvery.tsx flips `passable` off when the bells start).
+  // Crossing gates: barriers across the ROADWAY that only exist while a train
+  // is due (systems/RailController flips `passable` off when the bells start).
+  // The sidewalks stay open so nobody on foot is ever trapped on the tracks.
   for (const sx of [-1, 1]) {
-    out.push({ ...rectAt(RAIL_X + sx * GATE_DX, WEST_BLVD_Z, 0.3, 15, { maxY: 1.6, tag: 'rail-gate' }), passable: true });
+    out.push({ ...rectAt(sx < 0 ? GATE_X_W : GATE_X_E, WEST_BLVD_Z, 0.3, 12.4, { maxY: 1.6, tag: 'rail-gate' }), passable: true });
   }
 
   // Pool: fence (with two gate gaps), pool house; the water itself only stops

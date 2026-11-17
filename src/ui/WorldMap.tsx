@@ -21,13 +21,19 @@ import {
 } from '../world/acrossBlvd';
 import {
   BRIDGE_X0, BRIDGE_X1, CAMPUS, CONNECTOR_Z, CREEK_NORTH, CREEK_SOUTH, GREEN_TRAIL, NORTH_TRAIL, POOL,
-  RAIL_TRAIL_X, RAIL_TRAIL_Z_N, RAIL_TRAIL_Z_S, RAIL_X, RAIL_Z_N, RAIL_Z_S, TRAILHEAD, trainAt,
+  RAIL_TRAIL_X, RAIL_TRAIL_Z_N, RAIL_TRAIL_Z_S, RAIL_X, RAIL_X_B, RAIL_MID_X, RAIL_Z_N, TRAILHEAD,
 } from '../world/westAvery';
 import { SCHOOL_MAX_X, SCHOOL_MAX_Z, SCHOOL_MIN_X, SCHOOL_MIN_Z, SCHOOL_SHIFT_X } from '../world/school';
 import { NPCS, planNpc } from '../world/npcs';
 import { NPC_HOME_BELOW_EL, realSecondsAt, sunElevation } from '../world/npcTime';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
+import {
+  rail, TRACK_Z_S, STATIONS, PLATFORM_X0, PLATFORM_X1, PLATFORM_HALF_LEN, HOWARD_Z, LAKELINE_Z, LAKELINE_PLAT, rampSpan,
+  LAKELINE_BLVD_Z, PARMER_Z,
+} from '../world/redLine';
+import { BURNET, PLAZA, STREET, LAWN, FOUNTAIN, SHOPS, SHOP_DEPTH, TOWERS, STAGE, PLAY, TACO_TRUCK, WALK_Z, shopFront } from '../world/domain';
+import { LOTS, SH45, CREEK, MOPAC, QUARRY } from '../world/corridor';
 
 // The neighbourhood map (Free Play). Since the world grew west to the school
 // and north past the pond, "where IS the pool?" became a real question — so
@@ -46,11 +52,17 @@ interface MapStore {
   close: () => void;
   guide: Guide | null;
   setGuide: (g: Guide | null) => void;
+  /** Big map flipped to the OTHER sheet (true = the Domain, false = home);
+   *  null = show wherever I am. Forgotten whenever the map closes. */
+  peek: boolean | null;
+  setPeek: (south: boolean) => void;
 }
 export const useMapStore = create<MapStore>((set) => ({
   open: false,
-  toggle: () => set((s) => ({ open: !s.open })),
-  close: () => set({ open: false }),
+  toggle: () => set((s) => ({ open: !s.open, peek: null })),
+  close: () => set({ open: false, peek: null }),
+  peek: null,
+  setPeek: (peek) => set({ peek }),
   guide: null,
   setGuide: (guide) => set({ guide }),
 }));
@@ -60,6 +72,10 @@ const ARRIVE_M = 11;
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 // Map extent in world metres.
 const X0 = -292, X1 = 92, Z0 = -338, Z1 = 82;
+// The Domain's own sheet (same shape as the home one, so the frame never jumps).
+const DX0 = -402, DX1 = -98, DZ0 = 438, DZ1 = DZ0 + ((DX1 - DX0) * (Z1 - Z0)) / (X1 - X0);
+/** South of here you are "down the line" and the big map shows the Domain. */
+const SOUTH_FROM_Z = 200;
 const MINI_PX = 132;
 const MINI_RANGE = 62; // metres from the centre to the rim of the minimap
 
@@ -84,11 +100,73 @@ const LANDMARKS: Landmark[] = [
   { x: (WINGA_MIN_X + WINGA_MAX_X) / 2, z: (LOT_MIN_Z + LOT_MAX_Z) / 2, icon: '🛍️', label: 'Shops', dz: -27, go: [(WINGA_MIN_X + WINGA_MAX_X) / 2, WINGA_FRONT_Z + 4] },
   { x: WINGB_FRONT_X - 4, z: WINGB_MAX_Z - 4, icon: '🐶', label: 'Woof Gang', dz: 13, go: [WINGB_FRONT_X - 5, WINGB_MAX_Z - 4] },
   { x: CART_X, z: CART_Z, icon: '🍦', label: '' },
-  { x: RAIL_X, z: WEST_BLVD_Z, icon: '🚦', label: 'Train crossing', dz: 16, go: [RAIL_X + 9, WEST_BLVD_Z + 8] },
+  { x: RAIL_MID_X, z: STATIONS.avery.z, icon: '🚆', label: 'Train to the Domain', dx: 10, dz: -6, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.avery).z1 + 2.5] },
+  { x: RAIL_MID_X, z: WEST_BLVD_Z, icon: '🚦', label: '', dz: 16 },
   { x: (BRIDGE_X0 + BRIDGE_X1) / 2, z: CONNECTOR_Z, icon: '🌉', label: 'Footbridge', dz: 13 },
   { x: TRAILHEAD.x, z: TRAILHEAD.z, icon: '🌲', label: 'Brushy Creek trail', dz: -11, go: [TRAILHEAD.x, TRAILHEAD.z + 4] },
 ];
+/** Down the line: the Domain's own places. */
+const DOMAIN_LANDMARKS: Landmark[] = [
+  { x: RAIL_MID_X, z: STATIONS.domain.z, icon: '🚆', label: 'Train home', dx: 9, dz: -4, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.domain).z1 + 2.5] },
+  { x: STREET.x1 - 12, z: STREET.z, icon: '🛍️', label: 'Rock Rose shops', dz: -5, go: [STREET.x1 - 4, STREET.z] },
+  { x: (SHOPS[0].x0 + SHOPS[0].x1) / 2, z: STREET.z - STREET.half - 6, icon: '🍦', label: '' },
+  { x: (SHOPS[8].x0 + SHOPS[8].x1) / 2, z: STREET.z + STREET.half + 6, icon: '🍿', label: '' },
+  { x: FOUNTAIN.x, z: FOUNTAIN.z, icon: '⛲', label: 'Fountain', dz: -7, go: [FOUNTAIN.x + 6, FOUNTAIN.z] },
+  { x: PLAY.x, z: PLAY.z, icon: '🛝', label: 'The Lawn', dz: 13, go: [PLAY.x + 4, PLAY.z - 5] },
+  { x: STAGE.x, z: STAGE.z, icon: '🎤', label: 'Stage', dz: -8, go: [STAGE.x + 6, STAGE.z] },
+  { x: TACO_TRUCK.x, z: TACO_TRUCK.z, icon: '🌮', label: '', dz: -8 },
+];
+const ALL_LANDMARKS = [...LANDMARKS, ...DOMAIN_LANDMARKS];
 const DESTINATIONS = LANDMARKS.filter((l) => l.go);
+const DOMAIN_DESTINATIONS = DOMAIN_LANDMARKS.filter((l) => l.go);
+
+/** Stations, and everything down the Red Line: the country it crosses and the Domain. */
+function SouthArt({ labels }: { labels: boolean }) {
+  const road = '#5d6470';
+  const plat = (z: number, x0 = PLATFORM_X0, x1 = PLATFORM_X1, half = PLATFORM_HALF_LEN) => (
+    <rect x={x0} y={z - half} width={x1 - x0} height={half * 2} rx={1} fill="#e8e2d2" stroke="#c8102e" strokeWidth={0.8} />
+  );
+  return (
+    <g>
+      {/* Land south of the neighbourhood (drawn under the rails by z-order below). */}
+      <rect x={-470} y={Z1} width={420} height={700} fill="#96c873" />
+      <rect x={QUARRY.x0} y={QUARRY.z0} width={QUARRY.x1 - QUARRY.x0} height={QUARRY.z1 - QUARRY.z0} rx={8} fill="#e6e0cf" stroke="#b9ad90" strokeWidth={1.2} />
+      <rect x={QUARRY.x0 + 8} y={QUARRY.z0 + 22} width={44} height={24} rx={8} fill="#3fb6b2" />
+      <rect x={-470} y={CREEK.z0} width={420} height={CREEK.z1 - CREEK.z0} fill="#5aa9e6" />
+      <rect x={-470} y={SH45.z0} width={420} height={SH45.z1 - SH45.z0} fill={road} />
+      <rect x={-470} y={MOPAC.z0} width={420} height={MOPAC.z1 - MOPAC.z0} fill="#7a808a" />
+      {[LAKELINE_BLVD_Z, PARMER_Z].map((z) => <rect key={z} x={-236} y={z - 5.5} width={132} height={11} fill={road} />)}
+      {LOTS.map((l) => <rect key={l.name} x={l.x0} y={l.z0} width={l.x1 - l.x0} height={l.z1 - l.z0} fill="#8b919b" />)}
+      {/* The Domain */}
+      <rect x={BURNET.x0} y={BURNET.z0} width={BURNET.x1 - BURNET.x0} height={BURNET.z1 - BURNET.z0} fill={road} />
+      <rect x={PLAZA.x0} y={PLAZA.z0} width={PLAZA.x1 - PLAZA.x0} height={PLAZA.z1 - PLAZA.z0} fill="#e2d6bd" />
+      <rect x={STREET.x0 - 6} y={STREET.z - STREET.half} width={STREET.x1 - STREET.x0 + 6} height={STREET.half * 2} fill="#e2d6bd" />
+      <rect x={BURNET.x0} y={WALK_Z - 3} width={BURNET.x1 - BURNET.x0} height={6} fill="#f3f1e8" opacity={0.85} />
+      <rect x={LAWN.x0} y={LAWN.z0} width={LAWN.x1 - LAWN.x0} height={LAWN.z1 - LAWN.z0} rx={4} fill="#7cc05f" stroke="#e2d6bd" strokeWidth={2} />
+      <circle cx={FOUNTAIN.x} cy={FOUNTAIN.z} r={FOUNTAIN.r} fill="#5aa9e6" stroke="#fff" strokeWidth={0.8} />
+      <rect x={STAGE.x - STAGE.w / 2} y={STAGE.z - STAGE.d / 2} width={STAGE.w} height={STAGE.d} fill="#a0764d" />
+      {TOWERS.map((t, i) => <rect key={i} x={t.x0} y={t.z0} width={t.x1 - t.x0} height={t.z1 - t.z0} fill="#aab7c4" stroke="#6d7f91" strokeWidth={0.8} />)}
+      {SHOPS.map((sh) => {
+        const f = shopFront(sh.side), z0 = f.face > 0 ? f.z - SHOP_DEPTH : f.z;
+        return <rect key={sh.id} x={sh.x0} y={z0} width={sh.x1 - sh.x0} height={SHOP_DEPTH} fill={sh.awning} stroke="#3b4652" strokeWidth={0.7} />;
+      })}
+      {/* Platforms: the two you can use, and the two the train passes. */}
+      {plat(STATIONS.avery.z)}
+      {plat(STATIONS.domain.z)}
+      {plat(HOWARD_Z)}
+      {plat(LAKELINE_Z, LAKELINE_PLAT.x0, LAKELINE_PLAT.x1, LAKELINE_PLAT.half)}
+      {labels && (
+        <g fontFamily={FONT} fontWeight={700} fill="#ffffff" opacity={0.95} fontSize={5.4} textAnchor="middle" style={{ letterSpacing: 0.5 }}>
+          <text transform={`translate(${(BURNET.x0 + BURNET.x1) / 2 + 2} 580) rotate(-90)`}>BURNET RD</text>
+          <text x={-330} y={MOPAC.z0 + 11}>MoPAC EXPRESSWAY</text>
+          <text x={-330} y={CREEK.z0 - 3} fill="#2f6f9f">Walnut Creek</text>
+          <text x={(STREET.x0 + STREET.x1) / 2} y={STREET.z + 2} fill="#3b4652">ROCK ROSE</text>
+          <text x={RAIL_MID_X + 26} y={HOWARD_Z + 2} fill="#3a3f47">Howard Station</text>
+        </g>
+      )}
+    </g>
+  );
+}
 
 /** The static drawing: land, water, roads, rails, trails, buildings. */
 const MapArt = memo(function MapArt({ labels }: { labels: boolean }) {
@@ -97,6 +175,7 @@ const MapArt = memo(function MapArt({ labels }: { labels: boolean }) {
   return (
     <g>
       <rect x={X0} y={Z0} width={X1 - X0} height={Z1 - Z0} fill="#96c873" />
+      <SouthArt labels={labels} />
       {/* Greenbelt along the creek + the park north of the boulevard */}
       <polyline points={pts([...CREEK_SOUTH, ...CREEK_NORTH])} fill="none" stroke="#7fb65f" strokeWidth={26} strokeLinecap="round" strokeLinejoin="round" />
       <ellipse cx={CAMPUS.field.x} cy={CAMPUS.field.z} rx={CAMPUS.field.rx} ry={CAMPUS.field.rz} fill="#84bd62" stroke="#e9e2c8" strokeWidth={1.2} />
@@ -131,8 +210,12 @@ const MapArt = memo(function MapArt({ labels }: { labels: boolean }) {
       <line x1={WEST_BULB_X} y1={WEST_BLVD_Z} x2={X1} y2={WEST_BLVD_Z} stroke="#f2d04b" strokeWidth={0.7} strokeDasharray="4 3" />
 
       {/* Railway */}
-      <line x1={RAIL_X} y1={RAIL_Z_N} x2={RAIL_X} y2={RAIL_Z_S} stroke="#3a3f47" strokeWidth={3.4} />
-      <line x1={RAIL_X} y1={RAIL_Z_N} x2={RAIL_X} y2={RAIL_Z_S} stroke="#d8d2c4" strokeWidth={1.6} strokeDasharray="1.2 3" />
+      {[RAIL_X, RAIL_X_B].map((rx) => (
+        <g key={rx}>
+          <line x1={rx} y1={RAIL_Z_N} x2={rx} y2={TRACK_Z_S} stroke="#3a3f47" strokeWidth={3} />
+          <line x1={rx} y1={RAIL_Z_N} x2={rx} y2={TRACK_Z_S} stroke="#d8d2c4" strokeWidth={1.4} strokeDasharray="1.2 3" />
+        </g>
+      ))}
 
       {/* Houses on Royal Tara */}
       {HOUSES.map((h) => {
@@ -193,9 +276,10 @@ function LiveMarkers({ big }: { big: boolean }) {
   const out: React.ReactNode[] = [];
 
   // Train
-  const train = trainAt(T);
-  if (train.z !== null) {
-    out.push(<text key="train" x={RAIL_X} y={train.z + 4} fontSize={15 * s} textAnchor="middle">🚂</text>);
+  if (rail.live) {
+    rail.trains.forEach((tr, i) => {
+      out.push(<text key={`train${i}`} x={tr.x} y={tr.z + 4} fontSize={13 * s} textAnchor="middle">🚆</text>);
+    });
   }
   // Sparky
   const dog = net.isHost ? dogNetOut : dogNetIn;
@@ -251,10 +335,10 @@ function LiveMarkers({ big }: { big: boolean }) {
   return <>{out}</>;
 }
 
-function Landmarks({ big }: { big: boolean }) {
+function Landmarks({ big, list = ALL_LANDMARKS }: { big: boolean; list?: Landmark[] }) {
   return (
     <g fontFamily={FONT}>
-      {LANDMARKS.map((l, i) => (
+      {list.map((l, i) => (
         <g
           key={i}
           style={big && l.go ? { cursor: 'pointer' } : undefined}
@@ -339,6 +423,8 @@ export function WorldMap() {
   const pos = useMyPosition(live && !open);
   const guide = useMapStore((s) => s.guide);
   const [guideDist, setGuideDist] = useState(0);
+  /** Which sheet the big map shows: where I am, unless I flipped it to peek. */
+  const peek = useMapStore((s) => s.peek);
 
   // The big map needs the mouse (to pick a place) — hand the cursor back.
   useEffect(() => {
@@ -376,6 +462,11 @@ export function WorldMap() {
   if (!live) return null;
 
   if (open) {
+    const g0 = useGameStore.getState();
+    const imSouth = g0.positions[me ?? g0.activeCharacterId].z > SOUTH_FROM_Z;
+    const south = peek ?? imSouth;
+    const vb = south ? `${DX0} ${DZ0} ${DX1 - DX0} ${DZ1 - DZ0}` : `${X0} ${Z0} ${X1 - X0} ${Z1 - Z0}`;
+    const dests = south ? DOMAIN_DESTINATIONS : DESTINATIONS;
     return (
       <div
         onClick={() => useMapStore.getState().close()}
@@ -391,21 +482,36 @@ export function WorldMap() {
             boxShadow: '0 18px 50px rgba(0,0,0,0.5)', animation: 'pop-in 0.25s ease-out', background: '#96c873',
           }}
         >
-          <svg viewBox={`${X0} ${Z0} ${X1 - X0} ${Z1 - Z0}`} width="100%" height="100%" style={{ display: 'block' }}>
+          <svg viewBox={vb} width="100%" height="100%" style={{ display: 'block' }}>
             <MapArt labels />
             <GuideLine big />
-            <Landmarks big />
+            <Landmarks big list={south ? DOMAIN_LANDMARKS : LANDMARKS} />
             <LiveMarkers big />
           </svg>
           <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(255,253,246,0.94)', color: '#2a2433', padding: '6px 12px', borderRadius: 12, fontWeight: 800, fontSize: 15, border: '2px solid #2a2433' }}>
-            🗺️ Royal Tara Cove <span style={{ fontWeight: 600, opacity: 0.7, fontSize: 12 }}>· north is up</span>
+            🗺️ {south ? 'The Domain' : 'Royal Tara Cove'} <span style={{ fontWeight: 600, opacity: 0.7, fontSize: 12 }}>· north is up</span>
           </div>
+          {/* The other end of the Red Line is on its own sheet. */}
+          <button
+            onClick={(e) => { e.stopPropagation(); useMapStore.getState().setPeek(!south); }}
+            style={{
+              position: 'absolute', top: 10, right: 12, background: '#c8102e', color: '#fff', border: '2px solid #fff', borderRadius: 12,
+              padding: '6px 12px', fontFamily: FONT, fontSize: 13.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+            }}
+          >
+            🚆 {south ? 'Show Royal Tara Cove' : 'Show the Domain'}
+          </button>
+          {south !== imSouth && (
+            <div style={{ position: 'absolute', top: 50, right: 12, background: 'rgba(20,28,38,0.82)', color: '#fff', padding: '4px 10px', borderRadius: 10, fontWeight: 700, fontSize: 12 }}>
+              {south ? 'Ride the Red Line from Avery Ranch to get here' : 'Ride the Red Line back to get here'}
+            </div>
+          )}
           {/* "Take me there": big friendly buttons (the circles on the map work too). */}
           <div style={{ position: 'absolute', left: 12, bottom: 44, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
             <div style={{ background: 'rgba(255,253,246,0.94)', color: '#2a2433', padding: '3px 10px', borderRadius: 10, fontWeight: 800, fontSize: 12, border: '2px solid #2a2433' }}>
               Show me the way to…
             </div>
-            {DESTINATIONS.map((l) => {
+            {dests.map((l) => {
               const on = !!guide && guide.label === l.label;
               return (
                 <button

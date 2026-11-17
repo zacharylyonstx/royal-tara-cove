@@ -25,6 +25,8 @@ export interface RemotePlayerState {
   /** Set when this peer is riding a vehicle (so we render it under them). */
   riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart' ; passengerOf?: CharacterId; seat?: number } | null;
   pet?: string | null;
+  /** Riding Red Line train 0/1 (−1 = no): `z` is then relative to that train. */
+  train?: number;
   receivedAt: number;
 }
 

@@ -8,6 +8,7 @@ import { useNetStore, peerOutranks } from '../state/netStore';
 import { useZoneStore } from '../state/zoneStore';
 import { dogNetIn } from '../state/dogSync';
 import { useSkyStore } from '../state/skyStore';
+import { rail, PERIOD_S } from '../world/redLine';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
@@ -61,6 +62,9 @@ export interface PlayerStateMsg {
   riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart'; passengerOf?: CharacterId; seat?: number } | null;
   /** Adopted pup id (Woof Gang), null/undefined = none. */
   pet?: string | null;
+  /** Riding the Red Line: which train (0/1). `z` is then measured FROM THE
+   *  TRAIN's centre, so every screen places me inside its own copy of the car. */
+  tr?: number;
   t: number; // sender timestamp ms
 }
 
@@ -201,8 +205,10 @@ export interface WorldStateMsg {
   /** Free Play world clock (dayFraction 0..1) — a phase, not a wall clock, so
    *  machine clock skew never matters. Guests ease toward it. */
   clock?: number;
+  /** Red Line timetable phase (seconds into the cycle) — also a phase. */
+  rail?: number;
   /** Sparky (Free Play) — the host's dog is authoritative; guests lerp to it. */
-  dog?: { x: number; y: number; z: number; yaw: number; petting: boolean; rideWith: string | null };
+  dog?: { x: number; y: number; z: number; yaw: number; petting: boolean; rideWith: string | null; tr?: number };
   /** Siren Head Night — undefined when not in night mode. roundEndsInSeconds is
    *  a DELTA (not an absolute clock) so cross-machine skew never matters. */
   night?: {
@@ -411,6 +417,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
       crouching: bool(rawData.crouching),
       riding,
       pet: typeof rawData.pet === 'string' && rawData.pet.length < 24 ? rawData.pet : null,
+      train: rawData.tr === 0 || rawData.tr === 1 ? rawData.tr : -1,
       receivedAt: performance.now(),
     });
   }));
@@ -782,12 +789,15 @@ let lastSayId = -1;
 function applyWorldSnapshot(s: Json): void {
   // Free Play world clock: follow the host.
   if (typeof s.clock === 'number' && Number.isFinite(s.clock)) useSkyStore.getState().setNetTarget(s.clock);
+  // The Red Line runs to the host's timetable.
+  if (typeof s.rail === 'number' && Number.isFinite(s.rail) && s.rail >= 0 && s.rail < PERIOD_S) rail.netT = s.rail;
   // Sparky: the host's dog is the real one.
   if (isObj(s.dog)) {
     const d = s.dog;
     dogNetIn.x = num(d.x); dogNetIn.y = num(d.y); dogNetIn.z = num(d.z); dogNetIn.yaw = num(d.yaw);
     dogNetIn.petting = bool(d.petting);
     dogNetIn.rideWith = typeof d.rideWith === 'string' ? d.rideWith : null;
+    dogNetIn.tr = d.tr === 0 || d.tr === 1 ? d.tr : -1;
     dogNetIn.receivedAt = performance.now();
   }
   // Hide-and-seek: the host's game, with the clock re-based onto OUR clock.

@@ -37,6 +37,7 @@ import { MunchiesHud } from './ui/MunchiesHud';
 import { ErrandHud } from './ui/ErrandHud';
 import { WorldMap } from './ui/WorldMap';
 import { HideSeekHud } from './ui/HideSeekHud';
+import { RailHud } from './ui/RailHud';
 import { MunchiesIntro } from './ui/MunchiesIntro';
 import { MunchiesLevelClear } from './ui/MunchiesLevelClear';
 import { MunchiesGameOver } from './ui/MunchiesGameOver';
@@ -104,6 +105,7 @@ export default function App() {
       <ErrandHud />
       <WorldMap />
       <HideSeekHud />
+      <RailHud />
       <MunchiesHud />
       <MunchiesIntro />
       <MunchiesLevelClear />

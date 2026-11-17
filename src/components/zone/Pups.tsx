@@ -11,6 +11,7 @@ import { useZoneStore } from '../../state/zoneStore';
 import { hsLive, hsRole } from '../../state/hideSeekStore';
 import { HS_PET_WAIT } from '../../world/hideSeek';
 import { resolveMotion } from '../../systems/collision';
+import { collidersForPets, petRideSpot, railFloorAt } from '../../world/redLine';
 import { dogBark, petChime } from '../../audio';
 import {
   PUPS, PENS, TREAT_X, TREAT_Z, TRICKS, penSpot,
@@ -272,21 +273,26 @@ function Pup({ def }: { def: PupDef }) {
       const orid = rs[owner];
       const drvId = orid ? (orid.passengerOf ?? owner) : null;
       const dr = drvId ? rs[drvId] : null;
-      if (dr && dr.vehicle === 'car' && !dr.passengerOf && drvId) {
+      const onTrain = petRideSpot(op.x, game.positions[owner].y, op.z, waitIdx % 2 ? -1 : 1);
+      if (onTrain && op === game.positions[owner]) {
+        // Riding the Red Line with you: sits at your feet in the car.
+        riding = true;
+        s.x = onTrain.x; s.y = onTrain.y; s.z = onTrain.z; s.yaw = game.yaws[owner] ?? 0;
+      } else if (dr && dr.vehicle === 'car' && !dr.passengerOf && drvId) {
         // Ride along in the back.
         riding = true;
         const dp = game.positions[drvId];
         const w = seatWorld(dp.x, dr.y, dp.z, dr.heading, PUP_SEAT[dr.carKind ?? 'sedan']);
         s.x = w.x; s.y = w.y; s.z = w.z; s.yaw = dr.heading + Math.PI;
       } else {
-        s.y = 0;
+        s.y = railFloorAt(s.x, s.z); // up on the platform with you, not under it
         const dx = op.x - s.x, dz = op.z - s.z;
         const d = Math.hypot(dx, dz);
         if (d > CATCH_UP) {
           const yaw = game.yaws[owner] ?? 0;
           // Catch up to a spot behind the owner — but never inside a wall.
           const tx = op.x + Math.sin(yaw) * 3, tz = op.z + Math.cos(yaw) * 3;
-          const r = resolveMotion(op.x, op.z, tx, tz, game.staticColliders);
+          const r = resolveMotion(op.x, op.z, tx, tz, collidersForPets(game.staticColliders));
           s.x = r.x; s.z = r.z;
           petUntil.current = t + 0.5;
         } else if (!petting && d > HEEL) {
@@ -295,7 +301,7 @@ function Pup({ def }: { def: PupDef }) {
           pace = d > 9 ? 1 : d > 4 ? 0.55 : 0.15;
           const step = Math.min(speed * dt, d - HEEL + 0.05);
           const nx = s.x + (dx / d) * step, nz = s.z + (dz / d) * step;
-          const r = resolveMotion(s.x, s.z, nx, nz, game.staticColliders);
+          const r = resolveMotion(s.x, s.z, nx, nz, collidersForPets(game.staticColliders));
           s.x = r.x; s.z = r.z;
           const want = Math.atan2(-dx, -dz);
           let diff = want - s.yaw; while (diff > Math.PI) diff -= 2 * Math.PI; while (diff < -Math.PI) diff += 2 * Math.PI;

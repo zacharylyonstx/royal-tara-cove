@@ -2,7 +2,8 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../state/gameStore';
 import { isTouchDevice } from '../systems/touchInput';
-import { GROUND_CX, GROUND_CZ, GROUND_R, terrainHeight } from '../world/terrain';
+import { RAIL_MID_X } from '../world/westAvery';
+import { GROUND_CX, GROUND_CZ, GROUND_R, groundHeight } from '../world/terrain';
 
 // A ring of distant, hazy trees around the neighborhood so the now-drivable
 // open edges (greenbelt, boulevard) have a believable backdrop instead of
@@ -39,11 +40,10 @@ export function DistantScenery() {
       // hazy treeline on the horizon — never a single big blob looming close.
       const a = (i / COUNT) * Math.PI * 2 + (rng() - 0.5) * 0.05;
       const rad = GROUND_R + (i % 2 === 0 ? 14 : 44) + rng() * 30;
-      arr.push({
-        x: CX + Math.cos(a) * rad,
-        z: CZ + Math.sin(a) * rad,
-        s: 2.4 + rng() * 1.9,
-      });
+      const x = CX + Math.cos(a) * rad, z = CZ + Math.sin(a) * rad;
+      // Keep the Red Line's right-of-way clear where it leaves the map southward.
+      const onRailway = z > 0 && Math.abs(x - RAIL_MID_X) < 16;
+      arr.push({ x, z, s: onRailway ? 0 : 2.4 + rng() * 1.9 });
     }
     return arr;
   }, []);
@@ -57,7 +57,7 @@ export function DistantScenery() {
     const sc = new THREE.Vector3();
     const p = new THREE.Vector3();
     data.forEach((d, i) => {
-      const gy = terrainHeight(d.x, d.z);
+      const gy = groundHeight(d.x, d.z);
       p.set(d.x, gy + d.s * 1.5, d.z);
       sc.set(d.s, d.s * 1.25, d.s);
       m.compose(p, q, sc);

@@ -9,6 +9,7 @@ import { useCombatStore } from '../state/combatStore';
 import type { CharacterId } from '../types';
 import { sunDirection } from '../world/dayNight';
 import { isIndoors } from '../world/indoors';
+import { railSafe } from '../world/redLine';
 import {
   STALKER_ACTIVE_BELOW_EL, STALKER_ARRIVAL, STALKER_BOUNDS,
   STALKER_PATROL_SPEED, STALKER_CHASE_SPEED, STALKER_LUNGE_MULT,
@@ -137,7 +138,8 @@ export function StalkerController() {
     const isRunning = (id: CharacterId) => id === myId ? ns.localRunning : (net.remotePlayers[id]?.running ?? false);
     const outdoors = (id: CharacterId) => {
       const p = g.positions[id];
-      return !!p && !isIndoors(p.x, p.z) && p.y < 3.5; // upstairs counts as indoors
+      // …and so does waiting for, or riding, the train (and everywhere down the line).
+      return !!p && !isIndoors(p.x, p.z) && p.y < 3.5 && !railSafe(p.x, p.y, p.z); // upstairs counts as indoors
     };
     const huntable = (id: CharacterId) => outdoors(id) && now >= r.immuneUntil[id] && !(g.ragdoll?.active && id === myId);
 

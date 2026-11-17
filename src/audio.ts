@@ -2227,3 +2227,108 @@ export function hsBump() {
   osc.start(t0);
   osc.stop(t0 + 0.28);
 }
+
+// --- Riding the Red Line ---
+
+let trainLayer: { src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode; hum: OscillatorNode; humGain: GainNode } | null = null;
+
+/** The sound of the train you are riding (or standing beside): a low rolling
+ *  rumble plus the diesel's hum. `speed` 0..1 of line speed, `volume` 0..1
+ *  (0 fades it out — call every frame; cheap). */
+export function setTrainRumble(speed: number, volume: number) {
+  const c = ensureCtx();
+  if (!c) return;
+  if (!trainLayer) {
+    if (volume <= 0.001) return;
+    const src = c.createBufferSource();
+    src.buffer = makeNoiseBuffer(c, 3, 'brown');
+    src.loop = true;
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 220;
+    const gain = c.createGain();
+    gain.gain.value = 0;
+    src.connect(filter).connect(gain).connect(master(c));
+    const hum = c.createOscillator();
+    hum.type = 'sawtooth';
+    hum.frequency.value = 58;
+    const humLp = c.createBiquadFilter();
+    humLp.type = 'lowpass';
+    humLp.frequency.value = 260;
+    const humGain = c.createGain();
+    humGain.gain.value = 0;
+    hum.connect(humLp).connect(humGain).connect(master(c));
+    src.start();
+    hum.start();
+    trainLayer = { src, filter, gain, hum, humGain };
+  }
+  const s = Math.max(0, Math.min(1, speed)), v = Math.max(0, Math.min(1, volume));
+  const t = c.currentTime;
+  trainLayer.gain.gain.setTargetAtTime(v * (0.05 + 0.26 * s), t, 0.25);
+  trainLayer.filter.frequency.setTargetAtTime(170 + 520 * s, t, 0.3);
+  // Idling at the platform it still purrs; it climbs as the train gets going.
+  trainLayer.humGain.gain.setTargetAtTime(v * (0.012 + 0.016 * s), t, 0.3);
+  trainLayer.hum.frequency.setTargetAtTime(52 + 46 * s, t, 0.5);
+}
+
+/** Wheels over a rail joint: the "clickety-clack" (two quick knocks). */
+export function railClack(volume = 1) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  for (const at of [0, 0.085]) {
+    const src = c.createBufferSource();
+    src.buffer = makeNoiseBuffer(c, 0.06, 'white');
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 420;
+    bp.Q.value = 2.2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t0 + at);
+    g.gain.linearRampToValueAtTime(0.11 * volume, t0 + at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0008, t0 + at + 0.055);
+    src.connect(bp).connect(g).connect(master(c));
+    src.start(t0 + at);
+    src.stop(t0 + at + 0.07);
+  }
+}
+
+/** Door chime: three rising notes = opening, three falling = "doors closing". */
+export function doorChime(closing: boolean, volume = 1) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const notes = closing ? [988, 784, 659] : [659, 784, 988];
+  notes.forEach((f, i) => {
+    const at = t0 + i * (closing ? 0.2 : 0.16);
+    const o = c.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(0.085 * volume, at + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0008, at + 0.34);
+    o.connect(g).connect(master(c));
+    o.start(at);
+    o.stop(at + 0.36);
+  });
+}
+
+/** Air brakes letting go as the train stops: a soft "pssshh". */
+export function trainHiss(volume = 1) {
+  const c = ensureCtx();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const src = c.createBufferSource();
+  src.buffer = makeNoiseBuffer(c, 0.9, 'white');
+  const hp = c.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 2600;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.05 * volume, t0 + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.8);
+  src.connect(hp).connect(g).connect(master(c));
+  src.start(t0);
+  src.stop(t0 + 0.9);
+}

@@ -13,10 +13,13 @@ export interface DogNetState {
   petting: boolean;
   /** Host: the kid he's riding with (null on foot) — guests use it for the seat height. */
   rideWith: string | null;
+  /** Riding Red Line train 0/1 with his person (−1 = no): `z` is then measured
+   *  from that train's centre, like a player's. */
+  tr: number;
 }
 
-export const dogNetOut: DogNetState = { x: 4, y: 0, z: 24, yaw: Math.PI, petting: false, rideWith: null };
-export const dogNetIn: DogNetState & { receivedAt: number } = { x: 4, y: 0, z: 24, yaw: Math.PI, petting: false, rideWith: null, receivedAt: 0 };
+export const dogNetOut: DogNetState = { x: 4, y: 0, z: 24, yaw: Math.PI, petting: false, rideWith: null, tr: -1 };
+export const dogNetIn: DogNetState & { receivedAt: number } = { x: 4, y: 0, z: 24, yaw: Math.PI, petting: false, rideWith: null, tr: -1, receivedAt: 0 };
 
 declare global {
   interface Window { __dog?: { out: DogNetState; in: DogNetState & { receivedAt: number } }; }

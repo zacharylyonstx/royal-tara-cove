@@ -4,6 +4,7 @@
 import { hash01 } from './npcTime';
 import { CART_X, CART_Z, DOCK_END_Z, DOCK_Y, GARDEN_HOMES, PEN_X, PLAYGROUND_X, PLAYGROUND_Z, POND_X } from './acrossBlvd';
 import { SCHOOL_NPCS } from './schoolNpcs';
+import { RAIL_NPCS } from './railNpcs';
 import { npcAppearance as A, npcLook } from './npcLook';
 import { SCHOOL_MIN_X, SCHOOL_MAX_X, SCHOOL_MIN_Z, SCHOOL_MAX_Z, SCHOOL_SHIFT_X } from './school';
 
@@ -177,7 +178,7 @@ const NEIGHBOURS: NpcDef[] = [
 ];
 
 /** Everyone in town. */
-export const NPCS: NpcDef[] = [...NEIGHBOURS, ...SCHOOL_NPCS];
+export const NPCS: NpcDef[] = [...NEIGHBOURS, ...SCHOOL_NPCS, ...RAIL_NPCS];
 
 export function npcById(id: string): NpcDef | undefined {
   return NPCS.find((n) => n.id === id);

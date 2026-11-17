@@ -8,6 +8,7 @@ import { useNetStore } from '../../state/netStore';
 import { useZoneStore } from '../../state/zoneStore';
 import { hsLive } from '../../state/hideSeekStore';
 import { resolveMotion } from '../../systems/collision';
+import { collidersForPets, petRideSpot, railFloorAt, rail } from '../../world/redLine';
 import { dogBark, petChime } from '../../audio';
 import { CHARACTER_ORDER } from '../../world/characters';
 import { usePlayStore } from '../../state/playStore';
@@ -203,19 +204,24 @@ function FamilyDogInner() {
     // --- Guest: the host's Sparky is the real one — glide to where HE is. ---
     if (isGuestDog()) {
       const k = 1 - Math.exp(-14 * dt);
-      const far = Math.hypot(dogNetIn.x - s.x, dogNetIn.z - s.z) > 6;
-      if (far) { s.x = dogNetIn.x; s.y = dogNetIn.y; s.z = dogNetIn.z; s.yaw = dogNetIn.yaw; }
+      // On a train his z comes measured from the car — ride along with OUR
+      // copy of that train, then ease only the bit he moved inside it.
+      const dtr = rail.live && dogNetIn.tr >= 0 ? rail.trains[dogNetIn.tr] : null;
+      const inZ = dtr ? dtr.z + dogNetIn.z : dogNetIn.z;
+      if (dtr) s.z += dtr.dz;
+      const far = Math.hypot(dogNetIn.x - s.x, inZ - s.z) > 6;
+      if (far) { s.x = dogNetIn.x; s.y = dogNetIn.y; s.z = inZ; s.yaw = dogNetIn.yaw; }
       else {
         s.x += (dogNetIn.x - s.x) * k;
         s.y += (dogNetIn.y - s.y) * k;
-        s.z += (dogNetIn.z - s.z) * k;
+        s.z += (inZ - s.z) * k;
         let diff = dogNetIn.yaw - s.yaw;
         while (diff > Math.PI) diff -= 2 * Math.PI;
         while (diff < -Math.PI) diff += 2 * Math.PI;
         s.yaw += diff * k;
       }
       s.rideWith = (dogNetIn.rideWith as CharacterId | null) ?? null;
-      const movingGuest = Math.hypot(dogNetIn.x - s.x, dogNetIn.z - s.z) > 0.08 && !s.rideWith;
+      const movingGuest = Math.hypot(dogNetIn.x - s.x, inZ - s.z) > 0.08 && !s.rideWith;
       s.posPushAccum += dt;
       if (s.posPushAccum > 0.2) { s.posPushAccum = 0; useZoneStore.getState().updatePos('sparky', s.x, s.z); }
       animateDog(t, petting, movingGuest, !!s.rideWith, 12, 0, false);
@@ -290,7 +296,15 @@ function FamilyDogInner() {
 
     let moving = false;
     const chasing = !!s.bondId && !s.rideWith;
-    if (s.rideWith && dr) {
+    // His person is on the Red Line: he rides at their feet.
+    const bondP = s.bondId ? game.positions[s.bondId as CharacterId] : null;
+    const onTrain = bondP && !s.rideWith ? petRideSpot(bondP.x, bondP.y, bondP.z, -1) : null;
+    dogNetOut.tr = onTrain ? onTrain.train : -1;
+    if (onTrain) {
+      s.x = onTrain.x; s.y = onTrain.y; s.z = onTrain.z;
+      s.yaw = game.yaws[s.bondId as CharacterId] ?? s.yaw;
+      s.targetX = s.x; s.targetZ = s.z;
+    } else if (s.rideWith && dr) {
       const dp = game.positions[s.rideWith];
       const seat = PET_SEAT[dr.carKind ?? 'sedan'];
       const w = seatWorld(dp.x, dr.y, dp.z, dr.heading, seat);
@@ -298,7 +312,7 @@ function FamilyDogInner() {
       s.yaw = dr.heading + Math.PI; // look out the back, ears in the wind
       s.targetX = s.x; s.targetZ = s.z;
     } else {
-      s.y = 0;
+      s.y = railFloorAt(s.x, s.z); // on the platform with you, not under it
       if (!petting) {
         if (chasing && bondD > HEEL_DIST) {
           s.targetX = bondX;
@@ -332,7 +346,7 @@ function FamilyDogInner() {
         const step = Math.min(speed * dt, dist);
         const nx = s.x + (toX / dist) * step;
         const nz = s.z + (toZ / dist) * step;
-        const resolved = resolveMotion(s.x, s.z, nx, nz, game.staticColliders);
+        const resolved = resolveMotion(s.x, s.z, nx, nz, collidersForPets(game.staticColliders));
         s.x = resolved.x;
         s.z = resolved.z;
         const desiredYaw = Math.atan2(-(toX / dist), -(toZ / dist));

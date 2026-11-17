@@ -44,8 +44,13 @@ function realElev(gx: number, gz: number): number {
   return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
 }
 
-/** Height (game m, relative to the flat play surface) of the backdrop terrain. */
-export function terrainHeight(gx: number, gz: number): number {
+function ss(a: number, b: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+/** The backdrop relief as surveyed, before the south land is cut into it. */
+function surveyHeight(gx: number, gz: number): number {
   const r = Math.hypot(gx - GROUND_CX, gz - GROUND_CZ);
   if (r <= GROUND_R) return 0;
   const k = Math.min(1, (r - GROUND_R) / BLEND);
@@ -53,4 +58,78 @@ export function terrainHeight(gx: number, gz: number): number {
   // Gentle rolling noise so ridgelines aren't ruler-straight.
   const roll = Math.sin(gx * 0.021) * Math.cos(gz * 0.017) * 2.2 + Math.sin(gx * 0.047 + gz * 0.031) * 1.1;
   return ((realElev(gx, gz) - JUNCTION_ELEV) * EXAGGERATE + roll) * blend;
+}
+
+// ------------------------------------------------------------- south land --
+// The country the Red Line runs through on its way to the Domain. It has its
+// own, finer ground (components/rail/SouthLand.tsx); the coarse backdrop is
+// sunk out of the way underneath it.
+export const SOUTH_X0 = -700, SOUTH_X1 = 190, SOUTH_Z0 = 70, SOUTH_Z1 = 1040;
+/** Centreline between the two tracks (mirrors westAvery.RAIL_MID_X). */
+const SOUTH_RAIL_X = -173.9;
+/** Flat half-width of the railway formation; the land may rise beyond it. */
+export const SOUTH_BED_HALF = 8.5;
+export const SOUTH_SHOULDER = 14;
+
+/** Rail bridges (z spans): the SH-45 toll road and Walnut Creek pass under. */
+export const SOUTH_BRIDGES: [number, number][] = [[309, 343], [495, 517]];
+
+interface Pad { x0: number; x1: number; z0: number; z1: number; y: number; soft: number }
+/** Levelled ground: stations, the highway, the quarry floor, the Domain. */
+const PADS: Pad[] = [
+  { x0: -235, x1: -104, z0: 222, z1: 308, y: 0, soft: 14 },     // Lakeline Blvd, park & ride, Parmer
+  { x0: -700, x1: 190, z0: 318, z1: 334, y: -7.5, soft: 9 },    // SH-45 toll road, down in its cut
+  { x0: -310, x1: -200, z0: 354, z1: 410, y: -8, soft: 16 },    // quarry pit
+  { x0: -160, x1: -96, z0: 348, z1: 412, y: 0, soft: 10 },      // freight yard
+  { x0: -230, x1: -104, z0: 426, z1: 480, y: 0, soft: 12 },     // Howard station + park & ride
+  { x0: -700, x1: 190, z0: 502, z1: 510, y: -3.6, soft: 7 },    // Walnut Creek
+  { x0: -380, x1: -100, z0: 540, z1: 716, y: 0, soft: 16 },     // the Domain
+];
+
+function southLand(gx: number, gz: number): number {
+  // Rolling Hill Country, with the limestone ridge the line cuts through.
+  const roll = Math.sin(gx * 0.019 + 1.3) * Math.cos(gz * 0.023) * 2.4 + Math.sin(gx * 0.043 + gz * 0.037) * 1.2 + 1.6;
+  const ridge = 7.5 * ss(104, 128, gz) * (1 - ss(188, 216, gz));
+  let h = roll * 0.8 + ridge;
+  for (const p of PADS) {
+    const dx = Math.max(p.x0 - gx, 0, gx - p.x1);
+    const dz = Math.max(p.z0 - gz, 0, gz - p.z1);
+    const k = 1 - ss(0, p.soft, Math.hypot(dx, dz));
+    h = h * (1 - k) + p.y * k;
+  }
+  // The railway formation itself is dead level — except where it is carried
+  // on a bridge and the cut (a road, a creek) passes underneath.
+  const d = Math.abs(gx - SOUTH_RAIL_X);
+  let onBridge = false;
+  for (const [b0, b1] of SOUTH_BRIDGES) if (gz > b0 && gz < b1) onBridge = true;
+  if (!onBridge) h *= ss(SOUTH_BED_HALF, SOUTH_SHOULDER, d);
+  // Never poke up through the flat play disc.
+  const r = Math.hypot(gx - GROUND_CX, gz - GROUND_CZ);
+  return h * ss(GROUND_R - 2, GROUND_R + 36, r);
+}
+
+function inSouth(gx: number, gz: number): boolean {
+  return gz >= SOUTH_Z0 && gz <= SOUTH_Z1 && gx >= SOUTH_X0 && gx <= SOUTH_X1;
+}
+
+/** Height of the south-land ground mesh (blends in from the surveyed relief). */
+export function southHeight(gx: number, gz: number): number {
+  const k = ss(SOUTH_Z0, SOUTH_Z0 + 80, gz);
+  // (The surveyed relief must not creep over the trackbed while it blends out.)
+  const bed = ss(SOUTH_BED_HALF, SOUTH_SHOULDER, Math.abs(gx - SOUTH_RAIL_X));
+  return surveyHeight(gx, gz) * (1 - k) * bed + southLand(gx, gz) * k;
+}
+
+/** Height (game m, relative to the flat play surface) of the backdrop terrain. */
+export function terrainHeight(gx: number, gz: number): number {
+  const h = surveyHeight(gx, gz);
+  if (!inSouth(gx, gz)) return h;
+  // Under the south land the backdrop drops away so the two never fight.
+  const m = ss(SOUTH_Z0, SOUTH_Z0 + 40, gz) * ss(SOUTH_X0, SOUTH_X0 + 40, gx) * (1 - ss(SOUTH_X1 - 40, SOUTH_X1, gx)) * (1 - ss(SOUTH_Z1 - 40, SOUTH_Z1, gz));
+  return h * (1 - m) - 45 * m;
+}
+
+/** The ground you actually SEE at (x, z): play disc, south land, or backdrop. */
+export function groundHeight(gx: number, gz: number): number {
+  return inSouth(gx, gz) ? southHeight(gx, gz) : terrainHeight(gx, gz);
 }

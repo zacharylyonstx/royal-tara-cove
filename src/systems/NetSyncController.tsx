@@ -16,6 +16,8 @@ import { useHideSeekStore } from '../state/hideSeekStore';
 import { useWardrobeStore } from '../state/wardrobeStore';
 import { useNightStore } from '../state/nightStore';
 import { useSkyStore } from '../state/skyStore';
+import { useRailStore } from '../state/railStore';
+import { rail, PERIOD_S } from '../world/redLine';
 
 const PLAYER_RATE_HZ = 15;
 const WORLD_RATE_HZ = 10;
@@ -102,15 +104,21 @@ export function NetSyncController() {
       // every frame — smoothing their own (lagging) position would fight that.
       const isPassenger = !!rp.riding?.passengerOf;
       if (pos && !isPassenger) {
-        const far = Math.hypot(rp.x - pos.x, rp.y - pos.y, rp.z - pos.z) > REMOTE_SNAP_DIST;
+        // On the Red Line their z is measured from the train, and the train
+        // is wherever MY timetable says: ride along first, then ease only the
+        // walking-about-inside part (else they'd trail a metre behind the car).
+        const tr = rail.live && rp.train !== undefined && rp.train >= 0 ? rail.trains[rp.train] : null;
+        const tz = tr ? tr.z + rp.z : rp.z;
+        if (tr) pos.z += tr.dz;
+        const far = Math.hypot(rp.x - pos.x, rp.y - pos.y, tz - pos.z) > REMOTE_SNAP_DIST;
         if (far) {
           // First sight / teleport / mode change — snap, don't slide.
-          pos.x = rp.x; pos.y = rp.y; pos.z = rp.z;
+          pos.x = rp.x; pos.y = rp.y; pos.z = tz;
           yaws[charId] = rp.yaw;
         } else {
           pos.x += (rp.x - pos.x) * k;
           pos.y += (rp.y - pos.y) * k;
-          pos.z += (rp.z - pos.z) * k;
+          pos.z += (tz - pos.z) * k;
           yaws[charId] = (yaws[charId] ?? rp.yaw) + shortestAngle(yaws[charId] ?? rp.yaw, rp.yaw) * k;
         }
       }
@@ -187,9 +195,11 @@ export function NetSyncController() {
         const jumping = Math.abs(dy) > 0.02;
         lastYRef.current = pos.y;
         const myRiding = usePlayStore.getState().riding[net.myCharacterId];
+        const onTrain = rail.live ? useRailStore.getState().aboard : -1;
         const msg: PlayerStateMsg = {
           characterId: net.myCharacterId,
-          x: pos.x, y: pos.y, z: pos.z, yaw,
+          x: pos.x, y: pos.y, z: onTrain >= 0 ? pos.z - rail.trains[onTrain].z : pos.z, yaw,
+          tr: onTrain >= 0 ? onTrain : undefined,
           // (Was a ref nobody ever wrote → always false, so a sprinting guest made
           // no more noise for Siren Head than a tiptoeing one.)
           running: useNightStore.getState().localRunning,
@@ -229,7 +239,8 @@ export function NetSyncController() {
           hs: game.gameMode === 'freeplay' ? hideSeekSnapshot() : undefined,
           tornadoPhaseEnteredAt: tornado.phaseEnteredAt,
           clock: game.gameMode === 'freeplay' ? useSkyStore.getState().dayFraction : undefined,
-          dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith } : undefined,
+          rail: game.gameMode === 'freeplay' ? ((rail.T % PERIOD_S) + PERIOD_S) % PERIOD_S : undefined,
+          dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.tr >= 0 ? dogNetOut.z - rail.trains[dogNetOut.tr].z : dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith, tr: dogNetOut.tr >= 0 ? dogNetOut.tr : undefined } : undefined,
           tornadoZ: tornado.tornadoZ,
           tornadoX: tornado.tornadoX,
           stormIntensity: tornado.stormIntensity,

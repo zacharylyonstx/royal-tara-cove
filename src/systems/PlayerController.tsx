@@ -3,6 +3,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { useGameStore } from '../state/gameStore';
 import { floorAt, resolveMotion } from './collision';
+import { useRailStore } from '../state/railStore';
+import { TRAIN_FLOOR_Y } from '../world/redLine';
 import { useCombatStore } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
 import { useNetStore } from '../state/netStore';
@@ -114,7 +116,7 @@ function fireHouseOrZoneInteract(c: InteractCandidate, by: CharacterId) {
       // The treat is a shared moment: jingle + a 🍦 bubble over your head
       // on every screen (rides the chat channel like the emotes).
       icecreamJingle();
-      void sendChat('🍦');
+      void sendChat(it.emoji ?? '🍦');
     }
   }
 }
@@ -758,6 +760,11 @@ export function PlayerController() {
         if (pos.y < standingFloorY) {
           pos.y = standingFloorY;
           yVel.current = 0;
+        }
+        // On the train the ceiling is low: a hop, not a leap through the roof.
+        if (useRailStore.getState().aboard >= 0 && pos.y > TRAIN_FLOOR_Y + 0.42) {
+          pos.y = TRAIN_FLOOR_Y + 0.42;
+          if (yVel.current > 0) yVel.current = 0;
         }
       }
     }

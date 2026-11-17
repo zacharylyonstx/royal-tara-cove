@@ -96,6 +96,15 @@ import { Pups } from './zone/Pups';
 import { Npcs } from './npc/Npcs';
 import { buildAcrossBlvdColliders, buildAcrossBlvdFloors } from '../world/acrossBlvd';
 import { buildWestAveryFloors } from '../world/westAvery';
+import { buildRailColliders, buildRailFloors } from '../world/redLine';
+import { RailController } from '../systems/RailController';
+import { Trains } from './rail/Train';
+import { Stations } from './rail/Stations';
+import { SouthLand } from './rail/SouthLand';
+import { Corridor } from './rail/Corridor';
+import { Domain } from './rail/Domain';
+import { buildCorridorColliders } from '../world/corridor';
+import { buildDomainColliders, buildDomainFloors } from '../world/domain';
 import { Tornado } from './Tornado';
 import { Rain } from './weather/Rain';
 import { Hail } from './weather/Hail';
@@ -177,11 +186,11 @@ export function Game() {
         ...buildPlayhouseColliders(hero, heroLot),
       ];
       // ONE setFloors call for the whole world (it replaces wholesale).
-      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors(), ...buildWestAveryFloors()]);
+      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors(), ...buildWestAveryFloors(), ...buildRailFloors(), ...buildDomainFloors()]);
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...buildRailColliders(), ...buildCorridorColliders(), ...buildDomainColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
     // Siren Head Night hide/safe zones (static layout — register once).
     useNightStore.getState().setZones(HIDE_ZONES, SAFE_ZONES);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors, lampsOn]);
@@ -202,6 +211,10 @@ export function Game() {
         <primitive object={mat.grass()} attach="material" />
       </mesh>
       <TerrainBackdrop />
+      {/* The land the Red Line crosses on its way south to the Domain. */}
+      <SouthLand />
+      <Stations />
+      <Trains />
 
       <Street />
       <Ramp />
@@ -267,6 +280,8 @@ export function Game() {
       <AliensModeSystems />
 
       {/* Mode-agnostic systems */}
+      {/* Runs the Red Line (and carries riders) before the player moves. */}
+      <RailController />
       <PlayerController />
       <NPCController />
       <SkyController />
@@ -297,6 +312,9 @@ function FreeplayModeSystems() {
   return (
     <>
       <DayNightController />
+      {/* Down the Red Line: the view from the train, and the Domain. */}
+      <Corridor />
+      <Domain />
       {/* The "show me the way" light from the map. */}
       <GuideBeacon />
       {/* Hide-and-seek: the game loop, the Home Base sign and the force field. */}

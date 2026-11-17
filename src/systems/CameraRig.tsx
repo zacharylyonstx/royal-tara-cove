@@ -10,6 +10,7 @@ import { useNightStore } from '../state/nightStore';
 import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import { isTouchDevice, TOUCH_LOOK_SENS } from './touchInput';
 import { isIndoors } from '../world/indoors';
+import { useRailStore } from '../state/railStore';
 import { aimAssist } from './aimAssist';
 import type { RectCollider } from '../types';
 
@@ -317,7 +318,7 @@ export function CameraRig() {
     // character so the kids can see themselves. The boom shortens when a wall,
     // fence or ceiling is in the way, and never dips under the ground.
     const combatTP = _camMode === 'aliens';
-    if ((_camMode === 'freeplay' || combatTP) && usePlayStore.getState().thirdPerson) {
+    if ((_camMode === 'freeplay' || combatTP) && usePlayStore.getState().thirdPerson && useRailStore.getState().aboard < 0) {
       const cp = Math.cos(pitch.current);
       const fx = -Math.sin(yaw.current) * cp;
       const fy = Math.sin(pitch.current);

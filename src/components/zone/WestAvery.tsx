@@ -1,3 +1,4 @@
+import { Track } from '../rail/Track';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
@@ -5,15 +6,8 @@ import * as THREE from 'three';
 import { GLBModel } from '../GLBModel';
 import { MODELS } from '../../world/models';
 import { mat } from '../../world/materials';
-import { useGameStore } from '../../state/gameStore';
-import { useNetStore } from '../../state/netStore';
-import { useSkyStore } from '../../state/skyStore';
-import { realSecondsAt } from '../../world/npcTime';
-import { WEST_BLVD_Z } from '../../world/acrossBlvd';
-import { crossingBell, trainHorn } from '../../audio';
 import {
-  RAIL_X, RAIL_Z_N, RAIL_Z_S, RAIL_BED_W, GATE_DX, RAIL_TRAIL_X, RAIL_TRAIL_Z_N, RAIL_TRAIL_Z_S, TRAIL_W,
-  TRAIN_LEN, TRAIN_HALF_W, trainAt,
+  RAIL_TRAIL_X, RAIL_TRAIL_Z_N, RAIL_TRAIL_Z_S, TRAIL_W,
   CAMPUS, POOL, CREEK_SOUTH, CREEK_NORTH, CREEK_HALF_W, CULVERT_Z0, CULVERT_Z1,
   GREEN_TRAIL, NORTH_TRAIL, CONNECTOR_Z, BRIDGE_X0, BRIDGE_X1, BRIDGE_Y, TRAILHEAD,
 } from '../../world/westAvery';
@@ -31,7 +25,7 @@ export function WestAvery() {
     <group>
       <Trails />
       <Creek />
-      <RailLine />
+      <Track />
       <Pool />
       <Campus />
     </group>
@@ -227,198 +221,6 @@ function Creek() {
           </mesh>
         </group>
       ))}
-    </group>
-  );
-}
-
-// --------------------------------------------------------------- rail --
-
-function RailLine() {
-  const len = RAIL_Z_S - RAIL_Z_N;
-  const cz = (RAIL_Z_S + RAIL_Z_N) / 2;
-  const tieRef = useRef<THREE.InstancedMesh>(null);
-  const tieCount = Math.floor(len / 1.1);
-  useLayoutEffect(() => {
-    const m = tieRef.current;
-    if (!m) return;
-    const o = new THREE.Object3D();
-    for (let i = 0; i < tieCount; i++) {
-      const z = RAIL_Z_N + 0.5 + i * 1.1;
-      // No ties through the road crossing (it's a concrete panel there).
-      o.position.set(RAIL_X, Math.abs(z - WEST_BLVD_Z) < 7.5 ? -1 : 0.09, z);
-      o.updateMatrix();
-      m.setMatrixAt(i, o.matrix);
-    }
-    m.instanceMatrix.needsUpdate = true;
-  }, [tieCount]);
-  return (
-    <group>
-      <mesh position={[RAIL_X, 0.03, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[RAIL_BED_W, len]} />
-        <meshStandardMaterial color="#8d877c" roughness={1} />
-      </mesh>
-      <instancedMesh ref={tieRef} args={[undefined, undefined, tieCount]} receiveShadow>
-        <boxGeometry args={[2.5, 0.12, 0.24]} />
-        <meshStandardMaterial color="#4c3a2a" roughness={0.95} />
-      </instancedMesh>
-      {[-0.72, 0.72].map((dx) => (
-        <mesh key={dx} position={[RAIL_X + dx, 0.2, cz]} castShadow>
-          <boxGeometry args={[0.09, 0.14, len]} />
-          <meshStandardMaterial color="#8a8f96" roughness={0.35} metalness={0.8} />
-        </mesh>
-      ))}
-      {/* Concrete crossing panel across the boulevard. */}
-      <mesh position={[RAIL_X, 0.045, WEST_BLVD_Z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[RAIL_BED_W + 1.2, 14.4]} />
-        <meshStandardMaterial color="#b9b6ad" roughness={0.95} />
-      </mesh>
-      {/* Stop bars. */}
-      {[-1, 1].map((s) => (
-        <mesh key={s} position={[RAIL_X + s * (GATE_DX + 1.3), 0.03, WEST_BLVD_Z]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[0.45, 12]} />
-          <meshBasicMaterial color="#f4f1e6" />
-        </mesh>
-      ))}
-      <Crossing />
-    </group>
-  );
-}
-
-/** Signal masts + gate arms + the train itself. Runs off the shared clock. */
-function Crossing() {
-  const arms = useRef<(THREE.Group | null)[]>([]);
-  const lamps = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
-  const train = useRef<THREE.Group>(null);
-  const st = useRef({ gate: 0, bellAt: 0, honked: -1, lastWarn: false });
-
-  useFrame(({ clock }, dtRaw) => {
-    const dt = Math.min(dtRaw, 0.1);
-    const game = useGameStore.getState();
-    const live = game.gameMode === 'freeplay';
-    const T = realSecondsAt(useSkyStore.getState().dayFraction);
-    const tr = live ? trainAt(T) : { warning: false, z: null, dir: 1 as const };
-    const s = st.current;
-
-    // Gates: arms swing down, barrier colliders switch on.
-    s.gate += ((tr.warning ? 1 : 0) - s.gate) * Math.min(1, dt * 2.6);
-    for (const a of arms.current) if (a) a.rotation.x = -(1 - s.gate) * 1.35;
-    if (tr.warning !== s.lastWarn) {
-      s.lastWarn = tr.warning;
-      for (const c of game.staticColliders) if (c.tag === 'rail-gate') c.passable = !tr.warning;
-    }
-    const blink = tr.warning ? (Math.floor(clock.elapsedTime * 2.4) % 2) : -1;
-    lamps.current.forEach((m, i) => { if (m) m.emissiveIntensity = blink >= 0 && (i % 2 === blink) ? 2.4 : 0.05; });
-
-    // Sounds — only if I'm close enough to hear them.
-    const me = useNetStore.getState().myCharacterId ?? game.activeCharacterId;
-    const p = game.positions[me];
-    const dCross = Math.hypot(p.x - RAIL_X, p.z - WEST_BLVD_Z);
-    if (tr.warning && dCross < 75 && clock.elapsedTime - s.bellAt > 0.46 && !game.welcomeOpen) {
-      s.bellAt = clock.elapsedTime;
-      crossingBell(Math.max(0.15, 1 - dCross / 75));
-    }
-
-    const g = train.current;
-    if (!g) return;
-    if (tr.z == null) { g.visible = false; return; }
-    g.visible = true;
-    g.position.set(RAIL_X, 0, tr.z);
-    g.rotation.y = tr.dir === 1 ? Math.PI : 0;
-    const cycle = Math.floor(T / 100);
-    if (s.honked !== cycle && Math.abs(tr.z - WEST_BLVD_Z) < 70 && !game.welcomeOpen) {
-      s.honked = cycle;
-      const dTrain = Math.hypot(p.x - RAIL_X, p.z - tr.z);
-      if (dTrain < 130) trainHorn(Math.max(0.2, 1 - dTrain / 130));
-    }
-    // Standing on the tracks? The train nudges you aside (nobody gets hurt).
-    if (Math.abs(p.x - RAIL_X) < TRAIN_HALF_W + 0.5 && Math.abs(p.z - tr.z) < TRAIN_LEN / 2 + 1.5 && p.y < 3) {
-      p.x = RAIL_X + (p.x >= RAIL_X ? 1 : -1) * (TRAIN_HALF_W + 0.9);
-    }
-  });
-
-  const carLen = TRAIN_LEN / 2 - 0.5;
-  return (
-    <group>
-      {[-1, 1].map((sx, gi) => (
-        <group key={sx} position={[RAIL_X + sx * GATE_DX, 0, WEST_BLVD_Z + sx * 7.6]}>
-          <mesh position={[0, 2.1, 0]} castShadow>
-            <cylinderGeometry args={[0.09, 0.11, 4.2, 10]} />
-            <meshStandardMaterial color="#c9ccd1" roughness={0.4} metalness={0.6} />
-          </mesh>
-          {/* crossbuck */}
-          {[0.5, -0.5].map((r) => (
-            <mesh key={r} position={[0, 3.7, 0]} rotation={[0, Math.PI / 2, r]} castShadow>
-              <boxGeometry args={[1.5, 0.2, 0.05]} />
-              <meshStandardMaterial color="#f4f1e6" roughness={0.6} />
-            </mesh>
-          ))}
-          {/* flashing reds */}
-          {[-0.4, 0.4].map((dz, li) => (
-            <mesh key={dz} position={[0, 2.9, dz]} rotation={[0, Math.PI / 2, 0]}>
-              <cylinderGeometry args={[0.17, 0.17, 0.12, 14]} />
-              <meshStandardMaterial ref={(m) => { lamps.current[gi * 2 + li] = m; }} color="#3a0d0d" emissive="#ff1e1e" emissiveIntensity={0.05} />
-            </mesh>
-          ))}
-          {/* gate arm: pivots at the mast, reaches out over its side of the road */}
-          <group ref={(g) => { arms.current[gi] = g; }} position={[0, 1.15, 0]} rotation={[-1.35, 0, 0]}>
-            <group position={[0, 0, -sx * 3.6]}>
-              <mesh castShadow>
-                <boxGeometry args={[0.1, 0.14, 7.2]} />
-                <meshStandardMaterial color="#f4f1e6" roughness={0.6} />
-              </mesh>
-              {[-2.6, -1.3, 0, 1.3, 2.6].map((z) => (
-                <mesh key={z} position={[0, 0, z]}>
-                  <boxGeometry args={[0.11, 0.15, 0.6]} />
-                  <meshStandardMaterial color="#d92b2b" roughness={0.6} />
-                </mesh>
-              ))}
-            </group>
-          </group>
-        </group>
-      ))}
-
-      {/* The Red Line commuter train: two cars, cab at the front (local −Z). */}
-      <group ref={train} visible={false}>
-        {[-carLen / 2 - 0.25, carLen / 2 + 0.25].map((z, i) => (
-          <group key={i} position={[0, 0, z]}>
-            <mesh position={[0, 2.05, 0]} castShadow>
-              <boxGeometry args={[TRAIN_HALF_W * 2, 2.9, carLen]} />
-              <meshStandardMaterial color="#f1f2f4" roughness={0.45} metalness={0.25} />
-            </mesh>
-            <mesh position={[0, 1.1, 0]}>
-              <boxGeometry args={[TRAIN_HALF_W * 2 + 0.03, 0.5, carLen + 0.02]} />
-              <meshStandardMaterial color="#c8102e" roughness={0.5} />
-            </mesh>
-            <mesh position={[0, 2.45, 0]}>
-              <boxGeometry args={[TRAIN_HALF_W * 2 + 0.04, 0.85, carLen - 1.6]} />
-              <meshStandardMaterial color="#1b2530" roughness={0.15} metalness={0.5} />
-            </mesh>
-            <mesh position={[0, 3.6, 0]}>
-              <boxGeometry args={[TRAIN_HALF_W * 1.5, 0.25, carLen - 1]} />
-              <meshStandardMaterial color="#aeb3ba" roughness={0.6} />
-            </mesh>
-            {[-carLen / 2 + 2.2, carLen / 2 - 2.2].map((bz) => (
-              <mesh key={bz} position={[0, 0.42, bz]}>
-                <boxGeometry args={[2.3, 0.55, 2.4]} />
-                <meshStandardMaterial color="#2a2d31" roughness={0.8} />
-              </mesh>
-            ))}
-          </group>
-        ))}
-        {/* cab windshield + headlights */}
-        <mesh position={[0, 2.5, -TRAIN_LEN / 2 + 0.22]}>
-          <boxGeometry args={[TRAIN_HALF_W * 1.7, 1.0, 0.06]} />
-          <meshStandardMaterial color="#141c24" roughness={0.1} metalness={0.6} />
-        </mesh>
-        {[-0.8, 0.8].map((x) => (
-          <mesh key={x} position={[x, 1.25, -TRAIN_LEN / 2 + 0.2]}>
-            <sphereGeometry args={[0.16, 10, 10]} />
-            <meshStandardMaterial color="#fff6d0" emissive="#fff0b0" emissiveIntensity={2.2} />
-          </mesh>
-        ))}
-        <Text position={[TRAIN_HALF_W + 0.03, 3.05, -4]} rotation={[0, Math.PI / 2, 0]} fontSize={0.42} color="#c8102e" anchorX="center" anchorY="middle" letterSpacing={0.08}>METRORAIL</Text>
-        <Text position={[-TRAIN_HALF_W - 0.03, 3.05, -4]} rotation={[0, -Math.PI / 2, 0]} fontSize={0.42} color="#c8102e" anchorX="center" anchorY="middle" letterSpacing={0.08}>METRORAIL</Text>
-      </group>
     </group>
   );
 }
