@@ -89,7 +89,8 @@ export function Door({
   const panelOffset = hinge === 'left' ? width / 2 - DOOR_T : -width / 2 + DOOR_T;
 
   return (
-    <group position={[x, 0, z]}>
+    // noBake: the leaf swings, so a door is never merged into its house (Baked.tsx).
+    <group position={[x, 0, z]} userData={{ noBake: true }}>
       {/* trim */}
       <mesh position={[-width / 2 - 0.07, height / 2 + 0.1, 0]} castShadow>
         <boxGeometry args={[0.14, height + 0.24, 0.2]} />

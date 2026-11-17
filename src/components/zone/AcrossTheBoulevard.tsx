@@ -1,3 +1,4 @@
+import { Baked } from '../Baked';
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -61,19 +62,29 @@ export function AcrossTheBoulevard() {
 
   return (
     <group>
-      <Crosswalk />
-      <EntryWalls />
-      <CasitasRoad />
-      <ParmerLane />
-      <CasitasHomes />
-      <Paths />
+      {/* Static scenery is baked into a few meshes per group (see Baked.tsx);
+          anything that moves (pond water, ducks) stays outside. */}
+      <Baked>
+        <Crosswalk />
+        <EntryWalls />
+        <CasitasRoad />
+        <ParmerLane />
+        <CasitasHomes />
+        <Paths />
+        <Dock />
+        <PondSign />
+      </Baked>
       <Pond />
-      <Dock />
       <Ducks />
-      <PondSign />
-      <Plaza />
-      <WestRoad />
-      <School />
+      <Baked>
+        <Plaza />
+      </Baked>
+      <Baked>
+        <WestRoad />
+      </Baked>
+      <Baked>
+        <School />
+      </Baked>
       {/* West expansion: tracks + train, Rutledge campus, creek + trails, pool. */}
       <WestAvery />
 

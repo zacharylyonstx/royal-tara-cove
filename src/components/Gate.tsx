@@ -17,7 +17,7 @@ export function Gate({
   color = '#a08560',
 }: GateProps) {
   return (
-    <group position={position} rotation={[0, rotation, 0]}>
+    <group position={position} rotation={[0, rotation, 0]} userData={{ noBake: true }}>
       {/* hinge / latch posts (slightly taller than the panel) */}
       <mesh position={[-width / 2, (height + 0.2) / 2, 0]} castShadow>
         <boxGeometry args={[0.12, height + 0.2, 0.12]} />

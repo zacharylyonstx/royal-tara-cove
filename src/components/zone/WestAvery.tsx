@@ -1,3 +1,4 @@
+import { Baked } from '../Baked';
 import { Track } from '../rail/Track';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -23,11 +24,15 @@ const std = (color: string, roughness = 0.9, extra?: THREE.MeshStandardMaterialP
 export function WestAvery() {
   return (
     <group>
-      <Trails />
+      <Baked>
+        <Trails />
+      </Baked>
       <Creek />
       <Track />
       <Pool />
-      <Campus />
+      <Baked>
+        <Campus />
+      </Baked>
     </group>
   );
 }

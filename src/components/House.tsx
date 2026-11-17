@@ -1,3 +1,5 @@
+import { useGameStore } from '../state/gameStore';
+import { Baked } from './Baked';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
@@ -79,6 +81,9 @@ export function House({ config, lot }: HouseProps) {
   //   • a graze leaves the house standing but battered (roof torn, leaning,
   //     pieces shed); a DIRECT HIT collapses it to a near-total wreck
   //   • dust burst + low rubble materialize on a direct hit
+  // Tornado mode keeps every individual piece; everywhere else the static
+  // shell is baked down to a handful of draw calls.
+  const bake = useGameStore((st) => st.gameMode !== 'tornado');
   const bodyRef = useRef<THREE.Group>(null);
   const roofRef = useRef<THREE.Group>(null);
   const rubbleRef = useRef<THREE.Mesh>(null);
@@ -341,6 +346,8 @@ export function House({ config, lot }: HouseProps) {
       </mesh>
 
       <group ref={bodyRef}>
+      {/* Drawn as a few merged meshes outside tornado mode (see Baked.tsx). */}
+      <Baked enabled={bake}>
 
       {/* Side walls (lap siding) */}
       <SolidWall position={[-halfW, wallH / 2 + 0.1, 0]} args={[WALL_T, wallH, config.depth]} material={sidingMaterial} />
@@ -365,6 +372,8 @@ export function House({ config, lot }: HouseProps) {
       {/* Roof + gable end fillers (only for gable roofs) — separate ref so the
           roof can independently drop/scale during the destruction animation */}
       <group ref={roofRef} position={[0, wallH + 0.1, 0]}>
+        {/* Its own bake: the storm throws the roof separately from the walls. */}
+        <Baked enabled={bake}>
         <Roof
           width={config.width}
           depth={config.depth}
@@ -378,6 +387,7 @@ export function House({ config, lot }: HouseProps) {
             <GableEnd width={config.width} depth={config.depth} height={roofH} material={sidingMaterial} side="right" />
           </>
         )}
+        </Baked>
       </group>
 
       {/* Front door (animated, openable, registers as a Door for interaction) */}
@@ -455,6 +465,7 @@ export function House({ config, lot }: HouseProps) {
           <meshStandardMaterial color={trimColor} roughness={0.7} />
         </mesh>
       )}
+      </Baked>
       </group> {/* end bodyRef wrapper */}
 
       {/* Cozy living room — every house is enterable. Renders only when near. */}
