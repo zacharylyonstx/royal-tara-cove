@@ -9,6 +9,7 @@ import {
   LINE_SPEED, STATIONS, PLATFORM_HALF_LEN,
 } from '../world/redLine';
 import { RAIL_MID_X } from '../world/westAvery';
+import { CHARACTER_ORDER } from '../world/characters';
 import { doorChime, railClack, setTrainRumble, trainHiss, trainHorn } from '../audio';
 
 /** DEV: window.__rail = the live rail state (clock, trains). */
@@ -21,7 +22,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
  *   1. advance the rail clock (host/solo: real time; guests chase the host's),
  *   2. slide the trains — and their colliders and floors — to where the
  *      timetable says they are,
- *   3. carry my character along if I'm standing in a car,
+ *   3. carry my character — and anyone else standing in a car — along with it,
  *   4. play the sounds of whichever train I'm on or near.
  * Free Play only; in every other mode the trains are parked off the map.
  */
@@ -86,6 +87,16 @@ export function RailController() {
       }
     }
     useRailStore.getState().setAboard(ab);
+    // Everyone ELSE standing in a car rides along in this same frame, so by the
+    // time anything draws them they are exactly where the car is. (NetSync then
+    // only eases their walking-about-inside; Character measures their steps
+    // against the car.)
+    for (const id of CHARACTER_ORDER) {
+      if (id === me) continue;
+      const q = game.positions[id];
+      const a = trainAboardPrev(q.x, q.y, q.z);
+      if (a >= 0) q.z += rail.trains[a].dz;
+    }
 
     // ---- 4. sounds ----
     if (game.welcomeOpen) { setTrainRumble(0, 0); return; }

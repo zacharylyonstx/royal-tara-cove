@@ -105,11 +105,11 @@ export function NetSyncController() {
       const isPassenger = !!rp.riding?.passengerOf;
       if (pos && !isPassenger) {
         // On the Red Line their z is measured from the train, and the train
-        // is wherever MY timetable says: ride along first, then ease only the
+        // is wherever MY timetable says. RailController has already carried
+        // them along with the car this frame, so this only eases the
         // walking-about-inside part (else they'd trail a metre behind the car).
         const tr = rail.live && rp.train !== undefined && rp.train >= 0 ? rail.trains[rp.train] : null;
         const tz = tr ? tr.z + rp.z : rp.z;
-        if (tr) pos.z += tr.dz;
         const far = Math.hypot(rp.x - pos.x, rp.y - pos.y, tz - pos.z) > REMOTE_SNAP_DIST;
         if (far) {
           // First sight / teleport / mode change — snap, don't slide.

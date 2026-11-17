@@ -7,6 +7,8 @@ import {
   DOOR_Z, DOOR_HALF, WALL_T, INNER_HALF_W, SEATS_LOCAL, sightAt, type StationId,
 } from '../../world/redLine';
 import { useSkyStore } from '../../state/skyStore';
+import { useGameStore } from '../../state/gameStore';
+import { useNetStore } from '../../state/netStore';
 import { moonDirection, skyPalette, sunDirection } from '../../world/dayNight';
 import { Batch, glass, glowPaint, paint } from './batch';
 
@@ -289,12 +291,44 @@ function Train({ i }: { i: number }) {
   );
 }
 
+/**
+ * The saloon lights, as far as they light PEOPLE. One real light serves both
+ * trains: it sits in whichever car I'm in (or nearest to), beside me, and comes
+ * up as the daylight goes — without it the family were black silhouettes on a
+ * night ride. (The glowing ceiling strips and seats are just materials.)
+ */
+function CabinLight() {
+  const ref = useRef<THREE.PointLight>(null);
+  useFrame(() => {
+    const L = ref.current;
+    if (!L) return;
+    if (!rail.live) { L.intensity = 0; return; }
+    const sky = useSkyStore.getState();
+    const on = skyPalette(sunDirection(sky.dayFraction).elevationDeg, moonDirection(sky.dayFraction).elevationDeg).lamps;
+    const g = useGameStore.getState();
+    const p = g.positions[useNetStore.getState().myCharacterId ?? g.activeCharacterId];
+    let best = rail.trains[0], bd = Infinity;
+    for (const tr of rail.trains) {
+      const d = Math.hypot(p.x - tr.x, Math.max(0, Math.abs(p.z - tr.z) - L_HALF));
+      if (d < bd) { bd = d; best = tr; }
+    }
+    if (on < 0.02 || bd > 45) { L.intensity = 0; return; }
+    L.position.set(best.x, TRAIN_ROOF_Y - 0.7, Math.max(best.z - CAB_Z + 1, Math.min(best.z + CAB_Z - 1, p.z)));
+    L.intensity = 0.9 * on;
+  });
+  // decay 0 = an even wash through the car (a physically falling-off bulb this
+  // close to the ceiling blows the walls out to white and still leaves people dim).
+  return <pointLight ref={ref} color="#ffe6c2" intensity={0} distance={11} decay={0} />;
+}
+const L_HALF = TRAIN_LEN / 2;
+
 /** Both trainsets (Free Play; hidden and parked elsewhere otherwise). */
 export function Trains() {
   return (
     <>
       <Train i={0} />
       <Train i={1} />
+      <CabinLight />
     </>
   );
 }

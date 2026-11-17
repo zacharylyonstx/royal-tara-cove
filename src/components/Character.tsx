@@ -1,3 +1,4 @@
+import { rail, trainAboard } from '../world/redLine';
 import { useRailStore } from '../state/railStore';
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -22,6 +23,9 @@ interface CharacterProps {
   yawRef: { current: number };
   isActive: boolean;
 }
+
+/** Integration slice for the squash-and-stretch spring (seconds). */
+const SPRING_STEP = 1 / 120;
 
 /** In-world character. Default = the real photo-real "you" GLB (looks like the
  *  person). Dress-up mode swaps in the customizable procedural avatar + its walk
@@ -89,7 +93,11 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
     }
     const t = state.clock.elapsedTime;
     const dx = positionRef.x - lastPos.current.x;
-    const dz = positionRef.z - lastPos.current.z;
+    let dz = positionRef.z - lastPos.current.z;
+    // Standing in a moving Red Line car isn't running: measure my steps against
+    // the CAR, not the ground (riders used to jog on the spot the whole trip).
+    const car = trainAboard(positionRef.x, positionRef.y, positionRef.z);
+    if (car >= 0) dz -= rail.trains[car].dz;
     const speed = Math.hypot(dx, dz) / Math.max(dt, 0.001);
     speedRef.current = speed;
     lastPos.current.x = positionRef.x;
@@ -116,9 +124,17 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
       else if (b.vy < 1 && vy > 4) b.squashV += 2.2;                              // took off: stretch
     }
     b.vy = vy;
-    // Damped spring back to 1.
-    b.squashV += ((1 - b.squash) * 190 - b.squashV * 17) * dt;
-    b.squash = Math.max(0.72, Math.min(1.2, b.squash + b.squashV * dt));
+    // Damped spring back to 1 — stepped in small fixed slices. Taken in ONE step
+    // per frame this spring is unstable below ~12 fps (a slow iPad, or a laptop
+    // busy screen-sharing): after a single jump the body flipped between squashed
+    // and stretched every frame, forever.
+    for (let rem = dt; rem > 1e-5; rem -= SPRING_STEP) {
+      const h = Math.min(rem, SPRING_STEP);
+      b.squashV += ((1 - b.squash) * 190 - b.squashV * 21) * h;
+      b.squash += b.squashV * h;
+    }
+    b.squash = Math.max(0.72, Math.min(1.2, b.squash));
+    if (b.squash === 0.72 || b.squash === 1.2) b.squashV = 0;
     let yawRate = (b.faceYaw - b.lastYaw) / Math.max(dt, 0.001);
     b.lastYaw = b.faceYaw;
     if (Math.abs(yawRate) > 30) yawRate = 0; // wrap / teleport
