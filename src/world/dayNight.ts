@@ -13,9 +13,9 @@
 /** Real seconds per game day. 18 min → a game hour every 45 s, ~3.3 days per
  *  hour-long call (Zak: "a little bit faster so it gets to night quicker"). */
 export const DAY_LENGTH_REAL_SEC = 18 * 60;
-/** Game time a fresh Free Play session starts at: 4:00 PM, so a call opens on
- *  a late afternoon, rolls through sunset and into Siren Head's night. */
-export const START_DAY_FRACTION = 16 / 24;
+/** Game time a fresh Free Play session starts at: 1:00 PM, so a call opens on
+ *  a long afternoon of daylight before sunset and Siren Head's (short) night. */
+export const START_DAY_FRACTION = 13 / 24;
 
 const DEG = Math.PI / 180;
 const LATITUDE = 30.3 * DEG;      // Austin, TX
@@ -63,10 +63,15 @@ export function sunHourAngle(dayFraction: number): number {
  * DAY_LENGTH_REAL_SEC. Monotonic, so host→guest sync is unaffected.
  */
 const RATE_SLOW = 0.5;
+/** Deep night runs this many times faster than the day (Zak: "more daytime
+ *  play than there is nighttime play") — about a quarter of the cycle is dark. */
+const NIGHT_SPEED = 2.4;
 function rawRate(dayFraction: number): number {
   const el = sunDirection(dayFraction).elevationDeg;
   const bell = Math.exp(-(el * el) / (2 * 6 * 6));
-  return 1 - RATE_SLOW * bell;
+  // 0 while the sun is up or setting, 1 once it is well below the horizon.
+  const dark = Math.min(1, Math.max(0, (-el - 9) / 6));
+  return (1 - RATE_SLOW * bell) * (1 + (NIGHT_SPEED - 1) * dark * dark * (3 - 2 * dark));
 }
 const RATE_NORM = (() => {
   const N = 2400;

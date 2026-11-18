@@ -6,6 +6,7 @@ import { RAIL_MID_X } from './westAvery';
 import { PLATFORM_Y, STATIONS } from './redLine';
 import { FOUNTAIN, STAGE, STAGE_Y, STREET, TACO_TRUCK, WALK_Z } from './domain';
 import { SCHOOL, SNOW_CONE } from './colony';
+import { X as SU, Z as SV, FLOOR2 } from './colonySchool';
 
 const S = Math.PI; // facing south (+Z)
 
@@ -120,10 +121,103 @@ export const RAIL_NPCS: NpcDef[] = [
     night: { kind: 'post', x: SCHOOL.entry.x + 5, z: SCHOOL.entry.z - 12, yaw: 0 },
     lines: [
       'Welcome to Colony Oaks — home of the Cougars! Go Cougars!',
+      'Come on in, the doors are open! Library in the middle, gym and cafeteria at the back, big kids upstairs.',
+      'There are real basketballs in the gym. Pick one up and shoot!',
       'The playgrounds are under the big green shade sails, one at each end of the school.',
       'Navy and green, that\'s us. Can you find the paw prints on the way to the doors?',
       'The pickleball courts and the pump track are next door at Lakehouse Park.',
     ],
     nightLines: ['School\'s closed for the night — but the playground never is.'],
+  },
+  // --- inside Colony Oaks Elementary (made-up people, apart from a friend's first name) ---
+  {
+    id: 'coe-emilyrose', name: 'Emily Rose', role: 'Colony Oaks Elementary', where: 'in the library at Colony Oaks Elementary',
+    look: npcLook('penny', 1.28, '#f1cca4', A(['long', '#6b4226'], ['tee', '#35a84a'], ['skirt', '#1f2a5c'], ['sneakers', '#ffffff'], ['none', ''], ['backpack', '#e86a92'])),
+    day: { kind: 'wander', x: SU(55.6), z: SV(31), r: 1.4, period: 7 },
+    night: { kind: 'wander', x: SU(55.6), z: SV(31), r: 1.4, period: 7 },
+    lines: [
+      "Hi! It's me, Emily Rose! Want to read under the big oak tree with me?",
+      "Penny! Luke! You came to school! Come on, I'll show you around.",
+      'The bean bags by the tree are the comfiest spot in the whole school.',
+      'Have you been up on the bridge? You can see the whole library from up there!',
+      'After this, race you to the gym!',
+    ],
+  },
+  {
+    id: 'coe-mateo', name: 'Mateo', role: 'Colony Oaks Elementary', where: 'in the gym at Colony Oaks Elementary',
+    look: npcLook('luke', 1.3, '#c98f65', A(['short', '#1a1a1a'], ['tee', '#1f2a5c'], ['shorts', '#35a84a'], ['sneakers', '#f2f2f0'], ['none', ''])),
+    day: { kind: 'wander', x: SU(73.5), z: SV(76), r: 4, period: 5 },
+    night: { kind: 'wander', x: SU(73.5), z: SV(76), r: 4, period: 5 },
+    lines: [
+      'Wanna play? Grab a ball - press E - then shoot at the basket!',
+      "I made three baskets in a row. Bet you can't beat that!",
+      'Go Cougars!',
+    ],
+  },
+  {
+    id: 'coe-zoe', name: 'Zoe', role: 'Colony Oaks Elementary', where: 'in the cafeteria at Colony Oaks Elementary',
+    look: npcLook('penny', 1.2, '#8a5a3c', A(['ponytail', '#1a1a1a'], ['stripe', '#f2b632'], ['jeans', '#2b2f3a'], ['sneakers', '#e0533c'], ['none', ''])),
+    day: { kind: 'post', x: SU(84.6), z: SV(56), yaw: -Math.PI / 2 },
+    night: { kind: 'post', x: SU(84.6), z: SV(56), yaw: -Math.PI / 2 },
+    lines: [
+      "It's pizza day! Best day of the whole week.",
+      'You can climb up on the stage. Sometimes we do plays up there.',
+      'Chocolate milk or regular? I always pick chocolate.',
+    ],
+  },
+  {
+    id: 'coe-owen', name: 'Owen', role: 'Colony Oaks Elementary', where: 'in a Pre-K room at Colony Oaks Elementary',
+    look: npcLook('luke', 1.05, '#f4d0ab', A(['tousled', '#caa24a'], ['tee', '#e0533c'], ['shorts', '#2f7fd1'], ['sneakers', '#35a84a'], ['none', ''])),
+    day: { kind: 'wander', x: SU(81.6), z: SV(16.2), r: 1.3, period: 6 },
+    night: { kind: 'wander', x: SU(81.6), z: SV(16.2), r: 1.3, period: 6 },
+    lines: [
+      "I builded a tower! It's THIS tall.",
+      'We have a play kitchen. I made you soup.',
+      "My teacher says I'm a good line leader.",
+    ],
+  },
+  {
+    id: 'coe-lily', name: 'Lily', role: 'Colony Oaks Elementary', where: 'walking the hall at Colony Oaks Elementary',
+    look: npcLook('penny', 1.25, '#e9c39c', A(['bun', '#b5532a'], ['hoodie', '#8a5cc7'], ['athletic', '#2c2f3a'], ['sneakers', '#f2f2f0'], ['none', ''], ['backpack', '#2aa3a0'])),
+    day: { kind: 'patrol', speed: 1.5, path: [[SU(70), SV(24.6)], [SU(124), SV(24.6)], [SU(124), SV(27.1)], [SU(70), SV(27.1)]] },
+    night: { kind: 'patrol', speed: 1.5, path: [[SU(70), SV(24.6)], [SU(124), SV(24.6)], [SU(124), SV(27.1)], [SU(70), SV(27.1)]] },
+    lines: [
+      "I'm the hall monitor today. Walking feet, please!",
+      'Follow the paw prints - they go all the way down the hall.',
+      'Kindergarten is down at the end. The big kids are upstairs.',
+    ],
+  },
+  {
+    id: 'coe-jack', name: 'Jack', role: 'Colony Oaks Elementary', where: 'upstairs in 3rd grade at Colony Oaks Elementary',
+    look: npcLook('luke', 1.34, '#b98a64', A(['short', '#3a2a1c'], ['longsleeve', '#2f7fd1'], ['jeans', '#1f2a44'], ['sneakers', '#1f1f1f'], ['none', ''], ['glasses', '#2c2f3a'])),
+    day: { kind: 'wander', x: SU(7.4), z: SV(43), r: 1.3, period: 8, y: FLOOR2 },
+    night: { kind: 'wander', x: SU(7.4), z: SV(43), r: 1.3, period: 8, y: FLOOR2 },
+    lines: [
+      'Third grade is the best grade. We get the upstairs!',
+      "There's a secret way down - the steel stairs outside, at the end of the hall.",
+      "The science lab is across the bridge. There's a skeleton in there!",
+    ],
+  },
+  {
+    id: 'coe-paige', name: 'Ms. Paige', role: 'Colony Oaks Elementary', where: 'at the library desk at Colony Oaks Elementary',
+    look: npcLook('penny', 1.68, '#a8744e', A(['bun', '#1a1a1a'], ['longsleeve', '#1f2a5c'], ['skirt', '#35a84a'], ['sandals', '#1f1f1f'], ['none', ''], ['glasses', '#e8463f'])),
+    day: { kind: 'post', x: SU(49.7), z: SV(31.1), yaw: 0 },
+    night: { kind: 'post', x: SU(49.7), z: SV(31.1), yaw: 0 },
+    lines: [
+      'Welcome to the library! Readers are leaders.',
+      'Shhh... just kidding. You can talk in here.',
+      "The reading oak is everybody's favorite spot. It's why we're called Colony OAKS.",
+    ],
+  },
+  {
+    id: 'coe-lou', name: 'Chef Lou', role: 'Colony Oaks Elementary', where: 'in the kitchen at Colony Oaks Elementary',
+    look: npcLook('dad', 1.8, '#c98f63', A(['buzz', '#8a8a8a'], ['tee', '#f6f2e8'], ['jeans', '#2c2f3a'], ['sneakers', '#1f1f1f'], ['beanie', '#f6f2e8'])),
+    day: { kind: 'post', x: SU(91.3), z: SV(56), yaw: Math.PI / 2 },
+    night: { kind: 'post', x: SU(91.3), z: SV(56), yaw: Math.PI / 2 },
+    lines: [
+      'Pizza, apples and milk today. Grab a tray!',
+      "Secret ingredient? Extra cheese. Don't tell.",
+      "You can come round the back and see the kitchen, just don't touch the ovens.",
+    ],
   },
 ];

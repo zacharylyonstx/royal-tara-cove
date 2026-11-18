@@ -292,7 +292,7 @@ function Pup({ def }: { def: PupDef }) {
           const yaw = game.yaws[owner] ?? 0;
           // Catch up to a spot behind the owner — but never inside a wall.
           const tx = op.x + Math.sin(yaw) * 3, tz = op.z + Math.cos(yaw) * 3;
-          const r = resolveMotion(op.x, op.z, tx, tz, collidersForPets(game.staticColliders));
+          const r = resolveMotion(op.x, op.z, tx, tz, collidersForPets(game.staticColliders), 0);
           s.x = r.x; s.z = r.z;
           petUntil.current = t + 0.5;
         } else if (!petting && d > HEEL) {
@@ -301,7 +301,7 @@ function Pup({ def }: { def: PupDef }) {
           pace = d > 9 ? 1 : d > 4 ? 0.55 : 0.15;
           const step = Math.min(speed * dt, d - HEEL + 0.05);
           const nx = s.x + (dx / d) * step, nz = s.z + (dz / d) * step;
-          const r = resolveMotion(s.x, s.z, nx, nz, collidersForPets(game.staticColliders));
+          const r = resolveMotion(s.x, s.z, nx, nz, collidersForPets(game.staticColliders), 0);
           s.x = r.x; s.z = r.z;
           const want = Math.atan2(-dx, -dz);
           let diff = want - s.yaw; while (diff > Math.PI) diff -= 2 * Math.PI; while (diff < -Math.PI) diff += 2 * Math.PI;

@@ -7,7 +7,7 @@ import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
 import { useZoneStore } from '../../state/zoneStore';
 import { hsLive } from '../../state/hideSeekStore';
-import { resolveMotion } from '../../systems/collision';
+import { floorAt, resolveMotion } from '../../systems/collision';
 import { collidersForPets, petRideSpot, railFloorAt, rail } from '../../world/redLine';
 import { dogBark, petChime } from '../../audio';
 import { CHARACTER_ORDER } from '../../world/characters';
@@ -314,6 +314,9 @@ function FamilyDogInner() {
       s.targetX = s.x; s.targetZ = s.z;
     } else {
       s.y = railFloorAt(s.x, s.z); // on the platform with you, not under it
+      // Upstairs with you too (the school, the house): stand on whatever floor
+      // is under him at his person's level.
+      if (chasing && bondP && bondP.y > 0.5) s.y = Math.max(s.y, floorAt(s.x, s.z, bondP.y, game.floors));
       if (!petting) {
         if (chasing && bondD > HEEL_DIST) {
           s.targetX = bondX;
@@ -347,7 +350,7 @@ function FamilyDogInner() {
         const step = Math.min(speed * dt, dist);
         const nx = s.x + (toX / dist) * step;
         const nz = s.z + (toZ / dist) * step;
-        const resolved = resolveMotion(s.x, s.z, nx, nz, collidersForPets(game.staticColliders));
+        const resolved = resolveMotion(s.x, s.z, nx, nz, collidersForPets(game.staticColliders), Math.max(0, s.y));
         s.x = resolved.x;
         s.z = resolved.z;
         const desiredYaw = Math.atan2(-(toX / dist), -(toZ / dist));

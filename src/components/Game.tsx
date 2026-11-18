@@ -104,6 +104,8 @@ import { SouthLand } from './rail/SouthLand';
 import { Corridor } from './rail/Corridor';
 import { Domain } from './rail/Domain';
 import { Colony } from './rail/Colony';
+import { ColonySchool } from './rail/ColonySchool';
+import { buildColonySchoolFloors } from '../world/colonySchool';
 import { Fleet } from './rail/Fleet';
 import { buildFleetColliders } from '../world/fleet';
 import { CityLine } from './rail/CityLine';
@@ -194,7 +196,7 @@ export function Game() {
         ...buildPlayhouseColliders(hero, heroLot),
       ];
       // ONE setFloors call for the whole world (it replaces wholesale).
-      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors(), ...buildWestAveryFloors(), ...buildRailFloors(), ...buildDomainFloors()]);
+      setFloors([...buildHeroFloors(hero, heroLot), buildRampFloor(), ...buildAcrossBlvdFloors(), ...buildWestAveryFloors(), ...buildRailFloors(), ...buildDomainFloors(), ...buildColonySchoolFloors()]);
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
@@ -326,6 +328,7 @@ function FreeplayModeSystems() {
       <CityLine />
       <BastropLine />
       <Colony />
+      <ColonySchool />
       <Fleet />
       {/* The "show me the way" light from the map. */}
       <GuideBeacon />

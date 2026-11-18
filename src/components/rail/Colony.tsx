@@ -18,6 +18,7 @@ import { LiveOak } from '../vegetation/LiveOak';
 import { GLBModel } from '../GLBModel';
 import { MODELS } from '../../world/models';
 import { Batch, glowPaint, paint } from './batch';
+import { WALLS, FIRE, FLOOR2, wallPieces, X as SCHOOL_X, Z as SCHOOL_Z } from '../../world/colonySchool';
 
 // The Colony, Bastrop (layout + what is real and what is guessed:
 // world/colony.ts). Static, baked a district at a time so the far districts
@@ -396,79 +397,94 @@ function buildColony() {
     b.box('solid', '#6b5a48', 3.2, 1.1, 0.25, PARK.x1 - 8, 1.2, PARK.z0 + 2);
     for (const sx of [-1, 1]) b.box('solid', '#6b5a48', 0.22, 1.7, 0.22, PARK.x1 - 8 + sx * 1.4, 0.85, PARK.z0 + 2);
 
-    // --- Colony Oaks Elementary (see world/colony.ts for what it is drawn from) ---
+    // --- Colony Oaks Elementary: the shell. Its walls, doors and windows come
+    // from the floor plan (world/colonySchool.ts); the rooms inside are drawn by
+    // ColonySchool.tsx once you are close. ---
     {
       const S = SCHOOL;
       for (const k of S.blocks) {
         const w = k.x1 - k.x0, d = k.z1 - k.z0, cx = (k.x0 + k.x1) / 2, cz = (k.z0 + k.z1) / 2;
-        b.box('solid', k.kind === 'brick' ? SCH.brick : SCH.cream, w, k.h, d, cx, k.h / 2, cz);
-        // Parapet cap, white roof, rooftop air handlers.
+        // The roof deck with its parapet cap, and the rooftop air handlers.
         b.box('solid', SCH.metal, w + 0.3, 0.22, d + 0.3, cx, k.h + 0.11, cz);
         b.box('solid', '#eeeeea', w - 0.6, 0.1, d - 0.6, cx, k.h + 0.2, cz);
         for (let x = k.x0 + 5; x < k.x1 - 4; x += 7.5) for (let z = k.z0 + 5; z < k.z1 - 4; z += 9) b.box('solid', '#c9cdd0', 2.2, 1.1, 1.5, x, k.h + 0.8, z);
-        if (k.kind === 'brick') for (let y = 1.1; y < k.h; y += 1.15) {
-          // Brick laid in bands, a darker course every metre or so.
-          b.box('solid', SCH.band, w + 0.04, 0.16, d + 0.04, cx, y, cz);
-        }
       }
-      // Window bays. `face`: which way the wall looks (n/s/e/w); t along it.
-      const bay = (kind: 'brick' | 'cream', x: number, z: number, face: 'n' | 's' | 'e' | 'w', wide: number) => {
-        const ns = face === 'n' || face === 's', out = face === 'n' || face === 'w' ? -1 : 1;
-        const put = (group: string, color: string, along: number, hh: number, y: number, off: number, shift = 0) => {
-          const t = 0.08;
-          if (ns) b.box(group, color, along, hh, t, x + shift, y, z + out * off);
-          else b.box(group, color, t, hh, along, x + out * off, y, z + shift);
+      for (const w of WALLS) {
+        if (!w.skin) continue;
+        const out = w.out ?? 1;
+        /** A piece of this wall: a0..a1 along it, y0..y1 up it, c0..c1 through it. */
+        const put = (group: string, color: string, a0: number, a1: number, y0: number, y1: number, c0: number, c1: number) => {
+          const th = Math.abs(c1 - c0), cm = (c0 + c1) / 2;
+          if (w.ax === 'u') b.box(group, color, a1 - a0, y1 - y0, th, SCHOOL_X((a0 + a1) / 2), (y0 + y1) / 2, SCHOOL_Z(cm));
+          else b.box(group, color, th, y1 - y0, a1 - a0, SCHOOL_X(cm), (y0 + y1) / 2, SCHOOL_Z((a0 + a1) / 2));
         };
-        if (kind === 'cream') {
-          // Cream wings: a tall brown strip per bay holding two stacked windows,
-          // with a slim green fin beside it.
-          put('solid', SCH.panel, wide + 0.5, 7.2, 4.4, 0.05);
-          for (const y of [2.2, 6.2]) { put('glass', GLASS, wide, 1.9, y, 0.1); if (rnd() < 0.3) put('lit', LIT[Math.floor(rnd() * 4)], wide - 0.2, 1.7, y, 0.16); }
-          put('solid', SCH.green, 0.22, 7.2, 4.4, 0.12, wide / 2 + 0.36);
-        } else {
-          for (const y of [2.1, 6.3]) {
-            put('glass', GLASS, wide, 2.1, y, 0.1);
-            put('solid', '#1d2126', wide + 0.16, 0.08, y + 1.05, 0.12); put('solid', '#1d2126', wide + 0.16, 0.08, y - 1.05, 0.12);
-            put('solid', SCH.green, 0.3, 2.1, y, 0.12, wide / 2 + 0.2);
-            if (rnd() < 0.3) put('lit', LIT[Math.floor(rnd() * 4)], wide - 0.2, 1.9, y, 0.16);
+        const face = w.c + out * (w.t / 2);
+        for (const [a0, a1, y0, y1] of wallPieces(w)) {
+          if (w.skin === 'glass') { put('pane', '#3b5566', a0, a1, y0, y1, w.c - 0.05, w.c + 0.05); continue; }
+          put('solid', w.skin === 'brick' ? SCH.brick : SCH.cream, a0, a1, y0, y1, w.c - w.t / 2, w.c + w.t / 2);
+          // Brick laid in bands, a darker course every metre or so.
+          if (w.skin === 'brick') for (let y = 1.1; y < 9.5; y += 1.15) if (y - 0.08 > y0 && y + 0.08 < y1) put('solid', SCH.band, a0, a1, y - 0.08, y + 0.08, face, face + out * 0.02);
+        }
+        for (const o of w.open) {
+          if (o.door) {
+            // A dark frame, and the doors standing open.
+            if (w.skin !== 'glass') {
+              for (const a of [o.a0, o.a1]) put('solid', '#1d2126', a - 0.07, a + 0.07, o.y0, o.y1 + 0.1, face - out * 0.05, face + out * 0.06);
+              put('solid', '#1d2126', o.a0, o.a1, o.y1, o.y1 + 0.1, face - out * 0.05, face + out * 0.06);
+            }
+            const leaf = Math.min(1.2, (o.a1 - o.a0) / 2), group = w.skin === 'glass' ? 'pane' : 'solid', col = w.skin === 'glass' ? '#3b5566' : SCH.navy;
+            const ends = o.a1 - o.a0 > 2 ? [o.a0, o.a1] : [o.a0];
+            for (const a of ends) put(group, col, a - 0.03, a + 0.03, o.y0 + 0.02, o.y1 - 0.05, face, face + out * leaf);
+            continue;
+          }
+          put('pane', '#3b5566', o.a0, o.a1, o.y0, o.y1, w.c - 0.03, w.c + 0.03);
+          const mid = (o.a0 + o.a1) / 2;
+          put('solid', '#1d2126', mid - 0.03, mid + 0.03, o.y0, o.y1, w.c - 0.05, w.c + 0.05);
+          if (w.skin === 'cream') {
+            // Cream wings: each window sits in a brown surround that runs up the
+            // wall to the window above, with a slim green fin beside it.
+            const f1 = face + out * 0.08;
+            for (const [a0, a1] of [[o.a0 - 0.25, o.a0], [o.a1, o.a1 + 0.25]]) put('solid', SCH.panel, a0, a1, o.y0 - 0.2, o.y1 + 0.2, face, f1);
+            put('solid', SCH.panel, o.a0, o.a1, o.y0 - 0.2, o.y0, face, f1);
+            put('solid', SCH.panel, o.a0, o.a1, o.y1, o.y1 + 0.2, face, f1);
+            if (w.lower) put('solid', SCH.panel, o.a0 - 0.25, o.a1 + 0.25, o.y1 + 0.2, w.y1, face, f1);
+            else if (w.y0 > 4) put('solid', SCH.panel, o.a0 - 0.25, o.a1 + 0.25, w.y0, o.y0 - 0.2, face, f1);
+            put('solid', SCH.green, o.a1 + 0.3, o.a1 + 0.52, w.lower ? o.y0 - 0.2 : w.y0 > 4 ? w.y0 : o.y0 - 0.2, w.lower ? w.y1 : o.y1 + 0.2, face, face + out * 0.14);
+          } else if (w.skin === 'brick') {
+            for (const y of [o.y0 - 0.08, o.y1]) put('solid', '#1d2126', o.a0 - 0.08, o.a1 + 0.08, y, y + 0.08, face, face + out * 0.04);
+            put('solid', SCH.green, o.a1 + 0.05, o.a1 + 0.35, o.y0, o.y1, face, face + out * 0.14);
           }
         }
-      };
-      const run = (kind: 'brick' | 'cream', a0: number, a1: number, fixed: number, face: 'n' | 's' | 'e' | 'w', step: number, wide: number) => {
-        const n = Math.max(1, Math.floor((a1 - a0 - 2) / step));
-        for (let i = 0; i < n; i++) {
-          const t = a0 + (a1 - a0) * ((i + 0.5) / n);
-          if (face === 'n' || face === 's') bay(kind, t, fixed, face, wide); else bay(kind, fixed, t, face, wide);
-        }
-      };
-      const [office, east, mid, west, gym] = S.blocks;
-      run('brick', office.x0, office.x1, office.z0, 'n', 5.6, 3.2);
-      run('brick', office.z0, office.z1, office.x0, 'w', 7, 3.2);
-      run('brick', office.z0, east.z0, office.x1, 'e', 5, 2.6);
-      run('cream', office.x1, east.x1, east.z0, 'n', 5.4, 1.7);
-      run('cream', east.x0 + 16, east.x1, east.z1, 's', 5.4, 1.7);
-      run('cream', east.z0, east.z1, east.x1, 'e', 9, 1.7);
-      run('cream', west.x0, mid.x0, west.z0, 'n', 5.4, 1.7);
-      run('cream', west.x0, gym.x0, west.z1, 's', 5.4, 1.7);
-      run('cream', west.z0, west.z1, west.x0, 'w', 9, 1.7);
-      run('cream', S.entry.x + S.entry.w / 2 + 1, office.x0, mid.z0, 'n', 4, 1.4);
-      for (let x = gym.x0 + 5; x < gym.x1 - 3; x += 7) b.box('glass', GLASS, 3.4, 1.3, 0.08, x, 9, gym.z1 + 0.06);
-      // The outside stair at the west end of the west wing.
-      for (let k = 0; k < 9; k++) b.box('solid', SCH.metal, 1.5, 0.12, 0.9, west.x0 - 0.9, 0.45 + k * 0.5, west.z0 + 4 + k * 0.9);
-      b.box('solid', SCH.metal, 1.6, 0.12, 2.4, west.x0 - 0.9, 4.6, west.z0 + 13.1);
-      for (const dz of [4, 14.2]) b.box('solid', '#6b7076', 0.12, 4.6, 0.12, west.x0 - 1.6, 2.3, west.z0 + dz);
+      }
+      // The fire stair at the west end: steel treads up to the upstairs door.
+      {
+        const n = 26, rise = FLOOR2 / n, run = (FIRE.vTop - FIRE.vBot) / n, mu = (FIRE.u0 + FIRE.u1) / 2 + 0.1, wide = FIRE.u1 - FIRE.u0 + 0.2;
+        for (let i = 0; i < n; i++) b.box('solid', SCH.metal, wide, 0.07, run + 0.02, SCHOOL_X(mu), (i + 1) * rise - 0.035, SCHOOL_Z(FIRE.vBot + (i + 0.5) * run));
+        const len = Math.hypot(FIRE.vTop - FIRE.vBot, FLOOR2), tilt = -Math.atan2(FLOOR2, FIRE.vTop - FIRE.vBot), mv = (FIRE.vBot + FIRE.vTop) / 2;
+        for (const u of [FIRE.u0, FIRE.u1 + 0.15]) b.box('solid', '#6b7076', 0.1, 0.3, len, SCHOOL_X(u), FLOOR2 / 2 - 0.12, SCHOOL_Z(mv), 0, tilt);
+        b.box('solid', '#6b7076', 0.06, 0.06, len, SCHOOL_X(FIRE.u0), FLOOR2 / 2 + 1.05, SCHOOL_Z(mv), 0, tilt);
+        for (let t = 0.5; t < 12; t += 1.2) b.box('solid', '#6b7076', 0.05, 1.05, 0.05, SCHOOL_X(FIRE.u0), (t / 12) * FLOOR2 + 0.52, SCHOOL_Z(FIRE.vBot + t));
+        // The landing on four posts, with its rail.
+        const lv = (FIRE.vTop + FIRE.vEnd) / 2, ll = FIRE.vEnd - FIRE.vTop;
+        b.box('solid', SCH.metal, wide + 0.2, 0.12, ll, SCHOOL_X(mu), FLOOR2 - 0.06, SCHOOL_Z(lv));
+        for (const v of [FIRE.vTop + 0.15, FIRE.vEnd - 0.15]) b.box('solid', '#6b7076', 0.14, FLOOR2 - 0.1, 0.14, SCHOOL_X(FIRE.u0 + 0.05), (FLOOR2 - 0.1) / 2, SCHOOL_Z(v));
+        b.box('solid', '#6b7076', 0.06, 0.06, ll, SCHOOL_X(FIRE.u0), FLOOR2 + 1.05, SCHOOL_Z(lv));
+        b.box('solid', '#6b7076', wide, 0.06, 0.06, SCHOOL_X(mu), FLOOR2 + 1.05, SCHOOL_Z(FIRE.vEnd));
+        for (let v = FIRE.vTop; v <= FIRE.vEnd + 0.01; v += 1.25) b.box('solid', '#6b7076', 0.05, 1.05, 0.05, SCHOOL_X(FIRE.u0), FLOOR2 + 0.52, SCHOOL_Z(v));
+        for (let u = FIRE.u0 + 0.7; u < 0; u += 0.7) b.box('solid', '#6b7076', 0.05, 1.05, 0.05, SCHOOL_X(u), FLOOR2 + 0.52, SCHOOL_Z(FIRE.vEnd));
+      }
 
       // The entrance: a two-storey wall of glass under a deep grey canopy on
       // slim green columns, the school's name along the canopy's edge.
       const E = S.entry, ch = 6.2, cd = 9;
-      b.box('glass', '#2b3d4d', E.w, 8, 0.3, E.x, 4.1, E.z + 0.1);
-      b.box('lit', LIT[3], E.w - 0.6, 7.2, 0.05, E.x, 4.1, E.z - 0.1);
-      for (let k = -2; k <= 2; k++) b.box('solid', '#1d2126', 0.12, 8, 0.36, E.x + (k * E.w) / 4.4, 4.1, E.z + 0.05);
-      for (const y of [2.7, 5.4]) b.box('solid', '#1d2126', E.w, 0.12, 0.36, E.x, y, E.z + 0.05);
-      b.box('solid', SCH.metal, E.w + 9, 1.25, cd, E.x + 1.5, ch + 0.62, E.z - cd / 2 + 0.2);
-      b.box('solid', '#8d9297', E.w + 9.3, 0.14, cd + 0.3, E.x + 1.5, ch + 1.3, E.z - cd / 2 + 0.2);
-      for (const k of [-1.5, -0.5, 0.5, 1.5]) for (const dz of [-1.4, -cd + 1]) b.cyl('solid', SCH.green, 0.11, 0.11, ch, E.x + 1.5 + k * ((E.w + 6) / 3), ch / 2, E.z + dz, 8);
-      for (const sx of [-1, 1]) b.box('solid', '#1d2126', 1.05, 2.4, 0.1, E.x + sx * 0.56, 1.2, E.z - 0.12);
+      // (The glass itself, with the open doors in the middle, is one of the plan's walls.)
+      for (let k = -2; k <= 2; k++) { const y0 = k ? 0.1 : 2.7; b.box('solid', '#1d2126', 0.12, 8.9 - y0, 0.3, E.x + (k * E.w) / 4.4, (8.9 + y0) / 2, E.z); }
+      for (const y of [2.76, 5.4, 8.9]) b.box('solid', '#1d2126', E.w, 0.12, 0.3, E.x, y, E.z);
+      // (It stops at the brick block's wall: there are rooms behind that now.)
+      const cw = 15.4, ccx = E.x - 2.4;
+      b.box('solid', SCH.metal, cw, 1.25, cd, ccx, ch + 0.62, E.z - cd / 2 + 0.2);
+      b.box('solid', '#8d9297', cw + 0.3, 0.14, cd + 0.3, ccx, ch + 1.3, E.z - cd / 2 + 0.2);
+      for (const dx of [-8.8, -3.4, 3.4]) for (const dz of [-1.4, -cd + 1]) b.cyl('solid', SCH.green, 0.11, 0.11, ch, E.x + dx, ch / 2, E.z + dz, 8);
       // The covered walk along the brick block: a thin grey roof on green posts.
       const Wk = S.walk, wl = Wk.x1 - Wk.x0;
       b.box('solid', SCH.metal, wl, 0.16, Wk.z1 - Wk.z0, (Wk.x0 + Wk.x1) / 2, 3.25, (Wk.z0 + Wk.z1) / 2);
@@ -626,6 +642,8 @@ export function Colony() {
     glass: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12, metalness: 0.55 }),
     lit: new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }),
     glow: glowPaint(0.5),
+    // Window glass you can see through (the school's rooms are really there).
+    pane: new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.34, roughness: 0.08, metalness: 0.45, depthWrite: false }),
   }), []);
   const flatMats = useMemo<Record<string, THREE.Material>>(() => ({
     lawn: new THREE.MeshStandardMaterial({ color: '#6fae52', roughness: 1 }),
@@ -656,6 +674,7 @@ export function Colony() {
       {g.glass && <mesh geometry={g.glass} material={mats.glass} />}
       {g.lit && <mesh geometry={g.lit} material={mats.lit} renderOrder={2} />}
       {g.glow && <mesh geometry={g.glow} material={mats.glow} />}
+      {g.pane && <mesh geometry={g.pane} material={mats.pane} renderOrder={4} />}
     </group>
   );
   const S = SCHOOL, pcz = PLAZA.z1 - 6, tx = PLAZA.x0 + 5;
@@ -693,7 +712,7 @@ export function Colony() {
       <Label x={(LAKEHOUSE.x0 + LAKEHOUSE.x1) / 2} y={4.3} z={LAKEHOUSE.z1 + 0.06} ry={0} text="THE LAKEHOUSE" size={0.6} color="#4a4034" />
       <Label x={PARK.x1 - 8} y={1.2} z={PARK.z0 + 1.86} ry={Math.PI} text="LAKEHOUSE PARK" size={0.3} color="#f4ead2" />
       {/* The school's name along the canopy's edge, and on the navy sign by the road. */}
-      <Label x={S.entry.x + 1.5} y={6.82} z={S.entry.z - 9 + 0.03} ry={Math.PI} text="COLONY OAKS ELEMENTARY SCHOOL" size={0.62} color="#2a2f36" />
+      <Label x={S.entry.x - 2.4} y={6.82} z={S.entry.z - 9 + 0.03} ry={Math.PI} text="COLONY OAKS ELEMENTARY SCHOOL" size={0.62} color="#2a2f36" />
       {[1, -1].map((f) => (
         <group key={f}>
           <Label x={S.sign.x} y={1.86} z={S.sign.z + f * 0.26} ry={f > 0 ? 0 : Math.PI} text="COLONY OAKS" size={0.56} color="#ffffff" />

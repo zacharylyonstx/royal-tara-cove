@@ -28,6 +28,8 @@ import { RAIL_MID_X } from './westAvery';
 import { STATIONS, rampSpan, TRACK_Z_S } from './redLine';
 import { rng32 } from './corridor';
 import type { Treat } from './domain';
+import { SX, SZ, MASSES, buildColonySchoolColliders } from './colonySchool';
+import { buildColonySchoolFurnitureColliders } from './colonySchoolRooms';
 
 export type Pt = [number, number];
 
@@ -78,21 +80,12 @@ export const PUMP_TRACK = { x: -280, z: 3204, rx: 24, rz: 12 };
 export const PARK_PLAY = { x: -316, z: 3238 };
 export const PARK_PAVILION = { x: -262, z: 3238, w: 9, d: 6.5 };
 
-/** Colony Oaks Elementary. Blocks are measured from the north-west corner of
- *  the building's outline (u east, v south), traced from aerial imagery. */
-const SX = -505, SZ = 3212;
+/** Colony Oaks Elementary. The outline was traced from aerial imagery; what is
+ *  inside it follows the district's floor plans (world/colonySchool.ts). */
 export interface SchoolBlock { x0: number; x1: number; z0: number; z1: number; h: number; kind: 'brick' | 'cream' }
-const blk = (u0: number, u1: number, v0: number, v1: number, h: number, kind: 'brick' | 'cream'): SchoolBlock =>
-  ({ x0: SX + u0, x1: SX + u1, z0: SZ + v0, z1: SZ + v1, h, kind });
 export const SCHOOL = {
-  blocks: [
-    blk(49.9, 73.6, 0, 23.3, 9.6, 'brick'),      // offices: the brown brick block by the door
-    blk(72.4, 128.4, 9, 45.2, 9, 'cream'),       // east classroom wing
-    blk(38.8, 72.4, 18.6, 46, 9, 'cream'),       // the middle (library over the lobby)
-    blk(0, 65.9, 36.2, 68.5, 9, 'cream'),        // west classroom wing
-    blk(58, 89, 46, 82.7, 10.8, 'cream'),        // gym + cafeteria
-    blk(85, 104, 52, 80, 6, 'cream'),            // kitchen
-  ],
+  /** The roofed blocks the building is made of. */
+  blocks: MASSES.map((m): SchoolBlock => ({ x0: SX + m.u0, x1: SX + m.u1, z0: SZ + m.v0, z1: SZ + m.v1, h: m.h, kind: m.kind })),
   /** The front doors: a glass wall facing north, between the two wings. */
   entry: { x: SX + 44.4, z: SZ + 18.6, w: 11.2 },
   /** The covered walk along the front of the brick block. */
@@ -265,7 +258,7 @@ export function buildColonyColliders(): RectCollider[] {
   // Water you can't walk into (the pools are for wading — no colliders).
   for (const p of [...PONDS, LAKE]) for (const s of polySlices(p, 5, 0.6)) rect(s, 'colony-water', 3);
   // The school, the Lakehouse, the pavilions' posts stay walk-through.
-  for (const bk of SCHOOL.blocks) rect(bk, 'colony-school', 12);
+  out.push(...buildColonySchoolColliders(), ...buildColonySchoolFurnitureColliders());
   rect(LAKEHOUSE, 'colony-lakehouse', 7);
   box(SCHOOL.sign.x - 3.4, SCHOOL.sign.x + 3.4, SCHOOL.sign.z - 0.6, SCHOOL.sign.z + 0.6, 'colony-sign', 2.6);
   box(POCKET_PAVILION.x - POCKET_PAVILION.w / 2, POCKET_PAVILION.x + POCKET_PAVILION.w / 2, POCKET_PAVILION.z - POCKET_PAVILION.d / 2, POCKET_PAVILION.z + POCKET_PAVILION.d / 2, 'colony-bathhouse', 5);

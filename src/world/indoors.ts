@@ -1,6 +1,7 @@
 import { HOUSES } from './houses';
 import { buildLots } from './lots';
 import { SCHOOL_MIN_X, SCHOOL_MAX_X, SCHOOL_MIN_Z, SCHOOL_MAX_Z, SCHOOL_SHIFT_X } from './school';
+import { MASSES, X as schoolX, Z as schoolZ } from './colonySchool';
 import { WINGA_MIN_X, WINGA_MAX_X, WINGA_FRONT_Z, WINGA_BACK_Z, WINGB_FRONT_X, WINGB_BACK_X, WINGB_MIN_Z, WINGB_MAX_Z } from './acrossBlvd';
 
 /**
@@ -33,6 +34,8 @@ function buildRects(): Rect[] {
   const WALK_B = 5.0; // Wing B faces west (−X) — covers the pup pens + treat jar
   rects.push({ cx: (WINGA_MIN_X + WINGA_MAX_X) / 2, cz: (WINGA_FRONT_Z + WALK_A + WINGA_BACK_Z) / 2, yaw: 0, hw: (WINGA_MAX_X - WINGA_MIN_X) / 2 + MARGIN, hd: Math.abs(WINGA_FRONT_Z + WALK_A - WINGA_BACK_Z) / 2 + MARGIN });
   rects.push({ cx: (WINGB_FRONT_X - WALK_B + WINGB_BACK_X) / 2, cz: (WINGB_MIN_Z + WINGB_MAX_Z) / 2, yaw: 0, hw: Math.abs(WINGB_BACK_X - (WINGB_FRONT_X - WALK_B)) / 2 + MARGIN, hd: (WINGB_MAX_Z - WINGB_MIN_Z) / 2 + MARGIN });
+  // Colony Oaks Elementary, Bastrop (every roofed block of it).
+  for (const m of MASSES) rects.push({ cx: schoolX((m.u0 + m.u1) / 2), cz: schoolZ((m.v0 + m.v1) / 2), yaw: 0, hw: (m.u1 - m.u0) / 2 + 0.2, hd: (m.v1 - m.v0) / 2 + 0.2 });
   return rects;
 }
 
