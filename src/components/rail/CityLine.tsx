@@ -731,7 +731,9 @@ function buildDowntown(b: Batch, rnd: Rnd) {
   for (const [x, z] of [[pkx - 7, pkz + 2], [pkx + 7, pkz - 2]]) bench(b, x, z, false);
   // Cars parked along the kerb between the park and the tracks.
   b.box('solid', ASPHALT, 6, 0.04, 62, MID - 17, 0.02, 1531);
-  for (let z = 1504; z < 1560; z += 6.6) if (rnd() < 0.7) car(b, MID - 15.6, z, pick(rnd, CAR_COLORS));
+  // (The cars at this kerb are real, drivable ones now — world/fleet.ts. The
+  // random draws stay so the rest of Downtown is laid out exactly as before.)
+  for (let z = 1504; z < 1560; z += 6.6) if (rnd() < 0.7) pick(rnd, CAR_COLORS);
   for (const z of [1502, 1518, 1534]) tree(b, MID - 22.5, z, 0.95, pick(rnd, GREENS));
 
   // --------------------------------------------- east: Convention Center --

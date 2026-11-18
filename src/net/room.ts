@@ -527,7 +527,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
   parkReceiver((rawData) => netGuard('park', () => {
     if (!isObj(rawData)) return;
     const cars = arr(rawData.cars);
-    if (cars.length > 64) return; // the whole neighborhood is ~25 cars
+    if (cars.length > 400) return; // home (~25) + the fleet down the Red Line
     const play = usePlayStore.getState();
     const now = performance.now();
     for (const c of cars) {

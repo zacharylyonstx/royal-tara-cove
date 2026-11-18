@@ -36,7 +36,6 @@ const NAVY = '#16335c';
 const RED = '#c8102e';
 const STONE = '#cfc6b3';
 const OAK = ['#3f6b3a', '#4a7a40', '#365f38', '#557f46'];
-const CAR_COLORS = ['#c7ccd3', '#2f3b4f', '#8c1f24', '#e9e4d6', '#35567e', '#4a4f55', '#d7a23a', '#2d5f46', '#f2f2f0', '#6b7f95', '#1d1f23'];
 
 // House finishes, from the builder's published designs for this street and
 // aerial imagery: painted and natural brick, a little stone at the base,
@@ -89,10 +88,6 @@ function flat(poly: Pt[], y: number): THREE.BufferGeometry {
 function tree(b: Batch, x: number, z: number, s: number, rnd: () => number) {
   b.cyl('solid', '#5a4632', 0.14 * s, 0.2 * s, 2.4 * s, x, 1.2 * s, z, 6);
   b.blob('solid', OAK[Math.floor(rnd() * OAK.length)], 1.7 * s, x, 3.2 * s, z, 0.8);
-}
-function car(b: Batch, x: number, z: number, color: string, ry: number) {
-  b.box('solid', color, 1.85, 0.7, 4.3, x, 0.62, z, ry);
-  b.box('solid', '#20262d', 1.6, 0.55, 2.2, x - Math.sin(ry) * 0.25, 1.22, z - Math.cos(ry) * 0.25, ry);
 }
 function bench(b: Batch, x: number, z: number, ry: number) {
   b.box('solid', '#8a6a48', 1.9, 0.07, 0.5, x, 0.46, z, ry);
@@ -196,7 +191,6 @@ function house(b: Batch, h: House, rnd: () => number) {
   box('solid', ['#d9508a', '#e8c23a', '#c8382e', '#8a5fc4'][h.seed % 4], fw - 0.4, 0.14, 0.5, fx, 0.42, fz + 1.6);
   // Driveway, a car on some, the fenced back yard, a young tree out front.
   box('ground', DRIVE, 5.9, 0.03, h.drive + 0.5, gx, 0.03, D / 2 + (h.drive + 0.5) / 2);
-  if (h.car >= 0) { const [x, z] = P(gx - 1.4 + (h.seed % 2) * 2.8, D / 2 + 3.3); car(b, x, z, CAR_COLORS[h.car % CAR_COLORS.length], h.ry); }
   const fwid = LOT_W - 0.3, back = -D / 2 - YARD_BACK + 0.3, sideLen = YARD_BACK + D * 0.55;
   box('solid', CEDAR, fwid, 1.85, 0.08, 0, 0.92, back);
   for (const sx of [-1, 1]) box('solid', CEDAR, 0.08, 1.85, sideLen, sx * fwid / 2, 0.92, back + sideLen / 2);
@@ -384,7 +378,6 @@ function buildColony() {
       for (const k of [0, 1, 2, 3]) b.box('solid', '#f2f2ee', 0.7, 0.3, 1.9, Pl.x0 + 4 + k * 3, 0.2, Pl.z0 - 2.4);
       for (const k of [0, 1]) { b.cyl('solid', STEEL, 0.04, 0.04, 2.4, Pl.x1 - 4 - k * 12, 1.2, Pl.z1 + 2.6, 6); b.cyl('solid', k ? '#e8477a' : '#39b6c9', 0.1, 1.7, 0.5, Pl.x1 - 4 - k * 12, 2.5, Pl.z1 + 2.6, 8); }
     }
-    for (let k = 0; k < 7; k++) car(b, LAKEHOUSE_LOT.x0 + 7 + k * 11.2, LAKEHOUSE_LOT.z0 + 3.4, CAR_COLORS[(k * 3 + 1) % CAR_COLORS.length], 0);
     // --- Lakehouse Park ---
     pavilion(b, PARK_PAVILION.x, PARK_PAVILION.z, PARK_PAVILION.w, PARK_PAVILION.d, '#5d6f7a');
     {
@@ -502,8 +495,6 @@ function buildColony() {
       }
       // Cars in both lots, light poles, a basketball goal on the court.
       const L = S.lot;
-      for (let k = 0; k < 14; k++) car(b, L.x0 + 5 + k * 6.9, (k % 3 === 0 ? L.z0 + 3.2 : k % 3 === 1 ? (L.z0 + L.z1) / 2 - 2.6 : L.z1 - 3.2), CAR_COLORS[(k * 5 + 2) % CAR_COLORS.length], 0);
-      for (let k = 0; k < 5; k++) car(b, S.lot2.x0 + 5 + k * 8, S.lot2.z0 + 3.2, CAR_COLORS[(k * 3 + 4) % CAR_COLORS.length], 0);
       for (const lx of [L.x0 + 20, (L.x0 + L.x1) / 2, L.x1 - 20]) {
         b.cyl('solid', '#8d9297', 0.1, 0.13, 7.5, lx, 3.75, (L.z0 + L.z1) / 2, 8);
         b.box('solid', '#8d9297', 2.2, 0.12, 0.3, lx, 7.5, (L.z0 + L.z1) / 2);

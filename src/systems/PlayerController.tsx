@@ -31,6 +31,7 @@ import { usePetStore, TREATS_PER_GRAB } from '../state/petStore';
 import { TRICKS, dogName, isDogZone, tricksFor } from '../world/pets';
 import { talkToNpc } from './npcTalk';
 import { WEST_DRIVE_REGIONS, wadeDepthAt, type DriveRegion } from '../world/westAvery';
+import { FLEET_DRIVE_REGIONS } from '../world/fleet';
 import { ZONE_HALF_X, ZONE_MIN_Z, ZONE_MAX_Z, WEST_BLVD_Z, WEST_BULB_X, WEST_BULB_R } from '../world/acrossBlvd';
 import { selectInteractable, facingFromYaw, type InteractCandidate } from './interactSelect';
 import { SEATS, seatWorld, seatCandidateId, parseSeatCandidateId } from '../world/seats';
@@ -997,6 +998,7 @@ const DRIVE_REGIONS: DriveRegion[] = [
   { kind: 'rect', minX: -ZONE_HALF_X, maxX: ZONE_HALF_X, minZ: ZONE_MIN_Z, maxZ: ZONE_MAX_Z },
   { kind: 'circle', x: WEST_BULB_X, z: WEST_BLVD_Z, r: WEST_BULB_R + 3 },
   ...WEST_DRIVE_REGIONS,
+  ...FLEET_DRIVE_REGIONS,
 ];
 
 export function clampToStreet(x: number, z: number): { x: number; z: number } | null {

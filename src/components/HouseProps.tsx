@@ -56,13 +56,14 @@ export function ParkedCar({ carId }: { carId: string }) {
     rx: 0, ry: 0, rz: 0, spinX: 0, spinY: 0, spinZ: 0,
   });
 
-  useFrame((_, dtRaw) => {
+  useFrame(({ camera }, dtRaw) => {
     const g = ref.current;
     if (!g || !car) return;
     const throwAt = getCarThrow(carId);
     if (throwAt == null) {
       // Resting on the driveway (every mode except a tornado that's reached it).
-      g.visible = true;
+      // (Cars a long way off — the other end of the Red Line — aren't drawn.)
+      g.visible = Math.abs(car.x - camera.position.x) < 300 && Math.abs(car.z - camera.position.z) < 300;
       g.position.set(car.x, 0, car.z);
       g.rotation.set(0, car.yaw, 0);
       const s = st.current; s.inited = false; s.done = false; s.ejected = false;
