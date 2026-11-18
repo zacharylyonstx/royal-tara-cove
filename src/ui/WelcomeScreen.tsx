@@ -41,6 +41,10 @@ export function WelcomeScreen() {
           padding: '28px 36px',
           maxWidth: 820,
           width: '100%',
+          // On a short window the bottom row of games must still be reachable.
+          maxHeight: 'calc(100vh - 32px)',
+          overflowY: 'auto',
+          boxSizing: 'border-box',
           textAlign: 'center',
           boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
