@@ -12,10 +12,15 @@
 //     closed up: the (made-up) railway runs through it, the lake / Lakehouse /
 //     park / school are laid out west of the line in their real order (lake
 //     north of the road, park east of the school, both south of the road).
-//   • The houses are NOT surveyed: they are generic new-build homes placed on
-//     lots along the real streets. None of them is meant to be anybody's.
-//   • What the school building and the houses actually look like could not be
-//     researched — the looks here are a plausible guess.
+//   • The houses are NOT surveyed one by one: they are placed on 45-ft lots
+//     along the real streets, in the builder's style seen in aerial imagery
+//     and published designs (painted brick, steep front gables, charcoal
+//     roofs, two single garage doors). None of them is meant to be anybody's.
+//   • Colony Oaks Elementary follows the real building: its footprint is
+//     traced from aerial imagery (a brick office block, cream classroom wings
+//     staggered either side of a glass entry, the gym at the back, lime-green
+//     shade sails) and its colours from a photo of the front. The school's
+//     colours are navy and green; its mascot is the Cougars.
 // +X east, +Z south.
 import type { RectCollider } from '../types';
 import { EAST_STREETS, EAST_PATHS, PONDS, POCKET_PARK, type Street } from './colonyData';
@@ -37,10 +42,10 @@ const WEST_STREETS: Street[] = [
   { name: 'Sam Houston Drive', w: 7.4, pts: [[-149, 3127], [-180, 3131.5], [-208, 3137]] },
   { name: 'Sam Houston Drive', w: 7.4, pts: [[-149, 3146.5], [-182, 3143], [-208, 3137]] },
   { name: 'Sam Houston Drive', w: 9, pts: [[-208, 3137], [-330, 3134], [-470, 3129], [-652, 3125]] },
-  { name: '', w: 6.5, pts: [[-436, 3130], [-436, 3170], [-446, 3181], [-504, 3181], [-514, 3170], [-514, 3127.5]] },
   { name: '', w: 6, pts: [[-290, 3134], [-290, 3120]] },
 ];
 export const STREETS: Street[] = [...EAST_STREETS, ...WEST_STREETS];
+/** (The school's loop drive is added below, once the school is laid out.) */
 export const PATHS: Pt[][] = [
   ...EAST_PATHS,
   // Smokebush Trail ends beside the platform; a path leads round to the plaza.
@@ -61,34 +66,56 @@ export const LAKE: Pt[] = [
 ];
 export const LAKE_FOUNTAIN = { x: -296, z: 2966 };
 export const DOCK = { x: -301, z0: 3004, z1: 3031, w: 3 };
-export const LAKEHOUSE = { x0: -306, x1: -268, z0: 3052, z1: 3074, h: 5.2 };
-export const LAKEHOUSE_POOL = { x0: -356, x1: -320, z0: 3048, z1: 3072 };
+/** The Lakehouse (blue-grey metal roof) with its lap pool to the east. */
+export const LAKEHOUSE = { x0: -332, x1: -306, z0: 3050, z1: 3074, h: 5.2 };
+export const LAKEHOUSE_POOL = { x0: -284, x1: -270, z0: 3044, z1: 3074 };
 export const LAKEHOUSE_LOT = { x0: -338, x1: -250, z0: 3086, z1: 3121 };
-/** Lakehouse Park, south of the road: playground, pickleball, pump track. */
+/** Lakehouse Park, south of the road: pickleball in the north-west corner, the
+ *  looping concrete pump track beside it, the playground to the south. */
 export const PARK = { x0: -338, x1: -210, z0: 3156, z1: 3262 };
-export const PARK_PLAY = { x: -304, z: 3186 };
-export const PARK_PAVILION = { x: -268, z: 3200, w: 9, d: 6.5 };
-export const PICKLEBALL: { x: number; z: number }[] = [{ x: -238, z: 3183 }, { x: -228, z: 3183 }];
-export const PUMP_TRACK = { x: -268, z: 3238, rx: 26, rz: 13 };
+export const PICKLEBALL: { x: number; z: number }[] = [{ x: -329.5, z: 3187 }, { x: -320.5, z: 3187 }];
+export const PUMP_TRACK = { x: -280, z: 3204, rx: 24, rz: 12 };
+export const PARK_PLAY = { x: -316, z: 3238 };
+export const PARK_PAVILION = { x: -262, z: 3238, w: 9, d: 6.5 };
 
-/** Colony Oaks Elementary: a two-storey L — the front bar along the road (gym
- *  at the west end), a classroom wing running south from its east end. */
+/** Colony Oaks Elementary. Blocks are measured from the north-west corner of
+ *  the building's outline (u east, v south), traced from aerial imagery. */
+const SX = -505, SZ = 3212;
+export interface SchoolBlock { x0: number; x1: number; z0: number; z1: number; h: number; kind: 'brick' | 'cream' }
+const blk = (u0: number, u1: number, v0: number, v1: number, h: number, kind: 'brick' | 'cream'): SchoolBlock =>
+  ({ x0: SX + u0, x1: SX + u1, z0: SZ + v0, z1: SZ + v1, h, kind });
 export const SCHOOL = {
-  bar: { x0: -548, x1: -452, z0: 3192, z1: 3220, h: 8.8 },
-  gym: { x0: -548, x1: -514, z0: 3192, z1: 3228, h: 11 },
-  wing: { x0: -482, x1: -452, z0: 3220, z1: 3298, h: 8.6 },
-  /** Front doors (they face the road, north). */
-  entry: { x: -468, z: 3192 },
-  sign: { x: -475, z: 3147 },
-  flags: { x: -489, z: 3176 },
-  lot: { x0: -432, x1: -366, z0: 3196, z1: 3250 },
-  play: { x: -512, z: 3262 },
-  shade: { x: -522, z: 3240, w: 16, d: 10 },
-  field: { x: -505, z: 3350, rx: 44, rz: 30 },
+  blocks: [
+    blk(49.9, 73.6, 0, 23.3, 9.6, 'brick'),      // offices: the brown brick block by the door
+    blk(72.4, 128.4, 9, 45.2, 9, 'cream'),       // east classroom wing
+    blk(38.8, 72.4, 18.6, 46, 9, 'cream'),       // the middle (library over the lobby)
+    blk(0, 65.9, 36.2, 68.5, 9, 'cream'),        // west classroom wing
+    blk(58, 89, 46, 82.7, 10.8, 'cream'),        // gym + cafeteria
+    blk(85, 104, 52, 80, 6, 'cream'),            // kitchen
+  ],
+  /** The front doors: a glass wall facing north, between the two wings. */
+  entry: { x: SX + 44.4, z: SZ + 18.6, w: 11.2 },
+  /** The covered walk along the front of the brick block. */
+  walk: { x0: SX + 44, x1: SX + 76, z0: SZ - 4, z1: SZ - 0.5 },
+  /** Staff + visitor parking in front, ringed by the drop-off loop. */
+  lot: { x0: SX + 8, x1: SX + 110, z0: SZ - 60, z1: SZ - 16 },
+  lot2: { x0: SX - 22, x1: SX + 24, z0: SZ + 84, z1: SZ + 108 },
+  /** The hard-surface play court behind the gym. */
+  court: { x0: SX + 48, x1: SX + 82.7, z0: SZ + 82.7, z1: SZ + 106 },
+  /** Lime-green shade sails over the two playgrounds (centre, size). */
+  shades: [{ x: SX + 86, z: SZ - 6, s: 16 }, { x: SX - 6, z: SZ + 22, s: 11 }],
+  play: { x: SX + 106, z: SZ - 2 },
+  sign: { x: SX + 12, z: 3146 },
+  flags: { x: SX + 36, z: SZ + 6 },
 };
+/** The loop drive: in from Sam Houston Drive, along the front, back out. */
+const SCHOOL_LOOP: Pt[] = [[SX - 6, 3128], [SX - 6, SZ - 16], [SX + 2, SZ - 8], [SX + 110, SZ - 8], [SX + 118, SZ - 16], [SX + 118, 3131]];
+
+STREETS.push({ name: '', w: 6.5, pts: SCHOOL_LOOP });
 
 // -------------------------------------------------------------- pocket park --
-export const POCKET_PAVILION = { x: 60, z: 3044, w: 8, d: 5 };
+/** The pool's bath-house, on its west side (as in the aerial). */
+export const POCKET_PAVILION = { x: 30, z: 3037, w: 7, d: 12 };
 export const LEMONADE = { x: 104, z: 3084 };
 
 // ------------------------------------------------------------- geometry kit --
@@ -155,10 +182,10 @@ const HOUSE_STREETS = new Set([
   'George Neggan Lane', 'Isaac Millsaps Trail', 'Claiborne Wright Way',
 ]);
 /** 45-ft lots. */
-export const LOT_W = 14.2;
+export const LOT_W = 13.7;
 const VERGE = 3.0;      // kerb → back of the sidewalk
-const SETBACK = 6.2;    // sidewalk → front wall
-export const YARD_BACK = 6.5; // fenced back yard behind the house
+const SETBACK = 6.4;    // sidewalk → front wall
+export const YARD_BACK = 6; // fenced back yard behind the house
 
 export const HOUSES: House[] = (() => {
   const out: House[] = [];
@@ -174,7 +201,8 @@ export const HOUSES: House[] = (() => {
       let t = carry;
       for (; t < L; t += LOT_W) {
         for (const side of [1, -1]) {
-          const w = 11.2 + Math.floor(rnd() * 3) * 0.6, d = 15 + Math.floor(rnd() * 4) * 1.2;
+          // Narrow and deep, a couple of metres apart — as they really are.
+          const w = 11.2 + Math.floor(rnd() * 3) * 0.4, d = 19 + Math.floor(rnd() * 4) * 1.2;
           const off = s.w / 2 + VERGE + SETBACK + d / 2;
           const nx = -tz * side, nz = tx * side;
           const x = a[0] + tx * t + nx * off, z = a[1] + tz * t + nz * off;
@@ -186,11 +214,13 @@ export const HOUSES: House[] = (() => {
           if (x < RAIL_MID_X + 26 || !inRect(x, z, BOUNDS, -d / 2 - YARD_BACK - 1)) continue;
           if (inPoly(x, z, POCKET_PARK) || distToLine(x, z, POCKET_PARK, true) < 12) continue;
           if (PONDS.some((p) => inPoly(x, z, p) || distToLine(x, z, p, true) < 20)) continue;
-          if (PATHS.some((p) => distToLine(x, z, p) < 10.5)) continue;
+          if (PATHS.some((p) => distToLine(x, z, p) < 8)) continue;
+          // (Chinaberry Bend's short north leg has open land on its east side.)
+          if (s.name === 'Chinaberry Bend' && x > 116 && z < 3140) continue;
           if (out.some((h) => Math.hypot(h.x - x, h.z - z) < LOT_W - 0.4)) continue;
           out.push({
             x, z, ry: Math.atan2(-nx, -nz), w, d,
-            storeys: r[0] < 0.42 ? 2 : 1, garage: r[1] < 0.5 ? 1 : -1,
+            storeys: r[0] < 0.22 ? 2 : 1, garage: r[1] < 0.5 ? 1 : -1,
             style: Math.floor(r[2] * 6), roof: Math.floor(r[3] * 3), door: Math.floor(r[4] * 4),
             drive: VERGE + SETBACK, car: r[5] < 0.45 ? Math.floor(r[5] * 22) : -1, seed: out.length,
           });
@@ -216,7 +246,7 @@ export const COLONY_LAMPS: [number, number, number][] = [
   [-52, 3128, 0], [-20, 3190, 0],                                    // Ironbark Bend
   [10, 3066, 0], [58, 3068, 0],                                      // the pocket park
   [-290, 3126, 0], [-262, 3080, 0],                                  // the Lakehouse
-  [-430, 3138, 0], [-475, 3186, 0], [-520, 3138, 0],                 // the school
+  [SX + 20, SZ - 12, 0], [SX + 44, SZ + 4, 0], [SX + 96, SZ - 12, 0],  // the school
   [-300, 3152, 0], [-225, 3152, 0],                                  // Lakehouse Park
 ];
 
@@ -235,9 +265,10 @@ export function buildColonyColliders(): RectCollider[] {
   // Water you can't walk into (the pools are for wading — no colliders).
   for (const p of [...PONDS, LAKE]) for (const s of polySlices(p, 5, 0.6)) rect(s, 'colony-water', 3);
   // The school, the Lakehouse, the pavilions' posts stay walk-through.
-  rect(SCHOOL.bar, 'colony-school', 12); rect(SCHOOL.gym, 'colony-school', 12); rect(SCHOOL.wing, 'colony-school', 12);
+  for (const bk of SCHOOL.blocks) rect(bk, 'colony-school', 12);
   rect(LAKEHOUSE, 'colony-lakehouse', 7);
-  box(SCHOOL.sign.x - 3, SCHOOL.sign.x + 3, SCHOOL.sign.z - 0.5, SCHOOL.sign.z + 0.5, 'colony-sign', 2.4);
+  box(SCHOOL.sign.x - 3.4, SCHOOL.sign.x + 3.4, SCHOOL.sign.z - 0.6, SCHOOL.sign.z + 0.6, 'colony-sign', 2.6);
+  box(POCKET_PAVILION.x - POCKET_PAVILION.w / 2, POCKET_PAVILION.x + POCKET_PAVILION.w / 2, POCKET_PAVILION.z - POCKET_PAVILION.d / 2, POCKET_PAVILION.z + POCKET_PAVILION.d / 2, 'colony-bathhouse', 5);
   box(SNOW_CONE.x - 1.1, SNOW_CONE.x + 1.1, SNOW_CONE.z - 1.6, SNOW_CONE.z + 1.6, 'colony-cart', 3);
   box(LEMONADE.x - 1, LEMONADE.x + 1, LEMONADE.z - 0.5, LEMONADE.z + 0.5, 'colony-stand', 1.2);
   // Fences either side of the railway, down to the plaza.

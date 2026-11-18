@@ -145,7 +145,7 @@ const DOWNTOWN_LANDMARKS: Landmark[] = [
 const COLONY_LANDMARKS: Landmark[] = [
   { x: RAIL_MID_X, z: STATIONS.bastrop.z, icon: '🚆', label: 'Train to Austin', dx: 16, dz: -8, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.bastrop).z1 + 4] },
   { x: 70, z: 3152, icon: '🏡', label: 'Chinaberry Bend', dx: 20, dz: 6, anchor: 'start', go: [66, 3155] },
-  { x: COLONY.SCHOOL.entry.x - 30, z: COLONY.SCHOOL.bar.z1 + 10, icon: '🏫', label: 'Colony Oaks Elementary', dz: 50, go: [COLONY.SCHOOL.entry.x, COLONY.SCHOOL.entry.z - 12] },
+  { x: COLONY.SCHOOL.entry.x + 20, z: COLONY.SCHOOL.entry.z + 22, icon: '🏫', label: 'Colony Oaks Elementary', dz: 66, go: [COLONY.SCHOOL.entry.x, COLONY.SCHOOL.entry.z - 12] },
   { x: 30, z: 3040, icon: '🏊', label: 'Pool + playground', dz: -22, go: [22, 3072] },
   { x: 300, z: 2990, icon: '🦆', label: 'The ponds', dz: -50, go: [256, 3032] },
   { x: COLONY.PARK_PLAY.x + 20, z: COLONY.PARK_PLAY.z + 20, icon: '🛝', label: 'Lakehouse Park', dz: 46, go: [COLONY.PARK.x1 - 10, COLONY.PARK.z0 + 8] },
@@ -245,8 +245,9 @@ function ColonyArt({ labels }: { labels: boolean }) {
       {r(C.PLAZA, '#e2d6bd')}
       {r(C.LAKEHOUSE_LOT, '#8b919b')}{r(S.lot, '#8b919b')}
       {r(C.LAKEHOUSE, '#c9a36a', { stroke: '#7a5a34', strokeWidth: 1 })}
-      {[S.bar, S.gym, S.wing].map((b, i) => <g key={i}>{r(b, '#d9a441', { stroke: '#7a5a34', strokeWidth: 1.2 })}</g>)}
-      <rect x={S.field.x - S.field.rx} y={S.field.z - S.field.rz} width={S.field.rx * 2} height={S.field.rz * 2} rx={8} fill="#86c867" stroke="#fff" strokeWidth={1} />
+      {r(S.lot2, '#8b919b')}{r(S.court, '#d2c6a8')}
+      {S.blocks.map((b, i) => <g key={i}>{r(b, b.kind === 'brick' ? '#8a7464' : '#e6e1d4', { stroke: '#6b5d4d', strokeWidth: 1.2 })}</g>)}
+      {S.shades.map((sh, i) => <rect key={i} x={sh.x - sh.s / 2} y={sh.z - sh.s / 2} width={sh.s} height={sh.s} fill="#8fd62a" />)}
       {C.PICKLEBALL.map((c) => <rect key={c.x} x={c.x - 3} y={c.z - 6.7} width={6} height={13.4} fill="#3a6fb5" />)}
       {C.HOUSES.map((h) => (
         <rect key={h.seed} x={-h.w / 2} y={-h.d / 2} width={h.w} height={h.d} rx={1} fill="#e9dcc3" stroke="#a08c6c" strokeWidth={0.8}

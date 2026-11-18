@@ -30,7 +30,7 @@ const DRIVE = '#cfcabd';
 const GRANITE = '#c9b48f';
 const GLASS = '#27333e';
 const LIT = ['#ffd89a', '#ffe7b8', '#ffc978', '#fff1d0'];
-const CEDAR = '#a5764a';
+const CEDAR = '#a3906f';   // weathered cedar privacy fence
 const STEEL = '#5f7383';
 const NAVY = '#16335c';
 const RED = '#c8102e';
@@ -38,14 +38,16 @@ const STONE = '#cfc6b3';
 const OAK = ['#3f6b3a', '#4a7a40', '#365f38', '#557f46'];
 const CAR_COLORS = ['#c7ccd3', '#2f3b4f', '#8c1f24', '#e9e4d6', '#35567e', '#4a4f55', '#d7a23a', '#2d5f46', '#f2f2f0', '#6b7f95', '#1d1f23'];
 
-// House finishes (a guess at a 2020s Texas builder street: brick + stone
-// fronts, pale trim, dark shingles, two-car garages).
-const BRICK = ['#b79f85', '#a8674d', '#cbbfa8', '#8d8a84', '#9a7b62', '#d9cdb8'];
-const SIDING = ['#d9d2c2', '#e6dfd0', '#c9cfc9', '#b8b3a8', '#ded3bd', '#eee8da'];
-const ROOF = ['#3d3d40', '#4a4138', '#55504a'];
-const DOOR = ['#5a2e22', '#1f3d4d', '#2b2b2b', '#7a1f1f'];
-const GARAGE = ['#efe8da', '#6b4a32', '#d8cfbd'];
-const TRIM = '#f1ece0';
+// House finishes, from the builder's published designs for this street and
+// aerial imagery: painted and natural brick, a little stone at the base,
+// taupe trim, charcoal shingles, weathered cedar fences.
+const BRICK = ['#e4dfd4', '#cfc3ad', '#9a7b62', '#b9b2a8', '#a8674d', '#d9d2c4'];
+const ROOF = ['#3b3c3f', '#44413e', '#35373b'];
+const DOOR = ['#3a3d42', '#5a2e22', '#1f3d4d', '#6b5a48'];
+const GARAGE = ['#8c867c', '#a39c90', '#6f6a62'];
+const TRIM = '#8f877a';
+// Colony Oaks Elementary, from a photo of the front.
+const SCH = { brick: '#7a6050', band: '#6a5244', cream: '#e6e1d4', panel: '#8f6f4f', green: '#35a84a', lime: '#8fd62a', metal: '#a4a9ae', navy: '#1f2a5c' };
 
 type Sec = Record<string, THREE.BufferGeometry>;
 
@@ -112,6 +114,10 @@ function pavilion(b: Batch, x: number, z: number, w: number, d: number, roof: st
 }
 
 // -------------------------------------------------------------------- houses --
+// The builder's look on this street: a narrow, deep single-storey brick house
+// under a charcoal hip roof, with two steep gables to the street — one over a
+// pair of single garage doors, one over a big arched front window — and the
+// front door set back between them.
 function house(b: Batch, h: House, rnd: () => number) {
   const c = Math.cos(h.ry), s = Math.sin(h.ry);
   const P = (lx: number, lz: number): Pt => [h.x + lx * c + lz * s, h.z - lx * s + lz * c];
@@ -123,63 +129,79 @@ function house(b: Batch, h: House, rnd: () => number) {
     const [x, z] = P(lx, lz);
     b.roof('solid', color, w, hh, d, x, y, z, h.ry + (turned ? Math.PI / 2 : 0), hip);
   };
-  const W = h.w, D = h.d, g = h.garage, H1 = 3.0;
-  const GW = 6.0, GP = 1.7;                 // garage width, how far it stands forward
-  const wall = BRICK[h.style], upper = SIDING[h.style], rf = ROOF[h.roof];
+  /** A gable facing the street: brick triangle, framed by the roof edge. */
+  const gable = (lx: number, w: number, rise: number, front: number, len: number) => {
+    roof(wall, len, rise, w, lx, H1, front - len / 2, true, 0);
+    roof(rf, len + 0.9, rise + 0.26, w + 0.8, lx, H1 - 0.07, front - 0.07 - (len + 0.9) / 2, true, 0);
+  };
+  const W = h.w, D = h.d, g = h.garage, H1 = 3.05;
+  const GW = 6.1, GP = 1.5;                 // garage width, how far it stands forward
+  const wall = BRICK[h.style], rf = ROOF[h.roof], gar = GARAGE[h.seed % 3];
   const zf = D / 2 - GP;                    // the main front wall
   const gx = g * (W / 2 - GW / 2);          // garage centre
   const Wn = W - GW, nx = -g * (GW / 2);    // the rest of the front: width, centre
-
-  // Body + garage.
-  box('solid', wall, W, H1, D - GP, 0, H1 / 2, -GP / 2);
-  box('solid', wall, GW, H1, GP + 0.05, gx, H1 / 2, D / 2 - GP / 2);
-  box('solid', GARAGE[h.seed % 3], 4.9, 2.25, 0.07, gx, 1.125, D / 2 + 0.03);
-  for (const y of [0.6, 1.15, 1.7]) box('solid', '#9a9488', 4.9, 0.025, 0.075, gx, y, D / 2 + 0.032);
-  for (const sx of [-1, 1]) box('solid', TRIM, 0.16, 2.4, 0.09, gx + sx * 2.53, 1.2, D / 2 + 0.03);
-  box('solid', TRIM, 5.2, 0.16, 0.09, gx, 2.33, D / 2 + 0.03);
-  // Stone below the front window, the door, a little porch.
-  box('solid', STONE, Wn, 1.0, 0.1, nx, 0.5, zf + 0.04);
-  const dx = nx + g * (Wn / 2 - 0.95), wx = nx - g * (Wn / 2 - 1.75);
-  box('solid', DOOR[h.door], 1.0, 2.15, 0.08, dx, 1.075, zf + 0.05);
-  box('solid', TRIM, 1.24, 2.3, 0.05, dx, 1.15, zf + 0.03);
-  box('solid', DRIVE, 1.7, 0.14, 1.3, dx, 0.07, zf + 0.65);
-  box('solid', TRIM, 2.3, 0.14, 1.5, dx, H1 - 0.35, zf + 0.75);
-  box('solid', TRIM, 0.16, H1 - 0.4, 0.16, dx - g * 0.95, (H1 - 0.4) / 2, zf + 1.35);
-  box('solid', TRIM, 2.1, 1.75, 0.05, wx, 1.6, zf + 0.03);
-  box('glass', GLASS, 1.85, 1.5, 0.05, wx, 1.6, zf + 0.05);
-  if (rnd() < 0.6) box('lit', LIT[Math.floor(rnd() * 4)], 1.75, 1.4, 0.03, wx, 1.6, zf + 0.085);
-  // Side windows.
-  for (const sx of [-1, 1]) for (const lz of [-D / 4, D / 8]) {
-    box('glass', GLASS, 0.05, 1.3, 1.3, sx * (W / 2 + 0.02), 1.65, lz - GP / 2);
-    if (rnd() < 0.3) box('lit', LIT[Math.floor(rnd() * 4)], 0.03, 1.2, 1.2, sx * (W / 2 + 0.05), 1.65, lz - GP / 2);
-  }
   const bodyD = D - GP;
-  if (h.storeys === 2) {
-    // Upstairs sits back from the front; a skirt roof covers the ground floor.
-    const uD = bodyD - 3.2, uz = -GP / 2 - 1.6, H2 = 2.7;
-    box('solid', upper, W - 0.5, H2, uD, 0, H1 + H2 / 2, uz);
-    roof(rf, uD + 0.9, 2.3, W + 0.4, 0, H1 + H2, uz, true, (W + 0.4) / 2 * 0.8);
-    roof(rf, W + 0.9, 1.25, 4.6, 0, H1, zf - 1.6, false, 1.6);
-    for (const k of [-1, 1]) {
-      const ux = k * (W / 2 - 2.2);
-      box('solid', TRIM, 1.6, 1.5, 0.05, ux, H1 + 1.45, uz + uD / 2 + 0.03);
-      box('glass', GLASS, 1.4, 1.3, 0.05, ux, H1 + 1.45, uz + uD / 2 + 0.05);
-      if (rnd() < 0.5) box('lit', LIT[Math.floor(rnd() * 4)], 1.3, 1.2, 0.03, ux, H1 + 1.45, uz + uD / 2 + 0.085);
-    }
-  } else {
-    roof(rf, bodyD + 0.9, 2.5, W + 0.9, 0, H1, -GP / 2, true, (W + 0.9) / 2 * 0.82);
+
+  // Body + garage block.
+  box('solid', wall, W, H1, bodyD, 0, H1 / 2, -GP / 2);
+  box('solid', wall, GW, H1, GP + 0.05, gx, H1 / 2, D / 2 - GP / 2);
+  // Two single garage doors with a brick pier between, stone at the base.
+  for (const k of [-1, 1]) {
+    box('solid', gar, 2.45, 2.2, 0.07, gx + k * 1.42, 1.1, D / 2 + 0.03);
+    for (const y of [0.55, 1.1, 1.65]) box('solid', '#6b665e', 2.45, 0.02, 0.075, gx + k * 1.42, y, D / 2 + 0.032);
+    box('solid', '#2a2a2a', 0.1, 0.22, 0.08, gx + k * 1.42, 1.25, D / 2 + 0.04);
   }
-  // The gable over the garage: wall-coloured, with the roof framing it.
-  roof(wall, GP + 1.8, 1.5, GW, gx, H1, D / 2 - (GP + 1.8) / 2, true, 0);
-  roof(rf, GP + 2.8, 1.72, GW + 0.7, gx, H1 - 0.06, D / 2 - 0.06 - (GP + 2.8) / 2, true, 0);
+  for (const k of [-1, 0, 1]) box('solid', STONE, 0.42, 0.95, 0.12, gx + k * 2.84, 0.475, D / 2 + 0.03);
+  // The front room: its own little block, with the arched window.
+  const fw = Wn - 1.7, fx = nx - g * 0.85, fz = zf + 0.9;
+  box('solid', wall, fw, H1, 1.0, fx, H1 / 2, zf + 0.45);
+  box('solid', TRIM, 2.3, 1.9, 0.06, fx, 1.55, fz + 0.03);
+  box('glass', GLASS, 2.1, 1.7, 0.06, fx, 1.55, fz + 0.05);
+  { const [ax, az] = P(fx, fz + 0.035); b.cyl('glass', GLASS, 1.05, 1.05, 0.06, ax, 2.4, az, 14, Math.PI / 2, 0, h.ry); }
+  if (rnd() < 0.6) box('lit', LIT[Math.floor(rnd() * 4)], 2.0, 1.6, 0.03, fx, 1.55, fz + 0.09);
+  for (const k of [-1, 0, 1]) box('solid', TRIM, 0.05, 1.7, 0.07, fx + k * 0.7, 1.55, fz + 0.06);
+  box('solid', TRIM, 2.1, 0.05, 0.07, fx, 1.6, fz + 0.06);
+  // The door, set back between the garage and the front room.
+  const dx = nx + g * (Wn / 2 - 0.85);
+  box('solid', TRIM, 1.25, 2.35, 0.05, dx, 1.17, zf + 0.03);
+  box('solid', DOOR[h.door], 1.0, 2.2, 0.08, dx, 1.1, zf + 0.05);
+  for (const y of [0.6, 1.05, 1.5, 1.95]) box('glass', GLASS, 0.5, 0.32, 0.09, dx, y, zf + 0.055);
+  box('solid', DRIVE, 1.7, 0.14, GP + 0.9, dx, 0.07, zf + (GP + 0.9) / 2);
+  // Side windows.
+  for (const sx of [-1, 1]) for (const lz of [-D / 4, D / 10]) {
+    box('glass', GLASS, 0.05, 1.3, 1.2, sx * (W / 2 + 0.02), 1.65, lz - GP / 2);
+    if (rnd() < 0.3) box('lit', LIT[Math.floor(rnd() * 4)], 0.03, 1.2, 1.1, sx * (W / 2 + 0.05), 1.65, lz - GP / 2);
+  }
+  // Roofs: the long charcoal hip, then the gables to the street.
+  if (h.storeys === 2) {
+    // A few have rooms upstairs at the back, under a second hip.
+    const uD = bodyD * 0.5, uz = -GP / 2 - bodyD * 0.2, H2 = 2.6;
+    box('solid', wall, W - 0.4, H2, uD, 0, H1 + H2 / 2, uz);
+    roof(rf, uD + 0.9, 2.6, W + 0.5, 0, H1 + H2, uz, true, (W + 0.5) / 2 * 0.8);
+    for (const k of [-1, 1]) box('glass', GLASS, 1.3, 1.2, 0.05, k * (W / 2 - 2.4), H1 + 1.4, uz + uD / 2 + 0.04);
+  }
+  roof(rf, bodyD + 0.9, 3.3, W + 0.9, 0, H1, -GP / 2, true, (W + 0.9) / 2 * 0.9);
+  gable(gx, GW + 0.1, 2.7, D / 2 + 0.02, 5.2);
+  gable(fx, fw + 0.1, 2.3, zf + 0.97, 4.6);
+  // Gable trim: a little window high in each, and (on some) a centre dormer.
+  box('glass', GLASS, 0.55, 0.75, 0.05, gx, H1 + 1.0, D / 2 + 0.05);
+  if (h.seed % 3 !== 0) {
+    roof(wall, 3.2, 1.5, 2.3, dx, H1 + 1.3, zf - 1.6, true, 0);
+    roof(rf, 3.8, 1.72, 2.9, dx, H1 + 1.25, zf - 1.95, true, 0);
+    box('glass', GLASS, 0.5, 0.5, 0.05, dx, H1 + 1.75, zf + 0.02);
+  }
+  // Planting: clipped evergreens either side of the window, a flower bed.
+  for (const k of [-1, 1]) { const [ex, ez] = P(fx + k * 1.55, fz + 0.7); b.cyl('solid', '#2f6b3a', 0.05, 0.42, 1.6, ex, 0.8, ez, 6); }
+  box('solid', '#3f7a3d', fw + 0.6, 0.35, 0.9, fx, 0.18, fz + 1.5);
+  box('solid', ['#d9508a', '#e8c23a', '#c8382e', '#8a5fc4'][h.seed % 4], fw - 0.4, 0.14, 0.5, fx, 0.42, fz + 1.6);
   // Driveway, a car on some, the fenced back yard, a young tree out front.
-  box('ground', DRIVE, 5.3, 0.03, h.drive + 0.5, gx, 0.03, D / 2 + (h.drive + 0.5) / 2);
-  if (h.car >= 0) { const [x, z] = P(gx - 1.1 + (h.seed % 2) * 2.2, D / 2 + 3.3); car(b, x, z, CAR_COLORS[h.car % CAR_COLORS.length], h.ry); }
-  const fw = LOT_W - 0.7, back = -D / 2 - YARD_BACK + 0.4, sideLen = YARD_BACK + D * 0.4;
-  box('solid', CEDAR, fw, 1.8, 0.08, 0, 0.9, back);
-  for (const sx of [-1, 1]) box('solid', CEDAR, 0.08, 1.8, sideLen, sx * fw / 2, 0.9, back + sideLen / 2);
-  const [tx, tz] = P(-g * (W / 2 - 1.4), D / 2 + 3.6);
-  tree(b, tx, tz, 0.75 + rnd() * 0.35, rnd);
+  box('ground', DRIVE, 5.9, 0.03, h.drive + 0.5, gx, 0.03, D / 2 + (h.drive + 0.5) / 2);
+  if (h.car >= 0) { const [x, z] = P(gx - 1.4 + (h.seed % 2) * 2.8, D / 2 + 3.3); car(b, x, z, CAR_COLORS[h.car % CAR_COLORS.length], h.ry); }
+  const fwid = LOT_W - 0.3, back = -D / 2 - YARD_BACK + 0.3, sideLen = YARD_BACK + D * 0.55;
+  box('solid', CEDAR, fwid, 1.85, 0.08, 0, 0.92, back);
+  for (const sx of [-1, 1]) box('solid', CEDAR, 0.08, 1.85, sideLen, sx * fwid / 2, 0.92, back + sideLen / 2);
+  const [tx, tz] = P(-g * (W / 2 - 1.2), D / 2 + 4.6);
+  tree(b, tx, tz, 0.7 + rnd() * 0.3, rnd);
 }
 
 // ------------------------------------------------------------------- build --
@@ -202,30 +224,52 @@ function buildColony() {
     const pw = PLAZA.x1 - PLAZA.x0, pd = PLAZA.z1 - PLAZA.z0, pcx = (PLAZA.x0 + PLAZA.x1) / 2, pcz = (PLAZA.z0 + PLAZA.z1) / 2;
     b.box('ground', '#d8d3c6', pw, 0.03, pd, pcx, 0.04, pcz);
     for (let k = 0; k < 5; k++) b.box('ground', '#c4bca9', pw, 0.031, 0.3, pcx, 0.041, PLAZA.z0 + 4 + k * 8);
-    // Lakehouse lot, school lot, courts.
-    for (const lot of [LAKEHOUSE_LOT, SCHOOL.lot]) {
+    // Lakehouse lot; the school's two lots, with grass islands and light poles.
+    for (const lot of [LAKEHOUSE_LOT, SCHOOL.lot, SCHOOL.lot2]) {
       b.box('ground', ASPHALT, lot.x1 - lot.x0, 0.03, lot.z1 - lot.z0, (lot.x0 + lot.x1) / 2, 0.04, (lot.z0 + lot.z1) / 2);
       for (let x = lot.x0 + 3; x < lot.x1 - 2; x += 2.8) for (const z of [lot.z0 + 3, lot.z1 - 3]) b.box('ground', '#e8e4d8', 0.12, 0.031, 5, x, 0.042, z);
     }
-    b.box('ground', ASPHALT, 6, 0.03, 16, SCHOOL.lot.x0 - 2, 0.04, SCHOOL.lot.z0 - 7);
+    {
+      const L = SCHOOL.lot, mz = (L.z0 + L.z1) / 2;
+      b.box('ground', '#e8e4d8', L.x1 - L.x0 - 24, 0.031, 0.12, (L.x0 + L.x1) / 2, 0.042, mz);
+      for (let x = L.x0 + 14; x < L.x1 - 12; x += 2.8) b.box('ground', '#e8e4d8', 0.12, 0.031, 9.6, x, 0.042, mz);
+      for (const ix of [L.x0 + 6, (L.x0 + L.x1) / 2, L.x1 - 6]) {
+        b.box('ground', KERB, 8, 0.1, 5, ix, 0.06, mz);
+        b.box('ground', '#6fae52', 7.4, 0.11, 4.4, ix, 0.07, mz);
+      }
+      // The drop-off: a red fire-lane kerb and the paved forecourt up to the doors.
+      b.box('ground', '#c8382e', L.x1 - L.x0 + 8, 0.12, 0.3, (L.x0 + L.x1) / 2, 0.06, L.z1 + 11.6);
+      const E = SCHOOL.entry;
+      b.box('ground', DRIVE, 96, 0.03, 4.6, (L.x0 + L.x1) / 2 + 4, 0.045, L.z1 + 14);
+      b.box('ground', DRIVE, E.w + 6, 0.03, E.z - (L.z1 + 12), E.x, 0.046, (E.z + L.z1 + 12) / 2);
+      const C = SCHOOL.court;
+      b.box('ground', '#d2c6a8', C.x1 - C.x0, 0.03, C.z1 - C.z0, (C.x0 + C.x1) / 2, 0.04, (C.z0 + C.z1) / 2);
+      // A painted cougar-paw trail from the kerb to the doors (navy + green).
+      for (let k = 0; k < 6; k++) {
+        const pz = L.z1 + 14 + k * 2.6, px = E.x + (k % 2 ? 0.7 : -0.7);
+        b.cyl('ground', k % 2 ? SCH.green : SCH.navy, 0.34, 0.34, 0.012, px, 0.066, pz, 10);
+        for (const t of [-0.34, -0.12, 0.12, 0.34]) b.cyl('ground', k % 2 ? SCH.green : SCH.navy, 0.12, 0.12, 0.012, px + t, 0.066, pz - 0.46 + Math.abs(t) * 0.5, 8);
+      }
+    }
     for (const c of PICKLEBALL) {
-      b.box('ground', '#3f8f6a', 8.4, 0.03, 16, c.x, 0.04, c.z);
+      b.box('ground', '#3f8f6a', 8.6, 0.03, 16, c.x, 0.04, c.z);
       b.box('ground', '#3a6fb5', 6.1, 0.031, 13.4, c.x, 0.045, c.z);
       for (const lz of [-6.7, -2.13, 2.13, 6.7]) b.box('ground', '#f4f1e6', 6.1, 0.032, 0.08, c.x, 0.05, c.z + lz);
       for (const lx of [-3.05, 0, 3.05]) b.box('ground', '#f4f1e6', 0.08, 0.032, lx === 0 ? 9.1 : 13.4, c.x + lx, 0.05, c.z);
     }
-    // School field: a mown rectangle with a running loop.
-    const f = SCHOOL.field;
-    b.box('ground', '#7fb85a', f.rx * 2, 0.03, f.rz * 2, f.x, 0.02, f.z);
-    for (const sz of [-1, 1]) b.box('ground', '#f4f1e6', f.rx * 2, 0.031, 0.12, f.x, 0.03, f.z + sz * f.rz);
-    for (const sx of [-1, 0, 1]) b.box('ground', '#f4f1e6', 0.12, 0.031, f.rz * 2, f.x + sx * f.rx, 0.03, f.z);
-    // Playground mulch.
-    for (const p of [PARK_PLAY, SCHOOL.play, { x: 6, z: 3051 }]) b.cyl('ground', '#9b7a55', 8.5, 8.5, 0.03, p.x, 0.035, p.z, 16);
-    // Pump track: a dirt loop.
-    for (let k = 0; k < 40; k++) {
-      const a = (k / 40) * Math.PI * 2;
-      const x = PUMP_TRACK.x + Math.cos(a) * PUMP_TRACK.rx, z = PUMP_TRACK.z + Math.sin(a) * PUMP_TRACK.rz;
-      b.cyl('ground', '#b08a5c', 2.2, 2.6, 0.12 + 0.35 * Math.abs(Math.sin(a * 5)), x, 0.06, z, 8);
+    // Playground mulch (the school's is a hexagon, as in the aerial).
+    for (const p of [PARK_PLAY, { x: 6, z: 3051 }]) b.cyl('ground', '#9b7a55', 8.5, 8.5, 0.03, p.x, 0.035, p.z, 16);
+    b.cyl('ground', '#9b7a55', 9, 9, 0.03, SCHOOL.play.x, 0.035, SCHOOL.play.z, 6);
+    for (const sh of SCHOOL.shades) b.box('ground', '#a98a62', sh.s - 1, 0.03, sh.s - 1, sh.x, 0.035, sh.z);
+    // The pump track: a looping ribbon of concrete with rollers, on a lawn.
+    {
+      const T = PUMP_TRACK, pts: Pt[] = [];
+      for (let k = 0; k <= 72; k++) {
+        const a = (k / 72) * Math.PI * 2, wob = 1 + 0.32 * Math.sin(a * 3);
+        pts.push([T.x + Math.cos(a) * T.rx * wob * 0.8, T.z + Math.sin(a) * T.rz * (1 + 0.25 * Math.cos(a * 2))]);
+      }
+      ribbon(b, '#d8d5cb', pts, 2.2, 0.06);
+      for (let k = 0; k < 72; k += 4) b.cyl('ground', '#cfccc2', 1.1, 1.3, 0.34, pts[k][0], 0.12, pts[k][1], 8);
     }
     out.ground = b.build();
   }
@@ -241,7 +285,13 @@ function buildColony() {
   {
     const b = new Batch();
     // Pocket park: pavilion by the pool, benches, the pool fence, loungers.
-    pavilion(b, POCKET_PAVILION.x, POCKET_PAVILION.z, POCKET_PAVILION.w, POCKET_PAVILION.d, '#55504a');
+    {
+      const Pv = POCKET_PAVILION;
+      b.box('solid', STONE, Pv.w, 3, Pv.d, Pv.x, 1.5, Pv.z);
+      b.roof('solid', '#5d6f7a', Pv.d + 2.4, 1.9, Pv.w + 5, Pv.x, 3, Pv.z, Math.PI / 2, 0);
+      for (const dz of [-3, 3]) b.box('solid', '#3a3d42', 0.08, 2.1, 1, Pv.x + Pv.w / 2 + 0.02, 1.05, Pv.z + dz);
+      for (const dz of [-5.4, 0, 5.4]) b.box('solid', '#6b5a48', 0.24, 3, 0.24, Pv.x + Pv.w / 2 + 2.2, 1.5, Pv.z + dz);
+    }
     const deck = scalePoly(POCKET_POOL, 1, 4.5);
     for (let i = 0; i < deck.length; i++) {
       const a = deck[i], c = deck[(i + 1) % deck.length];
@@ -337,57 +387,112 @@ function buildColony() {
     for (let k = 0; k < 7; k++) car(b, LAKEHOUSE_LOT.x0 + 7 + k * 11.2, LAKEHOUSE_LOT.z0 + 3.4, CAR_COLORS[(k * 3 + 1) % CAR_COLORS.length], 0);
     // --- Lakehouse Park ---
     pavilion(b, PARK_PAVILION.x, PARK_PAVILION.z, PARK_PAVILION.w, PARK_PAVILION.d, '#5d6f7a');
-    for (const c of PICKLEBALL) {
-      b.box('solid', '#22262b', 6.3, 0.9, 0.04, c.x, 0.47, c.z);
-      for (const sx of [-1, 1]) b.cyl('solid', '#22262b', 0.04, 0.04, 1, c.x + sx * 3.15, 0.5, c.z, 6);
+    {
+      const cx = (PICKLEBALL[0].x + PICKLEBALL[1].x) / 2, cz = PICKLEBALL[0].z;
+      for (const c of PICKLEBALL) {
+        b.box('solid', '#22262b', 6.3, 0.9, 0.04, c.x, 0.47, c.z);
+        for (const sx of [-1, 1]) b.cyl('solid', '#22262b', 0.04, 0.04, 1, c.x + sx * 3.15, 0.5, c.z, 6);
+      }
+      // Black chain-link round the courts (see-through: rails + posts).
+      for (const sz of [-1, 1]) for (const y of [0.1, 1.5, 3]) b.box('solid', '#22262b', 18, 0.05, 0.05, cx, y, cz + sz * 8.2);
+      for (const sx of [-1, 1]) for (const y of [0.1, 1.5, 3]) b.box('solid', '#22262b', 0.05, 0.05, 16.4, cx + sx * 9, y, cz);
+      for (const sx of [-1, 0, 1]) for (const sz of [-1, 1]) b.box('solid', '#22262b', 0.07, 3, 0.07, cx + sx * 9, 1.5, cz + sz * 8.2);
+      bench(b, cx + 11, cz, Math.PI / 2);
     }
-    for (const sz of [-1, 1]) b.box('solid', '#3a3f45', 20, 2.6, 0.04, -233, 1.3, 3183 + sz * 8.2);
-    bench(b, -246, 3183, Math.PI / 2); bench(b, -290, 3176, 0); bench(b, -316, 3196, Math.PI / 2);
+    bench(b, PARK_PLAY.x + 11, PARK_PLAY.z, Math.PI / 2); bench(b, PUMP_TRACK.x, PUMP_TRACK.z + 16, 0);
     b.box('solid', '#6b5a48', 3.2, 1.1, 0.25, PARK.x1 - 8, 1.2, PARK.z0 + 2);
     for (const sx of [-1, 1]) b.box('solid', '#6b5a48', 0.22, 1.7, 0.22, PARK.x1 - 8 + sx * 1.4, 0.85, PARK.z0 + 2);
 
-    // --- Colony Oaks Elementary ---
+    // --- Colony Oaks Elementary (see world/colony.ts for what it is drawn from) ---
     {
-      const S = SCHOOL, LIME = '#ddd3bd', DARK = '#474d55', BRICKS = '#a9694b', ACCENT = '#2f8f7a';
-      const block = (r: { x0: number; x1: number; z0: number; z1: number; h: number }, lower: string, upperC: string, split: number) => {
-        const w = r.x1 - r.x0, d = r.z1 - r.z0, cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
-        b.box('solid', lower, w, split, d, cx, split / 2, cz);
-        b.box('solid', upperC, w + 0.3, r.h - split, d + 0.3, cx, (r.h + split) / 2, cz);
-        b.box('solid', '#33383f', w + 0.6, 0.3, d + 0.6, cx, r.h + 0.15, cz);
-      };
-      block(S.bar, LIME, DARK, 4.3);
-      block(S.wing, LIME, DARK, 4.3);
-      block(S.gym, BRICKS, BRICKS, 6);
-      b.box('solid', ACCENT, S.bar.x1 - S.gym.x1 + 0.4, 0.5, 0.2, (S.gym.x1 + S.bar.x1) / 2, 4.55, S.bar.z0 - 0.2);
-      b.box('solid', ACCENT, 0.2, 0.5, S.wing.z1 - S.bar.z0 + 0.4, S.wing.x1 + 0.2, 4.55, (S.bar.z0 + S.wing.z1) / 2);
-      // Classroom windows: two rows along every long face.
-      const row = (x0: number, x1: number, z: number, face: number, alongX: boolean) => {
-        for (const y of [2.2, 6.4]) for (let t = x0 + 3; t < x1 - 2.5; t += 5.2) {
-          const lit = rnd() < 0.35;
-          if (alongX) { b.box('glass', GLASS, 3.6, 1.7, 0.08, t, y, z + face * 0.2); if (lit) b.box('lit', LIT[Math.floor(rnd() * 4)], 3.4, 1.5, 0.04, t, y, z + face * 0.26); }
-          else { b.box('glass', GLASS, 0.08, 1.7, 3.6, z + face * 0.2, y, t); if (lit) b.box('lit', LIT[Math.floor(rnd() * 4)], 0.04, 1.5, 3.4, z + face * 0.26, y, t); }
+      const S = SCHOOL;
+      for (const k of S.blocks) {
+        const w = k.x1 - k.x0, d = k.z1 - k.z0, cx = (k.x0 + k.x1) / 2, cz = (k.z0 + k.z1) / 2;
+        b.box('solid', k.kind === 'brick' ? SCH.brick : SCH.cream, w, k.h, d, cx, k.h / 2, cz);
+        // Parapet cap, white roof, rooftop air handlers.
+        b.box('solid', SCH.metal, w + 0.3, 0.22, d + 0.3, cx, k.h + 0.11, cz);
+        b.box('solid', '#eeeeea', w - 0.6, 0.1, d - 0.6, cx, k.h + 0.2, cz);
+        for (let x = k.x0 + 5; x < k.x1 - 4; x += 7.5) for (let z = k.z0 + 5; z < k.z1 - 4; z += 9) b.box('solid', '#c9cdd0', 2.2, 1.1, 1.5, x, k.h + 0.8, z);
+        if (k.kind === 'brick') for (let y = 1.1; y < k.h; y += 1.15) {
+          // Brick laid in bands, a darker course every metre or so.
+          b.box('solid', SCH.band, w + 0.04, 0.16, d + 0.04, cx, y, cz);
+        }
+      }
+      // Window bays. `face`: which way the wall looks (n/s/e/w); t along it.
+      const bay = (kind: 'brick' | 'cream', x: number, z: number, face: 'n' | 's' | 'e' | 'w', wide: number) => {
+        const ns = face === 'n' || face === 's', out = face === 'n' || face === 'w' ? -1 : 1;
+        const put = (group: string, color: string, along: number, hh: number, y: number, off: number, shift = 0) => {
+          const t = 0.08;
+          if (ns) b.box(group, color, along, hh, t, x + shift, y, z + out * off);
+          else b.box(group, color, t, hh, along, x + out * off, y, z + shift);
+        };
+        if (kind === 'cream') {
+          // Cream wings: a tall brown strip per bay holding two stacked windows,
+          // with a slim green fin beside it.
+          put('solid', SCH.panel, wide + 0.5, 7.2, 4.4, 0.05);
+          for (const y of [2.2, 6.2]) { put('glass', GLASS, wide, 1.9, y, 0.1); if (rnd() < 0.3) put('lit', LIT[Math.floor(rnd() * 4)], wide - 0.2, 1.7, y, 0.16); }
+          put('solid', SCH.green, 0.22, 7.2, 4.4, 0.12, wide / 2 + 0.36);
+        } else {
+          for (const y of [2.1, 6.3]) {
+            put('glass', GLASS, wide, 2.1, y, 0.1);
+            put('solid', '#1d2126', wide + 0.16, 0.08, y + 1.05, 0.12); put('solid', '#1d2126', wide + 0.16, 0.08, y - 1.05, 0.12);
+            put('solid', SCH.green, 0.3, 2.1, y, 0.12, wide / 2 + 0.2);
+            if (rnd() < 0.3) put('lit', LIT[Math.floor(rnd() * 4)], wide - 0.2, 1.9, y, 0.16);
+          }
         }
       };
-      row(S.gym.x1, S.entry.x - 7, S.bar.z0, -1, true);
-      row(S.gym.x1, S.wing.x0, S.bar.z1, 1, true);
-      row(S.bar.z0 + 4, S.wing.z1, S.wing.x1, 1, false);
-      row(S.bar.z1, S.wing.z1, S.wing.x0, -1, false);
-      for (let t = S.gym.x0 + 4; t < S.gym.x1 - 2; t += 6) b.box('glass', GLASS, 3.6, 1.4, 0.08, t, 9.2, S.gym.z0 - 0.06);
-      // The entrance: a two-storey glass front under a deep canopy.
-      b.box('glass', '#35506a', 12, 7.4, 0.3, S.entry.x, 3.9, S.entry.z - 0.4);
-      b.box('lit', LIT[3], 11.4, 6.8, 0.05, S.entry.x, 3.9, S.entry.z - 0.6);
-      for (let k = -2; k <= 2; k++) b.box('solid', '#e8e4d8', 0.14, 7.4, 0.36, S.entry.x + k * 3, 3.9, S.entry.z - 0.42);
-      for (const y of [2.6, 5.1]) b.box('solid', '#e8e4d8', 12, 0.14, 0.36, S.entry.x, y, S.entry.z - 0.42);
-      b.box('solid', ACCENT, 15, 0.35, 7, S.entry.x, 4.0, S.entry.z - 3.9);
-      for (const sx of [-1, 1]) for (const dz of [-1.2, -6.6]) b.cyl('solid', '#e8e4d8', 0.16, 0.16, 3.85, S.entry.x + sx * 6.6, 1.92, S.entry.z + dz, 8);
-      for (const sx of [-1, 1]) b.box('solid', '#7a1f1f', 1.1, 2.3, 0.1, S.entry.x + sx * 0.6, 1.15, S.entry.z - 0.62);
-      b.box('ground', DRIVE, 20, 0.03, 12, S.entry.x, 0.045, S.entry.z - 5.6);
-      // Name band over the doors (the lettering is Text), the sign by the road.
-      b.box('solid', '#f1ece0', 38, 2.0, 0.12, S.entry.x - 27, 6.9, S.bar.z0 - 0.26);
-      b.box('solid', STONE, 6.4, 1.1, 1.0, S.sign.x, 0.55, S.sign.z);
-      b.box('solid', '#f1ece0', 5.6, 1.2, 0.5, S.sign.x, 1.7, S.sign.z);
-      b.box('solid', ACCENT, 6.0, 0.18, 0.7, S.sign.x, 2.39, S.sign.z);
-      // Flags.
+      const run = (kind: 'brick' | 'cream', a0: number, a1: number, fixed: number, face: 'n' | 's' | 'e' | 'w', step: number, wide: number) => {
+        const n = Math.max(1, Math.floor((a1 - a0 - 2) / step));
+        for (let i = 0; i < n; i++) {
+          const t = a0 + (a1 - a0) * ((i + 0.5) / n);
+          if (face === 'n' || face === 's') bay(kind, t, fixed, face, wide); else bay(kind, fixed, t, face, wide);
+        }
+      };
+      const [office, east, mid, west, gym] = S.blocks;
+      run('brick', office.x0, office.x1, office.z0, 'n', 5.6, 3.2);
+      run('brick', office.z0, office.z1, office.x0, 'w', 7, 3.2);
+      run('brick', office.z0, east.z0, office.x1, 'e', 5, 2.6);
+      run('cream', office.x1, east.x1, east.z0, 'n', 5.4, 1.7);
+      run('cream', east.x0 + 16, east.x1, east.z1, 's', 5.4, 1.7);
+      run('cream', east.z0, east.z1, east.x1, 'e', 9, 1.7);
+      run('cream', west.x0, mid.x0, west.z0, 'n', 5.4, 1.7);
+      run('cream', west.x0, gym.x0, west.z1, 's', 5.4, 1.7);
+      run('cream', west.z0, west.z1, west.x0, 'w', 9, 1.7);
+      run('cream', S.entry.x + S.entry.w / 2 + 1, office.x0, mid.z0, 'n', 4, 1.4);
+      for (let x = gym.x0 + 5; x < gym.x1 - 3; x += 7) b.box('glass', GLASS, 3.4, 1.3, 0.08, x, 9, gym.z1 + 0.06);
+      // The outside stair at the west end of the west wing.
+      for (let k = 0; k < 9; k++) b.box('solid', SCH.metal, 1.5, 0.12, 0.9, west.x0 - 0.9, 0.45 + k * 0.5, west.z0 + 4 + k * 0.9);
+      b.box('solid', SCH.metal, 1.6, 0.12, 2.4, west.x0 - 0.9, 4.6, west.z0 + 13.1);
+      for (const dz of [4, 14.2]) b.box('solid', '#6b7076', 0.12, 4.6, 0.12, west.x0 - 1.6, 2.3, west.z0 + dz);
+
+      // The entrance: a two-storey wall of glass under a deep grey canopy on
+      // slim green columns, the school's name along the canopy's edge.
+      const E = S.entry, ch = 6.2, cd = 9;
+      b.box('glass', '#2b3d4d', E.w, 8, 0.3, E.x, 4.1, E.z + 0.1);
+      b.box('lit', LIT[3], E.w - 0.6, 7.2, 0.05, E.x, 4.1, E.z - 0.1);
+      for (let k = -2; k <= 2; k++) b.box('solid', '#1d2126', 0.12, 8, 0.36, E.x + (k * E.w) / 4.4, 4.1, E.z + 0.05);
+      for (const y of [2.7, 5.4]) b.box('solid', '#1d2126', E.w, 0.12, 0.36, E.x, y, E.z + 0.05);
+      b.box('solid', SCH.metal, E.w + 9, 1.25, cd, E.x + 1.5, ch + 0.62, E.z - cd / 2 + 0.2);
+      b.box('solid', '#8d9297', E.w + 9.3, 0.14, cd + 0.3, E.x + 1.5, ch + 1.3, E.z - cd / 2 + 0.2);
+      for (const k of [-1.5, -0.5, 0.5, 1.5]) for (const dz of [-1.4, -cd + 1]) b.cyl('solid', SCH.green, 0.11, 0.11, ch, E.x + 1.5 + k * ((E.w + 6) / 3), ch / 2, E.z + dz, 8);
+      for (const sx of [-1, 1]) b.box('solid', '#1d2126', 1.05, 2.4, 0.1, E.x + sx * 0.56, 1.2, E.z - 0.12);
+      // The covered walk along the brick block: a thin grey roof on green posts.
+      const Wk = S.walk, wl = Wk.x1 - Wk.x0;
+      b.box('solid', SCH.metal, wl, 0.16, Wk.z1 - Wk.z0, (Wk.x0 + Wk.x1) / 2, 3.25, (Wk.z0 + Wk.z1) / 2);
+      for (let x = Wk.x0 + 0.6; x <= Wk.x1; x += 4.4) {
+        b.cyl('solid', SCH.green, 0.08, 0.08, 3.2, x, 1.6, Wk.z0 + 0.5, 8);
+        b.box('solid', SCH.green, 0.1, 0.1, Wk.z1 - Wk.z0 - 0.4, x, 3.12, (Wk.z0 + Wk.z1) / 2);
+      }
+      // Lime-green shade sails on steel posts.
+      for (const sh of S.shades) {
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.cyl('solid', '#5f666c', 0.14, 0.14, 4.6, sh.x + sx * (sh.s / 2 - 0.5), 2.3, sh.z + sz * (sh.s / 2 - 0.5), 8);
+        b.roof('solid', SCH.lime, sh.s, 2.4, sh.s, sh.x, 4.3, sh.z, 0, sh.s / 2 - 0.4);
+      }
+      // The sign by the road, in the school's navy and green.
+      b.box('solid', STONE, 7, 0.9, 1.1, S.sign.x, 0.45, S.sign.z);
+      b.box('solid', SCH.navy, 6.4, 1.5, 0.5, S.sign.x, 1.65, S.sign.z);
+      b.box('solid', SCH.green, 6.6, 0.2, 0.6, S.sign.x, 2.5, S.sign.z);
+      // Flags by the door.
       for (const [k, cols] of [[0, ['#b22234', '#ffffff', '#3c3b6e']], [1, ['#bf0a30', '#ffffff', '#002868']]] as [number, string[]][]) {
         const fx = S.flags.x - k * 3;
         b.cyl('solid', '#c9ccd1', 0.06, 0.08, 9, fx, 4.5, S.flags.z, 8);
@@ -395,31 +500,35 @@ function buildColony() {
         b.box('solid', cols[0], 2.2, 0.65, 0.04, fx + 1.15, 7.77, S.flags.z);
         b.box('solid', cols[2], k ? 0.75 : 0.95, k ? 1.3 : 0.7, 0.05, fx + (k ? 0.4 : 0.5), k ? 8.1 : 8.4, S.flags.z);
       }
-      // Covered play court + a few cars in the lot + bike racks.
-      const sh = S.shade;
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.cyl('solid', '#e8e4d8', 0.14, 0.14, 5, sh.x + sx * (sh.w / 2 - 0.4), 2.5, sh.z + sz * (sh.d / 2 - 0.4), 8);
-      b.roof('solid', ACCENT, sh.w + 1, 1.2, sh.d + 1, sh.x, 5, sh.z, 0, 0);
-      b.box('ground', '#8a8f96', sh.w, 0.03, sh.d, sh.x, 0.04, sh.z);
-      b.cyl('solid', '#c9ccd1', 0.06, 0.06, 3.05, sh.x - sh.w / 2 + 1, 1.52, sh.z, 6);
-      b.box('solid', '#f4f1e6', 0.05, 1.05, 1.8, sh.x - sh.w / 2 + 1.3, 3.3, sh.z);
-      for (let k = 0; k < 9; k++) car(b, S.lot.x0 + 6 + k * 6.4, S.lot.z0 + 3.2 + (k % 2) * (S.lot.z1 - S.lot.z0 - 6.4), CAR_COLORS[(k * 5 + 2) % CAR_COLORS.length], 0);
+      // Cars in both lots, light poles, a basketball goal on the court.
+      const L = S.lot;
+      for (let k = 0; k < 14; k++) car(b, L.x0 + 5 + k * 6.9, (k % 3 === 0 ? L.z0 + 3.2 : k % 3 === 1 ? (L.z0 + L.z1) / 2 - 2.6 : L.z1 - 3.2), CAR_COLORS[(k * 5 + 2) % CAR_COLORS.length], 0);
+      for (let k = 0; k < 5; k++) car(b, S.lot2.x0 + 5 + k * 8, S.lot2.z0 + 3.2, CAR_COLORS[(k * 3 + 4) % CAR_COLORS.length], 0);
+      for (const lx of [L.x0 + 20, (L.x0 + L.x1) / 2, L.x1 - 20]) {
+        b.cyl('solid', '#8d9297', 0.1, 0.13, 7.5, lx, 3.75, (L.z0 + L.z1) / 2, 8);
+        b.box('solid', '#8d9297', 2.2, 0.12, 0.3, lx, 7.5, (L.z0 + L.z1) / 2);
+        for (const sx of [-1, 1]) b.box('glow', '#fff1cf', 0.7, 0.06, 0.34, lx + sx * 0.9, 7.42, (L.z0 + L.z1) / 2);
+      }
+      const C = S.court;
       for (const sx of [-1, 1]) {
-        b.cyl('solid', '#f4f1e6', 0.05, 0.05, 2.2, S.field.x + sx * S.field.rx, 1.1, S.field.z - 3.6, 6);
-        b.cyl('solid', '#f4f1e6', 0.05, 0.05, 2.2, S.field.x + sx * S.field.rx, 1.1, S.field.z + 3.6, 6);
-        b.box('solid', '#f4f1e6', 0.08, 0.08, 7.3, S.field.x + sx * S.field.rx, 2.2, S.field.z);
+        const gx = sx < 0 ? C.x0 + 1 : C.x1 - 1;
+        b.cyl('solid', '#c9ccd1', 0.07, 0.07, 3.3, gx, 1.65, (C.z0 + C.z1) / 2, 6);
+        b.box('solid', '#f4f1e6', 0.05, 1.05, 1.8, gx - sx * 0.5, 3.3, (C.z0 + C.z1) / 2);
       }
       // School-zone signs on Sam Houston Drive.
       for (const x of [-405, -545]) { b.cyl('solid', '#7c838a', 0.045, 0.045, 2.6, x, 1.3, 3142, 6); b.box('solid', '#e8e337', 0.9, 0.9, 0.04, x, 2.5, 3142, 0, 0, Math.PI / 4); }
     }
     // Trees west of the line: round the lake, the park, the school grounds.
-    const blocked = (x: number, z: number) => STREETS.some((s) => distToLine(x, z, s.pts) < s.w / 2 + 3.2) || inPoly(x, z, scalePoly(LAKE, 1, 9))
-      || [SCHOOL.bar, SCHOOL.gym, SCHOOL.wing, SCHOOL.lot, LAKEHOUSE, LAKEHOUSE_LOT, PLAZA].some((r) => x > r.x0 - 5 && x < r.x1 + 5 && z > r.z0 - 5 && z < r.z1 + 5)
-      || (x > LAKEHOUSE_POOL.x0 - 7 && x < LAKEHOUSE_POOL.x1 + 7 && z > LAKEHOUSE_POOL.z0 - 7 && z < LAKEHOUSE_POOL.z1 + 16)
-      || (Math.abs(x - SCHOOL.field.x) < SCHOOL.field.rx + 2 && Math.abs(z - SCHOOL.field.z) < SCHOOL.field.rz + 2)
-      || (x > -256 && x < -218 && z > 3172 && z < 3194) || Math.hypot(x - PARK_PLAY.x, z - PARK_PLAY.z) < 11 || Math.hypot(x - SCHOOL.play.x, z - SCHOOL.play.z) < 11
-      || Math.hypot((x - PUMP_TRACK.x) / (PUMP_TRACK.rx + 4), (z - PUMP_TRACK.z) / (PUMP_TRACK.rz + 4)) < 1
-      || (x > SCHOOL.entry.x - 14 && x < SCHOOL.entry.x + 14 && z > 3176 && z < 3194)
-      || Math.hypot(x - SCHOOL.shade.x, z - SCHOOL.shade.z) < 12 || x > RAIL_MID_X - 15;
+    const lake9 = scalePoly(LAKE, 1, 9);
+    const near = (r: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number, m: number) => x > r.x0 - m && x < r.x1 + m && z > r.z0 - m && z < r.z1 + m;
+    const blocked = (x: number, z: number) => STREETS.some((s) => distToLine(x, z, s.pts) < s.w / 2 + 3.2) || inPoly(x, z, lake9)
+      || [...SCHOOL.blocks, SCHOOL.lot, SCHOOL.lot2, SCHOOL.court, LAKEHOUSE, LAKEHOUSE_LOT, PLAZA].some((r) => near(r, x, z, 5))
+      || near(LAKEHOUSE_POOL, x, z, 8) || (x > LAKEHOUSE.x0 - 3 && x < LAKEHOUSE.x1 + 3 && z > LAKEHOUSE.z1 && z < LAKEHOUSE.z1 + 16)
+      || near({ x0: SCHOOL.lot.x0, x1: SCHOOL.lot.x1, z0: SCHOOL.lot.z1, z1: SCHOOL.entry.z }, x, z, 4)
+      || SCHOOL.shades.some((sh) => Math.hypot(x - sh.x, z - sh.z) < sh.s) || Math.hypot(x - SCHOOL.play.x, z - SCHOOL.play.z) < 12
+      || PICKLEBALL.some((c) => Math.abs(x - c.x) < 9 && Math.abs(z - c.z) < 11) || Math.hypot(x - PARK_PLAY.x, z - PARK_PLAY.z) < 11
+      || Math.hypot((x - PUMP_TRACK.x) / (PUMP_TRACK.rx + 5), (z - PUMP_TRACK.z) / (PUMP_TRACK.rz + 6)) < 1
+      || Math.hypot(x - PARK_PAVILION.x, z - PARK_PAVILION.z) < 9 || x > RAIL_MID_X - 15;
     let n = 0;
     for (let i = 0; i < 1400 && n < 210; i++) {
       const x = BOUNDS.x0 + 3 + rnd() * (RAIL_MID_X - 16 - BOUNDS.x0), z = BOUNDS.z0 + 3 + rnd() * (BOUNDS.z1 - BOUNDS.z0 - 6);
@@ -569,9 +678,9 @@ export function Colony() {
       {geo.flats.map((f, i) => <mesh key={i} geometry={f.g} material={flatMats[f.kind]} receiveShadow renderOrder={f.kind === 'pool' ? 3 : 0} />)}
       <Fountains />
       {/* Big live oaks where people gather (it is Colony OAKS, after all). */}
-      {([[-24, 3058, 1.5], [34, 3012, 1.7], [72, 3026, 1.3], [-52, 3018, 1.4], [-442, 3158, 1.5], [-534, 3160, 1.4], [-282, 3172, 1.5], [-322, 3222, 1.6], [-186, 3108, 1.2], [-250, 3040, 1.4]] as [number, number, number][])
+      {([[-24, 3058, 1.5], [34, 3012, 1.7], [72, 3026, 1.3], [-52, 3018, 1.4], [SCHOOL.lot.x0 - 9, 3160, 1.4], [SCHOOL.lot.x1 + 16, 3166, 1.5], [-296, 3170, 1.5], [-292, 3246, 1.6], [-236, 3214, 1.4], [-186, 3108, 1.2], [-250, 3040, 1.4]] as [number, number, number][])
         .map(([x, z, s], i) => <LiveOak key={i} position={[x, 0, z]} scale={s} seed={i + 70} />)}
-      {([[6, 3051], [PARK_PLAY.x, PARK_PLAY.z], [S.play.x, S.play.z]] as [number, number][])
+      {([[6, 3051], [PARK_PLAY.x, PARK_PLAY.z], [S.play.x, S.play.z], [S.shades[1].x, S.shades[1].z]] as [number, number][])
         .map(([x, z], i) => <GLBModel key={i} url={MODELS.playground.url} fitHeight={MODELS.playground.fitHeight} position={[x, 0, z]} rotationY={i * 1.3} />)}
 
       {/* Street-name blades. */}
@@ -592,10 +701,14 @@ export function Colony() {
       <Label x={LEMONADE.x} y={2.0} z={LEMONADE.z + 0.38} ry={0} text="LEMONADE 25¢" size={0.22} color="#7a4b12" />
       <Label x={(LAKEHOUSE.x0 + LAKEHOUSE.x1) / 2} y={4.3} z={LAKEHOUSE.z1 + 0.06} ry={0} text="THE LAKEHOUSE" size={0.6} color="#4a4034" />
       <Label x={PARK.x1 - 8} y={1.2} z={PARK.z0 + 1.86} ry={Math.PI} text="LAKEHOUSE PARK" size={0.3} color="#f4ead2" />
-      {/* The school's name: over the doors and on the sign by the road. */}
-      <Label x={S.entry.x - 27} y={6.9} z={S.bar.z0 - 0.34} ry={Math.PI} text="COLONY OAKS ELEMENTARY" size={1.55} color="#2f3a45" />
-      <Label x={S.sign.x} y={1.78} z={S.sign.z - 0.26} ry={Math.PI} text="COLONY OAKS" size={0.5} color="#2f3a45" />
-      <Label x={S.sign.x} y={1.32} z={S.sign.z - 0.26} ry={Math.PI} text="ELEMENTARY SCHOOL" size={0.26} color="#2f8f7a" />
+      {/* The school's name along the canopy's edge, and on the navy sign by the road. */}
+      <Label x={S.entry.x + 1.5} y={6.82} z={S.entry.z - 9 + 0.03} ry={Math.PI} text="COLONY OAKS ELEMENTARY SCHOOL" size={0.62} color="#2a2f36" />
+      {[1, -1].map((f) => (
+        <group key={f}>
+          <Label x={S.sign.x} y={1.86} z={S.sign.z + f * 0.26} ry={f > 0 ? 0 : Math.PI} text="COLONY OAKS" size={0.56} color="#ffffff" />
+          <Label x={S.sign.x} y={1.3} z={S.sign.z + f * 0.26} ry={f > 0 ? 0 : Math.PI} text="ELEMENTARY  ·  HOME OF THE COUGARS" size={0.21} color="#8fe08a" />
+        </group>
+      ))}
     </group>
   );
 }
