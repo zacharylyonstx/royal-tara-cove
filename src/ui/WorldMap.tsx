@@ -33,6 +33,7 @@ import {
   LAKELINE_BLVD_Z, PARMER_Z, CITY_STOPS, SIDE_PLAT_HALF, sidePlatX, LAKE_Z, RIVER_Z,
 } from '../world/redLine';
 import * as COLONY from '../world/colony';
+import { CITY_PLAZA, FOURTH, SQUARE, CONVENTION, CITY_SHOPS, CITY_SHOP_DEPTH, SKYLINE, TRAILER, CITY_WALK_Z, cityShopFront } from '../world/cityLine';
 import { PONDS, POCKET_PARK, POCKET_POOL } from '../world/colonyData';
 import { BURNET, PLAZA, STREET, LAWN, FOUNTAIN, SHOPS, SHOP_DEPTH, TOWERS, STAGE, PLAY, TACO_TRUCK, WALK_Z, shopFront } from '../world/domain';
 import { LOTS, SH45, CREEK, MOPAC, QUARRY } from '../world/corridor';
@@ -135,7 +136,10 @@ const DOMAIN_LANDMARKS: Landmark[] = [
 ];
 /** Downtown Austin. */
 const DOWNTOWN_LANDMARKS: Landmark[] = [
-  { x: RAIL_MID_X, z: STATIONS.downtown.z, icon: '🚆', label: 'Red Line trains', dx: 6, dz: -3, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.downtown).z1 + 2.5] },
+  { x: RAIL_MID_X, z: STATIONS.downtown.z, icon: '🚆', label: 'Red Line trains', dx: 8, dz: -3, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.downtown).z1 + 2.5] },
+  { x: (FOURTH.x0 + FOURTH.x1) / 2, z: FOURTH.z, icon: '🛍️', label: '4th Street shops', dz: -4.5, go: [FOURTH.x1 - 4, FOURTH.z] },
+  { x: (SQUARE.x0 + SQUARE.x1) / 2, z: CITY_WALK_Z - 4, icon: '🌳', label: 'The square', dz: -8, go: [SQUARE.x1 - 4, CITY_WALK_Z] },
+  { x: TRAILER.x, z: TRAILER.z, icon: '🌭', label: '' },
 ];
 /** The end of the line: The Colony, Bastrop. */
 const COLONY_LANDMARKS: Landmark[] = [
@@ -165,6 +169,16 @@ function SouthArt({ labels }: { labels: boolean }) {
       <rect x={-560} y={736} width={660} height={890} fill="#d9d4c7" />
       <rect x={-720} y={LAKE_Z[0] + 8} width={1100} height={LAKE_Z[1] - LAKE_Z[0] - 16} fill="#5aa9e6" />
       <ColonyArt labels={labels} />
+      {/* Downtown: the plaza, 4th Street, the square, the towers. */}
+      <rect x={CITY_PLAZA.x0} y={CITY_PLAZA.z0} width={CITY_PLAZA.x1 - CITY_PLAZA.x0} height={CITY_PLAZA.z1 - CITY_PLAZA.z0} fill="#e2d6bd" />
+      <rect x={FOURTH.x0} y={FOURTH.z - FOURTH.half} width={FOURTH.x1 - FOURTH.x0} height={FOURTH.half * 2} fill="#e2d6bd" />
+      <rect x={SQUARE.x0} y={SQUARE.z0} width={SQUARE.x1 - SQUARE.x0} height={SQUARE.z1 - SQUARE.z0} rx={3} fill="#7cc05f" stroke="#e2d6bd" strokeWidth={1.5} />
+      <rect x={CONVENTION.x0} y={CONVENTION.z0} width={CONVENTION.x1 - CONVENTION.x0} height={CONVENTION.z1 - CONVENTION.z0} fill="#d8cdb6" stroke="#8f8468" strokeWidth={0.8} />
+      {SKYLINE.map((t, i) => <rect key={i} x={t.x0} y={t.z0} width={t.x1 - t.x0} height={t.z1 - t.z0} fill="#aab7c4" stroke="#6d7f91" strokeWidth={0.8} />)}
+      {CITY_SHOPS.map((sh) => {
+        const f = cityShopFront(sh.side), z0 = f.face > 0 ? f.z - CITY_SHOP_DEPTH : f.z;
+        return <rect key={sh.id} x={sh.x0} y={z0} width={sh.x1 - sh.x0} height={CITY_SHOP_DEPTH} fill={sh.awning} stroke="#3b4652" strokeWidth={0.7} />;
+      })}
       <rect x={QUARRY.x0} y={QUARRY.z0} width={QUARRY.x1 - QUARRY.x0} height={QUARRY.z1 - QUARRY.z0} rx={8} fill="#e6e0cf" stroke="#b9ad90" strokeWidth={1.2} />
       <rect x={QUARRY.x0 + 8} y={QUARRY.z0 + 22} width={44} height={24} rx={8} fill="#3fb6b2" />
       <rect x={-470} y={CREEK.z0} width={420} height={CREEK.z1 - CREEK.z0} fill="#5aa9e6" />

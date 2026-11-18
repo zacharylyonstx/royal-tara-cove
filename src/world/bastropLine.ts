@@ -95,12 +95,16 @@ function tx71Heights(): Float32Array {
     for (const o of [-13, -6.5, 0, 6.5, 13]) h = Math.max(h, groundHeight(x + o, z));
     raw[i] = h + 0.4;
   }
-  // The roadbed is graded: smoother than the land, never below it.
+  // The roadbed is graded: never below the land, never steeper than 8 %
+  // (it rides up on fill where the land dips), and eased at the crests.
+  const fall = 0.08 * TX71_STEP;
+  for (let i = 1; i < n; i++) raw[i] = Math.max(raw[i], raw[i - 1] - fall);
+  for (let i = n - 2; i >= 0; i--) raw[i] = Math.max(raw[i], raw[i + 1] - fall);
   const out = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     let s = 0, k = 0;
-    for (let j = -3; j <= 3; j++) { const q = i + j; if (q >= 0 && q < n) { s += raw[q]; k++; } }
-    out[i] = Math.max(s / k, raw[i] - 0.22);
+    for (let j = -2; j <= 2; j++) { const q = i + j; if (q >= 0 && q < n) { s += raw[q]; k++; } }
+    out[i] = Math.max(s / k, raw[i] - 0.2);
   }
   tx71Table = out;
   return out;
@@ -120,9 +124,9 @@ export const AIRPORT = {
   garage: rect(-58, -30, AIRPORT_Z - 78, AIRPORT_Z - 56),
   terminal: rect(-60, -36, AIRPORT_Z - 46, AIRPORT_Z + 34),
   apron: rect(-101, -60, AIRPORT_Z - 52, AIRPORT_Z + 46),
-  /** Parked airliners: nose-in to the terminal, tails toward the railway. */
-  gateX: -80,
-  gates: [AIRPORT_Z - 32, AIRPORT_Z - 6, AIRPORT_Z + 20],
+  /** Parked airliners (z of each): noses south, side-on to the railway. */
+  gateX: -76,
+  gates: [AIRPORT_Z - 35, AIRPORT_Z - 5, AIRPORT_Z + 25],
   /** The runway runs east–west, so the jet climbs out across the tracks. */
   runway: { z: AIRPORT_Z + 60, half: 10, x0: -98, x1: 190 },
   hangar: rect(18, 62, AIRPORT_Z - 42, AIRPORT_Z + 10),
@@ -156,8 +160,9 @@ export const FARM = {
   kiosk: rect(-205.2, -202.4, SQUIRREL_Z + 3.4, SQUIRREL_Z + 6.6),
   /** The statue: sits facing the track (+X) on a low deck. `height` is the
    *  squirrel itself, ear tips above the deck. */
-  squirrel: { x: MID - 22, z: SQUIRREL_Z, height: 4.3, plinth: { w: 4.8, d: 4.0, h: 0.5 } },
-  sign: { x: MID - 20.6, z: SQUIRREL_Z - 5.4, w: 5.6 },
+  squirrel: { x: MID - 20.5, z: SQUIRREL_Z, height: 4.3, plinth: { w: 4.8, d: 4.0, h: 0.5 } },
+  /** The little sign stands low, in front of the deck. */
+  sign: { x: MID - 17.2, z: SQUIRREL_Z, w: 5.6 },
   /** Orchard trees, in rows that open up as the train passes. */
   orchard: ((): [number, number][] => {
     const out: [number, number][] = [];
@@ -278,8 +283,8 @@ export function buildBastropLineColliders(): RectCollider[] {
   solid(AIRPORT.garage, 'airport-garage', 13);
   solid(AIRPORT.hangar, 'airport-hangar', 12);
   for (const z of AIRPORT.gates) {
-    wall(AIRPORT.gateX - 13, AIRPORT.gateX + 12, z - 1.9, z + 1.9, 'airliner', 6);
-    wall(AIRPORT.gateX - 5, AIRPORT.gateX + 1, z - 12, z + 12, 'airliner', 4);
+    wall(AIRPORT.gateX - 1.9, AIRPORT.gateX + 1.9, z - 15, z + 12.4, 'airliner', 6);
+    wall(AIRPORT.gateX - 12, AIRPORT.gateX + 12, z - 6, z + 1, 'airliner', 4);
   }
   for (const c of AIRPORT.cargo) solid(c, 'air-cargo', 9);
   // The prairie.
@@ -292,12 +297,10 @@ export function buildBastropLineColliders(): RectCollider[] {
   solid(FARM.barn, 'pecan-barn', 10);
   solid(FARM.kiosk, 'pie-kiosk', 3);
   const s = FARM.squirrel;
-  wall(s.x - s.plinth.w / 2, s.x + s.plinth.w / 2, s.z - s.plinth.d / 2, s.z + s.plinth.d / 2, 'giant-squirrel', 5.5);
-  wall(FARM.sign.x - 0.15, FARM.sign.x + 0.15, FARM.sign.z - FARM.sign.w / 2, FARM.sign.z + FARM.sign.w / 2, 'squirrel-sign', 3);
+  wall(s.x - s.plinth.w / 2, s.x + s.plinth.w / 2, s.z - s.plinth.d / 2, s.z + s.plinth.d / 2, 'giant-squirrel', 6);
+  wall(FARM.sign.x - 0.15, FARM.sign.x + 0.15, FARM.sign.z - FARM.sign.w / 2, FARM.sign.z + FARM.sign.w / 2, 'squirrel-sign', 1.2);
   // The Lost Pines.
   for (const c of PINES.cabins) wall(c.x - c.w / 2, c.x + c.w / 2, c.z - c.d / 2, c.z + c.d / 2, 'log-cabin', 6);
   around(PINES.lookout.x, PINES.lookout.z, PINES.lookout.half, 'fire-lookout', 28);
   return out;
 }
-
-export { PINES_Z, RIVER_Z, LAKE_Z };

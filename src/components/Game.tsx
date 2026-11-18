@@ -104,6 +104,8 @@ import { SouthLand } from './rail/SouthLand';
 import { Corridor } from './rail/Corridor';
 import { Domain } from './rail/Domain';
 import { Colony } from './rail/Colony';
+import { CityLine } from './rail/CityLine';
+import { buildCityColliders } from '../world/cityLine';
 import { buildColonyColliders } from '../world/colony';
 import { buildCorridorColliders } from '../world/corridor';
 import { buildDomainColliders, buildDomainFloors } from '../world/domain';
@@ -192,7 +194,7 @@ export function Game() {
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...buildRailColliders(), ...buildCorridorColliders(), ...buildDomainColliders(), ...buildColonyColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...buildRailColliders(), ...buildCorridorColliders(), ...buildDomainColliders(), ...buildColonyColliders(), ...buildCityColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
     // Siren Head Night hide/safe zones (static layout — register once).
     useNightStore.getState().setZones(HIDE_ZONES, SAFE_ZONES);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors, lampsOn]);
@@ -317,6 +319,7 @@ function FreeplayModeSystems() {
       {/* Down the Red Line: the view from the train, and the Domain. */}
       <Corridor />
       <Domain />
+      <CityLine />
       <Colony />
       {/* The "show me the way" light from the map. */}
       <GuideBeacon />

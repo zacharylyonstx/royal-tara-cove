@@ -120,12 +120,12 @@ export const CITY_BLOCKS: CityBlock[] = [
   blk(1, 58, 98, CP - 34, CP + 26, 12, 'far', '#c9b8a0', '#e9e4d8', '#6b7f8f'),
   blk(-1, 120, 184, CP - 28, CP + 30, 18, 'far', '#c9b8a0', '#e9e4d8', '#6b7f8f'),
   // ---- Highland ----
-  blk(-1, 21, 49, H - 44, H - 22, APT(3), 'apartment', '#a8553f', '#e9dfcf', '#2f5d50'),
+  blk(-1, 21, 43, H - 44, H - 22, APT(3), 'apartment', '#a8553f', '#e9dfcf', '#2f5d50'),
   blk(-1, 130, 200, H - 10, H + 46, 13, 'far', '#b9c2c9', '#dfe5ea', '#5f88a8'),
   blk(-1, 16, 50, I - 36, I - 20, 7, 'warehouse', '#d9d4c7', '#eeeae0', '#e86a2a'),
   blk(1, 18, 60, I - 36, I - 20, 8, 'warehouse', '#cfc8ba', '#e9e4d8', '#7a4fc3'),
   // ---- MLK Jr. ----
-  blk(-1, 120, 176, M - 2, M + 54, 20, 'far', '#b9a58c', '#e9e4d8', '#6b7f8f'),
+  blk(-1, 120, 176, M + 10, M + 62, 20, 'far', '#b9a58c', '#e9e4d8', '#6b7f8f'),
   blk(1, 100, 160, M + 8, M + 64, 14, 'far', '#c9c5ba', '#e9e4d8', '#6b7f8f'),
   // ---- Plaza Saltillo: five- and six-storey mixed-use ----
   blk(-1, 18, 54, S - 36, S - 6, MIX(5), 'mixed', '#d9b98a', '#f4efe6', '#b5533c'),
@@ -176,12 +176,12 @@ export const CITY_HOUSES: CityHouse[] = [
   // Crestview + Highland, west of the line.
   ...houseRow(-1, 21.5, L + 12, H - 46, MUTED, 11),
   ...houseRow(-1, 21.5, H - 20, I - 38, MUTED, 12),
-  ...houseRow(-1, 45, L + 12, I - 20, MUTED, 13, false),
+  ...houseRow(-1, 46, L + 12, I - 38, MUTED, 13, false),
   // East Austin either side of MLK Jr.
   ...houseRow(-1, 21.5, M - 32, M - 7, BRIGHT, 21),
   ...houseRow(-1, 21.5, M + 7, M + 74, BRIGHT, 22),
-  ...houseRow(-1, 45, M - 32, M - 7, BRIGHT, 23, false),
-  ...houseRow(-1, 45, M + 7, M + 74, BRIGHT, 24, false),
+  ...houseRow(-1, 46, M - 32, M - 7, BRIGHT, 23, false),
+  ...houseRow(-1, 46, M + 7, M + 74, BRIGHT, 24, false),
   ...houseRow(1, 21.5, M - 32, M - 7, BRIGHT, 25),
   ...houseRow(1, 21.5, MS + 14, MS + 34, BRIGHT, 26),
 ];
@@ -189,7 +189,7 @@ export const CITY_HOUSES: CityHouse[] = [
 // --------------------------------------------------------------- landmarks --
 /** Q2 Stadium (Austin FC), west of McKalla station. The pitch runs north–south. */
 const Q2_CX = MID - 85;
-export const Q2 = { ...beside(-1, 25, 145, Q - 72, Q + 72), cx: Q2_CX, cz: Q, pitchW: 64, pitchL: 100, standTop: 14.2, roofY: 22.5 };
+export const Q2 = { ...beside(-1, 25, 145, Q - 72, Q + 72), cx: Q2_CX, cz: Q, pitchW: 64, pitchL: 100, standTop: 14.2, roofY: 22.5, /** Centre of the name board on the east stand. */ signZ: Q - 28 };
 /** The four stands (the corners between them are open). `dir` = outward. */
 export interface Q2Stand extends Rect { axis: 'x' | 'z'; dir: 1 | -1 }
 export const Q2_STANDS: Q2Stand[] = [
@@ -255,7 +255,7 @@ export const SQUARE_OAKS: [number, number, number][] = [
 /** The food trailer under them (long side east–west, serving north). */
 export const TRAILER = { x: -302.5, z: CITY_WALK_Z + 13 };
 /** Planters down 4th Street: x, and which side of the centre line. */
-export const CITY_PLANTERS: [number, number][] = [[-208, -2.6], [-230, 2.6], [-252, -2.6], [-274, 2.6]];
+export const CITY_PLANTERS: [number, number][] = [[-208, -3], [-230, 3], [-252, -3], [-274, 3]];
 /** The MetroRail totem and the painted-guitar statue on the station plaza. */
 export const TOTEM = { x: -185, z: CITY_WALK_Z + 5.2 };
 export const GUITAR = { x: -190.5, z: CITY_WALK_Z - 9 };
@@ -273,13 +273,13 @@ export interface SkyTower extends Tower { id: SkyShape; name: string }
  *  Independent 212 m, The Austonian 208 m, Fairmont 180 m, Block 185 176 m,
  *  Frost Bank Tower 157 m. */
 export const SKYLINE: SkyTower[] = [
-  { id: 'fairmont', name: 'Fairmont Austin', x0: -336, x1: -312, z0: DT - 59, z1: DT - 33, h: 81, glass: '#7fa6bf', frame: '#e8ecef' },
-  { id: 'frost', name: 'Frost Bank Tower', x0: -340, x1: -316, z0: DT - 24, z1: DT, h: 71, glass: '#8fb4cc', frame: '#dfe7ec' },
-  { id: 'waterline', name: 'Waterline', x0: -398, x1: -378, z0: DT - 48, z1: DT - 18, h: 140, glass: '#5f93b8', frame: '#d7e0e6' },
-  { id: 'independent', name: 'The Independent', x0: -396, x1: -370, z0: DT - 10, z1: DT + 14, h: 95, glass: '#9fb0bd', frame: '#e3e7ea' },
-  { id: 'austonian', name: 'The Austonian', x0: -348, x1: -334, z0: CITY_WALK_Z - 11, z1: CITY_WALK_Z + 11, h: 94, glass: '#4f86b0', frame: '#cfdbe4' },
-  { id: 'block185', name: 'Block 185', x0: -392, x1: -360, z0: DT + 20, z1: DT + 46, h: 79, glass: '#86b8cf', frame: '#e6edf1' },
-  { id: 'sixth', name: 'Sixth and Guadalupe', x0: -402, x1: -372, z0: S - 42, z1: S - 12, h: 120, glass: '#5d8fb5', frame: '#d9e2e8' },
+  { id: 'fairmont', name: 'Fairmont Austin', x0: -336, x1: -312, z0: DT - 59, z1: DT - 33, h: 81, glass: '#8fb0b4', frame: '#eef0ee' },
+  { id: 'frost', name: 'Frost Bank Tower', x0: -340, x1: -316, z0: DT - 24, z1: DT, h: 71, glass: '#a9c4d6', frame: '#e6edf1' },
+  { id: 'waterline', name: 'Waterline', x0: -398, x1: -378, z0: DT - 48, z1: DT - 18, h: 140, glass: '#3f78a8', frame: '#cfdbe4' },
+  { id: 'independent', name: 'The Independent', x0: -396, x1: -370, z0: DT - 10, z1: DT + 14, h: 95, glass: '#aab6bf', frame: '#e9ecee' },
+  { id: 'austonian', name: 'The Austonian', x0: -348, x1: -334, z0: CITY_WALK_Z - 11, z1: CITY_WALK_Z + 11, h: 94, glass: '#3d6f9c', frame: '#cfdbe4' },
+  { id: 'block185', name: 'Block 185', x0: -392, x1: -360, z0: DT + 20, z1: DT + 46, h: 79, glass: '#6fb0c0', frame: '#e6edf1' },
+  { id: 'sixth', name: 'Sixth and Guadalupe', x0: -402, x1: -372, z0: S - 42, z1: S - 12, h: 120, glass: '#4c7fa6', frame: '#d9e2e8' },
 ];
 /** The Texas Capitol: pink granite, at the head of the avenue. `h` = the top of the statue. */
 export const CAPITOL = { x: (CONGRESS.x0 + CONGRESS.x1) / 2, z: S + 14, w: 60, d: 20, h: 43 };
