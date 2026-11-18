@@ -96,6 +96,12 @@ function bench(b: Batch, x: number, z: number, ry: number) {
   b.box('solid', '#8a6a48', 1.9, 0.07, 0.5, x, 0.46, z, ry);
   b.box('solid', '#8a6a48', 1.9, 0.45, 0.07, x - Math.sin(ry) * 0.24, 0.72, z - Math.cos(ry) * 0.24, ry);
 }
+/** A see-through pool railing from a to c. */
+function railing(b: Batch, a: Pt, c: Pt) {
+  const L = Math.hypot(c[0] - a[0], c[1] - a[1]), ry = Math.atan2(c[0] - a[0], c[1] - a[1]);
+  for (const y of [1.15, 0.65, 0.15]) b.box('solid', '#2b2f33', 0.05, 0.05, L, (a[0] + c[0]) / 2, y, (a[1] + c[1]) / 2, ry);
+  for (let t = 0; t < L; t += 2.2) b.box('solid', '#2b2f33', 0.05, 1.15, 0.05, a[0] + ((c[0] - a[0]) * t) / L, 0.58, a[1] + ((c[1] - a[1]) * t) / L);
+}
 /** An open-sided shelter: posts and a low hip roof. */
 function pavilion(b: Batch, x: number, z: number, w: number, d: number, roof: string) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box('solid', '#6b5a48', 0.3, 3, 0.3, x + sx * (w / 2 - 0.3), 1.5, z + sz * (d / 2 - 0.3));
@@ -239,10 +245,9 @@ function buildColony() {
     const deck = scalePoly(POCKET_POOL, 1, 4.5);
     for (let i = 0; i < deck.length; i++) {
       const a = deck[i], c = deck[(i + 1) % deck.length];
-      const L = Math.hypot(c[0] - a[0], c[1] - a[1]);
-      // A gap in the fence on the south side is the gate.
+      // A gap in the railing is the gate.
       if (i === 0) continue;
-      b.box('solid', '#2b2f33', 0.05, 1.2, L, (a[0] + c[0]) / 2, 0.6, (a[1] + c[1]) / 2, Math.atan2(c[0] - a[0], c[1] - a[1]));
+      railing(b, a, c);
     }
     for (const [x, z, ry] of [[44, 3037.5, 0.3], [47, 3038.5, 0.3], [58, 3020, 2.6]] as [number, number, number][]) {
       b.box('solid', '#f2f2ee', 0.7, 0.3, 1.9, x, 0.2, z, ry);
@@ -323,9 +328,9 @@ function buildColony() {
       b.box('solid', '#e0503a', 1.2, 1.6, 0.8, L.x1 + 1.2, 0.8, L.z1 - 5);   // the popsicle freezer
       const Pl = LAKEHOUSE_POOL, pw = Pl.x1 - Pl.x0, pd = Pl.z1 - Pl.z0, px = (Pl.x0 + Pl.x1) / 2, pz = (Pl.z0 + Pl.z1) / 2;
       b.box('ground', '#e6e1d4', pw + 9, 0.03, pd + 9, px, 0.045, pz);
-      for (const sx of [-1, 1]) b.box('solid', '#2b2f33', 0.05, 1.2, pd + 9, px + sx * (pw / 2 + 4.5), 0.6, pz);
-      b.box('solid', '#2b2f33', pw + 9, 1.2, 0.05, px, 0.6, Pl.z0 - 4.5);
-      b.box('solid', '#2b2f33', pw + 3, 1.2, 0.05, px - 3, 0.6, Pl.z1 + 4.5);   // (gate gap at the east end)
+      const fx0 = px - pw / 2 - 4.5, fx1 = px + pw / 2 + 4.5, fz0 = Pl.z0 - 4.5, fz1 = Pl.z1 + 4.5;
+      railing(b, [fx0, fz0], [fx1, fz0]); railing(b, [fx0, fz0], [fx0, fz1]); railing(b, [fx1, fz0], [fx1, fz1]);
+      railing(b, [fx0, fz1], [fx1 - 6, fz1]);   // (gate gap at the east end)
       for (const k of [0, 1, 2, 3]) b.box('solid', '#f2f2ee', 0.7, 0.3, 1.9, Pl.x0 + 4 + k * 3, 0.2, Pl.z0 - 2.4);
       for (const k of [0, 1]) { b.cyl('solid', STEEL, 0.04, 0.04, 2.4, Pl.x1 - 4 - k * 12, 1.2, Pl.z1 + 2.6, 6); b.cyl('solid', k ? '#e8477a' : '#39b6c9', 0.1, 1.7, 0.5, Pl.x1 - 4 - k * 12, 2.5, Pl.z1 + 2.6, 8); }
     }
@@ -446,7 +451,7 @@ function buildColony() {
     // Post oaks and pines beyond the fence, thinning into the haze.
     for (let i = 0; i < 260; i++) {
       const side = Math.floor(rnd() * 4), t = rnd(), out2 = 6 + Math.pow(rnd(), 1.5) * 130;
-      let x = 0, z = 0;
+      let x: number, z: number;
       if (side === 0) { x = B.x0 + t * (B.x1 - B.x0); z = B.z1 + out2; }
       else if (side === 1) { x = B.x0 - out2; z = B.z0 + t * (B.z1 - B.z0); }
       else if (side === 2) { x = B.x1 + out2; z = B.z0 + t * (B.z1 - B.z0); }

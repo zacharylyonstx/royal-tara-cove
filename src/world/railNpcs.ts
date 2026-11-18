@@ -5,6 +5,7 @@ import { npcAppearance as A, npcLook } from './npcLook';
 import { RAIL_MID_X } from './westAvery';
 import { PLATFORM_Y, STATIONS } from './redLine';
 import { FOUNTAIN, STAGE, STAGE_Y, STREET, TACO_TRUCK, WALK_Z } from './domain';
+import { SCHOOL, SNOW_CONE } from './colony';
 
 const S = Math.PI; // facing south (+Z)
 
@@ -15,11 +16,12 @@ export const RAIL_NPCS: NpcDef[] = [
     day: { kind: 'post', x: RAIL_MID_X + 1.3, z: STATIONS.avery.z + 13, y: PLATFORM_Y, yaw: S },
     night: { kind: 'post', x: RAIL_MID_X + 1.3, z: STATIONS.avery.z + 13, y: PLATFORM_Y, yaw: S },
     lines: [
-      'All aboard for the Domain! Just walk on when the doors open.',
-      'Two trains run all day — one leaves about every minute and a half.',
-      'The ride takes a little over a minute. Walk around! Look out the windows!',
-      'Watch for the limestone cut, the big quarry at McNeil, and MoPac right before you arrive.',
-      'The other train whooshes past in the middle. Give it a wave!',
+      'All aboard! The Domain, Downtown Austin, and all the way to Bastrop. Just walk on when the doors open.',
+      'Six trains run all day — one leaves about every minute and a half.',
+      'It\'s about five minutes to Bastrop. Walk around! Look out the windows!',
+      'Watch for the limestone cut, the big quarry at McNeil, and MoPac right before the Domain.',
+      'After Downtown we cross Lady Bird Lake, pass the airport — and keep your eyes peeled for a GIANT squirrel.',
+      'Trains going the other way whoosh past on the next track. Give them a wave!',
       'Stand right behind the driver if you want to see the track ahead.',
     ],
     duskLines: ['Evening trains are my favorite — the city lights up as you roll in.'],
@@ -32,7 +34,7 @@ export const RAIL_NPCS: NpcDef[] = [
     night: { kind: 'post', x: RAIL_MID_X - 1.3, z: STATIONS.domain.z + 13, y: PLATFORM_Y, yaw: S },
     lines: [
       'Welcome to the Domain! Down the ramp, over the crossing, and Rock Rose is straight across Burnet Road.',
-      'The train home to Avery Ranch leaves from right here — either side of the platform.',
+      'Trains to Downtown and Bastrop leave from the west side of the platform; Avery Ranch from the east side.',
       'Fun fact: the real Domain station is still being built. You got here early!',
       'Head for the Lawn at the far end — there\'s a fountain you can run right through.',
     ],
@@ -83,5 +85,42 @@ export const RAIL_NPCS: NpcDef[] = [
       'You can go right through the middle. It doesn\'t even hurt.',
       'Did you come on the train? I sat right behind the driver!',
     ],
+  },
+  {
+    id: 'earl', name: 'Mr. Earl', role: 'station agent', where: 'on the platform at Bastrop station',
+    look: npcLook('dad', 1.82, '#b98a64', A(['buzz', '#8a8a8a'], ['longsleeve', '#27406b'], ['jeans', '#1f2a44'], ['boots', '#3a2a1c'], ['cap', '#c8102e'])),
+    day: { kind: 'post', x: RAIL_MID_X + 1.3, z: STATIONS.bastrop.z + 13, y: PLATFORM_Y, yaw: S },
+    night: { kind: 'post', x: RAIL_MID_X + 1.3, z: STATIONS.bastrop.z + 13, y: PLATFORM_Y, yaw: S },
+    lines: [
+      'End of the line — Bastrop! Welcome to The Colony.',
+      'Chinaberry Bend? Go east on Sam Houston Drive, past the pool park, and it\'s on your right.',
+      'The school is the other way — west along Sam Houston Drive, past the Lakehouse.',
+      'There\'s no real train out here, you know. This one\'s just for you.',
+      'Every train from here goes back to Downtown, the Domain and Avery Ranch.',
+    ],
+    nightLines: ['Quiet out here at night. You can hear the frogs down at the lake.'],
+  },
+  {
+    id: 'beto', name: 'Beto', role: 'snow cones', where: 'at the snow-cone cart by Bastrop station',
+    look: npcLook('dad', 1.74, '#c99872', A(['short', '#1a1a1a'], ['tee', '#39b6c9'], ['shorts', '#f2f2f0'], ['sneakers', '#e8477a'], ['cap', '#e8477a'])),
+    day: { kind: 'post', x: SNOW_CONE.x - 2.6, z: SNOW_CONE.z + 1.7, yaw: Math.PI / 2 },
+    night: { kind: 'post', x: SNOW_CONE.x - 2.6, z: SNOW_CONE.z + 1.7, yaw: Math.PI / 2 },
+    lines: [
+      'Snow cones! Tiger\'s blood, blue raspberry, or piña colada?',
+      'Hot day for a train ride. Best cure is shaved ice.',
+      'The pool\'s open over at the pocket park — you can wade right in.',
+    ],
+  },
+  {
+    id: 'dee', name: 'Coach Dee', role: 'Colony Oaks Elementary', where: 'out front of Colony Oaks Elementary',
+    look: npcLook('penny', 1.7, '#8a5a3c', A(['ponytail', '#1a1a1a'], ['tee', '#2f8f7a'], ['shorts', '#22262b'], ['sneakers', '#f2f2f0'], ['cap', '#2f8f7a'])),
+    day: { kind: 'post', x: SCHOOL.entry.x + 9, z: SCHOOL.entry.z - 9, yaw: 0 },
+    night: { kind: 'post', x: SCHOOL.entry.x + 9, z: SCHOOL.entry.z - 9, yaw: 0 },
+    lines: [
+      'Welcome to Colony Oaks! The playground\'s round the back, past the classroom wing.',
+      'Race you round the field? It\'s behind the school.',
+      'The pickleball courts are next door at Lakehouse Park.',
+    ],
+    nightLines: ['School\'s closed for the night — but the playground never is.'],
   },
 ];

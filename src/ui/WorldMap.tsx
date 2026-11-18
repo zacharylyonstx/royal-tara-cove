@@ -86,7 +86,7 @@ const SHEETS: Record<SheetId, { title: string; box: { x: number; z: number; w: n
   home: { title: 'Royal Tara Cove', box: { x: X0, z: Z0, w: SHEET_W, h: SHEET_H } },
   domain: { title: 'The Domain', box: { x: DX0, z: DZ0, w: DX1 - DX0, h: DZ1 - DZ0 } },
   downtown: { title: 'Downtown Austin', box: sheetBox(-232, 1566, 300) },
-  colony: { title: 'Bastrop · The Colony', box: sheetBox(-150, 3160, 1020) },
+  colony: { title: 'Bastrop · The Colony', box: sheetBox(-150, 3320, 1020) },
 };
 const SHEET_ORDER: SheetId[] = ['home', 'domain', 'downtown', 'colony'];
 /** Which sheet a spot is on. */

@@ -355,7 +355,7 @@ export function Domain() {
         <group key={sx}>
           <Label x={PLAZA.x1 - 0.4 + sx * 0.17} y={2.75} z={WALK_Z + 5.2} ry={sx * Math.PI / 2} text="MetroRail" size={0.36} />
           <Label x={PLAZA.x1 - 0.4 + sx * 0.17} y={2.2} z={WALK_Z + 5.2} ry={sx * Math.PI / 2} text="THE DOMAIN" size={0.3} color="#ffd98a" />
-          <Label x={PLAZA.x1 - 0.4 + sx * 0.17} y={1.55} z={WALK_Z + 5.2} ry={sx * Math.PI / 2} text={sx < 0 ? 'Shops + the Lawn\nacross Burnet Road  ➜' : 'Trains to\nAvery Ranch'} size={0.2} width={3} />
+          <Label x={PLAZA.x1 - 0.4 + sx * 0.17} y={1.55} z={WALK_Z + 5.2} ry={sx * Math.PI / 2} text={sx < 0 ? 'Shops + the Lawn\nacross Burnet Road  ➜' : 'Trains to Avery Ranch,\nDowntown + Bastrop'} size={0.2} width={3} />
         </group>
       ))}
       <Label x={STAGE.x - STAGE.w / 2 + 0.42} y={3.6 + STAGE_Y} z={STAGE.z} ry={Math.PI / 2} text="THE LAWN" size={0.9} color="#f4ead2" />
