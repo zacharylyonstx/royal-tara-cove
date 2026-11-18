@@ -57,8 +57,9 @@ export function MusicController() {
     // Free Play with Siren Head out after dark: the cheerful pad ducks right
     // down so the siren wail + horror bed own the night.
     if (mode === 'freeplay' && useNightStore.getState().stalkerActive) { setMusicMix({ peaceful: 0.04, combat: 0.0, victory: 0.0 }); return; }
-    // Free Play + aliens intro/free-roam → calm neighborhood music.
-    setMusicMix({ peaceful: 0.3, combat: 0.0, victory: 0.0 });
+    // Free Play ("classic" station) + aliens intro/free-roam → calm neighborhood
+    // music. (Was 0.3 — so quiet it was barely there.)
+    setMusicMix({ peaceful: 0.5, combat: 0.0, victory: 0.0 });
   });
 
   return null;

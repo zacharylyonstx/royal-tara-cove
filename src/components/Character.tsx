@@ -233,12 +233,6 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
       ) : (
         <CharacterModel def={def} appearance={appearance} rig={{ leftLeg, rightLeg, leftArm, rightArm, torso }} />
       )}
-      {isActive && (
-        <mesh position={[0, d.headY + d.headR * 1.7, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[d.headR * 0.7, d.headR * 0.85, 32]} />
-          <meshBasicMaterial color="#ffd866" transparent opacity={0.92} />
-        </mesh>
-      )}
     </group>
     </>
   );
