@@ -29,7 +29,7 @@ export function StalkerToast() {
   const away = railSafe(p.x, p.y, p.z);
   if (away && event.kind === 'dawn') return null;
   const msg =
-    event.kind === 'arrive' ? (away ? '🌙 Night-time! Siren Head is out back home — he never comes near the train or the Domain.' : '🚨 Siren Head is out there… get inside a house!') :
+    event.kind === 'arrive' ? (away ? '🌙 Night-time! Siren Head is out back home — he never comes near the train or anywhere down the line.' : '🚨 Siren Head is out there… get inside a house!') :
     event.kind === 'swat' ? '💥 BONK! Siren Head swatted you across the block!' :
     '☀️ Siren Head went back into the woods.';
   const bg = event.kind === 'dawn' ? 'rgba(60, 120, 80, 0.92)' : away && event.kind === 'arrive' ? 'rgba(30, 44, 78, 0.92)' : 'rgba(140, 20, 20, 0.92)';

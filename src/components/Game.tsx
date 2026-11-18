@@ -105,6 +105,8 @@ import { Corridor } from './rail/Corridor';
 import { Domain } from './rail/Domain';
 import { Colony } from './rail/Colony';
 import { CityLine } from './rail/CityLine';
+import { BastropLine } from './rail/BastropLine';
+import { buildBastropLineColliders } from '../world/bastropLine';
 import { buildCityColliders } from '../world/cityLine';
 import { buildColonyColliders } from '../world/colony';
 import { buildCorridorColliders } from '../world/corridor';
@@ -194,7 +196,7 @@ export function Game() {
       usePlayStore.getState().registerTrampoline(buildTrampolineZone(hero, heroLot));
     }
     const propColliders = buildPropColliders(HOUSES, lotsByAddress, propsByAddress);
-    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...buildRailColliders(), ...buildCorridorColliders(), ...buildDomainColliders(), ...buildColonyColliders(), ...buildCityColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
+    setStaticColliders([...base, ...extra, ...propColliders, ...buildTreeColliders(HOUSES, lotsByAddress), ...buildRampColliders(), ...buildAcrossBlvdColliders(), ...buildRailColliders(), ...buildCorridorColliders(), ...buildDomainColliders(), ...buildColonyColliders(), ...buildCityColliders(), ...buildBastropLineColliders(), ...(lampsOn ? buildStreetLampColliders() : [])]);
     // Siren Head Night hide/safe zones (static layout — register once).
     useNightStore.getState().setZones(HIDE_ZONES, SAFE_ZONES);
   }, [lots, lotsByAddress, propsByAddress, setStaticColliders, setFloors, lampsOn]);
@@ -320,6 +322,7 @@ function FreeplayModeSystems() {
       <Corridor />
       <Domain />
       <CityLine />
+      <BastropLine />
       <Colony />
       {/* The "show me the way" light from the map. */}
       <GuideBeacon />

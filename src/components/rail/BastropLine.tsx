@@ -910,7 +910,7 @@ function buildPines(b: Batch, rnd: () => number, z0: number, z1: number) {
   const within = (z: number) => z >= z0 && z < z1;
   if (within(PINES.sign.z)) {
     woodSign(b, PINES.sign.x, PINES.sign.z, PINES.sign.ry, PINES.sign.w, 2.3, 3.0);
-    // The highway's last look at open country: a welcome committee of deer.
+    // Deer at the forest edge.
     deer(b, MID - 15.5, 2478, 1.2, true);
     deer(b, MID - 17, 2482, 0.4, false);
     deer(b, MID + 14.6, 2508, -1.9, false);
@@ -1204,6 +1204,8 @@ function Traffic() {
     const c = new THREE.Color();
     VEHICLES.forEach((v, i) => m.setColorAt(i, c.set(v.color)));
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    // Everywhere a vehicle can be: the length of TX-71 and the SH-130 deck.
+    m.boundingSphere = new THREE.Sphere(new THREE.Vector3(TX71.x, 5, (TX71.z0 + TX71.z1) / 2), TX71_SPAN / 2 + 30);
   }, []);
   useFrame(({ clock, camera }) => {
     const m = ref.current;
@@ -1222,7 +1224,7 @@ function Traffic() {
     });
     m.instanceMatrix.needsUpdate = true;
   });
-  return <instancedMesh ref={ref} args={[geometry, material, VEHICLES.length]} frustumCulled={false} />;
+  return <instancedMesh ref={ref} args={[geometry, material, VEHICLES.length]} />;
 }
 
 // -------------------------------------------------------------------- jet --
@@ -1335,7 +1337,8 @@ export function BastropLine() {
     mats.lit.visible = on > 0.02;
     mats.glow.emissiveIntensity = 0.7 + 2.6 * on;
   });
-  const matFor: Record<string, THREE.Material> = { ...mats, far: mats.solid };
+  // ('far' is the same paint as 'solid': it only keeps very long things in a mesh of their own.)
+  const matFor = useMemo<Record<string, THREE.Material>>(() => ({ ...mats, far: mats.solid }), [mats]);
   const barn = FARM.barn, barnZ = (barn.z0 + barn.z1) / 2, kiosk = FARM.kiosk, term = AIRPORT.terminal;
   return (
     <group>
@@ -1366,7 +1369,7 @@ export function BastropLine() {
       <Label x={kiosk.x1 + 0.39} y={3.1} z={(kiosk.z0 + kiosk.z1) / 2} ry={EAST} text="FRESH PIE" size={0.46} />
       <Label x={FARM.sign.x + 0.08} y={0.62} z={FARM.sign.z} ry={EAST} text={'say hi to the\ngiant squirrel!'} size={0.37} color="#8a2a1c" width={FARM.sign.w - 0.3} />
       <SignText x={PINES.sign.x} z={PINES.sign.z} ry={PINES.sign.ry} y={3.0} text="LOST PINES" size={1.25} />
-      <SignText x={RIVER_SIGN.x} z={RIVER_SIGN.z} ry={RIVER_SIGN.ry} y={2.6} text="COLORADO RIVER" size={0.8} />
+      <SignText x={RIVER_SIGN.x} z={RIVER_SIGN.z} ry={RIVER_SIGN.ry} y={2.6} text="COLORADO RIVER" size={0.74} />
     </group>
   );
 }

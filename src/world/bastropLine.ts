@@ -160,7 +160,7 @@ export const FARM = {
   kiosk: rect(-205.2, -202.4, SQUIRREL_Z + 3.4, SQUIRREL_Z + 6.6),
   /** The statue: sits facing the track (+X) on a low deck. `height` is the
    *  squirrel itself, ear tips above the deck. */
-  squirrel: { x: MID - 20.5, z: SQUIRREL_Z, height: 4.3, plinth: { w: 4.8, d: 4.0, h: 0.5 } },
+  squirrel: { x: MID - 20.5, z: SQUIRREL_Z, height: 5.6, plinth: { w: 6.2, d: 5.2, h: 0.5 } },
   /** The little sign stands low, in front of the deck. */
   sign: { x: MID - 17.2, z: SQUIRREL_Z, w: 5.6 },
   /** Orchard trees, in rows that open up as the train passes. */
