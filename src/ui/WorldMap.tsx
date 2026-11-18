@@ -30,8 +30,10 @@ import { CHARACTERS, CHARACTER_ORDER } from '../world/characters';
 import type { CharacterId } from '../types';
 import {
   rail, TRACK_Z_S, STATIONS, PLATFORM_X0, PLATFORM_X1, PLATFORM_HALF_LEN, HOWARD_Z, LAKELINE_Z, LAKELINE_PLAT, rampSpan,
-  LAKELINE_BLVD_Z, PARMER_Z,
+  LAKELINE_BLVD_Z, PARMER_Z, CITY_STOPS, SIDE_PLAT_HALF, sidePlatX, LAKE_Z, RIVER_Z,
 } from '../world/redLine';
+import * as COLONY from '../world/colony';
+import { PONDS, POCKET_PARK, POCKET_POOL } from '../world/colonyData';
 import { BURNET, PLAZA, STREET, LAWN, FOUNTAIN, SHOPS, SHOP_DEPTH, TOWERS, STAGE, PLAY, TACO_TRUCK, WALK_Z, shopFront } from '../world/domain';
 import { LOTS, SH45, CREEK, MOPAC, QUARRY } from '../world/corridor';
 
@@ -54,8 +56,8 @@ interface MapStore {
   setGuide: (g: Guide | null) => void;
   /** Big map flipped to the OTHER sheet (true = the Domain, false = home);
    *  null = show wherever I am. Forgotten whenever the map closes. */
-  peek: boolean | null;
-  setPeek: (south: boolean) => void;
+  peek: SheetId | null;
+  setPeek: (sheet: SheetId) => void;
 }
 export const useMapStore = create<MapStore>((set) => ({
   open: false,
@@ -74,8 +76,23 @@ const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
 const X0 = -292, X1 = 92, Z0 = -338, Z1 = 82;
 // The Domain's own sheet (same shape as the home one, so the frame never jumps).
 const DX0 = -402, DX1 = -98, DZ0 = 438, DZ1 = DZ0 + ((DX1 - DX0) * (Z1 - Z0)) / (X1 - X0);
-/** South of here you are "down the line" and the big map shows the Domain. */
-const SOUTH_FROM_Z = 200;
+/** The big map is four sheets, one per stop on the Red Line, all the same
+ *  shape (so the frame never jumps). */
+export type SheetId = 'home' | 'domain' | 'downtown' | 'colony';
+const SHEET_W = X1 - X0, SHEET_H = Z1 - Z0;
+/** A sheet `w` metres wide centred on (cx, cz). */
+const sheetBox = (cx: number, cz: number, w: number) => { const h = (w * SHEET_H) / SHEET_W; return { x: cx - w / 2, z: cz - h / 2, w, h }; };
+const SHEETS: Record<SheetId, { title: string; box: { x: number; z: number; w: number; h: number } }> = {
+  home: { title: 'Royal Tara Cove', box: { x: X0, z: Z0, w: SHEET_W, h: SHEET_H } },
+  domain: { title: 'The Domain', box: { x: DX0, z: DZ0, w: DX1 - DX0, h: DZ1 - DZ0 } },
+  downtown: { title: 'Downtown Austin', box: sheetBox(-232, 1566, 300) },
+  colony: { title: 'Bastrop · The Colony', box: sheetBox(-150, 3160, 1020) },
+};
+const SHEET_ORDER: SheetId[] = ['home', 'domain', 'downtown', 'colony'];
+/** Which sheet a spot is on. */
+function sheetAt(z: number): SheetId {
+  return z < 200 ? 'home' : z < 1100 ? 'domain' : z < 2300 ? 'downtown' : 'colony';
+}
 const MINI_PX = 132;
 const MINI_RANGE = 62; // metres from the centre to the rim of the minimap
 
@@ -116,9 +133,23 @@ const DOMAIN_LANDMARKS: Landmark[] = [
   { x: STAGE.x, z: STAGE.z, icon: '🎤', label: 'Stage', dz: -8, go: [STAGE.x + 6, STAGE.z] },
   { x: TACO_TRUCK.x, z: TACO_TRUCK.z, icon: '🌮', label: '', dz: -8 },
 ];
-const ALL_LANDMARKS = [...LANDMARKS, ...DOMAIN_LANDMARKS];
-const DESTINATIONS = LANDMARKS.filter((l) => l.go);
-const DOMAIN_DESTINATIONS = DOMAIN_LANDMARKS.filter((l) => l.go);
+/** Downtown Austin. */
+const DOWNTOWN_LANDMARKS: Landmark[] = [
+  { x: RAIL_MID_X, z: STATIONS.downtown.z, icon: '🚆', label: 'Red Line trains', dx: 6, dz: -3, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.downtown).z1 + 2.5] },
+];
+/** The end of the line: The Colony, Bastrop. */
+const COLONY_LANDMARKS: Landmark[] = [
+  { x: RAIL_MID_X, z: STATIONS.bastrop.z, icon: '🚆', label: 'Train to Austin', dx: 16, dz: -8, anchor: 'start', go: [RAIL_MID_X, rampSpan(STATIONS.bastrop).z1 + 4] },
+  { x: 70, z: 3152, icon: '🏡', label: 'Chinaberry Bend', dx: 20, dz: 6, anchor: 'start', go: [66, 3155] },
+  { x: COLONY.SCHOOL.entry.x - 30, z: COLONY.SCHOOL.bar.z1 + 10, icon: '🏫', label: 'Colony Oaks Elementary', dz: 50, go: [COLONY.SCHOOL.entry.x, COLONY.SCHOOL.entry.z - 12] },
+  { x: 30, z: 3040, icon: '🏊', label: 'Pool + playground', dz: -22, go: [22, 3072] },
+  { x: 300, z: 2990, icon: '🦆', label: 'The ponds', dz: -50, go: [256, 3032] },
+  { x: COLONY.PARK_PLAY.x + 20, z: COLONY.PARK_PLAY.z + 20, icon: '🛝', label: 'Lakehouse Park', dz: 46, go: [COLONY.PARK.x1 - 10, COLONY.PARK.z0 + 8] },
+  { x: -292, z: 2968, icon: '🎣', label: 'The lake', dz: -66, go: [-240, 3038] },
+  { x: COLONY.SNOW_CONE.x, z: COLONY.SNOW_CONE.z, icon: '🍧', label: '' },
+];
+const SHEET_LANDMARKS: Record<SheetId, Landmark[]> = { home: LANDMARKS, domain: DOMAIN_LANDMARKS, downtown: DOWNTOWN_LANDMARKS, colony: COLONY_LANDMARKS };
+const ALL_LANDMARKS = [...LANDMARKS, ...DOMAIN_LANDMARKS, ...DOWNTOWN_LANDMARKS, ...COLONY_LANDMARKS];
 
 /** Stations, and everything down the Red Line: the country it crosses and the Domain. */
 function SouthArt({ labels }: { labels: boolean }) {
@@ -130,6 +161,10 @@ function SouthArt({ labels }: { labels: boolean }) {
     <g>
       {/* Land south of the neighbourhood (drawn under the rails by z-order below). */}
       <rect x={-470} y={Z1} width={420} height={700} fill="#96c873" />
+      <rect x={-720} y={780} width={1100} height={2000} fill="#96c873" />
+      <rect x={-560} y={736} width={660} height={890} fill="#d9d4c7" />
+      <rect x={-720} y={LAKE_Z[0] + 8} width={1100} height={LAKE_Z[1] - LAKE_Z[0] - 16} fill="#5aa9e6" />
+      <ColonyArt labels={labels} />
       <rect x={QUARRY.x0} y={QUARRY.z0} width={QUARRY.x1 - QUARRY.x0} height={QUARRY.z1 - QUARRY.z0} rx={8} fill="#e6e0cf" stroke="#b9ad90" strokeWidth={1.2} />
       <rect x={QUARRY.x0 + 8} y={QUARRY.z0 + 22} width={44} height={24} rx={8} fill="#3fb6b2" />
       <rect x={-470} y={CREEK.z0} width={420} height={CREEK.z1 - CREEK.z0} fill="#5aa9e6" />
@@ -154,6 +189,14 @@ function SouthArt({ labels }: { labels: boolean }) {
       {plat(STATIONS.avery.z)}
       {plat(STATIONS.domain.z)}
       {plat(HOWARD_Z)}
+      {plat(STATIONS.downtown.z)}
+      {plat(STATIONS.bastrop.z)}
+      {CITY_STOPS.map((c) => (c.kind === 'island'
+        ? <g key={c.name}>{plat(c.z)}</g>
+        : ([1, -1] as const).filter((sd) => c.kind === 'both' || c.kind === (sd > 0 ? 'east' : 'west')).map((sd) => {
+          const sx = sidePlatX(sd);
+          return <g key={c.name + sd}>{plat(c.z, sx.x0, sx.x1, SIDE_PLAT_HALF)}</g>;
+        })))}
       {plat(LAKELINE_Z, LAKELINE_PLAT.x0, LAKELINE_PLAT.x1, LAKELINE_PLAT.half)}
       {labels && (
         <g fontFamily={FONT} fontWeight={700} fill="#ffffff" opacity={0.95} fontSize={5.4} textAnchor="middle" style={{ letterSpacing: 0.5 }}>
@@ -162,6 +205,45 @@ function SouthArt({ labels }: { labels: boolean }) {
           <text x={-330} y={CREEK.z0 - 3} fill="#2f6f9f">Walnut Creek</text>
           <text x={(STREET.x0 + STREET.x1) / 2} y={STREET.z + 2} fill="#3b4652">ROCK ROSE</text>
           <text x={RAIL_MID_X + 26} y={HOWARD_Z + 2} fill="#3a3f47">Howard Station</text>
+        </g>
+      )}
+    </g>
+  );
+}
+
+/** The Colony, Bastrop: the streets, the water, the school, every lot. */
+function ColonyArt({ labels }: { labels: boolean }) {
+  const road = '#5d6470';
+  const C = COLONY, S = C.SCHOOL;
+  const r = (b: { x0: number; x1: number; z0: number; z1: number }, fill: string, extra?: Record<string, string | number>) =>
+    <rect x={b.x0} y={b.z0} width={b.x1 - b.x0} height={b.z1 - b.z0} fill={fill} {...extra} />;
+  return (
+    <g>
+      <rect x={-960} y={2780} width={1700} height={1000} fill="#9fcf7c" />
+      <rect x={-960} y={RIVER_Z[0] + 10} width={1700} height={RIVER_Z[1] - RIVER_Z[0] - 20} fill="#6aa6c4" />
+      <polygon points={pts(POCKET_PARK)} fill="#7cc05f" />
+      {r(C.PARK, '#7cc05f', { rx: 6 })}
+      {C.STREETS.map((st, i) => <polyline key={i} points={pts(st.pts)} fill="none" stroke={road} strokeWidth={st.w} strokeLinecap="round" strokeLinejoin="round" />)}
+      {C.PATHS.map((p, i) => <polyline key={i} points={pts(p)} fill="none" stroke="#e6d6b0" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />)}
+      {[...PONDS, C.LAKE].map((p, i) => <polygon key={i} points={pts(p)} fill="#5aa9e6" stroke="#c9d6a8" strokeWidth={2} />)}
+      <polygon points={pts(POCKET_POOL)} fill="#49c3e8" stroke="#fff" strokeWidth={1.5} />
+      {r(C.LAKEHOUSE_POOL, '#49c3e8', { stroke: '#fff', strokeWidth: 1.5 })}
+      {r(C.PLAZA, '#e2d6bd')}
+      {r(C.LAKEHOUSE_LOT, '#8b919b')}{r(S.lot, '#8b919b')}
+      {r(C.LAKEHOUSE, '#c9a36a', { stroke: '#7a5a34', strokeWidth: 1 })}
+      {[S.bar, S.gym, S.wing].map((b, i) => <g key={i}>{r(b, '#d9a441', { stroke: '#7a5a34', strokeWidth: 1.2 })}</g>)}
+      <rect x={S.field.x - S.field.rx} y={S.field.z - S.field.rz} width={S.field.rx * 2} height={S.field.rz * 2} rx={8} fill="#86c867" stroke="#fff" strokeWidth={1} />
+      {C.PICKLEBALL.map((c) => <rect key={c.x} x={c.x - 3} y={c.z - 6.7} width={6} height={13.4} fill="#3a6fb5" />)}
+      {C.HOUSES.map((h) => (
+        <rect key={h.seed} x={-h.w / 2} y={-h.d / 2} width={h.w} height={h.d} rx={1} fill="#e9dcc3" stroke="#a08c6c" strokeWidth={0.8}
+          transform={`translate(${h.x} ${h.z}) rotate(${(-h.ry * 180) / Math.PI})`} />
+      ))}
+      {labels && (
+        <g fontFamily={FONT} fontWeight={700} fill="#3b4652" fontSize={15} textAnchor="middle" style={{ letterSpacing: 0.5 }}>
+          <text transform="translate(52 3150) rotate(-33)" fontSize={12}>Chinaberry Bend</text>
+          <text x={-330} y={3120} fontSize={12}>SAM HOUSTON DR</text>
+          <text transform="translate(170 3050) rotate(-14)" fontSize={12}>SAM HOUSTON DR</text>
+          <text x={-150} y={RIVER_Z[0] + 46} fill="#2f6f9f">Colorado River</text>
         </g>
       )}
     </g>
@@ -261,7 +343,7 @@ const MapArt = memo(function MapArt({ labels }: { labels: boolean }) {
 });
 
 /** Everything that moves: the train, Sparky, the family, the delivery pin. */
-function LiveMarkers({ big }: { big: boolean }) {
+function LiveMarkers({ big, scale = 1 }: { big: boolean; scale?: number }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((n) => n + 1), big ? 120 : 160);
@@ -272,7 +354,7 @@ function LiveMarkers({ big }: { big: boolean }) {
   const me = net.myCharacterId ?? g.activeCharacterId;
   const f = useSkyStore.getState().dayFraction;
   const T = realSecondsAt(f);
-  const s = big ? 1 : 0.62; // marker scale
+  const s = (big ? 1 : 0.62) * scale; // marker scale
   const out: React.ReactNode[] = [];
 
   // Train
@@ -335,7 +417,7 @@ function LiveMarkers({ big }: { big: boolean }) {
   return <>{out}</>;
 }
 
-function Landmarks({ big, list = ALL_LANDMARKS }: { big: boolean; list?: Landmark[] }) {
+function Landmarks({ big, list = ALL_LANDMARKS, scale = 1 }: { big: boolean; list?: Landmark[]; scale?: number }) {
   return (
     <g fontFamily={FONT}>
       {list.map((l, i) => (
@@ -344,12 +426,12 @@ function Landmarks({ big, list = ALL_LANDMARKS }: { big: boolean; list?: Landmar
           style={big && l.go ? { cursor: 'pointer' } : undefined}
           onClick={big && l.go ? (e) => { e.stopPropagation(); startGuide(l); } : undefined}
         >
-          {big && l.go && <circle cx={l.x} cy={l.z} r={10} fill="rgba(255,255,255,0.55)" stroke="#2a2433" strokeWidth={0.9} />}
-          <text x={l.x} y={l.z + (big ? 4 : 5)} fontSize={big ? 11 : 14} textAnchor="middle">{l.icon}</text>
+          {big && l.go && <circle cx={l.x} cy={l.z} r={10 * scale} fill="rgba(255,255,255,0.55)" stroke="#2a2433" strokeWidth={0.9 * scale} />}
+          <text x={l.x} y={l.z + (big ? 4 : 5) * scale} fontSize={(big ? 11 : 14) * scale} textAnchor="middle">{l.icon}</text>
           {big && l.label && (
             <text
-              x={l.x + (l.dx ?? 0)} y={l.z + (l.dz ?? 0) + (l.dx ? 2.5 : 0)} fontSize={8.4} fontWeight={800}
-              textAnchor={l.anchor ?? 'middle'} fill="#1d2530" stroke="#ffffff" strokeWidth={2.8} paintOrder="stroke"
+              x={l.x + (l.dx ?? 0)} y={l.z + (l.dz ?? 0) + (l.dx ? 2.5 : 0)} fontSize={8.4 * scale} fontWeight={800}
+              textAnchor={l.anchor ?? 'middle'} fill="#1d2530" stroke="#ffffff" strokeWidth={2.8 * scale} paintOrder="stroke"
             >
               {l.label}
             </text>
@@ -463,10 +545,12 @@ export function WorldMap() {
 
   if (open) {
     const g0 = useGameStore.getState();
-    const imSouth = g0.positions[me ?? g0.activeCharacterId].z > SOUTH_FROM_Z;
-    const south = peek ?? imSouth;
-    const vb = south ? `${DX0} ${DZ0} ${DX1 - DX0} ${DZ1 - DZ0}` : `${X0} ${Z0} ${X1 - X0} ${Z1 - Z0}`;
-    const dests = south ? DOMAIN_DESTINATIONS : DESTINATIONS;
+    const mySheet = sheetAt(g0.positions[me ?? g0.activeCharacterId].z);
+    const sheet = peek ?? mySheet;
+    const sb = SHEETS[sheet].box;
+    const vb = `${sb.x} ${sb.z} ${sb.w} ${sb.h}`;
+    const dests = SHEET_LANDMARKS[sheet].filter((l) => l.go);
+    const nextSheet = SHEET_ORDER[(SHEET_ORDER.indexOf(sheet) + 1) % SHEET_ORDER.length];
     return (
       <div
         onClick={() => useMapStore.getState().close()}
@@ -485,25 +569,25 @@ export function WorldMap() {
           <svg viewBox={vb} width="100%" height="100%" style={{ display: 'block' }}>
             <MapArt labels />
             <GuideLine big />
-            <Landmarks big list={south ? DOMAIN_LANDMARKS : LANDMARKS} />
-            <LiveMarkers big />
+            <Landmarks big list={SHEET_LANDMARKS[sheet]} scale={sb.w / SHEET_W} />
+            <LiveMarkers big scale={sb.w / SHEET_W} />
           </svg>
           <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(255,253,246,0.94)', color: '#2a2433', padding: '6px 12px', borderRadius: 12, fontWeight: 800, fontSize: 15, border: '2px solid #2a2433' }}>
-            🗺️ {south ? 'The Domain' : 'Royal Tara Cove'} <span style={{ fontWeight: 600, opacity: 0.7, fontSize: 12 }}>· north is up</span>
+            🗺️ {SHEETS[sheet].title} <span style={{ fontWeight: 600, opacity: 0.7, fontSize: 12 }}>· north is up</span>
           </div>
           {/* The other end of the Red Line is on its own sheet. */}
           <button
-            onClick={(e) => { e.stopPropagation(); useMapStore.getState().setPeek(!south); }}
+            onClick={(e) => { e.stopPropagation(); useMapStore.getState().setPeek(nextSheet); }}
             style={{
               position: 'absolute', top: 10, right: 12, background: '#c8102e', color: '#fff', border: '2px solid #fff', borderRadius: 12,
               padding: '6px 12px', fontFamily: FONT, fontSize: 13.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
             }}
           >
-            🚆 {south ? 'Show Royal Tara Cove' : 'Show the Domain'}
+            🚆 Show {SHEETS[nextSheet].title}
           </button>
-          {south !== imSouth && (
+          {sheet !== mySheet && (
             <div style={{ position: 'absolute', top: 50, right: 12, background: 'rgba(20,28,38,0.82)', color: '#fff', padding: '4px 10px', borderRadius: 10, fontWeight: 700, fontSize: 12 }}>
-              {south ? 'Ride the Red Line from Avery Ranch to get here' : 'Ride the Red Line back to get here'}
+              Ride the Red Line to get here
             </div>
           )}
           {/* "Take me there": big friendly buttons (the circles on the map work too). */}

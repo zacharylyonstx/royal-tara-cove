@@ -49,6 +49,23 @@ export class Batch {
     return this.push(group, g, color, x, y, z);
   }
 
+  /**
+   * A roof: base `w` (along the ridge) × `d` sitting at height y, ridge `h`
+   * above it running along local X. `hip` pulls each end of the ridge in from
+   * the end walls (0 = a plain gable with vertical triangular ends).
+   */
+  roof(group: string, color: string, w: number, h: number, d: number, x: number, y: number, z: number, ry = 0, hip = 0) {
+    const hw = w / 2, hd = d / 2, r = Math.max(0.01, hw - hip);
+    const fl = [-hw, 0, hd], fr = [hw, 0, hd], bl = [-hw, 0, -hd], br = [hw, 0, -hd], rl = [-r, h, 0], rr = [r, h, 0];
+    const tris = [fl, fr, rr, fl, rr, rl, br, bl, rl, br, rl, rr, bl, fl, rl, fr, br, rr];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(tris.length * 2), 2));
+    g.setIndex(tris.map((_, i) => i));
+    g.computeVertexNormals();
+    return this.push(group, g, color, x, y, z, 0, ry, 0);
+  }
+
   build(): Record<string, THREE.BufferGeometry> {
     const out: Record<string, THREE.BufferGeometry> = {};
     for (const [k, list] of Object.entries(this.parts)) {
