@@ -4,10 +4,12 @@ import { useGameStore } from '../state/gameStore';
 import { useCombatStore } from '../state/combatStore';
 import { useNightStore } from '../state/nightStore';
 import { startMusic, stopMusic, setMusicMix } from '../audio';
+import { lofiOff, lofiOn, useMusicStore } from '../state/musicStore';
 
 const MAX_BLOBS_FOR_INTENSITY = 8;
 
-// Adaptive layered music for the Aliens + Free Play modes. Munchies and Treehouse
+// Adaptive layered music for the Aliens + Free Play modes (Free Play normally
+// plays the lofi radio instead — src/lofi.ts). Munchies and Treehouse
 // run their own themes (lullaby / treehouse), so this stops when those start.
 export function MusicController() {
   const startedRef = useRef(false);
@@ -22,12 +24,23 @@ export function MusicController() {
     // Siren Head Night runs its own horror theme (started by SirenHeadController).
     if (mode === 'munchies' || mode === 'treehouse' || mode === 'tornado' || mode === 'night') {
       if (startedRef.current) { stopMusic(); startedRef.current = false; }
+      lofiOff();
       return;
     }
 
     // Aliens + Free Play: ensure the layered music is running (ctx is unlocked
     // by now — you clicked through the welcome to get here).
     if (!startedRef.current) { startMusic(); startedRef.current = true; }
+
+    // Free Play's radio: the lofi playlist plays INSTEAD of the neighbourhood
+    // pad (unless the 🎵 button is on "classic"). With Siren Head out after
+    // dark it drops to a murmur so the siren owns the night.
+    if (mode === 'freeplay' && useMusicStore.getState().station === 'lofi') {
+      lofiOn(useNightStore.getState().stalkerActive ? 0.1 : 1);
+      setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.0 });
+      return;
+    }
+    lofiOff();
 
     if (phase === 'victory') { setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.6 }); return; }
     if (phase === 'defeat') { setMusicMix({ peaceful: 0.0, combat: 0.0, victory: 0.0 }); return; }

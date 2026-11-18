@@ -51,6 +51,7 @@ import { NightHud } from './ui/NightHud';
 import { TouchControls } from './ui/TouchControls';
 import { WardrobeOverlay } from './ui/WardrobeOverlay';
 import { AudioButton } from './ui/AudioButton';
+import { MusicButton } from './ui/MusicButton';
 import { MenuButton } from './ui/MenuButton';
 import { ACESFilmicToneMapping } from 'three';
 import { isTouchDevice } from './systems/touchInput';
@@ -128,6 +129,7 @@ export default function App() {
       <TouchControls />
       <WardrobeOverlay />
       <AudioButton />
+      <MusicButton />
       <MenuButton />
     </>
   );

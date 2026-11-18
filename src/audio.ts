@@ -38,6 +38,13 @@ export function applyMasterOutput(mul: number) {
   }
 }
 
+/** The shared context + the master bus (mute/volume), for sound made in other
+ *  modules (the lofi radio). null until audio is available. */
+export function audioGraph(): { ctx: AudioContext; out: AudioNode } | null {
+  const c = ensureCtx();
+  return c ? { ctx: c, out: master(c) } : null;
+}
+
 export function unlockAudio() {
   const c = ensureCtx();
   if (!c) return;
