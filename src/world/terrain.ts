@@ -61,10 +61,15 @@ function surveyHeight(gx: number, gz: number): number {
 }
 
 // ------------------------------------------------------------- south land --
-// The country the Red Line runs through on its way to the Domain. It has its
-// own, finer ground (components/rail/SouthLand.tsx); the coarse backdrop is
-// sunk out of the way underneath it.
-export const SOUTH_X0 = -700, SOUTH_X1 = 190, SOUTH_Z0 = 70, SOUTH_Z1 = 1040;
+// The country the Red Line runs through on its way to the Domain, Downtown
+// and Bastrop. It has its own, finer ground (components/rail/SouthLand.tsx);
+// the coarse backdrop is sunk out of the way underneath it.
+export const SOUTH_X0 = -700, SOUTH_X1 = 190, SOUTH_Z0 = 70, SOUTH_Z1 = 3780;
+/** From the Lost Pines on, the land is drawn wider: you get off and walk about
+ *  at Bastrop, well to either side of the line. */
+export const WIDE_Z0 = 2420, WIDE_X0 = -960, WIDE_X1 = 720;
+/** Where the rails end (mirrors redLine.TRACK_Z_S). */
+const RAIL_END_Z = 3076.6;
 /** Centreline between the two tracks (mirrors westAvery.RAIL_MID_X). */
 const SOUTH_RAIL_X = -173.9;
 /** Flat half-width of the railway formation; the land may rise beyond it. */
@@ -72,7 +77,11 @@ export const SOUTH_BED_HALF = 8.5;
 export const SOUTH_SHOULDER = 14;
 
 /** Rail bridges (z spans): the SH-45 toll road and Walnut Creek pass under. */
-export const SOUTH_BRIDGES: [number, number][] = [[309, 343], [495, 517]];
+export const SOUTH_BRIDGES: [number, number][] = [
+  [309, 343], [495, 517],
+  [1636, 1720],   // Lady Bird Lake (mirrors redLine.LAKE_Z)
+  [2796, 2870],   // the Colorado River (mirrors redLine.RIVER_Z)
+];
 
 interface Pad { x0: number; x1: number; z0: number; z1: number; y: number; soft: number }
 /** Levelled ground: stations, the highway, the quarry floor, the Domain. */
@@ -84,13 +93,31 @@ const PADS: Pad[] = [
   { x0: -230, x1: -104, z0: 426, z1: 480, y: 0, soft: 12 },     // Howard station + park & ride
   { x0: -700, x1: 190, z0: 502, z1: 510, y: -3.6, soft: 7 },    // Walnut Creek
   { x0: -380, x1: -100, z0: 540, z1: 716, y: 0, soft: 16 },     // the Domain
+  { x0: -560, x1: 100, z0: 736, z1: 1626, y: 0, soft: 26 },     // the city, Kramer → Downtown
+  { x0: -960, x1: 720, z0: 1644, z1: 1712, y: -5, soft: 8 },    // Lady Bird Lake
+  { x0: -150, x1: 190, z0: 1846, z1: 2014, y: 0, soft: 22 },    // the airport
+  { x0: -300, x1: -120, z0: 2296, z1: 2384, y: 0, soft: 18 },   // the pecan farm
+  { x0: -960, x1: 720, z0: 2806, z1: 2860, y: -7, soft: 10 },   // the Colorado River
+  { x0: -660, x1: 440, z0: 2900, z1: 3480, y: 0, soft: 44 },    // The Colony
 ];
+
+/** What grows (or is paved) at a spot — the land mesh tints itself by this. */
+export type LandKind = 'hill' | 'city' | 'prairie' | 'pines' | 'lawn';
+export function landKind(gx: number, gz: number): LandKind {
+  if (gz < 726) return 'hill';
+  if (gz < 1640) return gx > -580 && gx < 120 ? 'city' : 'hill';
+  if (gz < 2430) return 'prairie';
+  if (gz < 2800) return 'pines';
+  return gx > -680 && gx < 460 && gz > 2880 && gz < 3500 ? 'lawn' : 'pines';
+}
 
 function southLand(gx: number, gz: number): number {
   // Rolling Hill Country, with the limestone ridge the line cuts through.
   const roll = Math.sin(gx * 0.019 + 1.3) * Math.cos(gz * 0.023) * 2.4 + Math.sin(gx * 0.043 + gz * 0.037) * 1.2 + 1.6;
   const ridge = 7.5 * ss(104, 128, gz) * (1 - ss(188, 216, gz));
-  let h = roll * 0.8 + ridge;
+  // The Lost Pines stand on sandy hills, a good deal lumpier than the prairie.
+  const pines = 4.2 * ss(2410, 2500, gz) * (1 - ss(2740, 2790, gz)) * (0.55 + 0.45 * Math.sin(gx * 0.031 + gz * 0.019 + 0.7));
+  let h = roll * 0.8 + ridge + pines;
   for (const p of PADS) {
     const dx = Math.max(p.x0 - gx, 0, gx - p.x1);
     const dz = Math.max(p.z0 - gz, 0, gz - p.z1);
@@ -102,14 +129,15 @@ function southLand(gx: number, gz: number): number {
   const d = Math.abs(gx - SOUTH_RAIL_X);
   let onBridge = false;
   for (const [b0, b1] of SOUTH_BRIDGES) if (gz > b0 && gz < b1) onBridge = true;
-  if (!onBridge) h *= ss(SOUTH_BED_HALF, SOUTH_SHOULDER, d);
+  if (!onBridge && gz < RAIL_END_Z + 12) h *= ss(SOUTH_BED_HALF, SOUTH_SHOULDER, d);
   // Never poke up through the flat play disc.
   const r = Math.hypot(gx - GROUND_CX, gz - GROUND_CZ);
   return h * ss(GROUND_R - 2, GROUND_R + 36, r);
 }
 
 function inSouth(gx: number, gz: number): boolean {
-  return gz >= SOUTH_Z0 && gz <= SOUTH_Z1 && gx >= SOUTH_X0 && gx <= SOUTH_X1;
+  if (gz < SOUTH_Z0 || gz > SOUTH_Z1) return false;
+  return gz >= WIDE_Z0 ? gx >= WIDE_X0 && gx <= WIDE_X1 : gx >= SOUTH_X0 && gx <= SOUTH_X1;
 }
 
 /** Height of the south-land ground mesh (blends in from the surveyed relief). */

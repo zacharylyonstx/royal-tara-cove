@@ -1,4 +1,5 @@
-// The MetroRail Red Line you can ride: Avery Ranch ⇄ The Domain.
+// The MetroRail Red Line you can ride: Avery Ranch → The Domain → Downtown
+// Austin → Bastrop (The Colony).
 //
 // Real geography, compressed (the ride is ≈19:1, the rest of the map ≈5:1):
 //   • The Red Line really does cross Avery Ranch Blvd at grade, north of
@@ -9,16 +10,27 @@
 //     OVER the SH-45 toll road, runs past the Austin White Lime quarry and the
 //     Union Pacific junction at McNeil, reaches Howard station — an island
 //     platform between two tracks — then crosses Walnut Creek and ducks under
-//     the MoPac main lanes. (It never crosses US-183.)
+//     the MoPac main lanes. (It never crosses US-183 up here.)
 //   • The Domain's own stop, North Burnet/Uptown, is still being built in real
 //     life (Kramer, a mile's walk away, serves it today). The game opens it
 //     early. It sits east of Burnet Road; the Domain is across the road.
+//   • On into town the real stops are Kramer, McKalla (Q2 Stadium), Crestview,
+//     Highland, MLK Jr., Plaza Saltillo and Downtown (by the Convention Center,
+//     the end of the real line). Every road is crossed at grade; only the
+//     freeways go over the top — US-183 once and I-35 twice.
+//   • Downtown → Bastrop is MADE UP: there is no railway to The Colony. The
+//     game's extension leaves Downtown over Lady Bird Lake, passes the airport
+//     and the SH-130 toll road, follows the TX-71 country past the pecan farm
+//     with the giant squirrel and into the Lost Pines, then crosses the
+//     Colorado River to end beside Sam Houston Drive.
 //   • The trains are Stadler GTW 2/6 diesel railcars: two passenger cars with a
 //     short power module in the middle that you can walk through.
 //
-// TWO trains shuttle on their own tracks in opposite phase, so one leaves each
-// station every HALF_S seconds and they pass each other mid-route. Everything
-// here is a pure function of the rail clock `rail.T` (host-owned, see
+// SIX trains run a loop: southbound on the WEST track, northbound on the EAST
+// track, and at each end of the line the train reverses out over a crossover
+// to the other track (it has a cab at both ends, so it never turns round).
+// One leaves every HEADWAY_S seconds in each direction. Everything here is a
+// pure function of the rail clock `rail.T` (host-owned, see
 // systems/RailController) — positions are never sent over the network.
 import type { Floor, RectCollider } from '../types';
 import { RAIL_X, RAIL_X_B, WEST_BLVD_Z } from './westAvery';
@@ -33,15 +45,18 @@ export const TRAIN_ROOF_Y = 3.3;
 
 // ---------------------------------------------------------------- stations --
 export const STN_AVERY_Z = -222;
-export const ROUTE_LEN = 820;
-export const STN_DOMAIN_Z = STN_AVERY_Z + ROUTE_LEN; // 598
+export const STN_DOMAIN_Z = STN_AVERY_Z + 820;      // 598
+export const STN_DOWNTOWN_Z = STN_DOMAIN_Z + 960;   // 1558
+export const STN_BASTROP_Z = STN_DOWNTOWN_Z + 1500; // 3058
+/** Avery Ranch → Bastrop, platform centre to platform centre. */
+export const ROUTE_LEN = STN_BASTROP_Z - STN_AVERY_Z;
 export const PLATFORM_HALF_LEN = 18;
 /** Island platform edges (a hand's width from the car sides). */
 export const PLATFORM_X0 = RAIL_X + TRAIN_HALF_W + 0.1;
 export const PLATFORM_X1 = RAIL_X_B - TRAIN_HALF_W - 0.1;
 export const RAMP_LEN = 6.5;
 
-export type StationId = 'avery' | 'domain';
+export type StationId = 'avery' | 'domain' | 'downtown' | 'bastrop';
 export interface Station {
   id: StationId; name: string; short: string; z: number;
   /** Which end the access ramp is on (+1 = south end, −1 = north end). */
@@ -50,10 +65,20 @@ export interface Station {
 export const STATIONS: Record<StationId, Station> = {
   avery: { id: 'avery', name: 'Avery Ranch', short: 'Avery Ranch', z: STN_AVERY_Z, rampDir: 1 },
   domain: { id: 'domain', name: 'The Domain', short: 'The Domain', z: STN_DOMAIN_Z, rampDir: 1 },
+  downtown: { id: 'downtown', name: 'Downtown Austin', short: 'Downtown', z: STN_DOWNTOWN_Z, rampDir: 1 },
+  bastrop: { id: 'bastrop', name: 'Bastrop · The Colony', short: 'Bastrop', z: STN_BASTROP_Z, rampDir: 1 },
 };
+/** North → south. */
+export const STATION_ORDER: StationId[] = ['avery', 'domain', 'downtown', 'bastrop'];
 
-/** Where the tracks stop being drawn (they carry on "to Downtown" in the haze). */
-export const TRACK_Z_S = STN_DOMAIN_Z + 190;
+/** The buffer stops at Bastrop: the rails end here. */
+export const TRACK_Z_S = STN_BASTROP_Z + PLATFORM_HALF_LEN + 0.6;
+
+/** Where a reversing train changes track (z span, north → south). At Avery it
+ *  leaves the EAST platform face and slides over to the west track; at Bastrop
+ *  it leaves the WEST face and slides over to the east track. */
+export const XOVER_AVERY: [number, number] = [STN_AVERY_Z + 56, STN_AVERY_Z + 126];
+export const XOVER_BASTROP: [number, number] = [STN_BASTROP_Z - 132, STN_BASTROP_Z - 52];
 
 /** Real places the train rolls past without stopping (z of their centre). */
 export const LAKELINE_Z = 262;
@@ -66,6 +91,27 @@ export const SH45_Z = 326;
 export const QUARRY_Z = 380;
 export const CREEK_Z = 506;
 export const MOPAC_Z = 528;
+// ---- The Domain → Downtown (the real stops, passed without stopping) ----
+export const KRAMER_Z = 772;
+export const Q2_Z = 880;          // McKalla station + the soccer stadium
+export const US183_Z = 968;       // Research Blvd, overhead
+export const LAMAR_Z = 1028;      // North Lamar, at grade
+export const CRESTVIEW_Z = 1052;
+export const HIGHLAND_Z = 1150;
+export const I35_N_Z = 1232;      // I-35 overhead (first time)
+export const MLK_BLVD_Z = 1292;   // E MLK Jr. Blvd, at grade
+export const MLK_Z = 1318;
+export const SALTILLO_Z = 1404;
+export const I35_S_Z = 1476;      // I-35 overhead (second time)
+// ---- Downtown → Bastrop (the made-up extension) ----
+export const CHAVEZ_Z = 1612;     // Cesar Chavez St, at grade
+export const LAKE_Z: [number, number] = [1636, 1720];   // Lady Bird Lake
+export const AIRPORT_Z = 1930;
+export const SH130_Z = 2082;      // toll road, overhead
+export const FM_ROAD_Z = 2228;    // a farm road, at grade
+export const SQUIRREL_Z = 2340;   // the pecan farm
+export const PINES_Z: [number, number] = [2450, 2760];  // the Lost Pines
+export const RIVER_Z: [number, number] = [2796, 2870];  // Colorado River
 export interface Sight { z: number; label: string }
 /** What the on-board display says as you pass (north → south). */
 export const SIGHTS: Sight[] = [
@@ -80,47 +126,126 @@ export const SIGHTS: Sight[] = [
   { z: HOWARD_Z, label: 'Howard Station' },
   { z: CREEK_Z, label: 'Walnut Creek' },
   { z: MOPAC_Z + 8, label: 'under MoPac' },
+  { z: KRAMER_Z, label: 'Kramer Station' },
+  { z: Q2_Z - 20, label: 'Q2 Stadium' },
+  { z: Q2_Z + 16, label: 'Q2 Stadium' },
+  { z: US183_Z, label: 'under US-183' },
+  { z: LAMAR_Z + 12, label: 'Crestview Station' },
+  { z: HIGHLAND_Z, label: 'Highland Station' },
+  { z: I35_N_Z, label: 'under I-35' },
+  { z: MLK_Z, label: 'MLK Jr. Station' },
+  { z: SALTILLO_Z, label: 'Plaza Saltillo' },
+  { z: I35_S_Z, label: 'under I-35 again' },
+  { z: LAKE_Z[0] + 22, label: 'Lady Bird Lake' },
+  { z: LAKE_Z[1] - 22, label: 'Lady Bird Lake' },
+  { z: AIRPORT_Z - 40, label: 'the airport' },
+  { z: AIRPORT_Z, label: 'the airport' },
+  { z: AIRPORT_Z + 40, label: 'the airport' },
+  { z: SH130_Z, label: 'under the SH-130 toll road' },
+  { z: SQUIRREL_Z - 30, label: 'the pecan farm' },
+  { z: SQUIRREL_Z + 8, label: 'the giant squirrel!' },
+  ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ z: PINES_Z[0] + 20 + k * 40, label: 'the Lost Pines' })),
+  { z: RIVER_Z[0] + 18, label: 'the Colorado River' },
+  { z: RIVER_Z[1] - 18, label: 'the Colorado River' },
+  { z: XOVER_BASTROP[0] + 20, label: 'The Colony' },
+];
+
+/** Roads the line crosses at grade: z, and how wide the road is. Only the
+ *  boulevard at home has real gate colliders (the others are far from anyone). */
+export const ROAD_CROSSINGS: { z: number; w: number; colliders: boolean }[] = [
+  { z: WEST_BLVD_Z, w: 14.4, colliders: true },
+  { z: LAKELINE_BLVD_Z, w: 11, colliders: false },
+  { z: PARMER_Z, w: 13, colliders: false },
+  { z: LAMAR_Z, w: 12, colliders: false },
+  { z: MLK_BLVD_Z, w: 11, colliders: false },
+  { z: CHAVEZ_Z, w: 12, colliders: false },
+  { z: FM_ROAD_Z, w: 9, colliders: false },
 ];
 
 // ---------------------------------------------------------------- timetable --
-export const RUN_S = 72;     // station to station
 export const DWELL_S = 24;   // doors-open stop
-export const HALF_S = RUN_S + DWELL_S;
-export const PERIOD_S = HALF_S * 2;
 const ACC_S = 11;            // seconds to reach line speed (and to brake)
-export const LINE_SPEED = ROUTE_LEN / (RUN_S - ACC_S); // ≈13.4 m/s
 const DOOR_OPEN_AT = 0.9, DOOR_OPEN_S = 1.3;
 /** Doors start closing this long before departure (the chime plays then). */
 export const DOOR_CLOSE_LEAD = 4.2;
 const DOOR_CLOSE_S = 1.4;
+/** Seconds each station-to-station run takes (north → south). The Bastrop
+ *  run is an express: half as far again, at 20 m/s. */
+const RUN_S = [72, 82, 86];
 
-/** Distance run after t seconds of a station-to-station trip (0..RUN_S). */
-function runDist(t: number): number {
-  const a = LINE_SPEED / ACC_S;
+/** One leg of the loop: stand at `stn`, then run to `to`. */
+export interface Leg {
+  stn: StationId; to: StationId; dir: 1 | -1;
+  z0: number; len: number; run: number; vmax: number;
+  /** Loop time at which the train stops at `stn`. */
+  t0: number;
+}
+export const LEGS: Leg[] = (() => {
+  const out: Leg[] = [];
+  let t = 0;
+  const add = (a: number, b: number) => {
+    const from = STATIONS[STATION_ORDER[a]], to = STATIONS[STATION_ORDER[b]];
+    const len = Math.abs(to.z - from.z), run = RUN_S[Math.min(a, b)];
+    out.push({ stn: from.id, to: to.id, dir: b > a ? 1 : -1, z0: from.z, len, run, vmax: len / (run - ACC_S), t0: t });
+    t += DWELL_S + run;
+  };
+  add(0, 1); add(1, 2); add(2, 3); add(3, 2); add(2, 1); add(1, 0);
+  return out;
+})();
+/** One whole loop, Avery Ranch → Bastrop → Avery Ranch. (The rail clock is
+ *  only ever sent over the network modulo this.) */
+export const PERIOD_S = LEGS.reduce((s, l) => s + DWELL_S + l.run, 0);
+export const N_TRAINS = 6;
+/** A train leaves each platform face this often. */
+export const HEADWAY_S = PERIOD_S / N_TRAINS;
+/** Line speed north of Downtown (the Bastrop express runs faster). */
+export const LINE_SPEED = LEGS[0].vmax;
+
+/** Distance run after t seconds of a station-to-station trip (0..run). */
+function runDist(l: Leg, t: number): number {
+  const a = l.vmax / ACC_S;
   if (t <= 0) return 0;
-  if (t >= RUN_S) return ROUTE_LEN;
+  if (t >= l.run) return l.len;
   if (t < ACC_S) return 0.5 * a * t * t;
-  if (t > RUN_S - ACC_S) { const r = RUN_S - t; return ROUTE_LEN - 0.5 * a * r * r; }
-  return 0.5 * a * ACC_S * ACC_S + LINE_SPEED * (t - ACC_S);
+  if (t > l.run - ACC_S) { const r = l.run - t; return l.len - 0.5 * a * r * r; }
+  return 0.5 * a * ACC_S * ACC_S + l.vmax * (t - ACC_S);
 }
-function runSpeed(t: number): number {
-  const a = LINE_SPEED / ACC_S;
-  if (t <= 0 || t >= RUN_S) return 0;
+function runSpeed(l: Leg, t: number): number {
+  const a = l.vmax / ACC_S;
+  if (t <= 0 || t >= l.run) return 0;
   if (t < ACC_S) return a * t;
-  if (t > RUN_S - ACC_S) return a * (RUN_S - t);
-  return LINE_SPEED;
+  if (t > l.run - ACC_S) return a * (l.run - t);
+  return l.vmax;
 }
+function smooth(a: number, b: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+/** Which track centreline a train heading `dir` is on at `z`: southbound runs
+ *  on the west track, northbound on the east — except just out of a terminus,
+ *  where it is still sliding across from the face it reversed out of. */
+export function trackXAt(dir: 1 | -1, z: number): number {
+  const k = dir > 0 ? smooth(XOVER_AVERY[0], XOVER_AVERY[1], z) : smooth(XOVER_BASTROP[0], XOVER_BASTROP[1], z);
+  return RAIL_X_B + (RAIL_X - RAIL_X_B) * k;
+}
+const MID_X = (RAIL_X + RAIL_X_B) / 2;
 
 export interface TrainPlan {
   z: number;
+  /** Track centreline it is on (changes only on a crossover). */
+  x: number;
   /** Signed speed along +Z (south). */
   v: number;
-  /** Direction of the current / next run: +1 = southbound (to the Domain). */
+  /** Direction of the current / next run: +1 = southbound (toward Bastrop). */
   dir: 1 | -1;
   /** Station it is standing at (null while running). */
   at: StationId | null;
   /** The station it is heading for (or will head for when it leaves). */
   next: StationId;
+  /** The end of the line it is heading for (what the front sign says). */
+  dest: StationId;
+  /** Which side its doors open on at an island platform: +1 = east. */
+  side: 1 | -1;
   /** 0 = shut, 1 = fully open. */
   door: number;
   /** Seconds until it leaves the station it is at (0 while running). */
@@ -131,56 +256,78 @@ export interface TrainPlan {
   progress: number;
 }
 
-/** Where train `i` (0 = west track, 1 = east track) is at rail-clock time T. */
+function loopPhase(i: number, T: number): number {
+  return ((((T + i * HEADWAY_S) % PERIOD_S) + PERIOD_S) % PERIOD_S);
+}
+
+/** Where train `i` is at rail-clock time T. */
 export function trainPlan(i: number, T: number): TrainPlan {
-  const p = ((((T + i * HALF_S) % PERIOD_S) + PERIOD_S) % PERIOD_S);
-  const leg = p < HALF_S ? 0 : 1;          // 0: Avery → Domain, 1: Domain → Avery
-  const q = p - leg * HALF_S;              // 0..HALF_S within the leg
-  const from: StationId = leg === 0 ? 'avery' : 'domain';
-  const to: StationId = leg === 0 ? 'domain' : 'avery';
-  const dir: 1 | -1 = leg === 0 ? 1 : -1;
-  const z0 = leg === 0 ? STN_AVERY_Z : STN_DOMAIN_Z;
+  const p = loopPhase(i, T);
+  let k = LEGS.length - 1;
+  while (k > 0 && LEGS[k].t0 > p) k--;
+  const l = LEGS[k];
+  const q = p - l.t0;
+  const dest: StationId = l.dir > 0 ? 'bastrop' : 'avery';
   if (q < DWELL_S) {
     let door = 0;
     if (q > DOOR_OPEN_AT) door = Math.min(1, (q - DOOR_OPEN_AT) / DOOR_OPEN_S);
     const closeAt = DWELL_S - DOOR_CLOSE_LEAD;
     if (q > closeAt) door = Math.max(0, 1 - (q - closeAt) / DOOR_CLOSE_S);
-    return { z: z0, v: 0, dir, at: from, next: to, door, departsIn: DWELL_S - q, arrivesIn: DWELL_S - q + RUN_S, progress: 0 };
+    const x = trackXAt(l.dir, l.z0);
+    return { z: l.z0, x, v: 0, dir: l.dir, at: l.stn, next: l.to, dest, side: x < MID_X ? 1 : -1, door, departsIn: DWELL_S - q, arrivesIn: DWELL_S - q + l.run, progress: 0 };
   }
   const t = q - DWELL_S;
+  const z = l.z0 + l.dir * runDist(l, t);
+  const x = trackXAt(l.dir, z);
   return {
-    z: z0 + dir * runDist(t), v: dir * runSpeed(t), dir, at: null, next: to, door: 0,
-    departsIn: 0, arrivesIn: RUN_S - t, progress: t / RUN_S,
+    z, x, v: l.dir * runSpeed(l, t), dir: l.dir, at: null, next: l.to, dest, side: x < MID_X ? 1 : -1, door: 0,
+    departsIn: 0, arrivesIn: l.run - t, progress: t / l.run,
   };
 }
 
-/** Seconds until the next train DEPARTS from a station (0 = one is boarding
- *  right now), which train it is, and how long its doors stay open. */
-export function nextDeparture(stn: StationId, T: number): { train: number; boarding: boolean; inS: number; doorsFor: number } {
-  let best = { train: 0, boarding: false, inS: Infinity, doorsFor: 0 };
-  for (let i = 0; i < 2; i++) {
-    const pl = trainPlan(i, T);
-    if (pl.at === stn) {
-      // Standing here: boarding until the doors start to close.
-      const doorsFor = pl.departsIn - DOOR_CLOSE_LEAD;
-      if (doorsFor > 0.5) return { train: i, boarding: true, inS: 0, doorsFor };
-      // Doors already closing — the next chance is the OTHER train.
-      continue;
+export interface Departure {
+  /** The end of the line this train is going to, and its next stop. */
+  dest: StationId; next: StationId; dir: 1 | -1;
+  train: number;
+  /** True while its doors are open here (inS is then 0). */
+  boarding: boolean;
+  /** Seconds until it pulls in. */
+  inS: number;
+  /** How long the doors stay open (from now if boarding, else once it stops). */
+  doorsFor: number;
+}
+/** The next train from a station in each direction it is served (one entry at
+ *  the two ends of the line, two in between; southbound first). */
+export function departures(stn: StationId, T: number): Departure[] {
+  const out: Departure[] = [];
+  for (const l of LEGS) {
+    if (l.stn !== stn) continue;
+    let best: Departure = { dest: l.dir > 0 ? 'bastrop' : 'avery', next: l.to, dir: l.dir, train: 0, boarding: false, inS: Infinity, doorsFor: DWELL_S - DOOR_CLOSE_LEAD };
+    for (let i = 0; i < N_TRAINS; i++) {
+      // Seconds until train i next STOPS here on this leg.
+      const w = (((l.t0 - loopPhase(i, T)) % PERIOD_S) + PERIOD_S) % PERIOD_S;
+      const into = PERIOD_S - w; // …or how long ago it did
+      if (into < DWELL_S) {
+        const doorsFor = DWELL_S - into - DOOR_CLOSE_LEAD;
+        if (doorsFor > 0.5) { best = { ...best, train: i, boarding: true, inS: 0, doorsFor }; break; }
+        continue; // doors already closing — the next chance is another train
+      }
+      if (w < best.inS) best = { ...best, train: i, inS: w };
     }
-    if (pl.next === stn && pl.arrivesIn < best.inS) best = { train: i, boarding: false, inS: pl.arrivesIn, doorsFor: DWELL_S - DOOR_CLOSE_LEAD };
+    out.push(best);
   }
-  return best;
+  return out.sort((a, b) => b.dir - a.dir);
 }
 
 // ------------------------------------------------------------------ runtime --
 export interface TrainRT extends TrainPlan {
-  x: number;
   /** Position last frame, and how far it moved this frame. */
-  prevZ: number;
-  dz: number;
+  prevZ: number; prevX: number;
+  dz: number; dx: number;
 }
 function mkTrain(i: number): TrainRT {
-  return { ...trainPlan(i, 0), x: TRACK_X[i], prevZ: trainPlan(i, 0).z, dz: 0 };
+  const pl = trainPlan(i, 0);
+  return { ...pl, prevZ: pl.z, prevX: pl.x, dz: 0, dx: 0 };
 }
 /** Live rail state. Stepped once a frame by systems/RailController. */
 export const rail = {
@@ -188,28 +335,28 @@ export const rail = {
   T: 6,
   /** Trains only run in Free Play. */
   live: false,
-  trains: [mkTrain(0), mkTrain(1)] as [TrainRT, TrainRT],
+  trains: Array.from({ length: N_TRAINS }, (_, i) => mkTrain(i)),
   /** Crossing gates down at the boulevard. */
   gateWarning: false,
   /** Latest clock phase heard from the host (guests only), and when. */
   netT: null as number | null,
 };
 
-const PARKED_Z = 6000; // where the trains "are" when they aren't running
+const PARKED_Z = 9000; // where the trains "are" when they aren't running
 
 /** Advance the trains to rail.T and move their colliders + floors with them. */
 export function railSync(live: boolean) {
   rail.live = live;
   let warn = false;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < N_TRAINS; i++) {
     const tr = rail.trains[i];
     const plan = trainPlan(i, rail.T);
-    const prev = tr.z;
+    const prevZ = tr.z, prevX = tr.x;
     Object.assign(tr, plan);
     if (!live) tr.z = PARKED_Z + i * 100;
-    tr.prevZ = prev;
-    tr.dz = tr.z - prev;
-    if (live) {
+    tr.prevZ = prevZ; tr.prevX = prevX;
+    tr.dz = tr.z - prevZ; tr.dx = tr.x - prevX;
+    if (live && Math.abs(tr.z - WEST_BLVD_Z) < 160) {
       // Gates: is the train on (or about to be on) the boulevard crossing?
       for (const look of [0, 2.5, 5, 7.5]) {
         const zz = look === 0 ? tr.z : trainPlan(i, rail.T + look).z;
@@ -221,30 +368,29 @@ export function railSync(live: boolean) {
   rail.gateWarning = warn;
 }
 
-/** Which train (0/1) a point is riding in, or −1. Uses THIS frame's position. */
+/** Which train a point is riding in, or −1. Uses THIS frame's position. */
 export function trainAboard(x: number, y: number, z: number): number {
-  if (!rail.live) return -1;
-  for (let i = 0; i < 2; i++) {
+  if (!rail.live || y <= TRAIN_FLOOR_Y - 0.3 || y >= TRAIN_ROOF_Y) return -1;
+  for (let i = 0; i < N_TRAINS; i++) {
     const tr = rail.trains[i];
-    if (Math.abs(x - tr.x) <= TRAIN_HALF_W + 0.02 && Math.abs(z - tr.z) <= TRAIN_LEN / 2
-      && y > TRAIN_FLOOR_Y - 0.3 && y < TRAIN_ROOF_Y) return i;
+    if (Math.abs(z - tr.z) <= TRAIN_LEN / 2 && Math.abs(x - tr.x) <= TRAIN_HALF_W + 0.02) return i;
   }
   return -1;
 }
 /** Same test against where the train was LAST frame (for carrying riders). */
 export function trainAboardPrev(x: number, y: number, z: number): number {
-  if (!rail.live) return -1;
-  for (let i = 0; i < 2; i++) {
+  if (!rail.live || y <= TRAIN_FLOOR_Y - 0.3 || y >= TRAIN_ROOF_Y) return -1;
+  for (let i = 0; i < N_TRAINS; i++) {
     const tr = rail.trains[i];
-    if (Math.abs(x - tr.x) <= TRAIN_HALF_W + 0.02 && Math.abs(z - tr.prevZ) <= TRAIN_LEN / 2
-      && y > TRAIN_FLOOR_Y - 0.3 && y < TRAIN_ROOF_Y) return i;
+    if (Math.abs(z - tr.prevZ) <= TRAIN_LEN / 2 && Math.abs(x - tr.prevX) <= TRAIN_HALF_W + 0.02) return i;
   }
   return -1;
 }
 
 // ------------------------------------------------------------ car interior --
-// Train-local frame = the world frame, just slid along Z (the trains shuttle
-// without ever turning round, so local +Z is always south). Layout along Z:
+// Train-local frame = the world frame, just slid along Z — and sideways while
+// it changes track (the trains never turn round, so local +Z is always south).
+// Layout along Z:
 //   −15 … −12.6  north cab          12.6 … 15   south cab
 //   −12.6 … −2.2 north saloon        2.2 … 12.6 south saloon
 //   −2.2 … 2.2   power module (a 1 m corridor between the engine rooms)
@@ -282,16 +428,15 @@ export const SEATS_LOCAL: SeatDef[] = (() => {
   return out;
 })();
 
-interface LocalBox { c: RectCollider; z0: number; z1: number; door?: -1 | 1 }
-const TRAIN_BOXES: LocalBox[][] = [[], []];
+interface LocalBox { c: RectCollider; x0: number; x1: number; z0: number; z1: number; door?: -1 | 1 }
+const TRAIN_BOXES: LocalBox[][] = Array.from({ length: N_TRAINS }, () => []);
 const TRAIN_FLOORS: Floor[] = [];
 
-function buildTrainBoxes(i: number): LocalBox[] {
+function buildTrainBoxes(): LocalBox[] {
   const out: LocalBox[] = [];
-  const x = TRACK_X[i];
   const lo = TRAIN_FLOOR_Y - 0.12, hi = TRAIN_ROOF_Y + 0.4;
   const add = (x0: number, x1: number, z0: number, z1: number, tag: string, minY = lo, maxY = hi, door?: -1 | 1) => {
-    out.push({ c: { minX: x + x0, maxX: x + x1, minZ: z0, maxZ: z1, minY, maxY, tag }, z0, z1, door });
+    out.push({ c: { minX: x0, maxX: x1, minZ: z0, maxZ: z1, minY, maxY, tag }, x0, x1, z0, z1, door });
   };
   const H = TRAIN_HALF_W, L = TRAIN_LEN / 2;
   // Underframe: stops anyone at track level walking through a standing train.
@@ -322,24 +467,29 @@ function buildTrainBoxes(i: number): LocalBox[] {
 
 function syncTrainBodies(i: number, tr: TrainRT) {
   const boxes = TRAIN_BOXES[i];
-  // Platform side: the island is EAST of the west track, WEST of the east track.
-  const platformSide = i === 0 ? 1 : -1;
+  // Only the doors facing the island platform ever open.
   const open = tr.at !== null && tr.door > 0.55;
   for (const b of boxes) {
+    b.c.minX = tr.x + b.x0;
+    b.c.maxX = tr.x + b.x1;
     b.c.minZ = tr.z + b.z0;
     b.c.maxZ = tr.z + b.z1;
-    if (b.door) b.c.passable = open && b.door === platformSide;
+    if (b.door) b.c.passable = open && b.door === tr.side;
   }
   const f = TRAIN_FLOORS[i];
-  if (f) { f.minZ = tr.z - TRAIN_LEN / 2; f.maxZ = tr.z + TRAIN_LEN / 2; }
+  if (f) {
+    // Overlaps the platform edge a touch so there is no crack to fall into.
+    f.minX = tr.x - TRAIN_HALF_W - 0.12; f.maxX = tr.x + TRAIN_HALF_W + 0.12;
+    f.minZ = tr.z - TRAIN_LEN / 2; f.maxZ = tr.z + TRAIN_LEN / 2;
+  }
 }
 
 /** The trains' colliders. The SAME objects every call — RailController slides
  *  them along with the trains, so they must stay in the store's list as-is. */
 export function buildRailColliders(): RectCollider[] {
   const out: RectCollider[] = [];
-  for (let i = 0; i < 2; i++) {
-    if (!TRAIN_BOXES[i].length) TRAIN_BOXES[i] = buildTrainBoxes(i);
+  for (let i = 0; i < N_TRAINS; i++) {
+    if (!TRAIN_BOXES[i].length) TRAIN_BOXES[i] = buildTrainBoxes();
     for (const b of TRAIN_BOXES[i]) out.push(b.c);
   }
   out.push(...buildStationColliders());
@@ -350,12 +500,8 @@ export function buildRailColliders(): RectCollider[] {
 /** Car floors (dynamic) + platforms and ramps (static). Same objects each call. */
 export function buildRailFloors(): Floor[] {
   if (!TRAIN_FLOORS.length) {
-    for (let i = 0; i < 2; i++) {
-      TRAIN_FLOORS.push({
-        // Overlaps the platform edge a touch so there is no crack to fall into.
-        minX: TRACK_X[i] - TRAIN_HALF_W - 0.12, maxX: TRACK_X[i] + TRAIN_HALF_W + 0.12,
-        minZ: 0, maxZ: 0, baseY: TRAIN_FLOOR_Y, topY: TRAIN_FLOOR_Y,
-      });
+    for (let i = 0; i < N_TRAINS; i++) {
+      TRAIN_FLOORS.push({ minX: 0, maxX: 0, minZ: 0, maxZ: 0, baseY: TRAIN_FLOOR_Y, topY: TRAIN_FLOOR_Y });
     }
   }
   railSync(rail.live);
@@ -405,7 +551,34 @@ function buildStationColliders(): RectCollider[] {
   // The stations the train only passes: solid, so nobody ends up inside them.
   out.push({ minX: PLATFORM_X0, maxX: PLATFORM_X1, minZ: HOWARD_Z - PLATFORM_HALF_LEN, maxZ: HOWARD_Z + PLATFORM_HALF_LEN, minY: 0, maxY: 3.4, tag: 'platform-solid' });
   out.push({ minX: LAKELINE_PLAT.x0, maxX: LAKELINE_PLAT.x1, minZ: LAKELINE_Z - LAKELINE_PLAT.half, maxZ: LAKELINE_Z + LAKELINE_PLAT.half, minY: 0, maxY: 3.4, tag: 'platform-solid' });
+  for (const c of CITY_STOPS) {
+    if (c.kind === 'island') out.push({ minX: PLATFORM_X0, maxX: PLATFORM_X1, minZ: c.z - PLATFORM_HALF_LEN, maxZ: c.z + PLATFORM_HALF_LEN, minY: 0, maxY: 3.4, tag: 'platform-solid' });
+    for (const side of [1, -1] as const) {
+      if (c.kind !== 'both' && c.kind !== (side > 0 ? 'east' : 'west')) continue;
+      const sx = sidePlatX(side);
+      out.push({ minX: sx.x0, maxX: sx.x1, minZ: c.z - SIDE_PLAT_HALF, maxZ: c.z + SIDE_PLAT_HALF, minY: 0, maxY: 3.4, tag: 'platform-solid' });
+    }
+  }
   return out;
+}
+/** The real stops between the Domain and Downtown — passed, not served.
+ *  `kind`: an island between the tracks, or side platforms east / west / both. */
+export interface PassedStop { z: number; name: string; kind: 'island' | 'east' | 'west' | 'both'; accent: string }
+export const CITY_STOPS: PassedStop[] = [
+  { z: KRAMER_Z, name: 'KRAMER', kind: 'both', accent: '#2e7fd0' },
+  { z: Q2_Z, name: 'McKALLA', kind: 'both', accent: '#00b140' },
+  { z: CRESTVIEW_Z + 22, name: 'CRESTVIEW', kind: 'east', accent: '#e08a2a' },
+  { z: HIGHLAND_Z, name: 'HIGHLAND', kind: 'east', accent: '#c8102e' },
+  { z: MLK_Z + 14, name: 'MLK JR.', kind: 'island', accent: '#7a4fc3' },
+  { z: SALTILLO_Z, name: 'PLAZA SALTILLO', kind: 'west', accent: '#1f5d46' },
+];
+export const SIDE_PLAT_W = 4.3;
+export const SIDE_PLAT_HALF = 15;
+/** x-span of a side platform on the given side (+1 = east of the east track). */
+export function sidePlatX(side: 1 | -1): { x0: number; x1: number } {
+  return side > 0
+    ? { x0: RAIL_X_B + TRAIN_HALF_W + 0.1, x1: RAIL_X_B + TRAIN_HALF_W + 0.1 + SIDE_PLAT_W }
+    : { x0: RAIL_X - TRAIN_HALF_W - 0.1 - SIDE_PLAT_W, x1: RAIL_X - TRAIN_HALF_W - 0.1 };
 }
 /** Lakeline's side platform (east of the east track) — passed, not served. */
 export const LAKELINE_PLAT = { x0: RAIL_X_B + TRAIN_HALF_W + 0.1, x1: RAIL_X_B + TRAIN_HALF_W + 4.4, half: 15 };
@@ -415,9 +588,8 @@ export const CANOPY_POSTS = [-12, -4, 4, 12];
 /** Height of the rail floor under (x, z) if there is one a pet could stand on
  *  (a platform or a car floor), else 0. */
 export function railFloorAt(x: number, z: number): number {
-  for (let i = 0; i < 2; i++) {
-    const tr = rail.trains[i];
-    if (rail.live && Math.abs(x - tr.x) <= TRAIN_HALF_W && Math.abs(z - tr.z) <= TRAIN_LEN / 2) return TRAIN_FLOOR_Y;
+  if (rail.live) for (const tr of rail.trains) {
+    if (Math.abs(z - tr.z) <= TRAIN_LEN / 2 && Math.abs(x - tr.x) <= TRAIN_HALF_W) return TRAIN_FLOOR_Y;
   }
   if (x > PLATFORM_X0 && x < PLATFORM_X1) {
     for (const s of Object.values(STATIONS)) if (Math.abs(z - s.z) <= PLATFORM_HALF_LEN) return PLATFORM_Y;

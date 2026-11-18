@@ -110,13 +110,14 @@ export function NetSyncController() {
         // walking-about-inside part (else they'd trail a metre behind the car).
         const tr = rail.live && rp.train !== undefined && rp.train >= 0 ? rail.trains[rp.train] : null;
         const tz = tr ? tr.z + rp.z : rp.z;
-        const far = Math.hypot(rp.x - pos.x, rp.y - pos.y, tz - pos.z) > REMOTE_SNAP_DIST;
+        const tx = tr ? tr.x + rp.x : rp.x;
+        const far = Math.hypot(tx - pos.x, rp.y - pos.y, tz - pos.z) > REMOTE_SNAP_DIST;
         if (far) {
           // First sight / teleport / mode change — snap, don't slide.
-          pos.x = rp.x; pos.y = rp.y; pos.z = tz;
+          pos.x = tx; pos.y = rp.y; pos.z = tz;
           yaws[charId] = rp.yaw;
         } else {
-          pos.x += (rp.x - pos.x) * k;
+          pos.x += (tx - pos.x) * k;
           pos.y += (rp.y - pos.y) * k;
           pos.z += (tz - pos.z) * k;
           yaws[charId] = (yaws[charId] ?? rp.yaw) + shortestAngle(yaws[charId] ?? rp.yaw, rp.yaw) * k;
@@ -198,7 +199,7 @@ export function NetSyncController() {
         const onTrain = rail.live ? useRailStore.getState().aboard : -1;
         const msg: PlayerStateMsg = {
           characterId: net.myCharacterId,
-          x: pos.x, y: pos.y, z: onTrain >= 0 ? pos.z - rail.trains[onTrain].z : pos.z, yaw,
+          x: onTrain >= 0 ? pos.x - rail.trains[onTrain].x : pos.x, y: pos.y, z: onTrain >= 0 ? pos.z - rail.trains[onTrain].z : pos.z, yaw,
           tr: onTrain >= 0 ? onTrain : undefined,
           // (Was a ref nobody ever wrote → always false, so a sprinting guest made
           // no more noise for Siren Head than a tiptoeing one.)
@@ -240,7 +241,7 @@ export function NetSyncController() {
           tornadoPhaseEnteredAt: tornado.phaseEnteredAt,
           clock: game.gameMode === 'freeplay' ? useSkyStore.getState().dayFraction : undefined,
           rail: game.gameMode === 'freeplay' ? ((rail.T % PERIOD_S) + PERIOD_S) % PERIOD_S : undefined,
-          dog: game.gameMode === 'freeplay' ? { x: dogNetOut.x, y: dogNetOut.y, z: dogNetOut.tr >= 0 ? dogNetOut.z - rail.trains[dogNetOut.tr].z : dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith, tr: dogNetOut.tr >= 0 ? dogNetOut.tr : undefined } : undefined,
+          dog: game.gameMode === 'freeplay' ? { x: dogNetOut.tr >= 0 ? dogNetOut.x - rail.trains[dogNetOut.tr].x : dogNetOut.x, y: dogNetOut.y, z: dogNetOut.tr >= 0 ? dogNetOut.z - rail.trains[dogNetOut.tr].z : dogNetOut.z, yaw: dogNetOut.yaw, petting: dogNetOut.petting, rideWith: dogNetOut.rideWith, tr: dogNetOut.tr >= 0 ? dogNetOut.tr : undefined } : undefined,
           tornadoZ: tornado.tornadoZ,
           tornadoX: tornado.tornadoX,
           stormIntensity: tornado.stormIntensity,

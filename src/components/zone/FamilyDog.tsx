@@ -208,11 +208,12 @@ function FamilyDogInner() {
       // copy of that train, then ease only the bit he moved inside it.
       const dtr = rail.live && dogNetIn.tr >= 0 ? rail.trains[dogNetIn.tr] : null;
       const inZ = dtr ? dtr.z + dogNetIn.z : dogNetIn.z;
-      if (dtr) s.z += dtr.dz;
-      const far = Math.hypot(dogNetIn.x - s.x, inZ - s.z) > 6;
-      if (far) { s.x = dogNetIn.x; s.y = dogNetIn.y; s.z = inZ; s.yaw = dogNetIn.yaw; }
+      const inX = dtr ? dtr.x + dogNetIn.x : dogNetIn.x;
+      if (dtr) { s.z += dtr.dz; s.x += dtr.dx; }
+      const far = Math.hypot(inX - s.x, inZ - s.z) > 6;
+      if (far) { s.x = inX; s.y = dogNetIn.y; s.z = inZ; s.yaw = dogNetIn.yaw; }
       else {
-        s.x += (dogNetIn.x - s.x) * k;
+        s.x += (inX - s.x) * k;
         s.y += (dogNetIn.y - s.y) * k;
         s.z += (inZ - s.z) * k;
         let diff = dogNetIn.yaw - s.yaw;

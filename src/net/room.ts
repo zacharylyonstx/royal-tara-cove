@@ -8,7 +8,7 @@ import { useNetStore, peerOutranks } from '../state/netStore';
 import { useZoneStore } from '../state/zoneStore';
 import { dogNetIn } from '../state/dogSync';
 import { useSkyStore } from '../state/skyStore';
-import { rail, PERIOD_S } from '../world/redLine';
+import { rail, PERIOD_S, N_TRAINS } from '../world/redLine';
 import { useGameStore, type GameMode, type GamePhase } from '../state/gameStore';
 import { useCombatStore, type Blob, type PowerUpDrop, type ActivePowerUp, type WaveState } from '../state/combatStore';
 import { useTornadoStore } from '../state/tornadoStore';
@@ -62,7 +62,7 @@ export interface PlayerStateMsg {
   riding?: { bikeId?: string; bikeColor: string; heading: number; y?: number; flipAngle?: number; vehicle?: 'bike' | 'car'; carKind?: 'sedan' | 'truck' | 'golfcart'; passengerOf?: CharacterId; seat?: number } | null;
   /** Adopted pup id (Woof Gang), null/undefined = none. */
   pet?: string | null;
-  /** Riding the Red Line: which train (0/1). `z` is then measured FROM THE
+  /** Riding the Red Line: which train. `x` and `z` are then measured FROM THE
    *  TRAIN's centre, so every screen places me inside its own copy of the car. */
   tr?: number;
   t: number; // sender timestamp ms
@@ -417,7 +417,7 @@ export async function joinRoom(mode: GameMode): Promise<void> {
       crouching: bool(rawData.crouching),
       riding,
       pet: typeof rawData.pet === 'string' && rawData.pet.length < 24 ? rawData.pet : null,
-      train: rawData.tr === 0 || rawData.tr === 1 ? rawData.tr : -1,
+      train: Number.isInteger(rawData.tr) && (rawData.tr as number) >= 0 && (rawData.tr as number) < N_TRAINS ? (rawData.tr as number) : -1,
       receivedAt: performance.now(),
     });
   }));
@@ -797,7 +797,7 @@ function applyWorldSnapshot(s: Json): void {
     dogNetIn.x = num(d.x); dogNetIn.y = num(d.y); dogNetIn.z = num(d.z); dogNetIn.yaw = num(d.yaw);
     dogNetIn.petting = bool(d.petting);
     dogNetIn.rideWith = typeof d.rideWith === 'string' ? d.rideWith : null;
-    dogNetIn.tr = d.tr === 0 || d.tr === 1 ? d.tr : -1;
+    dogNetIn.tr = Number.isInteger(d.tr) && (d.tr as number) >= 0 && (d.tr as number) < N_TRAINS ? (d.tr as number) : -1;
     dogNetIn.receivedAt = performance.now();
   }
   // Hide-and-seek: the host's game, with the clock re-based onto OUR clock.

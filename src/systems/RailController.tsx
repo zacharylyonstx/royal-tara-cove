@@ -5,7 +5,7 @@ import { useNetStore } from '../state/netStore';
 import { useRailStore } from '../state/railStore';
 import { isInRoom } from '../net/room';
 import {
-  rail, railSync, trainAboardPrev, PERIOD_S, TRAIN_HALF_W, TRAIN_LEN, TRAIN_FLOOR_Y, INNER_HALF_W,
+  rail, railSync, trainAboardPrev, PERIOD_S, N_TRAINS, TRAIN_HALF_W, TRAIN_LEN, TRAIN_FLOOR_Y, INNER_HALF_W,
   LINE_SPEED, STATIONS, PLATFORM_HALF_LEN,
 } from '../world/redLine';
 import { RAIL_MID_X } from '../world/westAvery';
@@ -27,7 +27,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
  * Free Play only; in every other mode the trains are parked off the map.
  */
 export function RailController() {
-  const st = useRef({ clackDist: 0, door: [0, 0], at: [true, true] as boolean[], hornFor: [-1, -1] });
+  const st = useRef({ clackDist: 0, door: new Array<number>(N_TRAINS).fill(0), at: new Array<boolean>(N_TRAINS).fill(true) });
 
   useEffect(() => () => { railSync(false); setTrainRumble(0, 0); useRailStore.getState().setAboard(-1); }, []);
 
@@ -67,6 +67,7 @@ export function RailController() {
     if (ab >= 0) {
       const tr = rail.trains[ab];
       p.z += tr.dz;
+      p.x += tr.dx; // (only non-zero while it changes track at the ends of the line)
       // Doors shut (or shutting) with me in the doorway: step inside.
       if (tr.door < 0.5) {
         const lim = INNER_HALF_W - 0.33;
@@ -76,7 +77,7 @@ export function RailController() {
     } else if (!net.spectator && p.y < TRAIN_FLOOR_Y - 0.3) {
       // Standing on the tracks as a train comes through? It nudges you clear
       // (nobody gets hurt) — always AWAY from an island platform.
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < N_TRAINS; i++) {
         const tr = rail.trains[i];
         if (Math.abs(p.x - tr.x) < TRAIN_HALF_W + 0.4 && Math.abs(p.z - tr.z) < TRAIN_LEN / 2 + 0.6) {
           const outward = tr.x < RAIL_MID_X ? -1 : 1;
@@ -95,17 +96,17 @@ export function RailController() {
       if (id === me) continue;
       const q = game.positions[id];
       const a = trainAboardPrev(q.x, q.y, q.z);
-      if (a >= 0) q.z += rail.trains[a].dz;
+      if (a >= 0) { q.z += rail.trains[a].dz; q.x += rail.trains[a].dx; }
     }
 
     // ---- 4. sounds ----
     if (game.welcomeOpen) { setTrainRumble(0, 0); return; }
     let rumbleV = 0, rumbleS = 0;
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < N_TRAINS; i++) {
       const tr = rail.trains[i];
       const d = Math.hypot(p.x - tr.x, Math.max(0, Math.abs(p.z - tr.z) - TRAIN_LEN / 2));
       const near = ab === i ? 1 : Math.max(0, 1 - d / 60);
-      const sp = Math.abs(tr.v) / LINE_SPEED;
+      const sp = Math.min(1.25, Math.abs(tr.v) / LINE_SPEED);
       if (near > rumbleV) { rumbleV = near; rumbleS = sp; }
       // Door chimes + the hiss of the brakes, for a train I can hear.
       const opening = tr.door > 0.02 && s.door[i] <= 0.02;
@@ -116,10 +117,7 @@ export function RailController() {
         if (tr.at !== null && !s.at[i]) trainHiss(near);
       }
       // A toot as it pulls out.
-      if (tr.at === null && s.at[i]) {
-        const run = Math.floor((rail.T + i * (PERIOD_S / 2)) / (PERIOD_S / 2));
-        if (s.hornFor[i] !== run && near > 0.1) { s.hornFor[i] = run; trainHorn(Math.max(0.25, near) * (ab === i ? 0.55 : 1)); }
-      }
+      if (tr.at === null && s.at[i] && near > 0.1) trainHorn(Math.max(0.25, near) * (ab === i ? 0.55 : 1));
       s.door[i] = tr.door;
       s.at[i] = tr.at !== null;
     }
@@ -127,7 +125,7 @@ export function RailController() {
     // Clickety-clack: a rail joint every 12 m, heard from inside.
     if (ab >= 0) {
       s.clackDist += Math.abs(rail.trains[ab].dz);
-      if (s.clackDist > 12) { s.clackDist = 0; railClack(0.35 + 0.65 * Math.abs(rail.trains[ab].v) / LINE_SPEED); }
+      if (s.clackDist > 12) { s.clackDist = 0; railClack(Math.min(1, 0.35 + 0.65 * Math.abs(rail.trains[ab].v) / LINE_SPEED)); }
     }
   }, -10);
 

@@ -3,16 +3,16 @@ import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import {
   STATIONS, PLATFORM_X0, PLATFORM_X1, PLATFORM_Y, PLATFORM_HALF_LEN, RAMP_LEN, CANOPY_POSTS, rampSpan,
-  HOWARD_Z, LAKELINE_Z, LAKELINE_PLAT, nextDeparture, rail, type Station,
+  HOWARD_Z, LAKELINE_Z, LAKELINE_PLAT, CITY_STOPS, SIDE_PLAT_HALF, sidePlatX, departures, rail, TRACK_Z_S, type Station, type StationId,
 } from '../../world/redLine';
 import { RAIL_MID_X, RAIL_X, RAIL_X_B, WEST_BLVD_Z } from '../../world/westAvery';
 import { useSkyStore } from '../../state/skyStore';
 import { moonDirection, skyPalette, sunDirection } from '../../world/dayNight';
 import { Batch, glowPaint, paint } from './batch';
 
-// The Red Line's stations. Avery Ranch and The Domain are island platforms you
-// can walk onto (floors + colliders: world/redLine.ts); Lakeline and Howard are
-// the real stops in between, which this shuttle rolls straight through.
+// The Red Line's stations. Avery Ranch, The Domain, Downtown and Bastrop are
+// island platforms you can walk onto (floors + colliders: world/redLine.ts);
+// the real stops in between are rolled straight through.
 
 const CONCRETE = '#c9c5ba';
 const PAVE = '#d8d3c6';
@@ -54,6 +54,28 @@ function island(b: Batch, z: number, accent: string) {
   // Name boards hanging under the canopy (the lettering is drawn as Text).
   for (const dz of [-8, 8]) b.box('solid', NAVY, 0.1, 0.52, 3.4, MID, PLATFORM_Y + 2.85, z + dz);
   return zN;
+}
+
+/** A side platform with a shelter, beside one track (+1 = east). */
+function sidePlatform(b: Batch, z: number, side: 1 | -1, accent: string, pyramid: boolean) {
+  const { x0, x1 } = sidePlatX(side);
+  const cx = (x0 + x1) / 2, w = x1 - x0, back = side > 0 ? x1 - 0.5 : x0 + 0.5, edge = side > 0 ? x0 + 0.27 : x1 - 0.27;
+  b.box('solid', CONCRETE, w, PLATFORM_Y, SIDE_PLAT_HALF * 2, cx, PLATFORM_Y / 2, z);
+  b.box('solid', TACTILE, 0.5, 0.022, SIDE_PLAT_HALF * 2, edge, PLATFORM_Y + 0.01, z);
+  for (const dz of [-9, -3, 3, 9]) b.cyl('solid', accent, 0.11, 0.13, 3.1, back, PLATFORM_Y + 1.55, z + dz, 10);
+  if (pyramid) {
+    // Highland's shelters: a little pyramid roof on each pair of posts.
+    for (const dz of [-6, 6]) b.cyl('solid', '#dfe5ea', 0.2, 4.4, 1.5, cx, PLATFORM_Y + 3.85, z + dz, 4, 0, 0, Math.PI / 4);
+  } else {
+    b.box('solid', '#dfe5ea', w + 0.7, 0.08, 20, cx, PLATFORM_Y + 3.2, z, 0, 0, -side * 0.12);
+  }
+  b.box('solid', accent, 0.2, 0.2, 20, back, PLATFORM_Y + 3.08, z);
+  b.box('glow', '#fff1cf', 0.14, 0.05, 17, cx, PLATFORM_Y + 3.02, z);
+  b.box('solid', NAVY, 0.1, 0.52, 3.6, cx, PLATFORM_Y + 2.5, z);
+  for (const dz of [-6, 6]) {
+    b.box('solid', '#8a6a48', 0.5, 0.07, 1.9, back - side * 0.5, PLATFORM_Y + 0.46, z + dz);
+    b.box('solid', '#8a6a48', 0.07, 0.45, 1.9, back - side * 0.26, PLATFORM_Y + 0.72, z + dz);
+  }
 }
 
 function buildStations() {
@@ -112,6 +134,24 @@ function buildStations() {
   const dFoot = rampSpan(STATIONS.domain).z1;
   b.box('solid', '#6b5a48', 4.6, 0.05, 3.6, RAIL_X, 0.2, dFoot + 2.6);
 
+  // --- Downtown: crossing boards west over the rail to the plaza.
+  const tFoot = rampSpan(STATIONS.downtown).z1;
+  b.box('solid', '#6b5a48', 4.6, 0.05, 3.6, RAIL_X, 0.2, tFoot + 2.6);
+  // --- Bastrop: the end of the line. Buffer stops, and the walk straight on
+  //     south off the end of the island to Sam Houston Drive.
+  for (const x of [RAIL_X, RAIL_X_B]) {
+    b.box('solid', '#3a3d42', 2.3, 0.9, 0.5, x, 0.65, TRACK_Z_S + 0.5);
+    b.box('solid', RED, 2.5, 0.5, 0.2, x, 1.1, TRACK_Z_S + 0.2);
+    for (const dx of [-0.9, 0.9]) b.box('solid', '#3a3d42', 0.2, 0.9, 1.6, x + dx, 0.45, TRACK_Z_S + 1.2, 0, 0.5);
+  }
+  // --- The real stops between the Domain and Downtown (not served).
+  for (const c of CITY_STOPS) {
+    if (c.kind === 'island') { island(b, c.z, c.accent); continue; }
+    for (const side of [1, -1] as const) {
+      if (c.kind === 'both' || c.kind === (side > 0 ? 'east' : 'west')) sidePlatform(b, c.z, side, c.accent, c.name === 'HIGHLAND');
+    }
+  }
+
   // --- Howard: the same island platform, in its own colours (not served).
   island(b, HOWARD_Z, '#2f7d5b');
   // --- Lakeline: a side platform with a long shelter (not served).
@@ -125,18 +165,27 @@ function buildStations() {
   return b.build();
 }
 
-/** "TO THE DOMAIN — next train 0:42", hung over the middle of the island. */
+const BOARD_NAME: Record<StationId, string> = { avery: 'AVERY RANCH', domain: 'THE DOMAIN', downtown: 'DOWNTOWN', bastrop: 'BASTROP' };
+
+/** "BASTROP 0:42 / AVERY RANCH 1:10", hung over the middle of the island. */
 function DepartureBoard({ s }: { s: Station }) {
   const [lines, setLines] = useState<[string, string]>(['', '']);
   const last = useRef('');
   useEffect(() => {
     const tick = () => {
       if (!rail.live) return;
-      const to = s.id === 'avery' ? 'THE DOMAIN' : 'AVERY RANCH';
-      const nd = nextDeparture(s.id, rail.T);
-      const l2 = nd.boarding ? `BOARDING · DOORS CLOSE ${fmt(nd.doorsFor)}` : `NEXT TRAIN ${fmt(nd.inS)}`;
-      const key = to + l2;
-      if (key !== last.current) { last.current = key; setLines([`TO ${to}`, l2]); }
+      const deps = departures(s.id, rail.T);
+      let l1: string, l2: string;
+      if (deps.length === 1) {
+        const d = deps[0];
+        l1 = `TO ${BOARD_NAME[d.dest]}`;
+        l2 = d.boarding ? `BOARDING · DOORS CLOSE ${fmt(d.doorsFor)}` : `NEXT TRAIN ${fmt(d.inS)}`;
+      } else {
+        // Southbound leaves from the west face, northbound from the east face.
+        [l1, l2] = deps.map((d) => `${d.dir > 0 ? '◀ ' : ''}${BOARD_NAME[d.dest]}  ${d.boarding ? 'BOARDING' : fmt(d.inS)}${d.dir < 0 ? ' ▶' : ''}`);
+      }
+      const key = l1 + l2;
+      if (key !== last.current) { last.current = key; setLines([l1, l2]); }
     };
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
@@ -185,6 +234,12 @@ export function Stations() {
         </group>
       ))}
       <NameBoards z={HOWARD_Z} name="HOWARD" />
+      {CITY_STOPS.map((c) => (c.kind === 'island'
+        ? <NameBoards key={c.name} z={c.z} name={c.name} />
+        : ([1, -1] as const).filter((side) => c.kind === 'both' || c.kind === (side > 0 ? 'east' : 'west')).map((side) => {
+          const sx = sidePlatX(side);
+          return <NameBoards key={c.name + side} z={c.z} name={c.name} x={(sx.x0 + sx.x1) / 2} y={PLATFORM_Y + 2.5} offsets={[0]} />;
+        })))}
       <NameBoards z={LAKELINE_Z} name="LAKELINE" x={(LAKELINE_PLAT.x0 + LAKELINE_PLAT.x1) / 2} y={PLATFORM_Y + 2.6} offsets={[0]} />
       {/* The totem you see from Avery Ranch Blvd. */}
       <group position={[RAIL_X_B + 12.2, 0, blvdWalk - 2.4]}>
@@ -193,7 +248,7 @@ export function Stations() {
             <Text position={[0, 2.35, 0]} fontSize={0.36} color="#ffffff" anchorX="center" anchorY="middle" letterSpacing={0.05}>MetroRail</Text>
             <Text position={[0, 1.8, 0]} fontSize={0.27} color="#ffd98a" anchorX="center" anchorY="middle" letterSpacing={0.06}>AVERY RANCH</Text>
             <Text position={[0, 1.42, 0]} fontSize={0.2} color="#ffffff" anchorX="center" anchorY="middle" letterSpacing={0.06}>STATION</Text>
-            <Text position={[0, 0.85, 0]} fontSize={0.17} color="#cfe0ff" anchorX="center" anchorY="middle" maxWidth={2.3} textAlign="center">Trains to The Domain every minute and a half</Text>
+            <Text position={[0, 0.85, 0]} fontSize={0.17} color="#cfe0ff" anchorX="center" anchorY="middle" maxWidth={2.3} textAlign="center">Trains to The Domain, Downtown Austin and Bastrop</Text>
           </group>
         ))}
       </group>

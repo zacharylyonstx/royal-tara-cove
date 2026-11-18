@@ -93,12 +93,12 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
       b.faceYaw = b.lastYaw = yawRef.current;
     }
     const t = state.clock.elapsedTime;
-    const dx = positionRef.x - lastPos.current.x;
+    let dx = positionRef.x - lastPos.current.x;
     let dz = positionRef.z - lastPos.current.z;
     // Standing in a moving Red Line car isn't running: measure my steps against
     // the CAR, not the ground (riders used to jog on the spot the whole trip).
     const car = trainAboard(positionRef.x, positionRef.y, positionRef.z);
-    if (car >= 0) dz -= rail.trains[car].dz;
+    if (car >= 0) { dz -= rail.trains[car].dz; dx -= rail.trains[car].dx; }
     const speed = Math.hypot(dx, dz) / Math.max(dt, 0.001);
     speedRef.current = speed;
     lastPos.current.x = positionRef.x;

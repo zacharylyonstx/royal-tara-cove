@@ -4,7 +4,7 @@ import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   rail, TRAIN_LEN, TRAIN_HALF_W, TRAIN_FLOOR_Y, TRAIN_ROOF_Y, CAB_Z, MODULE_HALF, MODULE_AISLE_HALF,
-  DOOR_Z, DOOR_HALF, WALL_T, INNER_HALF_W, SEATS_LOCAL, sightAt, type StationId,
+  DOOR_Z, DOOR_HALF, WALL_T, INNER_HALF_W, SEATS_LOCAL, N_TRAINS, sightAt, type StationId,
 } from '../../world/redLine';
 import { useSkyStore } from '../../state/skyStore';
 import { useGameStore } from '../../state/gameStore';
@@ -14,16 +14,17 @@ import { Batch, glass, glowPaint, paint } from './batch';
 
 // The Red Line trainset: a Stadler GTW 2/6 — two low-floor passenger cars with
 // a short diesel power module between them that you walk THROUGH. It never
-// turns round (a cab at each end), so the model is simply slid along Z.
-// Collision lives in world/redLine.ts (same dimensions, imported from there).
+// turns round (a cab at each end), so the model is simply slid along Z (and
+// sideways over a crossover). Collision lives in world/redLine.ts.
+// Livery as the real cars wear it: silver-grey sides, a charcoal band through
+// the windows, red doors and red cab ends; light grey seats with red headrests.
 
-const WHITE = '#f1f2f4';
+const WHITE = '#d9dcdf';
 const RED = '#c8102e';
-const BLUE = '#1f5fae';
 const DARK = '#1c232c';
 const GREY = '#9aa1a8';
-const SEAT = '#2b5ca8';
-const SEAT_DARK = '#1f3f78';
+const SEAT = '#b4bac2';
+const SEAT_DARK = '#b3122b';
 const YELLOW = '#f2c230';
 const FLOOR = '#454e5b';
 const H = TRAIN_HALF_W;
@@ -44,7 +45,7 @@ function leafParts(b: Batch, x: number, zc: number) {
   b.box('glass', WHITE, 0.03, HEAD - SILL, w - 0.18, x, (SILL + HEAD) / 2, zc);
 }
 
-function buildTrain(platformSide: 1 | -1) {
+function buildTrain() {
   const b = new Batch();
   const wallX = (sx: number) => sx * (H - WALL_T / 2);
 
@@ -91,10 +92,10 @@ function buildTrain(platformSide: 1 | -1) {
     b.box('body', DARK, WALL_T + 0.01, HEAD - SILL, 0.16, x, (SILL + HEAD) / 2, z0 + 0.08);
     b.box('body', DARK, WALL_T + 0.01, HEAD - SILL, 0.16, x, (SILL + HEAD) / 2, z1 - 0.08);
     if (len > 3) b.box('body', DARK, WALL_T + 0.01, HEAD - SILL, 0.12, x, (SILL + HEAD) / 2, zc);
+    // Livery: the charcoal band runs on above and below the glass.
     if (!cab) {
-      // Livery: a red band low on the body with a thin blue pinstripe over it.
-      b.box('body', RED, 0.02, 0.36, len, sx * (H + 0.008), 0.7, zc);
-      b.box('body', BLUE, 0.02, 0.07, len, sx * (H + 0.008), 0.98, zc);
+      b.box('body', DARK, 0.02, 0.12, len, sx * (H + 0.008), SILL - 0.06, zc);
+      b.box('body', DARK, 0.02, 0.12, len, sx * (H + 0.008), HEAD + 0.06, zc);
     }
   };
   for (const sx of [-1, 1] as const) {
@@ -107,8 +108,6 @@ function buildTrain(platformSide: 1 | -1) {
       seg(0, false); seg(2, false); seg(3, true);
       // Header over the doorway.
       b.box('body', WHITE, WALL_T, TRAIN_ROOF_Y - DOOR_TOP, DOOR_HALF * 2, wallX(sx), (TRAIN_ROOF_Y + DOOR_TOP) / 2, s * DOOR_Z);
-      // The doors on the side that never meets a platform stay shut.
-      if (sx !== platformSide) for (const half of [-1, 1]) leafParts(b, sx * (H - 0.045), s * DOOR_Z + half * DOOR_HALF / 2);
     }
   }
 
@@ -149,21 +148,24 @@ function buildTrain(platformSide: 1 | -1) {
   return b.build();
 }
 
-/** The two leaves of one platform-side doorway (they slide apart along Z). */
+/** One leaf of a doorway (each pair slides apart along Z). */
 function buildLeaf() {
   const b = new Batch();
   leafParts(b, 0, 0);
   return b.build();
 }
 
-const NAME: Record<StationId, string> = { avery: 'AVERY RANCH', domain: 'THE DOMAIN' };
+const NAME: Record<StationId, string> = { avery: 'AVERY RANCH', domain: 'THE DOMAIN', downtown: 'DOWNTOWN', bastrop: 'BASTROP' };
+/** Trains further than this from the camera are not drawn (the haze ends at 330 m). */
+const DRAW_DIST = 440;
+/** Door leaves: [side][saloon][half] → index. */
+const LEAVES = [-1, 1].flatMap((sx) => [-1, 1].flatMap((s) => [-1, 1].map((half) => ({ sx, s, half }))));
 
 function Train({ i }: { i: number }) {
   const group = useRef<THREE.Group>(null);
   const leaves = useRef<(THREE.Group | null)[]>([]);
   const drivers = useRef<(THREE.Group | null)[]>([]);
-  const platformSide: 1 | -1 = i === 0 ? 1 : -1;
-  const geo = useMemo(() => buildTrain(platformSide), [platformSide]);
+  const geo = useMemo(() => buildTrain(), []);
   const leaf = useMemo(() => buildLeaf(), []);
   const mats = useMemo(() => {
     const mk = (c: string) => new THREE.MeshStandardMaterial({ color: '#2a2a2a', emissive: c, emissiveIntensity: 0.1 });
@@ -179,22 +181,22 @@ function Train({ i }: { i: number }) {
     };
   }, []);
   // What the signs say — only re-rendered when the text changes.
-  const [dest, setDest] = useState<StationId>('domain');
+  const [dest, setDest] = useState<StationId>('bastrop');
   const [led, setLed] = useState('');
-  const last = useRef({ dest: 'domain' as StationId, led: '' });
+  const last = useRef({ dest: 'bastrop' as StationId, led: '' });
 
-  useFrame(() => {
+  useFrame(({ camera }) => {
     const g = group.current;
     if (!g) return;
-    g.visible = rail.live;
-    if (!rail.live) return;
     const tr = rail.trains[i];
+    g.visible = rail.live && Math.abs(tr.z - camera.position.z) < DRAW_DIST;
+    if (!g.visible) return;
     g.position.set(tr.x, 0, tr.z);
-    // Doors: each pair parts along the car.
-    const open = tr.door * (DOOR_HALF - 0.06);
+    // Doors: each pair parts along the car — only on the platform side.
     leaves.current.forEach((lf, k) => {
       if (!lf) return;
-      const s = k < 2 ? -1 : 1, half = k % 2 === 0 ? -1 : 1;
+      const { sx, s, half } = LEAVES[k];
+      const open = sx === tr.side ? tr.door * (DOOR_HALF - 0.06) : 0;
       lf.position.z = s * DOOR_Z + half * (DOOR_HALF / 2 + open);
     });
     // Headlights lead, tail lights trail; the driver changes ends.
@@ -211,7 +213,7 @@ function Train({ i }: { i: number }) {
     mats.glow.emissiveIntensity = 0.5 + 1.6 * lampsOn;
     // Signs.
     const l = last.current;
-    if (tr.next !== l.dest) { l.dest = tr.next; setDest(tr.next); }
+    if (tr.dest !== l.dest) { l.dest = tr.dest; setDest(tr.dest); }
     let text: string;
     if (tr.at) text = tr.door > 0.2 ? `${NAME[tr.at]}  ·  TO ${NAME[tr.next]}` : `NEXT STOP  ${NAME[tr.next]}`;
     else if (tr.arrivesIn < 14) text = `ARRIVING  ${NAME[tr.next]}`;
@@ -219,7 +221,6 @@ function Train({ i }: { i: number }) {
     if (text !== l.led) { l.led = text; setLed(text); }
   });
 
-  const px = platformSide * (H - 0.045);
   return (
     <group ref={group} visible={false}>
       <mesh geometry={geo.body} material={mats.body} castShadow receiveShadow />
@@ -227,9 +228,9 @@ function Train({ i }: { i: number }) {
       <mesh geometry={geo.glow} material={mats.glow} />
       <mesh geometry={geo.glass} material={mats.glass} renderOrder={4} />
       <mesh geometry={geo.windshield} material={mats.windshield} renderOrder={4} />
-      {/* Platform-side doors: [north pair, south pair]. */}
-      {[0, 1, 2, 3].map((k) => (
-        <group key={k} ref={(el) => { leaves.current[k] = el; }} position={[px, 0, 0]}>
+      {/* Door leaves, both sides (only the platform side ever opens). */}
+      {LEAVES.map((lf, k) => (
+        <group key={k} ref={(el) => { leaves.current[k] = el; }} position={[lf.sx * (H - 0.045), 0, lf.s * DOOR_Z + lf.half * DOOR_HALF / 2]}>
           <mesh geometry={leaf.body} material={mats.leaf} />
           <mesh geometry={leaf.glass} material={mats.glass} renderOrder={4} />
         </group>
@@ -275,10 +276,12 @@ function Train({ i }: { i: number }) {
           <Text position={[0, TRAIN_ROOF_Y - 0.24, s * (MODULE_HALF + 0.065)]} rotation={[0, s > 0 ? 0 : Math.PI, 0]} fontSize={0.085} maxWidth={1.5} color="#ffb21e" anchorX="center" anchorY="middle" letterSpacing={0.04}>
             {led}
           </Text>
-          {/* Line diagram over the platform-side door. */}
-          <Text position={[platformSide * (INNER_HALF_W - 0.01), DOOR_TOP + 0.13, s * DOOR_Z]} rotation={[0, -platformSide * Math.PI / 2, 0]} fontSize={0.062} color="#c8102e" anchorX="center" anchorY="middle" letterSpacing={0.03}>
-            {'AVERY RANCH  •  Lakeline  •  Howard  •  THE DOMAIN'}
-          </Text>
+          {/* Line diagram over each doorway. */}
+          {[-1, 1].map((sx) => (
+            <Text key={sx} position={[sx * (INNER_HALF_W - 0.01), DOOR_TOP + 0.13, s * DOOR_Z]} rotation={[0, -sx * Math.PI / 2, 0]} fontSize={0.058} color="#c8102e" anchorX="center" anchorY="middle" letterSpacing={0.02}>
+              {'AVERY RANCH • THE DOMAIN • DOWNTOWN • BASTROP'}
+            </Text>
+          ))}
         </group>
       ))}
       {/* Name on the flanks. */}
@@ -292,8 +295,8 @@ function Train({ i }: { i: number }) {
 }
 
 /**
- * The saloon lights, as far as they light PEOPLE. One real light serves both
- * trains: it sits in whichever car I'm in (or nearest to), beside me, and comes
+ * The saloon lights, as far as they light PEOPLE. One real light serves all
+ * the trains: it sits in whichever car I'm in (or nearest to), beside me, and comes
  * up as the daylight goes — without it the family were black silhouettes on a
  * night ride. (The glowing ceiling strips and seats are just materials.)
  */
@@ -322,12 +325,11 @@ function CabinLight() {
 }
 const L_HALF = TRAIN_LEN / 2;
 
-/** Both trainsets (Free Play; hidden and parked elsewhere otherwise). */
+/** The trainsets (Free Play; hidden and parked elsewhere otherwise). */
 export function Trains() {
   return (
     <>
-      <Train i={0} />
-      <Train i={1} />
+      {Array.from({ length: N_TRAINS }, (_, i) => <Train key={i} i={i} />)}
       <CabinLight />
     </>
   );

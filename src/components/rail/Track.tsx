@@ -1,38 +1,35 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { RAIL_BED_W, RAIL_MID_X, RAIL_X, RAIL_X_B, RAIL_Z_N, GATE_DX, WEST_BLVD_Z } from '../../world/westAvery';
-import { TRACK_X, TRACK_Z_S, LAKELINE_BLVD_Z, PARMER_Z, rail, TRAIN_LEN, trainPlan } from '../../world/redLine';
+import { RAIL_BED_W, RAIL_MID_X, RAIL_X, RAIL_X_B, RAIL_Z_N, GATE_DX } from '../../world/westAvery';
+import { TRACK_X, TRACK_Z_S, ROAD_CROSSINGS, XOVER_AVERY, XOVER_BASTROP, N_TRAINS, rail, TRAIN_LEN, trainPlan, trackXAt } from '../../world/redLine';
+import { Batch, paint } from './batch';
 import { SOUTH_BRIDGES } from '../../world/terrain';
 import { useGameStore } from '../../state/gameStore';
 import { useNetStore } from '../../state/netStore';
 import { crossingBell } from '../../audio';
 
-// The permanent way: two tracks from the north edge of the map to the haze
-// south of the Domain, the road crossings (gates + bells) and the bridges.
-// Static scenery in every mode; the gates only work when the trains run.
+// The permanent way: two tracks from the north edge of the map to the buffer
+// stops at Bastrop, the crossovers at each end of the line, the road crossings
+// (gates + bells) and the bridges. Static scenery in every mode; the gates
+// only work when the trains run.
 
 const TIE_GAP = 1.15;
-/** Roads the line crosses at grade: z, and how wide the road is. */
-const ROAD_CROSSINGS = [
-  { z: WEST_BLVD_Z, w: 14.4, colliders: true },
-  { z: LAKELINE_BLVD_Z, w: 11, colliders: false },
-  { z: PARMER_Z, w: 13, colliders: false },
-];
+/** The ties are drawn a stretch at a time so the far ones can be skipped. */
+const TIE_CHUNK = 420;
 
-export function Track() {
-  const len = TRACK_Z_S - RAIL_Z_N;
-  const cz = (TRACK_Z_S + RAIL_Z_N) / 2;
-  const tieRef = useRef<THREE.InstancedMesh>(null);
-  const perTrack = Math.floor(len / TIE_GAP);
+/** The cross-ties of both tracks between z0 and z1 (one instanced mesh). */
+function Ties({ z0, z1 }: { z0: number; z1: number }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const perTrack = Math.floor((z1 - z0) / TIE_GAP);
   useLayoutEffect(() => {
-    const m = tieRef.current;
+    const m = ref.current;
     if (!m) return;
     const o = new THREE.Object3D();
     let n = 0;
     for (const x of TRACK_X) {
       for (let i = 0; i < perTrack; i++) {
-        const z = RAIL_Z_N + 0.5 + i * TIE_GAP;
+        const z = z0 + 0.5 + i * TIE_GAP;
         // No ties through a road crossing (concrete panels there).
         const inRoad = ROAD_CROSSINGS.some((r) => Math.abs(z - r.z) < r.w / 2 + 0.3);
         o.position.set(x, inRoad ? -1 : 0.09, z);
@@ -41,7 +38,46 @@ export function Track() {
       }
     }
     m.instanceMatrix.needsUpdate = true;
-  }, [perTrack]);
+    m.boundingSphere = new THREE.Sphere(new THREE.Vector3(RAIL_MID_X, 0, (z0 + z1) / 2), (z1 - z0) / 2 + 8);
+  }, [perTrack, z0, z1]);
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, perTrack * 2]} receiveShadow>
+      <boxGeometry args={[2.5, 0.12, 0.24]} />
+      <meshStandardMaterial color="#4c3a2a" roughness={0.95} />
+    </instancedMesh>
+  );
+}
+
+/** The diagonal track a reversing train takes from one line to the other. */
+function buildCrossovers() {
+  const b = new Batch();
+  for (const [span, dir] of [[XOVER_AVERY, 1], [XOVER_BASTROP, -1]] as [[number, number], 1 | -1][]) {
+    const N = 14;
+    for (let k = 0; k < N; k++) {
+      const za = span[0] + (span[1] - span[0]) * (k / N), zb = span[0] + (span[1] - span[0]) * ((k + 1) / N);
+      const xa = trackXAt(dir, za), xb = trackXAt(dir, zb);
+      const L = Math.hypot(xb - xa, zb - za), ry = Math.atan2(xb - xa, zb - za);
+      const mx = (xa + xb) / 2, mz = (za + zb) / 2;
+      for (const off of [-0.72, 0.72]) b.box('rail', '#8a8f96', 0.09, 0.14, L + 0.05, mx + off * Math.cos(ry), 0.2, mz - off * Math.sin(ry), ry);
+      for (let t = 0.5; t < L; t += TIE_GAP) {
+        const f = t / L;
+        b.box('tie', '#4c3a2a', 2.5, 0.12, 0.24, xa + (xb - xa) * f, 0.09, za + (zb - za) * f, ry);
+      }
+    }
+  }
+  return b.build();
+}
+
+export function Track() {
+  const len = TRACK_Z_S - RAIL_Z_N;
+  const cz = (TRACK_Z_S + RAIL_Z_N) / 2;
+  const tieChunks = useMemo(() => {
+    const out: [number, number][] = [];
+    for (let z = RAIL_Z_N; z < TRACK_Z_S; z += TIE_CHUNK) out.push([z, Math.min(TRACK_Z_S, z + TIE_CHUNK)]);
+    return out;
+  }, []);
+  const xo = useMemo(() => buildCrossovers(), []);
+  const xoMats = useMemo(() => ({ rail: paint(0.35, 0.8), tie: paint(0.95, 0) }), []);
   const mats = useMemo(() => ({
     ballast: new THREE.MeshStandardMaterial({ color: '#8d877c', roughness: 1 }),
     rail: new THREE.MeshStandardMaterial({ color: '#8a8f96', roughness: 0.35, metalness: 0.8 }),
@@ -55,10 +91,9 @@ export function Track() {
       <mesh position={[RAIL_MID_X, 0.03, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow material={mats.ballast}>
         <planeGeometry args={[RAIL_X_B - RAIL_X + RAIL_BED_W, len]} />
       </mesh>
-      <instancedMesh ref={tieRef} args={[undefined, undefined, perTrack * 2]} receiveShadow frustumCulled={false}>
-        <boxGeometry args={[2.5, 0.12, 0.24]} />
-        <meshStandardMaterial color="#4c3a2a" roughness={0.95} />
-      </instancedMesh>
+      {tieChunks.map(([z0, z1]) => <Ties key={z0} z0={z0} z1={z1} />)}
+      <mesh geometry={xo.rail} material={xoMats.rail} />
+      <mesh geometry={xo.tie} material={xoMats.tie} receiveShadow />
       {TRACK_X.map((x) => [-0.72, 0.72].map((dx) => (
         <mesh key={`${x}:${dx}`} position={[x + dx, 0.2, cz]} material={mats.rail}>
           <boxGeometry args={[0.09, 0.14, len]} />
@@ -120,7 +155,8 @@ function LevelCrossing({ z, halfRoad, colliders }: { z: number; halfRoad: number
     if (rail.live) {
       if (colliders) warn = rail.gateWarning;
       else {
-        for (let i = 0; i < 2 && !warn; i++) {
+        for (let i = 0; i < N_TRAINS && !warn; i++) {
+          if (Math.abs(rail.trains[i].z - z) > 170) continue;
           for (const look of [0, 3, 6]) {
             const tz = look === 0 ? rail.trains[i].z : trainPlan(i, rail.T + look).z;
             if (Math.abs(tz - z) < TRAIN_LEN / 2 + 8) { warn = true; break; }
