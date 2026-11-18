@@ -2,6 +2,7 @@ import { rail, trainAboard } from '../world/redLine';
 import { useRailStore } from '../state/railStore';
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { DoubleSide } from 'three';
 import type { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import type { CharacterDef } from '../types';
 import { usePlayStore } from '../state/playStore';
@@ -232,6 +233,18 @@ export function Character({ def, positionRef, yawRef, isActive }: CharacterProps
         />
       ) : (
         <CharacterModel def={def} appearance={appearance} rig={{ leftLeg, rightLeg, leftArm, rightArm, torso }} />
+      )}
+      {/* "This one is you": a gold ring over your own head — Midnight Munchies
+          only (it's top-down, so it is the one mode where you can lose track of
+          which character you are). */}
+      {isActive && gameMode === 'munchies' && (
+        // Just above the crown — any higher and Dad's would be sliced off by the
+        // mode's roof cut-away plane (y = 2.05), which is why he never had one.
+        <mesh position={[0, d.headY + d.headR * 1.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[d.headR * 1.05, d.headR * 1.3, 32]} />
+          {/* Double-sided: the ring lies flat, and this mode looks DOWN on it. */}
+          <meshBasicMaterial color="#ffd866" transparent opacity={0.92} side={DoubleSide} />
+        </mesh>
       )}
     </group>
     </>
