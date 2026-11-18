@@ -246,7 +246,7 @@ export const COLONY_LAMPS: [number, number, number][] = [
   [-52, 3128, 0], [-20, 3190, 0],                                    // Ironbark Bend
   [10, 3066, 0], [58, 3068, 0],                                      // the pocket park
   [-290, 3126, 0], [-262, 3080, 0],                                  // the Lakehouse
-  [SX + 20, SZ - 12, 0], [SX + 44, SZ + 4, 0], [SX + 96, SZ - 12, 0],  // the school
+  [SX + 20, SZ - 12, 0], [SX + 33, SZ + 2, 0], [SX + 96, SZ - 12, 0],  // the school
   [-300, 3152, 0], [-225, 3152, 0],                                  // Lakehouse Park
 ];
 
