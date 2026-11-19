@@ -5,7 +5,7 @@ import { LOT_FRONT_RADIUS, STRAIGHT_LOT_FRONT_X } from './streetLayout';
 import { POND_X, POND_Z, DOCK_START_Z, WINGA_MIN_X, WINGA_MAX_X, WINGA_FRONT_Z } from './acrossBlvd';
 import { SCHOOL_MAX_X, SCHOOL_CZ } from './school';
 import { DOMAIN_LAMPS } from './domain';
-import { COLONY_LAMPS } from './colony';
+import { COLONY_LAMPS, COLONY_STREET_LAMPS } from './colony';
 import { CITY_LAMPS } from './cityLine';
 
 /**
@@ -68,6 +68,7 @@ function buildLamps(): StreetLamp[] {
   // --- the Domain: Rock Rose, the station plaza and the Lawn ---
   for (const [x, z, yaw] of DOMAIN_LAMPS) lamps.push({ x, z, kind: 'acorn', yaw });
   for (const [x, z, yaw] of COLONY_LAMPS) lamps.push({ x, z, kind: 'acorn', yaw });
+  for (const [x, z, yaw] of COLONY_STREET_LAMPS) lamps.push({ x, z, kind: 'cobra', yaw });
   for (const [x, z, yaw] of CITY_LAMPS) lamps.push({ x, z, kind: 'acorn', yaw });
   return lamps;
 }

@@ -242,6 +242,39 @@ export const COLONY_LAMPS: [number, number, number][] = [
   [SX + 20, SZ - 12, 0], [SX + 33, SZ + 2, 0], [SX + 96, SZ - 12, 0],  // the school
   [-300, 3152, 0], [-225, 3152, 0],                                  // Lakehouse Park
 ];
+// …and a tall street light about every 36 m down every street, on alternating sides, at
+// the lot lines (never across a driveway) — so the whole neighbourhood is lit
+// after dark, not just the corners.
+/** Tall cobra-head street lights (x, z, yaw): one about every 36 m. */
+export const COLONY_STREET_LAMPS: [number, number, number][] = [];
+(() => {
+  const SPACING = 36;
+  let side = 1;
+  for (const st of STREETS) {
+    if (!st.name) continue;   // (the school's loop drive has its own)
+    let since = SPACING * 0.5;
+    for (let i = 0; i < st.pts.length - 1; i++) {
+      const a = st.pts[i], b = st.pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 0.1) continue;
+      const ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
+      for (let t = 0; t < L; t += 3) {
+        since += 3;
+        if (since < SPACING) continue;
+        const off = st.w / 2 + 1.1;
+        const x = a[0] + ux * t - uz * off * side, z = a[1] + uz * t + ux * off * side;
+        if (x < BOUNDS.x0 + 4 || x > BOUNDS.x1 - 4 || z < BOUNDS.z0 + 4 || z > BOUNDS.z1 - 4) continue;
+        if (Math.abs(x - RAIL_MID_X) < 16) continue;
+        // Keep clear of driveways: only at a lot line of the nearest house.
+        let near: House | null = null, nd = 26;
+        for (const h of HOUSES) { const d = Math.hypot(h.x - x, h.z - z); if (d < nd) { nd = d; near = h; } }
+        if (near && Math.abs((x - near.x) * Math.cos(near.ry) - (z - near.z) * Math.sin(near.ry)) < LOT_W / 2 - 1.3) continue;
+        if (COLONY_LAMPS.some((l) => Math.hypot(l[0] - x, l[1] - z) < 14) || COLONY_STREET_LAMPS.some((l) => Math.hypot(l[0] - x, l[1] - z) < 24)) continue;
+        COLONY_STREET_LAMPS.push([Math.round(x * 10) / 10, Math.round(z * 10) / 10, Math.atan2(-uz * side, ux * side)]);
+        since = 0; side = -side;
+      }
+    }
+  }
+})();
 
 // ---------------------------------------------------------------- colliders --
 export function buildColonyColliders(): RectCollider[] {

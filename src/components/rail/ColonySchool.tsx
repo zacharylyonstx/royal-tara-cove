@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { GYM, X, Z } from '../../world/colonySchool';
+import { GYM, MASSES, X, Z } from '../../world/colonySchool';
 import { drawSchoolInterior, type SchoolLabel } from '../../world/colonySchoolRooms';
 import { useSkyStore } from '../../state/skyStore';
 import { usePlayStore } from '../../state/playStore';
@@ -27,6 +27,7 @@ export function ColonySchool() {
   const [signs, setSigns] = useState(false);
   const group = useRef<THREE.Group>(null);
   const state = useRef({ built: false, signs: false });
+  const light = useRef<THREE.PointLight>(null);
 
   const made = useMemo(() => {
     if (!built) return null;
@@ -52,6 +53,15 @@ export function ColonySchool() {
     const sky = useSkyStore.getState();
     const on = skyPalette(sunDirection(sky.dayFraction).elevationDeg, moonDirection(sky.dayFraction).elevationDeg).lamps;
     mats.in.emissiveIntensity = 0.3 + 0.42 * on;
+    // …and a real lamp that travels with you, so the people inside are lit too
+    // (the rooms glow by themselves; characters need actual light).
+    const L = light.current;
+    if (L) {
+      const cx = camera.position.x, cz = camera.position.z;
+      const inside = MASSES.some((m) => cx > X(m.u0) && cx < X(m.u1) && cz > Z(m.v0) && cz < Z(m.v1));
+      L.intensity += ((inside ? 5 + 26 * on : 0) - L.intensity) * 0.12;
+      L.position.set(cx, camera.position.y + 0.9, cz);
+    }
   });
 
   // The gym's baskets are real ones: pick up a ball and shoot.
@@ -59,10 +69,11 @@ export function ColonySchool() {
     HOOPS.forEach(([x, z, turn], i) => usePlayStore.getState().registerHoop(`colony-gym-${i}`, { x: x + Math.sin(turn) * 0.65, z: z + Math.cos(turn) * 0.65, rimY: 2.85, rimR: 0.42 }));
   }, []);
 
-  if (!made) return null;
+  if (!made) return <pointLight ref={light} color="#fff3dc" intensity={0} distance={26} decay={1.6} />;
   const g = made.geo;
   return (
     <>
+      <pointLight ref={light} color="#fff3dc" intensity={0} distance={26} decay={1.6} />
       <group ref={group} visible={false}>
         {g.in && <mesh geometry={g.in} material={mats.in} receiveShadow />}
         {g.lamp && <mesh geometry={g.lamp} material={mats.lamp} />}

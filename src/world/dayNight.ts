@@ -217,7 +217,7 @@ export function skyPalette(sunEl: number, moonEl: number): SkyPalette {
   p.sunIntensity = 1.6 * smoothstep(-3, 5, sunEl) * (0.42 + 0.58 * smoothstep(0, 35, sunEl));
   // Moon: only once the sun is properly down and the moon is up.
   const moonUp = smoothstep(-2, 8, moonEl);
-  p.moonIntensity = 0.3 * (1 - smoothstep(-10, -3, sunEl)) * moonUp;
+  p.moonIntensity = 0.5 * (1 - smoothstep(-10, -3, sunEl)) * moonUp;
   ramp(ZENITH, sunEl, p.zenith);
   ramp(HORIZON, sunEl, p.horizon);
   ramp(AMBIENT, sunEl, p.ambient);
@@ -225,11 +225,11 @@ export function skyPalette(sunEl: number, moonEl: number): SkyPalette {
   p.hemiSky[0] = Math.min(1, p.zenith[0] * 0.55 + p.horizon[0] * 0.55);
   p.hemiSky[1] = Math.min(1, p.zenith[1] * 0.55 + p.horizon[1] * 0.55);
   p.hemiSky[2] = Math.min(1, p.zenith[2] * 0.55 + p.horizon[2] * 0.55);
-  p.hemiIntensity = lerp(0.14 + 0.06 * moonUp, 0.95, p.day);
-  p.ambientIntensity = lerp(0.12 + 0.04 * moonUp, 0.45, p.day);
+  p.hemiIntensity = lerp(0.3 + 0.08 * moonUp, 0.95, p.day);   // (nights are bright enough to play in)
+  p.ambientIntensity = lerp(0.24 + 0.05 * moonUp, 0.45, p.day);
   p.fogNear = lerp(40, 70, p.day);
   p.fogFar = lerp(210, 330, p.day);
-  p.envIntensity = lerp(0.06, 0.62, p.day);
+  p.envIntensity = lerp(0.14, 0.62, p.day);
   return p;
 }
 
