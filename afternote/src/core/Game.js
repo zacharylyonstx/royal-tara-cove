@@ -4,7 +4,7 @@
 import * as THREE from 'three-afternote';
 import { eventBus, Events } from './EventBus.js';
 import { gameState } from './GameState.js';
-import { TIMING, DEFAULT_KEYS } from './Constants.js';
+import { TIMING, DEFAULT_KEYS, PACE } from './Constants.js';
 import { RealClock, ManualClock } from './Clock.js';
 import { Transport } from '../music/Transport.js';
 import { LIGHTHOUSE } from '../music/charts/lighthouse.js';
@@ -224,7 +224,7 @@ export class Game {
     this.world.effects.reduced = !!s.reducedMotion;
     this.world.post.setReduced(!!s.reducedMotion);
     G.uContrast.value = s.highContrast ? 1 : 0;
-    const pace = s.pace === 'unhurried' ? 0.8 : 1;
+    const pace = (Object.values(PACE).find((x) => x.id === s.pace) ?? PACE.FLOWING).scale;
     if (this.conductor.phase === 'play') this.transport.setBpm(LIGHTHOUSE.bpm * pace);
     Save.storeSettings(s);
     eventBus.emit(Events.SETTINGS_CHANGED, s);
@@ -294,7 +294,7 @@ export class Game {
         discoveries: gameState.discoveries,
         lighthouseLit: game.world.lighthouse.lit,
         awake: +G.uAwake.value.toFixed(2),
-        settings: { pace: gameState.settings.pace, keys: gameState.settings.keys ?? DEFAULT_KEYS },
+        settings: { pace: gameState.settings.pace, help: gameState.settings.help, keys: gameState.settings.keys ?? DEFAULT_KEYS },
         labels: {
           mode: gameState.settings.labels,
           keys: game.world.seeds.keyLabels,

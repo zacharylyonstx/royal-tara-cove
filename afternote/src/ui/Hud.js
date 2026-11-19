@@ -127,7 +127,7 @@ export class Hud {
     this.struggle.innerHTML = `
       <div class="panel">
         <h2>Take your time</h2>
-        <p>Press the glowing key as the ring closes around the stone ahead.<br>You can slow the pace in Settings.</p>
+        <p>Press the glowing key as the ring closes around the stone ahead.<br>In Settings you can slow the pace, or let any key play the glowing note.</p>
         <button class="btn primary" data-action="restart-phrase">Try that part again</button>
         <button class="btn" data-action="resume">Keep going</button>
         <button class="btn quiet" data-action="settings">Settings</button>
@@ -199,8 +199,16 @@ export class Hud {
         <h2>Settings</h2>
         <div class="set-row"><label>Pace</label>
           <div class="seg" data-setting="pace">
+            <button data-value="${PACE.GENTLE.id}">Gentle</button>
             <button data-value="${PACE.UNHURRIED.id}">Unhurried</button>
             <button data-value="${PACE.FLOWING.id}">Flowing</button>
+          </div>
+        </div>
+        <div class="set-row"><label>Helping hand</label>
+          <div class="seg" data-setting="help">
+            <button data-value="off">Exact key</button>
+            <button data-value="near">Near keys</button>
+            <button data-value="any">Any key</button>
           </div>
         </div>
         <div class="set-row"><label for="vol">Volume</label><input id="vol" type="range" min="0" max="1" step="0.01" data-setting="volume"></div>

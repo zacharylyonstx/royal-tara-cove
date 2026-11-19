@@ -8,7 +8,7 @@
 import * as THREE from 'three-afternote';
 import { eventBus, Events } from '../core/EventBus.js';
 import { gameState } from '../core/GameState.js';
-import { COLORS, PACE, TIMING, LANES } from '../core/Constants.js';
+import { COLORS, PACE, TIMING, LANES, HELP } from '../core/Constants.js';
 import { MovementRunner } from '../rules/MovementRunner.js';
 import { midiOf } from '../music/Theory.js';
 import { buildTransit } from '../world/Routes.js';
@@ -62,6 +62,8 @@ export class Conductor {
     this.tip = null;
     this.phraseChecked = new Set();
     this.struggleOffered = false;
+    /** physical key (pitch index) → the pitch it is sounding, while held */
+    this.sounding = new Map();
     this.muted = [false, false, false];
     this.bot = null;
     this.replaying = false;
@@ -253,14 +255,46 @@ export class Conductor {
   // -------------------------------------------------------------------------------
   // Input
   // -------------------------------------------------------------------------------
-  handlePress(pitch, e) {
-    this.hud.flashKey(pitch, 'down');
-    if (this.phase !== 'play' || this.paused || this.countIn || !this.runner) return;
+  /**
+   * The helping hand (Settings): a key that is not offered right now may stand in for the
+   * nearest note that is — the key next door ('near') or any key at all ('any'). What gets
+   * built, heard and recorded is the note that was actually sounded, pressed in the player's
+   * own time; a press outside every window still builds nothing.
+   */
+  _assist(pitch, beat) {
+    const mode = gameState.settings.help ?? HELP.DEFAULT;
+    if (mode === HELP.OFF) return pitch;
+    const r = this.runner;
+    const sets = [];
+    if (r.lateHold) sets.push(r.offers(r.lateHold.slot));
+    const slot = r.nextSlot();
+    if (slot && (slot.gate || beat >= r.windows[slot.i].open)) sets.push(r.offers(slot));
+    if (sets.some((offers) => offers.includes(pitch))) return pitch;
+    for (const offers of sets) {
+      let best = null;
+      for (const p of offers) if (best === null || Math.abs(p - pitch) < Math.abs(best - pitch)) best = p;
+      if (best !== null && (mode === HELP.ANY || Math.abs(best - pitch) <= 1)) return best;
+    }
+    return pitch;
+  }
+
+  handlePress(pressed, e) {
+    this.hud.flashKey(pressed, 'down');
+    if (this.phase !== 'play' || this.paused || this.countIn || !this.runner) {
+      // the keys are an instrument everywhere: outside a passage they still sing, softly
+      if (this.phase !== 'title' && !this.paused && this.chart) {
+        this.audio.flourish(this.chart, pressed);
+        this.world.kite.flash(COLORS.PITCH[pressed], 0.6);
+      }
+      return;
+    }
     const t = this.clock.timeOfEvent(e);
     const beat = this.gateWaiting ? this.runner.gateBeat() : this.transport.beatAtTime(t);
     const before = this.runner.advance(beat);
     const slot = this.runner.nextSlot();
+    const pitch = this._assist(pressed, beat);
     const res = this.runner.press(pitch, beat);
+    if (res.type === 'hit') this.sounding.set(pressed, pitch);
     if (res.type === 'hit') {
       const e2 = res.entry;
       const sustain = e2.k === 'hold';
@@ -281,8 +315,11 @@ export class Conductor {
     this._dispatch(before.concat(res.events));
   }
 
-  handleRelease(pitch, e) {
-    this.hud.flashKey(pitch, 'up');
+  handleRelease(pressed, e) {
+    this.hud.flashKey(pressed, 'up');
+    // the note this key actually sounded (the helping hand may have moved it)
+    const pitch = this.sounding.get(pressed) ?? pressed;
+    this.sounding.delete(pressed);
     if (this.phase !== 'play' || !this.runner) return;
     if (this.paused || this.countIn) return; // a hold interrupted by a pause is granted
     const beat = this.transport.beatAtTime(this.clock.timeOfEvent(e));
@@ -312,6 +349,8 @@ export class Conductor {
           break;
         case 'flourish':
           this.hud.flashKey(ev.p, 'soft');
+          // a key that builds nothing is still answered: the ember takes its colour
+          this.world.kite.flash(COLORS.PITCH[ev.p], 0.75);
           eventBus.emit(Events.NOTE_FLOURISH, { mvt: this.mvt, p: ev.p, reason: ev.reason });
           break;
         case 'hold:end':

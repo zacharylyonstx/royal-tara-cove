@@ -4,16 +4,18 @@
 // Rules of play (Explore experience)
 // ---------------------------------------------------------------------------------
 export const RULES = {
-  EARLY_SEC: 0.24, // how early a press may arrive and still count
-  LATE_SEC: 0.3, // how late; after this the note is absent and a rescue step appears
+  // (Opened up for young players: a press anywhere near its beat counts, right up to the
+  //  halfway point between two notes. The original windows were 0.24 s early / 0.3 s late.)
+  EARLY_SEC: 0.5, // how early a press may arrive and still count
+  LATE_SEC: 0.5, // how late; after this the note is absent and a rescue step appears
   PERFECT_SEC: 0.085, // "well timed" flourish threshold
-  NEIGHBOR_FRACTION: 0.45, // a window never takes more than this share of the gap to its neighbour
+  NEIGHBOR_FRACTION: 0.5, // a window never takes more than this share of the gap to its neighbour
   REACH: 2, // open beats offer pitches within this many lanes of Kite
   LEAP_SEC: 0.34, // time from press to landing
   LEAP_GAP_FRACTION: 0.8, // ...but never more than this share of the gap to the next note
   LEAP_MIN_BEATS: 0.25,
   LAND_LEAD_BEATS: 0.22, // a new surface begins this far before the landing point
-  HOLD_RELEASE_TOL_BEATS: 0.4, // letting go this close to the end marker counts as a full hold
+  HOLD_RELEASE_TOL_BEATS: 0.7, // letting go this close to the end marker counts as a full hold
   HOLD_LATE_START_TAIL_BEATS: 0.75, // a hold can still be joined late until this close to its end
   HOLD_MIN_BRIDGE_BEATS: 0.3,
   GATE_LIP_BEATS: 0.45, // ground past a gated seed, so Kite stands at an edge, not on one
@@ -32,7 +34,12 @@ export const LANES = {
 export const PACE = {
   FLOWING: { id: 'flowing', label: 'Flowing', scale: 1.0 },
   UNHURRIED: { id: 'unhurried', label: 'Unhurried', scale: 0.8 },
+  GENTLE: { id: 'gentle', label: 'Gentle', scale: 0.66 },
 };
+
+// A helping hand for the keys: 'near' lets the key next door to a glowing note play it,
+// 'any' lets every key play the nearest glowing note, 'off' asks for the exact key.
+export const HELP = { OFF: 'off', NEAR: 'near', ANY: 'any', DEFAULT: 'near' };
 
 // ---------------------------------------------------------------------------------
 // World
@@ -118,7 +125,7 @@ export const MIX = {
   PAD: 0.18,
   BASS: 0.24,
   PULSE: 0.16,
-  FLOURISH: 0.1,
+  FLOURISH: 0.2, // a key that builds nothing still sings (it was 0.1: easy to miss)
   WORLD: 0.4,
   AMBIENCE: 0.22,
   REVERB_SEND: 0.42,

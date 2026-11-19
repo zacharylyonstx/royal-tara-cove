@@ -1,11 +1,12 @@
 // Single shared state object. Systems read it; the Conductor and UI mutate it.
 
-import { PACE } from './Constants.js';
+import { PACE, HELP } from './Constants.js';
 
 class GameState {
   constructor() {
     this.settings = {
-      pace: PACE.FLOWING.id,
+      pace: PACE.UNHURRIED.id, // a new player starts unhurried; Flowing and Gentle are in Settings
+      help: HELP.DEFAULT,
       volume: 0.85,
       labels: 'both', // 'both' = note + key, 'keys', 'notes'
       reducedMotion: false,
