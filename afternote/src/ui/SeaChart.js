@@ -9,7 +9,27 @@
 import { PLACES, PLACE, EDGE, SOUNDS, MOODS, otherEnd } from '../music/sea.js';
 import { CROSSING } from '../core/Constants.js';
 
-const NUMERALS = ['I', 'II', 'III'];
+// (plain numbers: a six-year-old reads "2" long before "II")
+const NUMERALS = ['1', '2', '3'];
+
+/** Small drawn signs, so the main buttons can be read without reading. */
+const ic = (d, stroke = false) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"${stroke ? ' fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"' : ''}/></svg>`;
+const ICON = {
+  play: ic('M7.5 4.5v15l12-7.5z'),
+  add: ic('M12 5v14M5 12h14', true),
+  build: ic('M3 18c3-10 15-10 18 0M7.2 12.4v.1M12 10.4v.1M16.8 12.4v.1', true),
+  send: ic('M3 11.4 21 3l-6.6 18-3-7.6z'),
+  map: ic('M4 6.5 9.5 4l5 2.5L20 4v13.5L14.5 20l-5-2.5L4 20zM9.500 4v13.5M14.5 6.5V20', true),
+  copy: ic('M9 9h10v11H9zM5 15V4h10', true),
+};
+
+/** About how long a crossing takes, said the way a child would. */
+function about(seconds) {
+  if (seconds < 50) return `about ${Math.max(10, Math.round(seconds / 5) * 5)} seconds`;
+  const halves = Math.round(seconds / 30);
+  return halves === 2 ? 'about a minute' : `about ${Math.floor(halves / 2)}${halves % 2 ? '½' : ''} minutes`;
+}
+const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 const STRAND = ['#ffd08a', '#a9d8ff', '#d9b8ff'];
 const PLACE_TINT = {
   lighthouse: '#ffc870', chimes: '#ffe6b0', harp: '#8fe8d8', garden: '#c8f09a', stacks: '#cfd8ff', harbor: '#ffb06a', deep: '#7df0ff',
@@ -62,6 +82,10 @@ export class SeaChart {
     this.sending = false; // showing the link to the chosen bridge
     this.wantSend = false; // ...as soon as the chart next opens
     this.confirm = false; // asking before a bridge from afar is let go
+    // A finger still tapping where the last screen's button was must not press this screen's
+    // (children do this a great deal). After a screen or its buttons change, taps wait a moment.
+    this.settle = 1; // 0 in tests, which click as fast as they can
+    this.quietUntil = 0;
 
     this.node = el('div', 'screen chart-screen hidden');
     this.node.innerHTML = `
@@ -70,7 +94,7 @@ export class SeaChart {
         <h2 class="chart-title">The Sea of Bridges</h2>
       </div>
       <div class="chart-body">
-        <div class="chart-map-wrap"><svg class="chart-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Chart of the sea"></svg></div>
+        <div class="chart-map-wrap"><svg class="chart-map" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="group" aria-label="Map of the sea"></svg></div>
         <div class="chart-panel" aria-live="polite"></div>
       </div>
       <div class="chart-foot">
@@ -109,7 +133,15 @@ export class SeaChart {
     this.sending = this.wantSend && !!this._chosen();
     this.wantSend = false;
     this.pick = { sound: null, mood: null };
+    this._quiet(550);
     this._draw();
+    // (so the next Tab lands on what to do, without Enter or Space doing anything by surprise)
+    this.panel.tabIndex = -1;
+    this.panel.focus({ preventScroll: true });
+  }
+
+  _quiet(ms) {
+    this.quietUntil = performance.now() + ms * this.settle;
   }
 
   /** The name the game knows the chosen bridge by: its edge, or 'afar:<n>'. */
@@ -176,19 +208,19 @@ export class SeaChart {
       const selected = this.sel?.kind === 'place' && this.sel.id === p.id;
       const here = v.at === p.id;
       parts.push(`<g class="place ${awake ? 'awake' : 'asleep'}${selected ? ' sel' : ''}${here ? ' here' : ''}" data-place="${p.id}" tabindex="0" role="button" aria-label="${esc(p.name)}${awake ? '' : ', asleep'}" style="--tint:${PLACE_TINT[p.id]}" transform="translate(${x} ${y})">
-        <circle class="glow" r="34"/><circle class="reach" r="36"/><circle class="disc" r="23"/>
+        <circle class="glow" r="34"/><circle class="reach" r="52"/><circle class="disc" r="23"/>
         <g class="glyph">${glyph(p.kind)}</g>
         ${here ? '<path class="kite" d="M0 -40 L7 -31 L0 -22 L-7 -31 Z"/>' : ''}
         <text class="name" y="46">${esc(p.name)}</text></g>`);
     }
     // bridges from another sea
     if (v.afar.length) {
-      parts.push(`<text class="afar-label" x="${AFAR_X - 20}" y="${AFAR_Y - 34}">From afar</text>`);
+      parts.push(`<text class="afar-label" x="${AFAR_X - 20}" y="${AFAR_Y - 34}">From friends</text>`);
       v.afar.forEach((g, i) => {
         const x = AFAR_X + (i % AFAR_ROW) * AFAR_STEP, y = AFAR_Y + Math.floor(i / AFAR_ROW) * (AFAR_STEP - 8);
         const n = g.layers.length;
         const to = otherEnd(EDGE[g.edge], g.from);
-        parts.push(`<g class="afar${this.sel?.kind === 'afar' && this.sel.id === i ? ' sel' : ''}" data-afar="${i}" tabindex="0" role="button" aria-label="A bridge from afar: ${esc(PLACE[g.from].name)} to ${esc(PLACE[to].name)}, ${n} ${n === 1 ? 'part' : 'parts'}" transform="translate(${x} ${y})">
+        parts.push(`<g class="afar${this.sel?.kind === 'afar' && this.sel.id === i ? ' sel' : ''}" data-afar="${i}" tabindex="0" role="button" aria-label="A bridge from a friend: ${esc(PLACE[g.from].name)} to ${esc(PLACE[to].name)}, ${n} ${n === 1 ? 'part' : 'parts'}" transform="translate(${x} ${y})">
           <circle class="reach" r="30"/><circle class="disc" r="21"/><path class="arc" d="M-11 4 Q0 -16 11 4"/>
           ${g.layers.map((_, k) => `<circle cx="${(k - (n - 1) / 2) * 8}" cy="11" r="2.6" fill="${STRAND[k]}"/>`).join('')}</g>`);
       });
@@ -201,7 +233,10 @@ export class SeaChart {
 
   _chips(kind, ids, current) {
     const table = kind === 'sound' ? SOUNDS : MOODS;
-    return `<div class="chip-row" data-pick="${kind}">${ids.map((id) => `<button class="chip${id === current ? ' on' : ''}" data-chart="pick" data-kind="${kind}" data-id="${id}" title="${esc(table[id].hint)}">${esc(table[id].name)}</button>`).join('')}</div>`;
+    // a mood wears the colour of its sky; a sound is known by ear (tapping one plays it)
+    const dot = (id) => (kind === 'mood' ? `<i class="dot" style="background:${hex(MOODS[id].sky?.horizon ?? 0xc9a0d8)}"></i>` : '');
+    return `<div class="chip-row" data-pick="${kind}">${ids.map((id) => `<button class="chip${id === current ? ' on' : ''}" data-chart="pick" data-kind="${kind}" data-id="${id}" aria-pressed="${id === current}">${dot(id)}${esc(table[id].name)}</button>`).join('')}</div>
+      <div class="chip-hint">${esc(table[current]?.hint ?? '')}</div>`;
   }
 
   _panel() {
@@ -211,38 +246,41 @@ export class SeaChart {
     let foot = ''; // what stays in reach beneath the part that scrolls
     const chosen = this._chosen();
     const partsList = (b) => `<ul class="parts">${b.layers.map((l, k) => `<li><b style="color:${STRAND[k]}">${NUMERALS[k]}</b><span>${esc(SOUNDS[l.sound].name)}</span><i>${l.notes} ${l.notes === 1 ? 'stone' : 'stones'}</i></li>`).join('')}</ul>`;
+    const hear = `<button class="btn primary" data-chart="listen">${ICON.play}<span>Hear it</span></button>`;
+    const addBtn = (n) => `<button class="btn" data-chart="add">${ICON.add}<span>Add part ${NUMERALS[n]}</span></button>`;
     if (this.sending && chosen) {
       const full = chosen.layers.length >= CROSSING.MAX_LAYERS;
       html = `<div class="panel-kicker">A link to this bridge</div><h3>Send it to someone</h3>
-        <p>${full ? 'Whoever opens the link hears this bridge.' : 'Whoever opens the link hears this bridge, and can lay a part of their own over it and send it back.'}</p>
+        <p>${full ? 'Send this link to someone. They can hear your bridge.' : 'Send this link to someone. They can hear your bridge and add a part of their own.'}</p>
         <input class="link-box" readonly value="${esc(this._link(chosen.code))}" aria-label="The link to this bridge">
-        <p class="fine link-note">The link holds the notes of the bridge and nothing else.</p>`;
-      const copy = '<button class="btn primary" data-chart="copy">Copy link</button>';
-      foot = `${navigator.share ? `<div class="pair">${copy}<button class="btn" data-chart="share">Share…</button></div>` : copy}
+        <p class="fine link-note">The link holds only the notes. Nothing about you.</p>`;
+      const copy = `<button class="btn primary" data-chart="copy">${ICON.copy}<span>Copy link</span></button>`;
+      foot = `${navigator.share ? `<div class="pair">${copy}<button class="btn" data-chart="share">${ICON.send}<span>Share</span></button></div>` : copy}
         <button class="btn quiet small" data-chart="send-done">Done</button>`;
     } else if (sel?.kind === 'afar') {
       const g = chosen;
       const to = otherEnd(EDGE[g.edge], g.from);
-      html = `<div class="panel-kicker">From another sea · ${esc(MOODS[g.mood].name)}</div><h3>${esc(PLACE[g.from].name)} <span class="arrow">to</span> ${esc(PLACE[to].name)}</h3>${partsList(g)}`;
+      html = `<div class="panel-kicker">From a friend · ${esc(MOODS[g.mood].name)}</div><h3>${esc(PLACE[g.from].name)} <span class="arrow">to</span> ${esc(PLACE[to].name)}</h3>${partsList(g)}`;
       if (this.confirm) {
-        html += `<p>Let this bridge drift away? Only its link can bring it back.</p>`;
+        html += `<p>Let this bridge go? You can only get it back with its link.</p>`;
         foot = `<button class="btn primary" data-chart="release-no">Keep it</button><button class="btn quiet small" data-chart="release-yes">Let it go</button>`;
       } else {
         html += `<div class="panel-row"><button class="btn quiet small" data-chart="send">${g.layers.length > 1 ? 'Send it back' : 'Send it on'}</button>
-          ${g.canKeep ? `<button class="btn quiet small" data-chart="keep-afar" title="${g.swaps ? 'Your own bridge here will wait among the bridges from afar' : 'It will stand on your chart as one of your own'}">${g.swaps ? 'Swap it with mine' : 'Set it on my chart'}</button>` : ''}
-          <button class="btn quiet small" data-chart="release">Let it go</button></div>`;
-        foot = `<button class="btn primary" data-chart="listen">Hear it</button>`;
+          ${g.canKeep ? `<button class="btn quiet small" data-chart="keep-afar">${g.swaps ? 'Swap with mine' : 'Put it on my map'}</button>` : ''}
+          <button class="btn quiet small" data-chart="release">Let it go</button></div>
+          ${g.canKeep && g.swaps ? '<p class="fine">Swapping keeps both: your own bridge waits here instead.</p>' : ''}`;
+        foot = hear;
         if (g.layers.length < CROSSING.MAX_LAYERS) {
           const used = g.layers.map((l) => l.sound);
           if (!this.pick.sound) this.pick.sound = v.sounds.find((x) => !used.includes(x)) ?? v.sounds[0];
-          html += `<div class="panel-label">Add your part, in…</div>${this._chips('sound', v.sounds, this.pick.sound)}`;
-          foot = `<div class="pair">${foot}<button class="btn" data-chart="add">Add part ${NUMERALS[g.layers.length]}</button></div>`;
+          html += `<div class="panel-label">Pick a sound for your part</div>${this._chips('sound', v.sounds, this.pick.sound)}`;
+          foot = `<div class="pair">${foot}${addBtn(g.layers.length)}</div>`;
         } else {
-          html += `<p class="fine">This bridge has all three of its parts.</p>`;
+          html += `<p class="fine">This bridge has all three parts.</p>`;
         }
       }
     } else if (!sel) {
-      html = `<h3>Where to?</h3><p>Choose a dotted line to build a bridge, or a bridge to hear it again.</p>`;
+      html = `<h3>Where to?</h3><p>Tap a dotted line to build a bridge. Tap a bridge to hear it.</p>`;
     } else if (sel.kind === 'place') {
       const p = PLACE[sel.id];
       const awake = v.awake.includes(p.id);
@@ -251,41 +289,42 @@ export class SeaChart {
       if (gift) {
         html += awake
           ? `<p class="gift">It gave you <b>${esc(SOUNDS[gift.sound].name)}</b> and <b>${esc(MOODS[gift.mood].name)}</b>.</p>`
-          : `<p class="gift">A bridge will wake it. It is keeping a sound and a mood for whoever arrives.</p>`;
+          : `<p class="gift">Build a bridge here to wake it up. It has a new sound for you.</p>`;
       }
     } else {
       const e = v.edges.find((x) => x.id === sel.id);
       const bridge = v.bridges[e.id];
-      const secs = Math.round((e.bars * 4 * 60) / 80 / 5) * 5;
       if (bridge && !this.over) {
         const to = otherEnd(e, bridge.from);
         const mood = MOODS[bridge.mood];
         html = `<div class="panel-kicker">A bridge · ${esc(mood.name)}</div><h3>${esc(PLACE[bridge.from].name)} <span class="arrow">to</span> ${esc(PLACE[to].name)}</h3>
           ${partsList(bridge)}
-          <div class="panel-row"><button class="btn quiet small" data-chart="over">Start it over</button><button class="btn quiet small" data-chart="send">Send it to someone</button></div>`;
-        foot = `<button class="btn primary" data-chart="listen">Hear it</button>`;
+          <div class="panel-row"><button class="btn quiet small" data-chart="over">Start over</button><button class="btn quiet small" data-chart="send">Send it to someone</button></div>`;
+        foot = hear;
         if (bridge.layers.length < CROSSING.MAX_LAYERS) {
           const used = bridge.layers.map((l) => l.sound);
           if (!this.pick.sound) this.pick.sound = v.sounds.find((s) => !used.includes(s)) ?? v.sounds[0];
-          html += `<div class="panel-label">Add a part, in…</div>${this._chips('sound', v.sounds, this.pick.sound)}`;
-          foot = `<div class="pair">${foot}<button class="btn" data-chart="add">Add part ${NUMERALS[bridge.layers.length]}</button></div>`;
+          html += `<div class="panel-label">Pick a sound for part ${NUMERALS[bridge.layers.length]}</div>${this._chips('sound', v.sounds, this.pick.sound)}`;
+          foot = `<div class="pair">${foot}${addBtn(bridge.layers.length)}</div>`;
         } else {
-          html += `<p class="fine">This bridge has all three of its parts.</p>`;
+          html += `<p class="fine">This bridge has all three parts.</p>`;
         }
       } else if (e.start) {
         const to = otherEnd(e, e.start);
         if (!this.pick.sound) this.pick.sound = PLACE[e.start].gift && v.sounds.includes(PLACE[e.start].gift.sound) ? PLACE[e.start].gift.sound : v.sounds[0];
         if (!this.pick.mood) this.pick.mood = PLACE[e.start].gift && v.moods.includes(PLACE[e.start].gift.mood) ? PLACE[e.start].gift.mood : v.moods[0];
-        html = `<div class="panel-kicker">${bridge ? 'Start over' : v.awake.includes(to) ? 'A new bridge' : 'Somewhere new'} · about ${secs} seconds</div>
+        // (the walk out and the walk in are part of it, as well as the bars of the bridge)
+        const secs = ((e.bars * 4 + 8) * 60) / ((v.bpm ?? 80) * MOODS[this.pick.mood].tempo);
+        html = `<div class="panel-kicker">${bridge ? 'Start over' : v.awake.includes(to) ? 'A new bridge' : 'Somewhere new'} · ${about(secs)}</div>
           <h3>${esc(PLACE[e.start].name)} <span class="arrow">to</span> ${esc(PLACE[to].name)}</h3>
-          <p>${bridge ? 'The bridge that is here stays until you finish the new one.' : 'Every key builds a stone. Nothing can be missed.'}</p>
+          <p>${bridge ? 'Your old bridge stays until the new one is done.' : 'Play any keys. Your notes turn into stones. You can\'t get it wrong.'}</p>
           <div class="panel-label">Sound</div>${this._chips('sound', v.sounds, this.pick.sound)}
           <div class="panel-label">Mood</div>${this._chips('mood', v.moods, this.pick.mood)}`;
-        foot = `<button class="btn primary" data-chart="build">${bridge ? 'Build it again' : 'Build this bridge'}</button>
+        foot = `<button class="btn primary" data-chart="build">${ICON.build}<span>${bridge ? 'Build it again' : 'Build this bridge'}</span></button>
           ${bridge ? '<button class="btn quiet" data-chart="keep">Keep the old one</button>' : ''}`;
       } else {
         html = `<div class="panel-kicker">Too far for now</div><h3>${esc(PLACE[e.a].name)} <span class="arrow">to</span> ${esc(PLACE[e.b].name)}</h3>
-          <p>Reach ${esc(PLACE[e.a].name)} or ${esc(PLACE[e.b].name)} first, then this bridge can begin.</p>`;
+          <p>Go to ${esc(PLACE[e.a].name)} or ${esc(PLACE[e.b].name)} first. Then you can build this bridge.</p>`;
       }
     }
     // choosing a sound or a mood must not throw the list back to its top
@@ -298,10 +337,13 @@ export class SeaChart {
 
   /** Clicks inside the chart or the arrival card. @returns {boolean} whether the click was handled here */
   click(e) {
+    if (performance.now() < this.quietUntil && (this.visible || !this.arrival.classList.contains('hidden'))) return true;
     if (this.visible) {
       const pick = e.target.closest('[data-chart]');
       if (pick) {
         const what = pick.dataset.chart;
+        // these change which buttons are under the finger
+        if (['send', 'send-done', 'release', 'release-no', 'over', 'keep'].includes(what)) this._quiet(320);
         const edge = this.sel?.kind === 'edge' ? this.sel.id : null;
         const ref = this._ref();
         if (what === 'send' || what === 'send-done') {
@@ -319,6 +361,7 @@ export class SeaChart {
         else if (what === 'pick') {
           this.pick[pick.dataset.kind] = pick.dataset.id;
           this._panel();
+          this.action('sea-preview', { [pick.dataset.kind]: pick.dataset.id });
         } else if (what === 'over') {
           this.over = true;
           this.pick = { sound: null, mood: null };
@@ -353,6 +396,7 @@ export class SeaChart {
         if (what === 'pick') {
           this.arrivalSound = pick.dataset.id;
           this._arrival();
+          this.action('sea-preview', { sound: pick.dataset.id });
         } else if (what === 'add') this.action('sea-add', { edge: d.edge, sound: this.arrivalSound });
         else if (what === 'listen') this.action('sea-listen', { edge: d.edge });
         else if (what === 'chart') {
@@ -384,8 +428,10 @@ export class SeaChart {
         ok = false;
       }
     }
-    btn.textContent = ok ? 'Copied' : 'Copy by hand';
-    if (!ok) this.panel.querySelector('.link-note').textContent = 'Press and hold the link above, then choose Copy.';
+    if (!btn.isConnected) return; // the panel moved on while the browser was being asked
+    (btn.querySelector('span') ?? btn).textContent = ok ? 'Copied' : 'Copy by hand';
+    const note = this.panel.querySelector('.link-note');
+    if (!ok && note) note.textContent = 'Press and hold the link above, then choose Copy.';
     this.copied = ok;
   }
 
@@ -406,6 +452,7 @@ export class SeaChart {
     if (!v) return;
     this.arrivalData = data;
     this.arrivalSound = data.suggest;
+    this._quiet(750);
     this._arrival();
   }
 
@@ -414,6 +461,7 @@ export class SeaChart {
     const made = d.layer === 0
       ? `Your bridge has <b>${d.notes}</b> ${d.notes === 1 ? 'stone' : 'stones'}.`
       : `Part ${NUMERALS[d.layer]} adds <b>${d.notes}</b> ${d.notes === 1 ? 'stone' : 'stones'}. The bridge has ${d.layers} parts now.`;
+    const sound = SOUNDS[this.arrivalSound];
     let html = `<div class="arrival-inner">
       <div class="end-kicker">${d.gift ? 'You woke' : 'You reached'}</div>
       <h2 class="end-title">${esc(d.place)}</h2>
@@ -425,15 +473,19 @@ export class SeaChart {
     if (d.everyBridge) html += `<p class="end-note whole">Every bridge in the sea is built.</p>`;
     html += '<div class="arrival-actions">';
     if (d.canAdd) {
-      html += `<div class="panel-label">Play another part over it, in…</div>
-        <div class="chip-row">${d.sounds.map((id) => `<button class="chip${id === this.arrivalSound ? ' on' : ''}" data-arrive="pick" data-id="${id}">${esc(SOUNDS[id].name)}</button>`).join('')}</div>
-        <button class="btn primary" data-arrive="add">Add part ${NUMERALS[d.layers]}</button>
-        <button class="btn" data-arrive="listen">Hear the bridge</button>`;
+      html += `<div class="panel-label">Pick a sound for part ${NUMERALS[d.layers]}</div>
+        <div class="chip-row">${d.sounds.map((id) => `<button class="chip${id === this.arrivalSound ? ' on' : ''}" data-arrive="pick" data-id="${id}" aria-pressed="${id === this.arrivalSound}">${esc(SOUNDS[id].name)}</button>`).join('')}</div>
+        <div class="chip-hint">${esc(sound?.hint ?? '')}</div>
+        <button class="btn primary" data-arrive="add">${ICON.add}<span>Add part ${NUMERALS[d.layers]}</span></button>
+        <button class="btn" data-arrive="listen">${ICON.play}<span>Hear the bridge</span></button>`;
     } else {
-      html += `<button class="btn primary" data-arrive="listen">Hear the bridge</button>`;
+      html += `<button class="btn primary" data-arrive="listen">${ICON.play}<span>Hear the bridge</span></button>`;
     }
-    html += `<button class="btn" data-arrive="chart">The sea chart</button>
+    html += `<button class="btn" data-arrive="chart">${ICON.map}<span>The sea map</span></button>
       <button class="btn quiet send-link" data-arrive="send">${d.afar ? 'Send it back' : 'Send this bridge to someone'}</button></div></div>`;
     this.arrival.innerHTML = html;
+    const inner = this.arrival.querySelector('.arrival-inner');
+    inner.tabIndex = -1;
+    if (!this.arrival.contains(document.activeElement)) inner.focus({ preventScroll: true });
   }
 }

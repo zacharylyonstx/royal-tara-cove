@@ -126,6 +126,7 @@ export const MIX = {
   BASS: 0.24,
   PULSE: 0.16,
   FLOURISH: 0.2, // a key that builds nothing still sings (it was 0.1: easy to miss)
+  GRACE: 0.42, // a free-play key that builds no stone: its own note, short and soft
   WORLD: 0.4,
   AMBIENCE: 0.22,
   REVERB_SEND: 0.42,

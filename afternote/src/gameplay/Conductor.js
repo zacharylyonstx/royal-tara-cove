@@ -144,7 +144,7 @@ export class Conductor {
     this.hud.showHud(false);
     this.hud.showEnd(false);
     this.hud.showTitle(true, { canContinue: done.some(Boolean), complete: done.every(Boolean) });
-    const came = this.voyage.pending ? this.voyage.take() : this.voyage.incoming;
+    const came = this.voyage.pending.length ? this.voyage.take() : this.voyage.incoming;
     this.hud.showIncoming(came ? { text: this.voyage.incomingText(came), hear: !!came.ref } : null);
     this.hud.setMovements(this.island.movements, done);
     this.audio.setAmbience(1, 3);
@@ -179,6 +179,8 @@ export class Conductor {
     }
     this.world.awakeTarget = 0;
     this.world.effects.clearLeaves();
+    // (the leaves are one shared pool: what grows across the sea is put back)
+    for (const id of this.voyage.sea.awake) this.world.seaWorld.setAwake(id, true, true);
     this.hud.showTitle(false);
     this.startMovement(0);
   }
@@ -224,6 +226,10 @@ export class Conductor {
   startMovement(i, { replay = false } = {}) {
     this.voyage.cross = null;
     this.voyage.song = null;
+    this.voyage.arrival = null;
+    this.hud.showChart(false);
+    this.hud.showArrival(false);
+    this.hud.showSkip(false);
     this.world.seaWorld.deactivate();
     this.world.setSky(null);
     this.arranger.setPiece(null);
@@ -310,6 +316,13 @@ export class Conductor {
       }
       return;
     }
+    if (this.chart.free && !this.gateWaiting && this.runner.gateBeat() !== null) {
+      // Kite is still walking out to the water's edge: a key sings, but the crossing does not begin
+      // until Kite is there and waiting (a child tapping along with the walk must not set off unseen)
+      this.audio.flourish(this.chart, pressed);
+      this.world.kite.flash(COLORS.PITCH[pressed], 0.6);
+      return;
+    }
     const t = this.clock.timeOfEvent(e);
     const beat = this.gateWaiting ? this.runner.gateBeat() : this.transport.beatAtTime(t);
     const before = this.runner.advance(beat);
@@ -331,6 +344,9 @@ export class Conductor {
         this.hud.setPrompt(null);
         eventBus.emit(Events.GATE_OPENED, {});
       }
+    } else if (this.chart.free) {
+      this.audio.grace(this.chart, pitch);
+      this.world.kite.flash(COLORS.PITCH[pitch], 0.5);
     } else {
       this.audio.flourish(this.chart, pitch);
     }
@@ -453,9 +469,11 @@ export class Conductor {
     if (!this.canPause()) return;
     this.paused = true;
     gameState.paused = true;
+    // (paused again during the count-in: the music was on its way back, so it comes back next time too)
+    const counting = !!this.countIn;
     this.countIn = null;
     this.hud.countIn(0);
-    this.wasRunning = this.transport.running;
+    this.wasRunning = this.transport.running || counting;
     this.transport.stop();
     this.audio.duck(0, 0.08);
     this.audio.releaseAll();
@@ -602,7 +620,7 @@ export class Conductor {
     } else if (this.phase === 'play') {
       ctx.playing = false;
     }
-    this.arranger.update(this.transport, this.clock);
+    this.arranger.update(this.transport, this.clock, undefined, this.phase === 'play' && this.runner ? this.runner.gateBeat() ?? Infinity : Infinity);
     return ctx;
   }
 
@@ -1107,6 +1125,12 @@ export class Conductor {
       case 'back':
         this.hud.showChooser(false);
         this.hud.showTeaser(false);
+        if (this.paused) {
+          // Back was reached with the pause menu up: it must not be left standing over the end card
+          this.paused = false;
+          gameState.paused = false;
+          this.hud.showPause(false);
+        }
         if (this.phase === 'listen' || this.phase === 'rest') this.toEnd(false);
         else this.hud.showEnd(true, this._summary());
         break;

@@ -4,6 +4,8 @@
 import { SAVE_KEY, SETTINGS_KEY, SEA_KEY } from '../core/Constants.js';
 
 const VERSION = 1;
+// the sea is versioned on its own: changing the lighthouse save must never empty a child's sea
+const SEA_VERSION = 1;
 
 function read(key) {
   try {
@@ -46,11 +48,30 @@ export const Save = {
   /** The Sea of Bridges: where Kite is, which places are awake, and every bridge's score. Checked by sanitizeSea(). */
   loadSea() {
     const data = read(SEA_KEY);
-    return data && data.v === VERSION ? data.sea ?? null : null;
+    return data && data.v === SEA_VERSION ? data.sea ?? null : null;
   },
 
   storeSea(sea) {
-    return write(SEA_KEY, { v: VERSION, at: Date.now(), sea });
+    return write(SEA_KEY, { v: SEA_VERSION, at: Date.now(), sea });
+  },
+
+  /** A saved sea could not be read: set what is there aside, so nothing overwrites it for good. */
+  setSeaAside() {
+    try {
+      const raw = localStorage.getItem(SEA_KEY);
+      if (raw && !localStorage.getItem(`${SEA_KEY}.kept`)) localStorage.setItem(`${SEA_KEY}.kept`, raw);
+    } catch {
+      /* nothing can be done */
+    }
+  },
+
+  /** Ask the browser not to clear this site's storage when it is short of room. */
+  keepSafe() {
+    try {
+      navigator.storage?.persist?.()?.catch?.(() => {});
+    } catch {
+      /* not offered here */
+    }
   },
 
   loadSettings() {

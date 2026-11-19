@@ -12,6 +12,8 @@ import { CH } from './charts/lighthouse.js';
 
 /** Tempo of a crossing before the mood and the player's pace are applied. */
 export const SEA_BPM = 96;
+/** The slowest and fastest a bridge may be (a little wider than the game itself ever makes them). */
+const BPM_MIN = 44, BPM_MAX = 132;
 
 // ---------------------------------------------------------------------------------
 // Sounds. Three come from the lighthouse; every place across the sea gives one more.
@@ -220,8 +222,9 @@ export function unlocked(awake) {
  */
 /** One bridge on one edge, checked piece by piece. Anything that is not a bridge comes back null. */
 export function sanitizeBridge(edgeId, b) {
-  const edge = EDGE[edgeId];
-  if (!edge || !b || (b.from !== edge.a && b.from !== edge.b) || !Array.isArray(b.layers)) return null;
+  // (own keys only: a save edited by hand must not reach 'constructor' or 'toString')
+  const edge = typeof edgeId === 'string' && Object.hasOwn(EDGE, edgeId) ? EDGE[edgeId] : null;
+  if (!edge || !b || typeof b !== 'object' || (b.from !== edge.a && b.from !== edge.b) || !Array.isArray(b.layers)) return null;
   const slots = (edge.bars * 4) / CROSSING.GRID;
   const layers = [];
   for (const l of b.layers) {
@@ -237,14 +240,17 @@ export function sanitizeBridge(edgeId, b) {
       score.push([i, p]);
     }
     score.sort((x, y) => x[0] - y[0]);
-    layers.push({ sound: SOUNDS[l.sound] ? l.sound : 'bell', score });
+    // every crossing begins with the note that sets Kite out: a part without its first half-beat
+    // was never played, could not be played back, and could not be sent
+    if (!score.length || score[0][0] !== 0) continue;
+    layers.push({ sound: typeof l.sound === 'string' && Object.hasOwn(SOUNDS, l.sound) ? l.sound : 'bell', score });
   }
   if (!layers.length) return null;
   const bpm = Number(b.bpm);
   return {
     from: b.from,
-    mood: MOODS[b.mood] ? b.mood : 'firstlight',
-    bpm: bpm >= 40 && bpm <= 200 ? bpm : SEA_BPM,
+    mood: typeof b.mood === 'string' && Object.hasOwn(MOODS, b.mood) ? b.mood : 'firstlight',
+    bpm: bpm >= BPM_MIN && bpm <= BPM_MAX ? bpm : SEA_BPM,
     layers,
   };
 }
@@ -252,16 +258,17 @@ export function sanitizeBridge(edgeId, b) {
 export function sanitizeSea(raw) {
   const sea = emptySea();
   if (!raw || typeof raw !== 'object') return sea;
-  if (Array.isArray(raw.awake)) for (const id of raw.awake) if (PLACE[id] && !sea.awake.includes(id)) sea.awake.push(id);
+  const isPlace = (id) => typeof id === 'string' && Object.hasOwn(PLACE, id);
+  if (Array.isArray(raw.awake)) for (const id of raw.awake) if (isPlace(id) && !sea.awake.includes(id)) sea.awake.push(id);
   if (raw.seen && typeof raw.seen === 'object') sea.seen = { ...raw.seen };
-  for (const [id, b] of Object.entries(raw.bridges ?? {})) {
+  for (const [id, b] of Object.entries(raw.bridges && typeof raw.bridges === 'object' ? raw.bridges : {})) {
     const bridge = sanitizeBridge(id, b);
     if (!bridge) continue;
     sea.bridges[id] = bridge;
     // a bridge can only stand between places that are awake
     for (const end of [EDGE[id].a, EDGE[id].b]) if (!sea.awake.includes(end)) sea.awake.push(end);
   }
-  if (PLACE[raw.at] && sea.awake.includes(raw.at)) sea.at = raw.at;
+  if (isPlace(raw.at) && sea.awake.includes(raw.at)) sea.at = raw.at;
   // bridges that came from another sea are kept beside the player's own; they wake nothing
   if (Array.isArray(raw.afar)) {
     for (const g of raw.afar) {
@@ -366,8 +373,9 @@ export function compareBridges(edgeA, a, edgeB, b) {
  * Take a bridge that arrived by link into a sea. A bridge the player already has comes back
  * grown in the same place (their own on the chart, or one from afar); anything else is set
  * beside their own as a bridge from afar. Nothing of the player's is ever replaced by
- * something that is not the same bridge with more on it.
- * @returns {{what:'new'|'grown'|'same', ref:string}} ref is the edge id for the player's own, 'afar:<n>' otherwise
+ * something that is not the same bridge with more on it, and when there is no room left
+ * nothing is pushed out: the newcomer waits ('full') until the player lets one go.
+ * @returns {{what:'new'|'grown'|'same'|'full', ref?:string}} ref is the edge id for the player's own, 'afar:<n>' otherwise
  */
 export function receiveBridge(sea, edgeId, bridge) {
   const own = sea.bridges[edgeId];
@@ -379,10 +387,49 @@ export function receiveBridge(sea, edgeId, bridge) {
   for (let i = 0; i < sea.afar.length; i++) {
     const rel = compareBridges(sea.afar[i].edge, sea.afar[i], edgeId, bridge);
     if (!rel) continue;
-    if (rel === 'grown') sea.afar[i] = { edge: edgeId, ...bridge };
+    if (rel === 'grown') sea.afar[i] = { edge: edgeId, ...copyBridge(bridge) };
     return { what: rel === 'grown' ? 'grown' : 'same', ref: `afar:${i}` };
   }
-  if (sea.afar.length >= CROSSING.AFAR_MAX) sea.afar.shift(); // the oldest drifts on
-  sea.afar.push({ edge: edgeId, ...bridge });
+  if (sea.afar.length >= CROSSING.AFAR_MAX) return { what: 'full' };
+  sea.afar.push({ edge: edgeId, ...copyBridge(bridge) });
   return { what: 'new', ref: `afar:${sea.afar.length - 1}` };
+}
+
+const copyBridge = (b) => ({ from: b.from, mood: b.mood, bpm: b.bpm, layers: b.layers.map((l) => ({ sound: l.sound, score: l.score.map((n) => [...n]) })) });
+
+/**
+ * Two tellings of one player's sea: the one open in this tab (`mine`), and what another tab
+ * has saved since (`theirs`): a link opens a second tab, so this is an ordinary thing to
+ * happen. Everything either of them has is kept. Where they disagree about a bridge, the
+ * one being played now stands on the chart and the other waits among the bridges from afar.
+ * `mine`'s bridges from afar keep their places, so the names this tab holds stay true.
+ */
+export function mergeSeas(theirs, mine) {
+  const sea = emptySea();
+  sea.at = mine.at;
+  sea.seen = { ...theirs.seen, ...mine.seen };
+  for (const id of [...mine.awake, ...theirs.awake]) if (!sea.awake.includes(id)) sea.awake.push(id);
+  const spare = [];
+  for (const e of EDGES) {
+    const a = mine.bridges[e.id], b = theirs.bridges[e.id];
+    if (a && b) {
+      const rel = compareBridges(e.id, a, e.id, b);
+      sea.bridges[e.id] = copyBridge(rel === 'grown' ? b : a);
+      if (rel === null) spare.push({ edge: e.id, ...b });
+    } else if (a || b) sea.bridges[e.id] = copyBridge(a ?? b);
+  }
+  for (const g of [...mine.afar, ...theirs.afar, ...spare]) {
+    const { edge, ...bridge } = g;
+    // the same bridge the player already has on the chart is not also a bridge from afar
+    const own = sea.bridges[edge];
+    const toOwn = own ? compareBridges(edge, own, edge, bridge) : null;
+    if (toOwn === 'grown') sea.bridges[edge] = copyBridge(bridge);
+    if (toOwn) continue;
+    const i = sea.afar.findIndex((x) => compareBridges(x.edge, x, edge, bridge));
+    if (i < 0) {
+      if (sea.afar.length < CROSSING.AFAR_MAX) sea.afar.push({ edge, ...copyBridge(bridge) });
+    } else if (compareBridges(sea.afar[i].edge, sea.afar[i], edge, bridge) === 'grown') sea.afar[i] = { edge, ...copyBridge(bridge) };
+  }
+  if (!sea.awake.includes(sea.at)) sea.at = HOME;
+  return sea;
 }

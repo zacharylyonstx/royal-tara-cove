@@ -10,6 +10,24 @@
 import { MIX } from '../core/Constants.js';
 import { freqOf, midiOf } from '../music/Theory.js';
 
+/** How far past full scale the ceiling still bends rather than cuts (2 = +6 dB). */
+const CEILING_RANGE = 2;
+
+/**
+ * The output ceiling: a straight line up to 0.7, then a smooth bend that never reaches 0.98.
+ * Defined over [-CEILING_RANGE, CEILING_RANGE] (the shaper is fed 1/CEILING_RANGE).
+ */
+function softCeiling(n = 4097) {
+  const curve = new Float32Array(n);
+  const knee = 0.7, top = 0.98, room = top - knee;
+  for (let i = 0; i < n; i++) {
+    const x = ((i / (n - 1)) * 2 - 1) * CEILING_RANGE;
+    const a = Math.abs(x);
+    curve[i] = Math.sign(x) * (a <= knee ? a : knee + room * Math.tanh((a - knee) / room));
+  }
+  return curve;
+}
+
 export class AudioEngine {
   constructor() {
     this.ctx = null;
@@ -29,6 +47,13 @@ export class AudioEngine {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
+      // On an iPad or iPhone, page audio is "ambient" unless it says otherwise, and the mute switch
+      // silences it. This is an instrument: it should sound like a music app does.
+      try {
+        if (navigator.audioSession) navigator.audioSession.type = 'playback';
+      } catch {
+        /* not offered here */
+      }
       ctx = new AC({ latencyHint: 'interactive' });
     }
     this.ctx = ctx;
@@ -49,7 +74,15 @@ export class AudioEngine {
     // the compressor adds its own make-up gain; trim after it so peaks keep some headroom
     const trim = ctx.createGain();
     trim.gain.value = 0.8;
-    this.master.connect(rumble).connect(comp).connect(trim).connect(ctx.destination);
+    // last of all, a soft ceiling. Three full parts, the backing and ten fingers at once can pass
+    // full scale, and a browser clips that hard. This bends the very top instead and is
+    // out of the way below it (no delay, unlike a second compressor: the keys must stay immediate).
+    const ceiling = ctx.createWaveShaper();
+    ceiling.curve = softCeiling();
+    ceiling.oversample = '2x';
+    const pre = ctx.createGain();
+    pre.gain.value = 1 / CEILING_RANGE;
+    this.master.connect(rumble).connect(comp).connect(trim).connect(pre).connect(ceiling).connect(ctx.destination);
 
     // one shared hall
     this.reverb = ctx.createConvolver();
@@ -88,6 +121,17 @@ export class AudioEngine {
     this._startAmbience();
     this.ready = true;
     return ctx;
+  }
+
+  /** False while the device has taken the sound away (screen locked, another app, a call). */
+  get running() {
+    if (!this.ctx) return false;
+    return this.ctx.state === 'running' || (typeof OfflineAudioContext !== 'undefined' && this.ctx instanceof OfflineAudioContext);
+  }
+
+  /** Bring the sound back after the device took it away. Needs a touch or a key, so it is called on every one. */
+  wake() {
+    if (this.ctx && this.ctx.state !== 'running' && this.ctx.resume) this.ctx.resume().catch(() => {});
   }
 
   get outputLatency() {
@@ -597,7 +641,8 @@ export class AudioEngine {
    * @param {object} o instrument, octave, pitch, when (audio time), dur (sec|null), bus, gain, pan
    */
   note(o) {
-    if (!this.ready) return null;
+    // (with the sound taken away the clock stands still: anything started now would all sound at once later)
+    if (!this.ready || !this.running) return null;
     const when = Math.max(o.when ?? 0, this.ctx.currentTime);
     const dest = this._pan(this.bus[o.bus ?? 'player'], o.pan ?? 0);
     const freq = freqOf(midiOf(o.pitch, o.octave));
@@ -636,8 +681,24 @@ export class AudioEngine {
   }
 
   /** A key that builds nothing: a quiet, harmless shimmer (never a strong wrong note). */
+  /**
+   * A key pressed in free play that builds no stone (the half-beat already has one): it still
+   * plays its own note, short and soft, in the instrument's own register. Every key answers.
+   */
+  grace(chart, pitch) {
+    if (!this.ready || !this.running) return;
+    const t = this.now();
+    const freq = freqOf(midiOf(pitch, chart.octave));
+    const g = this.ctx.createGain();
+    g.gain.value = MIX.GRACE;
+    g.connect(this.bus.player);
+    this._partial(g, freq, t, 0.6, 0.16);
+    this._partial(g, freq * 2, t, 0.16, 0.07);
+    this._click(g, t, 0.1, 3200, 1.4, 0.012);
+  }
+
   flourish(chart, pitch) {
-    if (!this.ready) return;
+    if (!this.ready || !this.running) return;
     const t = this.now();
     const freq = freqOf(midiOf(pitch, chart.octave + 1));
     const g = this.ctx.createGain();

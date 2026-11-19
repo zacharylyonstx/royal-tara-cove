@@ -4,7 +4,7 @@
 import * as THREE from 'three-afternote';
 import { eventBus, Events } from './EventBus.js';
 import { gameState } from './GameState.js';
-import { TIMING, DEFAULT_KEYS, PACE } from './Constants.js';
+import { TIMING, DEFAULT_KEYS, PACE, SEA_KEY } from './Constants.js';
 import { RealClock, ManualClock } from './Clock.js';
 import { Transport } from '../music/Transport.js';
 import { LIGHTHOUSE } from '../music/charts/lighthouse.js';
@@ -81,6 +81,18 @@ export class Game {
     this.conductor.boot();
     this._takeLink();
     window.addEventListener('hashchange', () => this._takeLink());
+    // the device can take the sound away (screen locked, another app, a call) and only a touch or
+    // a key may bring it back, so every one of them tries. Kept for good, not just the first time.
+    const wake = () => this.audio.wake();
+    for (const type of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(type, wake, { passive: true, capture: true });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) wake();
+    });
+    // a link opens in a new tab: when that tab saves, this one takes up what it saved
+    window.addEventListener('storage', (e) => {
+      if (e.key === SEA_KEY) this.conductor.voyage.changedElsewhere();
+    });
+    this.hud.seaChart.settle = this.testMode ? 0 : 1;
     this.step(1 / 60); // settle the first frame (the test clock never moves on its own)
     this._exposeHooks();
     this.renderer.setAnimationLoop(() => this._frame());
@@ -121,6 +133,8 @@ export class Game {
       this._uiAction(gameState.records.some(Boolean) ? 'continue' : 'begin');
     } else if (c.paused && !this.hud.pause.classList.contains('hidden')) {
       this._uiAction('resume');
+    } else if (c.phase === 'arrive') {
+      this._uiAction('sea-skip');
     }
   }
 
@@ -154,6 +168,8 @@ export class Game {
         break;
       case 'cancel-begin':
         this.hud.showConfirm(false);
+        // (asked from the pause menu's settings: go back to the pause menu, not to a pause with no way out)
+        if (c.paused) this.hud.showPause(true, c.phase === 'play');
         break;
       case 'title-movement':
         this._startAudio();
@@ -246,7 +262,8 @@ export class Game {
     this.world.post.setReduced(!!s.reducedMotion);
     G.uContrast.value = s.highContrast ? 1 : 0;
     const pace = (Object.values(PACE).find((x) => x.id === s.pace) ?? PACE.FLOWING).scale;
-    if (this.conductor.phase === 'play') this.transport.setBpm(LIGHTHOUSE.bpm * pace);
+    // (a crossing keeps the tempo its bridge was begun at: only the lighthouse follows the pace setting live)
+    if (this.conductor.phase === 'play' && !this.conductor.voyage.cross) this.transport.setBpm(LIGHTHOUSE.bpm * pace);
     Save.storeSettings(s);
     eventBus.emit(Events.SETTINGS_CHANGED, s);
   }
@@ -329,6 +346,8 @@ export class Game {
           arrival: !game.hud.seaChart.arrival.classList.contains('hidden'),
           incoming: game.hud.incoming.classList.contains('hidden') ? '' : game.hud.incoming.querySelector('.incoming-text').textContent,
           sending: game.hud.seaChart.sending,
+          notice: game.hud.notice.classList.contains('show') ? game.hud.notice.textContent : '',
+          skip: !game.hud.skip.classList.contains('hidden'),
           title: !game.hud.title.classList.contains('hidden'),
           pause: !game.hud.pause.classList.contains('hidden'),
           end: !game.hud.end.classList.contains('hidden'),

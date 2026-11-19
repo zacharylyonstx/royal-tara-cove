@@ -249,6 +249,16 @@ export class Hud {
 
     // --- the sea chart and the arrival card (ui/SeaChart.js) ---------------------------
     this.seaChart = new SeaChart(r, this.action);
+    // said over whatever screen is showing (the chart, an arrival): the in-play caption is hidden with the HUD
+    this.notice = el('div', 'caption notice');
+    this.notice.setAttribute('role', 'status');
+    // stepping past an arrival: always offered, never needed
+    this.skip = el('button', 'skip-btn hidden');
+    this.skip.dataset.action = 'sea-skip';
+    this.skip.setAttribute('aria-label', 'Skip');
+    this.skip.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4 5 L12 12 L4 19 Z M12 5 L20 12 L12 19 Z" fill="currentColor"/></svg><span>Skip</span>';
+    // (the count-in is said over every screen too: a paused listen counts back in with the HUD hidden)
+    r.append(this.notice, this.skip, this.count);
     r.addEventListener('keydown', (e) => {
       if (this.seaChart.key(e)) e.preventDefault();
     });
@@ -451,7 +461,7 @@ export class Hud {
       stems.forEach((b, i) => {
         const name = opts ? opts.stems[i] : this.listenDefault[i];
         b.hidden = !name;
-        if (name) b.textContent = opts ? `${NUMERALS[i]} · ${name}` : name;
+        if (name) b.textContent = opts ? `${i + 1} · ${name}` : name;
       });
     }
     stems.forEach((b, i) => b.classList.toggle('on', !muted[i]));
@@ -459,12 +469,25 @@ export class Hud {
 
   showChart(v, view) { this.seaChart.show(v, view); }
 
+  /** One line said over any screen. */
+  announce(text, ms = 4200) {
+    clearTimeout(this.noticeTimer);
+    this.notice.textContent = text;
+    this.notice.classList.add('show');
+    this.noticeTimer = setTimeout(() => this.notice.classList.remove('show'), ms);
+  }
+
+  showSkip(v) { this.skip.classList.toggle('hidden', !v); }
+
   /** A bridge has come by link: say so on the title. @param {{text:string, hear:boolean}|null} data */
   showIncoming(data) {
     this.incoming.classList.toggle('hidden', !data);
     if (!data) return;
     this.incoming.querySelector('.incoming-text').textContent = data.text;
     this.incoming.querySelector('button').hidden = !data.hear;
+    // one with nothing to hear (a link that did not work) is only news: it clears itself
+    clearTimeout(this.incomingTimer);
+    if (!data.hear) this.incomingTimer = setTimeout(() => this.incoming.classList.add('hidden'), 9000);
   }
   showArrival(v, data) { this.seaChart.showArrival(v, data); }
 

@@ -4,7 +4,7 @@ import { supportAt, evalSegs } from '../../src/rules/Trajectory.js';
 import { CROSSING } from '../../src/core/Constants.js';
 import {
   EDGES, EDGE, PLACES, PLACE, SOUNDS, MOODS, HOME, crossingChart, crossingRules, scoreOf, performScore, tidyRests,
-  emptySea, sanitizeSea, unlocked, edgesOf, otherEnd, sanitizeBridge, encodeBridge, decodeBridge, compareBridges, receiveBridge,
+  emptySea, sanitizeSea, unlocked, edgesOf, otherEnd, sanitizeBridge, encodeBridge, decodeBridge, compareBridges, receiveBridge, mergeSeas,
 } from '../../src/music/sea.js';
 
 const BPM = 76.8;
@@ -166,10 +166,12 @@ describe('the saved sea', () => {
           from: 'lighthouse', mood: 'lullaby', bpm: 70,
           layers: [
             { sound: 'bell', score: [[0, 2], [1, 9], [1, 3], [slots, 0], [5, 1], [5, 2], ['x', 1]] },
-            { sound: 'kazoo', score: [[2, 0]] },
+            { sound: 'kazoo', score: [[0, 3], [2, 0]] },
             null,
-            { sound: 'root', score: [[4, 4]] },
-            { sound: 'glass', score: [[6, 1]] },
+            { sound: 'pan', score: [[4, 4]] }, // never played: every real part begins on the first half-beat
+            { sound: 'pan', score: [] },
+            { sound: 'root', score: [[0, 1], [4, 4]] },
+            { sound: 'glass', score: [[0, 0], [6, 1]] },
           ],
         },
         'nowhere~chimes': { from: 'chimes', layers: [{ sound: 'bell', score: [[0, 0]] }] },
@@ -183,6 +185,7 @@ describe('the saved sea', () => {
     expect(b.layers.length).toBe(CROSSING.MAX_LAYERS);
     expect(b.layers[0].score).toEqual([[0, 2], [1, 3], [5, 1]]);
     expect(b.layers[1].sound).toBe('bell');
+    expect(b.layers[2]).toEqual({ sound: 'root', score: [[0, 1], [4, 4]] });
     expect(b.mood).toBe('lullaby');
     expect(b.bpm).toBe(70);
   });
@@ -360,28 +363,101 @@ describe('a bridge arriving from another sea', () => {
     expect(sea2.bridges[E].layers[1].score[0][1]).toBe(1);
   });
 
-  it('holds only so many; the oldest drifts on', () => {
+  it('holds only so many, and never pushes one out to make room: a newcomer waits', () => {
     const sea = emptySea();
-    for (let n = 0; n < CROSSING.AFAR_MAX + 3; n++) receiveBridge(sea, E, { ...one(), layers: [{ sound: 'bell', score: [[n, 0]] }] });
+    for (let n = 0; n < CROSSING.AFAR_MAX; n++) expect(receiveBridge(sea, E, { ...one(), layers: [{ sound: 'bell', score: [[0, 0], [n + 1, 0]] }] }).what).toBe('new');
+    const before = clone(sea.afar);
+    expect(receiveBridge(sea, E, { ...one(), layers: [{ sound: 'glass', score: [[0, 4]] }] })).toEqual({ what: 'full' });
+    expect(sea.afar).toEqual(before);
+    // one it already has can still grow, full or not
+    const grown = { ...one(), layers: [{ sound: 'bell', score: [[0, 0], [1, 0]] }, { sound: 'root', score: [[0, 1]] }] };
+    expect(receiveBridge(sea, E, grown)).toEqual({ what: 'grown', ref: 'afar:0' });
     expect(sea.afar.length).toBe(CROSSING.AFAR_MAX);
-    expect(sea.afar[0].layers[0].score).toEqual([[3, 0]]);
-    expect(sea.afar.at(-1).layers[0].score).toEqual([[CROSSING.AFAR_MAX + 2, 0]]);
   });
 
   it('is kept by the save, checked like everything else in it', () => {
     const sea = emptySea();
     receiveBridge(sea, E, two());
-    receiveBridge(sea, 'harbor~deep', { from: 'deep', mood: 'deep', bpm: 61.4, layers: [{ sound: 'firefly', score: [[120, 2]] }] });
+    receiveBridge(sea, 'harbor~deep', { from: 'deep', mood: 'deep', bpm: 61.4, layers: [{ sound: 'firefly', score: [[0, 1], [120, 2]] }] });
     const back = sanitizeSea(clone(sea));
     expect(back.afar).toEqual(sea.afar);
     expect(back.awake).toEqual([HOME]); // bridges from afar wake nothing
     const dirty = clone(sea);
-    dirty.afar.push(null, 7, { edge: 'no~where', ...one() }, { edge: E, from: 'garden', layers: [] }, { edge: E, ...one(), layers: [{ sound: 'bell', score: [[999, 0], ['x', 1], [2, 9]] }, { sound: '???', score: [[1, 1]] }] });
+    dirty.afar.push(null, 7, { edge: 'no~where', ...one() }, { edge: E, from: 'garden', layers: [] }, { edge: E, ...one(), layers: [{ sound: 'bell', score: [[999, 0], ['x', 1], [2, 9]] }, { sound: '???', score: [[0, 4], [1, 1]] }] }, { edge: E, ...one(), bpm: 9000, layers: [{ sound: 'bell', score: [[3, 1]] }] });
     const cleaned = sanitizeSea(dirty);
     expect(cleaned.afar.length).toBe(3);
-    expect(cleaned.afar[2]).toEqual({ edge: E, from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [] }, { sound: 'bell', score: [[1, 1]] }] });
+    // the part with nothing playable in it is gone; the one with an unknown sound is kept as a bell
+    expect(cleaned.afar[2]).toEqual({ edge: E, from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [[0, 4], [1, 1]] }] });
     expect(sanitizeSea({ afar: Array.from({ length: 40 }, () => ({ edge: E, ...one() })) }).afar.length).toBe(CROSSING.AFAR_MAX);
     expect(sanitizeBridge(E, one())).toEqual(one());
     expect(sanitizeBridge(E, { from: 'deep', layers: [] })).toBeNull();
+  });
+
+  it('a save edited by hand cannot reach names every object has', () => {
+    const hostile = JSON.parse('{"at":"constructor","awake":["toString","__proto__","chimes"],"bridges":{"constructor":{"layers":[{"sound":"bell","score":[[0,0]]}]},"__proto__":{"from":"x","layers":[]},"lighthouse~chimes":{"from":"lighthouse","mood":"toString","layers":[{"sound":"hasOwnProperty","score":[[0,1]]}]}},"afar":[{"edge":"valueOf","layers":[{"score":[[0,0]]}]}]}');
+    const sea = sanitizeSea(hostile);
+    expect(sea.at).toBe(HOME);
+    expect(sea.awake).toEqual([HOME, 'chimes']);
+    expect(Object.keys(sea.bridges)).toEqual(['lighthouse~chimes']);
+    expect(sea.bridges['lighthouse~chimes']).toEqual({ from: 'lighthouse', mood: 'firstlight', bpm: 96, layers: [{ sound: 'bell', score: [[0, 1]] }] });
+    expect(sea.afar).toEqual([]);
+    expect(sanitizeBridge('constructor', { layers: [] })).toBeNull();
+    expect(sanitizeBridge(undefined, one())).toBeNull();
+    expect(sanitizeSea({ bridges: 7, afar: 'x', awake: {} })).toEqual(emptySea());
+  });
+});
+
+describe('two tabs, one sea', () => {
+  const E = 'lighthouse~chimes', F = 'lighthouse~harp';
+  const A = () => ({ from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [[0, 0], [2, 2]] }] });
+  const A2 = () => ({ ...A(), layers: [...A().layers, { sound: 'harp', score: [[0, 1]] }] });
+  const B = () => ({ from: 'harp', mood: 'tide', bpm: 84.5, layers: [{ sound: 'harp', score: [[0, 3], [5, 1]] }] });
+  const C = () => ({ from: 'chimes', mood: 'lullaby', bpm: 64.5, layers: [{ sound: 'musicbox', score: [[0, 4]] }] });
+  const seaOf = (parts) => ({ ...emptySea(), ...clone(parts) });
+
+  it('keeps everything either tab has', () => {
+    const mine = seaOf({ at: 'chimes', awake: [HOME, 'chimes'], bridges: { [E]: A() } });
+    const theirs = seaOf({ at: 'harp', awake: [HOME, 'harp'], bridges: { [F]: B() }, afar: [{ edge: E, ...C() }] });
+    const sea = mergeSeas(theirs, mine);
+    expect(sea.at).toBe('chimes'); // the tab being played now
+    expect([...sea.awake].sort()).toEqual([HOME, 'chimes', 'harp'].sort());
+    expect(sea.bridges).toEqual({ [E]: A(), [F]: B() });
+    expect(sea.afar).toEqual([{ edge: E, ...C() }]);
+    // and it does not matter which way round they are merged, except for where Kite stands
+    const other = mergeSeas(mine, theirs);
+    expect(other.bridges).toEqual(sea.bridges);
+    expect(other.afar).toEqual(sea.afar);
+    expect(other.at).toBe('harp');
+  });
+
+  it('a bridge one tab has added a part to is the one that is kept', () => {
+    const mine = seaOf({ awake: [HOME, 'chimes'], bridges: { [E]: A() } });
+    const theirs = seaOf({ awake: [HOME, 'chimes'], bridges: { [E]: A2() } });
+    expect(mergeSeas(theirs, mine).bridges[E]).toEqual(A2());
+    expect(mergeSeas(mine, theirs).bridges[E]).toEqual(A2());
+    expect(mergeSeas(theirs, mine).afar).toEqual([]);
+  });
+
+  it('two different bridges on the same water: this tab\'s stands, the other waits from afar', () => {
+    const mine = seaOf({ awake: [HOME, 'chimes'], bridges: { [E]: A() } });
+    const theirs = seaOf({ awake: [HOME, 'chimes'], bridges: { [E]: C() } });
+    const sea = mergeSeas(theirs, mine);
+    expect(sea.bridges[E]).toEqual(A());
+    expect(sea.afar).toEqual([{ edge: E, ...C() }]);
+  });
+
+  it('this tab\'s bridges from afar keep their places, and nothing appears twice', () => {
+    const mine = seaOf({ awake: [HOME, 'chimes'], bridges: { [E]: A() }, afar: [{ edge: F, ...B() }, { edge: E, ...C() }] });
+    // the other tab swapped C onto the chart (so its A waits from afar), and has a newer B
+    const B2 = { ...B(), layers: [...B().layers, { sound: 'glass', score: [[0, 0]] }] };
+    const theirs = seaOf({ awake: [HOME, 'chimes'], bridges: { [E]: C() }, afar: [{ edge: E, ...A() }, { edge: F, ...B2 }] });
+    const sea = mergeSeas(theirs, mine);
+    expect(sea.bridges[E]).toEqual(A());
+    expect(sea.afar).toEqual([{ edge: F, ...B2 }, { edge: E, ...C() }]);
+    // merged with itself, a sea is itself
+    expect(mergeSeas(sea, sea)).toEqual(sea);
+    // what comes out shares nothing with what went in
+    sea.bridges[E].layers[0].score[0][1] = 3;
+    expect(mine.bridges[E].layers[0].score[0][1]).toBe(0);
   });
 });

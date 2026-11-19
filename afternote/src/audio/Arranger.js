@@ -60,6 +60,22 @@ export class Arranger {
     });
   }
 
+  /** One bar of a mood, to choose it by ear. */
+  preview(mood, when) {
+    const audio = this.audio;
+    if (!audio.ready || !audio.running) return;
+    const spb = 60 / (96 * mood.tempo);
+    const chord = mood.harmony[0];
+    const sc = mood.scene;
+    if (sc.pad > 0) audio.pad(chord.pad, when, 4 * spb, MIX.PAD * sc.pad);
+    if (sc.bass > 0) audio.bass(chord.bass + 12, when, 2.5 * spb, MIX.BASS * sc.bass);
+    for (let b = 0; b < 4; b += 0.5) this._groove(mood.groove, b, when + b * spb, spb, 1);
+    if (sc.air > 0) audio.air(chord.color, when, 4 * spb, 0.055 * sc.air);
+  }
+
+  /** The drums and pulse of one half-beat of a mood's groove (nothing if the mood has none). */
+  _groove() {}
+
   /** Start scheduling from this beat (call whenever the transport jumps). */
   reset(beat) {
     this.cursor = beat;
@@ -70,13 +86,19 @@ export class Arranger {
     this.active = false;
   }
 
-  /** @param {number} [ahead] seconds to schedule ahead (the offline audio check renders a whole movement at once) */
-  update(transport, clock, ahead = MIX.SCHEDULE_AHEAD_SEC) {
+  /**
+   * @param {number} [ahead] seconds to schedule ahead (the offline audio check renders a whole movement at once)
+   * @param {number} [stopAt] a beat nothing may be scheduled at or past yet: the note the music is
+   *   waiting for. Without it the look-ahead plays that beat's chord while the game still waits,
+   *   and plays it again when the key comes.
+   */
+  update(transport, clock, ahead = MIX.SCHEDULE_AHEAD_SEC, stopAt = Infinity) {
     const audio = this.audio;
-    if (!this.active || !audio.ready || !transport.running) return;
+    // (with the device's sound taken away, nothing is queued: it would all sound at once on return)
+    if (!this.active || !audio.ready || !audio.running || !transport.running) return;
     const spb = transport.secPerBeat;
     const now = transport.scheduleBeat();
-    const to = now + ahead / spb;
+    const to = Math.min(now + ahead / spb, stopAt);
     let from = this.cursor;
     if (from < now - 0.02) from = now - 0.02; // never schedule the past
     if (to <= from) return;
@@ -87,7 +109,8 @@ export class Arranger {
     const loop = harmony.length;
 
     // --- the half-beat grid ---------------------------------------------------------
-    for (let k = Math.ceil(from * 2 - 1e-9); k / 2 < to; k++) {
+    // (from is where the last pass stopped, exclusive: a grid point it landed on exactly is not played twice)
+    for (let k = Math.ceil(from * 2); k / 2 < to; k++) {
       const b = k / 2;
       const whole = k % 2 === 0;
       const t = at(b);

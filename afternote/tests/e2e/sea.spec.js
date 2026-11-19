@@ -423,7 +423,7 @@ test('someone who opens the link hears the bridge, lays a part over it and sends
   const B = other.page;
   let s = await advance(B, 500);
   expect(s.phase).toBe('title');
-  expect(s.ui.incoming).toBe('A bridge has arrived from another sea.');
+  expect(s.ui.incoming).toBe('Someone sent you a bridge.');
   expect(B.url()).not.toContain('#'); // taken out of the address, so a reload does not bring it twice
   expect(s.sea.afar.length).toBe(1);
   expect(s.sea.afar[0]).toMatchObject({ edge: 'lighthouse~chimes', from: 'lighthouse', mood: 'firstlight' });
@@ -436,7 +436,7 @@ test('someone who opens the link hears the bridge, lays a part over it and sends
   s = await until(B, 's.ui.chart');
   expect(s.sea.at).toBe('lighthouse'); // hearing it does not carry Kite anywhere
   expect(await B.locator('.chart-map [data-afar]').count()).toBe(1);
-  expect(await B.locator('.chart-panel .panel-kicker').innerText()).toMatch(/from another sea/i);
+  expect(await B.locator('.chart-panel .panel-kicker').innerText()).toMatch(/from a friend/i);
   // their own part, over the sender's Echo
   await B.click('[data-chart="add"]');
   s = await until(B, 's.phase === "play" && s.gateWaiting');
@@ -456,12 +456,12 @@ test('someone who opens the link hears the bridge, lays a part over it and sends
 
   // --- home again
   s = await openLink(page, back);
-  expect(s.ui.incoming).toBe('Your bridge has come back with a new part.');
+  expect(s.ui.incoming).toBe('Your bridge came back with a new part.');
   expect(s.sea.bridges['lighthouse~chimes'].parts.length).toBe(2);
   expect(s.sea.afar).toEqual([]);
   // opening it again changes nothing
   s = await openLink(page, back);
-  expect(s.ui.incoming).toBe('This is your own bridge, just as you left it.');
+  expect(s.ui.incoming).toBe('This is your own bridge.');
   expect(s.sea.bridges['lighthouse~chimes'].parts.length).toBe(2);
   expect(s.sea.afar).toEqual([]);
   expect(errors).toEqual([]);
@@ -483,7 +483,7 @@ test('a bridge that comes home while the page is open is announced, and can be h
   await page.evaluate((code) => { location.hash = 'b=' + code; }, grown);
   await page.waitForFunction(() => !location.hash);
   s = await advance(page, 300);
-  expect(s.ui.incoming).toBe('Your bridge has come back with a new part.');
+  expect(s.ui.incoming).toBe('Your bridge came back with a new part.');
   expect(s.sea.bridges['lighthouse~chimes'].parts).toEqual([expect.objectContaining({ sound: 'bell' }), { sound: 'glass', notes: 3 }]);
   await page.click('[data-action="sea-incoming"]');
   s = await advance(page, 2500);
@@ -506,7 +506,7 @@ test('a link that holds no bridge is turned away gently', async ({ page }) => {
   await page.evaluate(() => { location.hash = 'b=10000lc-00a'; });
   await page.waitForFunction(() => !location.hash);
   s = await advance(page, 200);
-  expect(s.ui.incoming).toBe('That link did not hold a bridge.');
+  expect(s.ui.incoming).toBe('That link did not work.');
   expect(await page.locator('[data-action="sea-incoming"]').isVisible()).toBe(false);
   expect(s.sea.afar).toEqual([]);
   expect(s.sea.bridges).toEqual({});
@@ -514,7 +514,7 @@ test('a link that holds no bridge is turned away gently', async ({ page }) => {
   await page.evaluate(() => { location.hash = 'b=10000lc-0a.%20utm=1'; });
   await page.waitForFunction(() => !location.hash);
   s = await advance(page, 200);
-  expect(s.ui.incoming).toBe('A bridge has arrived from another sea.');
+  expect(s.ui.incoming).toBe('Someone sent you a bridge.');
   expect(s.sea.afar).toEqual([{ edge: 'lighthouse~chimes', from: 'lighthouse', mood: 'firstlight', bpm: 76.8, parts: [{ sound: 'bell', notes: 2 }] }]);
   expect(errors).toEqual([]);
 });
@@ -678,5 +678,174 @@ test('a link opened in the middle of a crossing waits until the crossing is over
   s = await advance(page, 500);
   expect(s.sea.afar.length).toBe(1);
   expect(await page.locator('.chart-map .afar.sel').count()).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------------
+// Things a review found, and that must stay fixed
+// ---------------------------------------------------------------------------------
+
+test('a key pressed while Kite is still walking out sings, but the crossing waits for Kite', async ({ page }) => {
+  const errors = await boot(page);
+  await toChart(page);
+  await pickEdge(page, 'lighthouse~chimes');
+  await page.click('[data-chart="build"]');
+  let s = await advance(page, 300);
+  expect(s.phase).toBe('play');
+  expect(s.gateWaiting).toBe(false); // still walking out
+  await page.keyboard.press('Digit3');
+  await page.keyboard.press('Digit1');
+  s = await advance(page, 100);
+  expect(s.entries.hits).toBe(0);
+  s = await until(page, 's.gateWaiting');
+  expect(s.entries.hits).toBe(0);
+  expect(s.beat).toBe(0);
+  await page.keyboard.press('Digit2');
+  s = await advance(page, 600);
+  expect(s.entries.hits).toBe(1);
+  expect(s.gateWaiting).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('pausing again while the music counts back in does not strand the crossing', async ({ page }) => {
+  const errors = await boot(page);
+  await toChart(page);
+  await pickEdge(page, 'lighthouse~chimes');
+  await page.click('[data-chart="build"]');
+  await until(page, 's.phase === "play" && s.gateWaiting');
+  await page.keyboard.press('Digit3');
+  let s = await advance(page, 1500);
+  await page.keyboard.press('Escape');
+  await page.click('.overlay:not(.hidden) [data-action="resume"]'); // the count-in begins...
+  await page.keyboard.press('Escape'); // ...and is interrupted
+  s = await advance(page, 300);
+  expect(s.paused).toBe(true);
+  const held = s.beat;
+  await page.click('.overlay:not(.hidden) [data-action="resume"]');
+  s = await advance(page, 3000);
+  expect(s.paused).toBe(false);
+  expect(s.beat).toBeGreaterThan(held + 1);
+  expect(errors).toEqual([]);
+});
+
+test('a crossing keeps the tempo its bridge was begun at, whatever is changed in the settings', async ({ page }) => {
+  const errors = await boot(page);
+  await page.evaluate(() => {
+    localStorage.setItem('afternote.sea.v1', JSON.stringify({ v: 1, at: 0, sea: { at: 'chimes', awake: ['lighthouse', 'chimes'], bridges: {}, afar: [], seen: {} } }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.render_game_to_text);
+  await toChart(page);
+  await pickEdge(page, 'chimes~garden');
+  await page.click('[data-chart="build"]'); // from Chime Rocks: Music Box, Lullaby
+  let s = await until(page, 's.phase === "play" && s.gateWaiting');
+  const bpm = s.bpm;
+  expect(bpm).toBeLessThan(70);
+  await page.keyboard.press('Digit3');
+  await advance(page, 800);
+  await page.evaluate(() => window.__afternote.game._applySettings());
+  s = await advance(page, 200);
+  expect(s.bpm).toBe(bpm);
+  expect(errors).toEqual([]);
+});
+
+test('two tabs share one sea: what one builds the other takes up, and neither overwrites the other', async ({ page, context }) => {
+  const errors = await boot(page);
+  await toChart(page);
+  // a second tab (a link opens one) builds a bridge
+  const other = await context.newPage();
+  await other.goto('/afternote/?test=1&fx=0');
+  await other.waitForFunction(() => !!window.render_game_to_text);
+  await toChart(other);
+  await pickEdge(other, 'lighthouse~harp');
+  await other.click('[data-chart="build"]');
+  await playThrough(other, { strategy: 'low', miss: 0.4, seed: 7 });
+  // the first tab, sitting on its chart, has it now without being touched
+  await page.waitForFunction(() => JSON.parse(window.render_game_to_text()).sea.bridges['lighthouse~harp'] !== undefined);
+  let s = await advance(page, 200);
+  expect(s.sea.awake).toContain('harp');
+  expect(await page.locator('.chart-map .edge.built').count()).toBe(1);
+  // the first tab builds one of its own while the second keeps going: both end up with both
+  await pickEdge(page, 'lighthouse~chimes');
+  await page.click('[data-chart="build"]');
+  await until(page, 's.phase === "play" && s.gateWaiting');
+  await other.click('[data-arrive="add"]'); // meanwhile, a second part in the other tab
+  await playThrough(other, { strategy: 'high', miss: 0.5, seed: 8 });
+  await playThrough(page);
+  s = await state(page);
+  expect(Object.keys(s.sea.bridges).sort()).toEqual(['lighthouse~chimes', 'lighthouse~harp']);
+  expect(s.sea.bridges['lighthouse~harp'].parts.length).toBe(2); // the part added elsewhere, mid-crossing here, was not lost
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('afternote.sea.v1')).sea);
+  expect(Object.keys(saved.bridges).sort()).toEqual(['lighthouse~chimes', 'lighthouse~harp']);
+  expect(saved.bridges['lighthouse~harp'].layers.length).toBe(2);
+  await other.close();
+  expect(errors).toEqual([]);
+});
+
+test('the arrival can be stepped past, and the place still wakes', async ({ page }) => {
+  const errors = await boot(page);
+  await page.goto('/afternote/?test=1&fx=0&cine=1'); // the arrival at its real length
+  await page.waitForFunction(() => !!window.render_game_to_text);
+  await toChart(page);
+  await pickEdge(page, 'lighthouse~chimes');
+  await page.click('[data-chart="build"]');
+  await until(page, 's.phase === "play" && s.gateWaiting');
+  await page.evaluate(() => window.__afternote.bot({ strategy: 'wander', miss: 0.3, seed: 4 }));
+  let s = await until(page, 's.phase === "arrive"');
+  await page.evaluate(() => window.__afternote.bot(null));
+  expect(s.ui.skip).toBe(true);
+  s = await advance(page, 1000);
+  expect(s.phase).toBe('arrive');
+  expect(s.ui.notice).toMatch(/a bridge of your own/i); // said over the scene, with the HUD away
+  await page.click('.skip-btn');
+  s = await advance(page, 100);
+  expect(s.phase).toBe('arrived');
+  expect(s.ui.arrival).toBe(true);
+  expect(s.ui.skip).toBe(false);
+  expect(s.sea.awake).toEqual(['lighthouse', 'chimes']);
+  expect(await page.locator('.gift-box').count()).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('a finger still tapping where the last screen\'s button was does not press the next screen\'s', async ({ page }) => {
+  const errors = await boot(page);
+  await page.evaluate(() => { window.__afternote.game.hud.seaChart.settle = 1; }); // as it is outside tests
+  await page.click('[data-action="sea"]');
+  await page.click('[data-chart="build"]'); // at once: too soon to be meant
+  let s = await advance(page, 300);
+  expect(s.phase).toBe('sea');
+  expect(s.ui.chart).toBe(true);
+  await page.waitForTimeout(700);
+  await page.click('[data-chart="build"]');
+  s = await advance(page, 300);
+  expect(s.phase).toBe('play');
+  expect(errors).toEqual([]);
+});
+
+test('when there is no room for another friend\'s bridge it waits, and nothing is pushed out', async ({ page }) => {
+  const errors = await boot(page);
+  const made = await page.evaluate(async () => {
+    const sea = await import('/afternote/src/music/sea.js');
+    const afar = Array.from({ length: 12 }, (_, n) => ({ edge: 'lighthouse~chimes', from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [[0, 0], [n + 1, 2]] }] }));
+    localStorage.setItem('afternote.sea.v1', JSON.stringify({ v: 1, at: 0, sea: { at: 'lighthouse', awake: ['lighthouse'], bridges: {}, afar, seen: {} } }));
+    return sea.encodeBridge('lighthouse~harp', { from: 'harp', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'glass', score: [[0, 4], [7, 1]] }] });
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.render_game_to_text);
+  await toChart(page);
+  await page.evaluate((c) => { location.hash = 'b=' + c; }, made);
+  await page.waitForFunction(() => !location.hash);
+  let s = await advance(page, 300);
+  expect(s.sea.afar.length).toBe(12);
+  expect(s.sea.afar.some((g) => g.edge === 'lighthouse~harp')).toBe(false);
+  expect(s.ui.notice).toMatch(/no room/i);
+  // let one go: the one that was waiting comes in
+  await page.click('.chart-map [data-afar="0"]', { force: true });
+  await page.click('[data-chart="release"]');
+  await page.click('[data-chart="release-yes"]');
+  s = await advance(page, 300);
+  expect(s.sea.afar.length).toBe(12);
+  expect(s.sea.afar.at(-1)).toMatchObject({ edge: 'lighthouse~harp', parts: [{ sound: 'glass', notes: 2 }] });
+  expect(s.ui.notice).toBe('Someone sent you a bridge.');
   expect(errors).toEqual([]);
 });

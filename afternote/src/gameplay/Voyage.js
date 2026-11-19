@@ -18,7 +18,7 @@ import { MovementRunner } from '../rules/MovementRunner.js';
 import { kiteStateAt } from '../rules/Trajectory.js';
 import {
   SEA_BPM, SOUNDS, MOODS, PLACE, EDGE, EDGES, FINAL_CHORD, otherEnd, crossingChart, crossingRules, scoreOf, performScore,
-  emptySea, sanitizeSea, unlocked, encodeBridge, decodeBridge, receiveBridge,
+  emptySea, sanitizeSea, unlocked, encodeBridge, decodeBridge, receiveBridge, mergeSeas,
 } from '../music/sea.js';
 import { Save } from '../systems/Save.js';
 
@@ -37,9 +37,14 @@ export class Voyage {
     /** the same, for each bridge that came from another sea */
     this.afarRecords = [];
     /** a link's code waiting to be taken in, what the last one turned out to be, and the bridge the chart should turn to */
-    this.pending = null;
+    this.pending = [];
     this.incoming = null;
     this.focus = null;
+    /** links that found no room among the bridges from afar, kept until one is let go */
+    this.waiting = [];
+    /** another tab has saved the sea since this one last read it */
+    this.stale = false;
+    this.warned = false;
     /** the crossing being played, or the bridge being listened to */
     this.cross = null;
     this.song = null;
@@ -61,15 +66,56 @@ export class Voyage {
 
   /** Read the saved sea and rebuild everything that stands on it. */
   load() {
-    this.sea = sanitizeSea(Save.loadSea());
+    let saved;
+    try {
+      saved = sanitizeSea(Save.loadSea());
+    } catch {
+      // whatever is stored could not be read: it is set aside untouched, and the sea starts clear
+      Save.setSeaAside();
+      saved = emptySea();
+    }
+    this._adopt(saved);
+  }
+
+  /** Stand a sea up in the world: its bridges of light, and which places are awake. */
+  _adopt(sea) {
+    for (const id of Object.keys(this.records)) if (!sea.bridges[id]) this.seaWorld.setBridge(id, null);
+    this.sea = sea;
     this.records = {};
-    for (const [id, bridge] of Object.entries(this.sea.bridges)) {
-      this.records[id] = bridge.layers.map((l, k) => this._perform(id, bridge, k, l));
-      this.seaWorld.setBridge(id, bridge, this.records[id]);
+    for (const [id, bridge] of Object.entries(sea.bridges)) {
+      try {
+        this.records[id] = bridge.layers.map((l, k) => this._perform(id, bridge, k, l));
+        this.seaWorld.setBridge(id, bridge, this.records[id]);
+      } catch {
+        delete sea.bridges[id];
+        delete this.records[id];
+      }
     }
     this._performAfar();
-    for (const id of Object.keys(PLACE)) this.seaWorld.setAwake(id, this.sea.awake.includes(id), true);
-    gameState.sea = this.sea;
+    for (const id of Object.keys(PLACE)) this.seaWorld.setAwake(id, sea.awake.includes(id), true);
+    gameState.sea = sea;
+  }
+
+  /** What another tab has saved, merged with what this one holds: nothing either has is lost. */
+  _mergeSaved() {
+    this.stale = false;
+    let theirs = null;
+    try {
+      theirs = sanitizeSea(Save.loadSea());
+    } catch {
+      theirs = null;
+    }
+    if (theirs) this._adopt(mergeSeas(theirs, this.sea));
+  }
+
+  /** The saved sea was changed by another tab (a link opened there, a bridge built there). */
+  changedElsewhere() {
+    if (this.busy) {
+      this.stale = true; // taken up at the next save, or when the chart is next shown
+      return;
+    }
+    this._mergeSaved();
+    if (this.c.phase === 'sea') this.hud.showChart(true, this.view());
   }
 
   _performAfar() {
@@ -91,8 +137,19 @@ export class Voyage {
   }
 
   save() {
+    if (this.stale) this._mergeSaved();
     gameState.sea = this.sea;
-    Save.storeSea(this.sea);
+    const made = Object.keys(this.sea.bridges).length + this.sea.afar.length > 0;
+    if (made && !this.sea.seen.kept) {
+      // once there is something worth keeping, ask the browser not to clear it when short of room
+      // (not in Firefox, which would put a question in front of a child)
+      this.sea.seen.kept = true;
+      if (!/firefox/i.test(navigator.userAgent)) Save.keepSafe();
+    }
+    if (!Save.storeSea(this.sea) && !this.warned) {
+      this.warned = true;
+      this.hud.announce('This browser is not keeping your bridges. They will stay until the page is closed.', 9000);
+    }
   }
 
   _chartFor(edgeId, from, layer, sound) {
@@ -124,6 +181,8 @@ export class Voyage {
       })),
       edges: EDGES.map((e) => ({ ...e, start: this.startOf(e.id) })),
       focus,
+      // beats a minute before a mood's own tempo: lets the chart say how long a crossing will take
+      bpm: SEA_BPM * (Object.values(PACE).find((p) => p.id === gameState.settings.pace) ?? PACE.FLOWING).scale,
     };
   }
 
@@ -168,6 +227,7 @@ export class Voyage {
     this.world.seeds.clear();
     this.world.setSky(null);
     this.world.kite.lookBack = 0;
+    if (this.stale) this._mergeSaved();
     this._standAt(this.sea.at);
     if (fade) {
       this.world.post.setFade(1);
@@ -183,13 +243,20 @@ export class Voyage {
     this.hud.showEnd(false);
     this.hud.showListen(false);
     this.hud.showArrival(false);
-    // a bridge that came by link (just now, or while the title was showing) is what the chart turns to
-    const came = this.pending ? this.take() : this.incoming;
+    this.hud.showSkip(false);
+    // (the chart may be reached straight from a paused crossing or a paused listen)
+    this.hud.showPause(false);
+    this.hud.showStruggle(false);
+    this.hud.showSettings(false);
+    // a bridge that came by link (just now, or while the title was showing) is what the chart turns to,
+    // unless the player has just asked to see a particular one
+    const want = this.focus;
+    const came = this.pending.length ? this.take() : this.incoming;
     this.incoming = null;
     this.hud.showIncoming(null);
-    if (came?.ref) this.focus = came.ref;
+    this.focus = want ?? came?.ref ?? null;
     this.hud.showChart(true, this.view());
-    if (came) this.hud.showCaption(this.incomingText(came), 5200);
+    if (came) this.hud.announce(this.incomingText(came), 5200);
     if (!this.sea.seen.opened) {
       this.sea.seen.opened = true;
       this.save();
@@ -312,7 +379,7 @@ export class Voyage {
 
   /** The words under the place name while the first note is waited for. */
   gatePrompt() {
-    return this.cross.layer === 0 ? 'Play any note to set out. Every note is a stone.' : 'Play any note to join in.';
+    return this.cross.layer === 0 ? 'Play any note to start. Every note makes a stone.' : 'Play any note to join in.';
   }
 
   /** The far landing has been reached. */
@@ -328,7 +395,7 @@ export class Voyage {
       // Kite was carried across on light alone: there is no bridge to keep
       this.seaWorld.dropLayer(x.layer);
       this.open();
-      this.hud.showCaption('No stones this time. Any key builds one.', 4200);
+      this.hud.announce('No stones this time. Any key builds one.', 4200);
       return;
     }
     const part = { sound: x.sound, score };
@@ -360,6 +427,7 @@ export class Voyage {
     this.cine = {};
     c._setPhase('arrive');
     this.hud.showHud(false);
+    this.hud.showSkip(true);
     eventBus.emit(Events.CROSSING_COMPLETE, { edge: x.edgeId, layer: x.layer, notes: score.length, first });
   }
 
@@ -411,7 +479,7 @@ export class Voyage {
       c.audio.duck(0.55, 1.2);
       this.cine.hits = a.record.entries.filter((e) => e.outcome === 'hit');
       this.cine.next = 0;
-      this.hud.showCaption(a.layer === 0 ? 'A bridge of your own' : a.layer === 1 ? 'A second part' : 'A third part', 3200);
+      this.hud.announce(a.layer === 0 ? 'A bridge of your own' : a.layer === 1 ? 'A second part' : 'A third part', 3200);
     }
     // the bridge lights in the order it was played, its first notes sounding again
     const hits = this.cine.hits;
@@ -430,15 +498,28 @@ export class Voyage {
       this._shot.pos.copy(place.pos).addScaledVector(this._v, -15).addScaledVector(UP, 6.5);
       this._shot.look.copy(place.landmarkPos).setY(place.landmarkPos.y + 1);
       this.world.rig.setShot(this._shot, 1.0);
-      if (a.first) {
-        this.seaWorld.setAwake(a.to, true);
-        c.audio.swell(3.2, 0.3, 2200);
-        c.audio.chime([72, 76, 79, 84], 0.55);
-        this.hud.showCaption(`${PLACE[a.to].name} is awake`, 4200);
-        eventBus.emit(Events.PLACE_WOKEN, { place: a.to });
-      }
+      if (a.first) this._wake(a);
     }
     if (u >= 1) this._arrived();
+  }
+
+  _wake(a) {
+    const c = this.c;
+    this.cine.woke = true;
+    this.seaWorld.setAwake(a.to, true);
+    c.audio.swell(3.2, 0.3, 2200);
+    c.audio.chime([72, 76, 79, 84], 0.55);
+    this.hud.announce(`${PLACE[a.to].name} is awake`, 4200);
+    eventBus.emit(Events.PLACE_WOKEN, { place: a.to });
+  }
+
+  /** The arrival can always be stepped past: nothing in it has to be waited for. */
+  skipArrive() {
+    const a = this.arrival;
+    if (this.c.phase !== 'arrive' || !a) return;
+    if (a.first && !this.cine.woke) this._wake(a);
+    this.world.kite.lookBack = 0;
+    this._arrived();
   }
 
   _arrived() {
@@ -451,6 +532,7 @@ export class Voyage {
     this.cross = null;
     this._standAt(a.to);
     this.timer = 0;
+    this.hud.showSkip(false);
     c._setPhase('arrived');
     const h = this.hold(a.ref);
     const bridge = h.bridge;
@@ -592,6 +674,19 @@ export class Voyage {
   // Bridges from another sea
   // -------------------------------------------------------------------------------
 
+  /** Let a sound or a mood be heard before it is chosen: children pick with their ears, not from a name. */
+  preview({ sound, mood } = {}) {
+    const a = this.c.audio;
+    if (!a.ready || this.busy) return;
+    const t = a.now() + 0.03;
+    if (sound && SOUNDS[sound]) {
+      const s = SOUNDS[sound];
+      [0, 2, 4].forEach((p, i) => a.note({ instrument: s.id, octave: s.octave, pitch: p, when: t + i * 0.17, dur: 0.6, bus: 'player', gain: 0.85 }));
+    } else if (mood && MOODS[mood]) {
+      this.c.arranger.preview(MOODS[mood], t);
+    }
+  }
+
   /** Whether something is being played or heard that a newly arrived bridge must not disturb. */
   get busy() {
     return !!(this.cross || this.song || this.arrival);
@@ -603,20 +698,33 @@ export class Voyage {
    * @returns {{what:string, ref?:string}|null} what it turned out to be, or null if it is waiting
    */
   offer(code) {
-    this.pending = code;
+    if (!this.pending.includes(code)) this.pending.push(code);
     return this.busy ? null : this.take();
   }
 
+  /** Take in every link that is waiting. @returns what the last of them turned out to be */
   take() {
-    const code = this.pending;
-    this.pending = null;
-    if (!code) return null;
-    const got = decodeBridge(code);
-    if (!got) {
-      this.incoming = { what: 'unreadable' };
-      return this.incoming;
+    const codes = this.pending;
+    this.pending = [];
+    let last = null;
+    for (const code of codes) last = this._takeOne(code);
+    if (last) {
+      this.incoming = last;
+      if (last.ref) this.focus = last.ref;
     }
+    return last;
+  }
+
+  _takeOne(code) {
+    const got = decodeBridge(code);
+    if (!got) return { what: 'unreadable' };
+    if (this.stale) this._mergeSaved();
     const r = receiveBridge(this.sea, got.edge, got.bridge);
+    if (r.what === 'full') {
+      // no room: it is not lost, and nothing is pushed out to make room. It comes in when one is let go.
+      if (!this.waiting.includes(code)) this.waiting.push(code);
+      return r;
+    }
     const h = this.hold(r.ref);
     if (h.own && r.what === 'grown') {
       this.records[h.edgeId] = h.bridge.layers.map((l, k) => this._perform(h.edgeId, h.bridge, k, l));
@@ -624,18 +732,17 @@ export class Voyage {
     }
     this._performAfar();
     this.save();
-    this.incoming = { ...r, own: h.own, parts: h.bridge.layers.length };
-    this.focus = r.ref;
     eventBus.emit(Events.BRIDGE_RECEIVED, { what: r.what, own: h.own });
-    return this.incoming;
+    return { ...r, own: h.own, parts: h.bridge.layers.length };
   }
 
   /** One line for whoever opened the link. */
   incomingText(r) {
-    if (!r || r.what === 'unreadable') return 'That link did not hold a bridge.';
-    if (r.what === 'grown') return r.own ? 'Your bridge has come back with a new part.' : 'A bridge from afar has grown.';
-    if (r.what === 'same') return r.own ? 'This is your own bridge, just as you left it.' : 'You already have this bridge.';
-    return 'A bridge has arrived from another sea.';
+    if (!r || r.what === 'unreadable') return 'That link did not work.';
+    if (r.what === 'full') return 'No room for another bridge. Let one go and it will come in.';
+    if (r.what === 'grown') return r.own ? 'Your bridge came back with a new part.' : 'A friend\'s bridge has a new part.';
+    if (r.what === 'same') return r.own ? 'This is your own bridge.' : 'You already have this bridge.';
+    return 'Someone sent you a bridge.';
   }
 
   /** Go and hear the bridge that has just arrived. */
@@ -672,7 +779,15 @@ export class Voyage {
     this.sea.afar.splice(h.index, 1);
     this._performAfar();
     this.save();
+    // one that was waiting for room can come in now
+    let came = null;
+    if (this.waiting.length) {
+      this.pending.push(this.waiting.shift());
+      came = this.take();
+      this.incoming = null;
+    }
     this.hud.showChart(true, this.view());
+    if (came) this.hud.announce(this.incomingText(came), 5200);
     return true;
   }
 
@@ -689,6 +804,8 @@ export class Voyage {
         this.back();
         return true;
       case 'sea-incoming': this.hearIncoming(); return true;
+      case 'sea-skip': this.skipArrive(); return true;
+      case 'sea-preview': this.preview(value); return true;
       case 'sea-keep': return this.keep(value.ref) || true;
       case 'sea-release': return this.release(value.ref) || true;
       default: return false;
@@ -705,6 +822,7 @@ export class Voyage {
     this.hud.showChart(false);
     this.hud.showArrival(false);
     this.hud.showListen(false);
+    this.hud.showSkip(false);
     this.c.arranger.setPiece(null);
     this.c.toTitle();
     this.world.post.setFade(1);

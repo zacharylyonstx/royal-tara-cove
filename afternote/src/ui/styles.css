@@ -422,6 +422,7 @@ html, body {
 .btn.tall span { font-size: 11px; letter-spacing: 0.16em; }
 
 .listen-bar {
+  width: max-content; max-width: calc(100vw - 24px);
   position: absolute; left: 50%; bottom: calc(var(--safe-bottom) + 10px);
   transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
@@ -599,7 +600,7 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .chart-map { width: 100%; height: 100%; display: block; overflow: visible; }
 
 .chart-map .edge { cursor: pointer; outline: none; }
-.chart-map .edge .hit { stroke: transparent; stroke-width: 44; stroke-linecap: round; pointer-events: stroke; }
+.chart-map .edge .hit { stroke: transparent; stroke-width: 64; stroke-linecap: round; pointer-events: stroke; }
 .chart-map .edge .halo { stroke: rgba(255, 214, 150, 0); stroke-width: 26; stroke-linecap: round; transition: stroke 0.2s; }
 .chart-map .edge .dots { stroke: rgba(220, 214, 240, 0.5); stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 2 13; }
 .chart-map .edge.far .dots { stroke: rgba(220, 214, 240, 0.2); }
@@ -649,6 +650,10 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .panel-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: 10px; scrollbar-width: thin; }
 .panel-foot { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .panel-foot .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn .ic, .chip .ic { width: 1.3em; height: 1.3em; fill: currentColor; vertical-align: -0.26em; margin-right: 0.55em; flex: none; }
+.chip .dot { display: inline-block; width: 0.95em; height: 0.95em; border-radius: 50%; margin-right: 0.55em; vertical-align: -0.1em; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5); }
+.chip-hint { min-height: 1.2em; font-style: italic; font-size: 15px; color: rgba(236, 230, 250, 0.72); margin-top: -4px; }
+.arrival-actions .chip-hint { flex-basis: 100%; margin-top: -2px; }
 .panel-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 4px; margin-top: -4px; }
 .panel-row .btn.small { margin-top: 0; }
 .link-box {
@@ -659,6 +664,16 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 }
 .link-box:focus { outline: none; border-color: var(--gold); }
 .arrival-actions .send-link { flex-basis: 100%; min-width: 0; padding: 6px 14px; font-size: 12px; }
+.caption.notice { position: absolute; left: 50%; top: 15%; width: max-content; max-width: 92vw; white-space: normal; text-align: center; opacity: 0; transform: translateX(-50%) translateY(8px); transition: opacity 0.5s, transform 0.5s; pointer-events: none; text-shadow: 0 2px 18px rgba(6, 6, 16, 0.95), 0 0 34px rgba(6, 6, 16, 0.8); letter-spacing: 0.2em; }
+.caption.notice.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.skip-btn {
+  position: absolute; right: max(18px, env(safe-area-inset-right)); bottom: calc(var(--safe-bottom) + 8px);
+  display: flex; align-items: center; gap: 8px; min-width: 64px; min-height: 56px; padding: 10px 18px;
+  font-family: var(--caps); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(244, 238, 255, 0.86); background: rgba(22, 22, 40, 0.5); border: 1px solid var(--glass-line); border-radius: 999px;
+  cursor: pointer; pointer-events: auto; backdrop-filter: blur(6px); animation: fade-in 0.8s ease-out 1s backwards;
+}
+.skip-btn:hover, .skip-btn:focus-visible { outline: none; border-color: var(--gold); color: #fff; }
 /* a bridge that came by link, announced on the title */
 .incoming {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
@@ -738,6 +753,29 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 @media (max-width: 520px) {
   .chart-map .place .name { font-size: 26px; letter-spacing: 0.08em; }
 }
+/* fingers, and small ones: everything that can be tapped is big enough to hit and far enough apart */
+@media (pointer: coarse) {
+  .chip-row { gap: 10px; }
+  .chip-row .chip { min-height: 48px; padding: 10px 18px; font-size: 13px; }
+  .chart-panel .btn, .arrival-actions .btn { min-height: 56px; }
+  .chart-panel .btn.small { min-height: 44px; padding: 10px 16px; font-size: 12px; margin-top: 0; }
+  .panel-row { gap: 4px 8px; margin-top: 0; }
+  .arrival-actions .send-link { min-height: 46px; font-size: 13px; }
+  .listen-bar .chip, .listen-bar .btn { min-height: 48px; padding-left: 18px; padding-right: 18px; }
+  .chart-foot .btn { min-height: 48px; }
+  .incoming .btn { min-height: 52px; }
+  .skip-btn { min-height: 64px; min-width: 96px; }
+  .pause-btn { min-width: 56px; min-height: 56px; }
+  .panel-scroll, .arrival-inner { touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+}
+/* left alone for a while, the one thing to do next draws the eye (a hint without words) */
+.panel-foot .btn.primary, .arrival-actions .btn.primary, .incoming .btn { animation: nudge 2.6s ease-in-out 7s infinite; }
+.prompt.show ~ .keys .key .key-glyph { animation: nudge 2.2s ease-in-out 6s infinite; }
+@keyframes nudge {
+  0%, 100% { filter: none; transform: none; }
+  50% { filter: brightness(1.22) drop-shadow(0 0 14px rgba(255, 196, 110, 0.9)); transform: scale(1.035); }
+}
 @media (prefers-reduced-motion: reduce) {
   .chart-map .edge.open .dots, .chart-map .place.awake .glow, .chart-map .place .kite { animation: none; }
+  .panel-foot .btn.primary, .arrival-actions .btn.primary, .incoming .btn, .prompt.show ~ .keys .key .key-glyph, .skip-btn { animation: none; }
 }
