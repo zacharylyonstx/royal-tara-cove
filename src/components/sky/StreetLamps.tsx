@@ -166,13 +166,14 @@ export function StreetLamps() {
   return (
     <group>
       {STREET_LAMPS.map((l, i) => (l.kind === 'cobra' ? <CobraHead key={i} lamp={l} /> : <AcornPost key={i} lamp={l} />))}
-      {/* light pools on the pavement */}
+      {/* light pools on the pavement (down the Red Line the roads and plazas are
+          built a few cm proud of the ground, so the pool sits above them) */}
       <group ref={poolGroup}>
         {lightPositions.map((lp, i) => {
           const kind = STREET_LAMPS[i].kind;
           const r = kind === 'cobra' ? 11 : 6;
           return (
-            <mesh key={`pool-${i}`} position={[lp[0], 0.03, lp[2]]} rotation={[-Math.PI / 2, 0, 0]} material={poolMat} renderOrder={2}>
+            <mesh key={`pool-${i}`} position={[lp[0], lp[2] > 400 ? 0.1 : 0.03, lp[2]]} rotation={[-Math.PI / 2, 0, 0]} material={poolMat} renderOrder={2}>
               <planeGeometry args={[r * 2, r * 2]} />
             </mesh>
           );
