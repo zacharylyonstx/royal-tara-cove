@@ -31,3 +31,8 @@ yarn-debug.log*
 yarn-error.log*
 *.jpeg
 *.jpg
+
+# Afternote browser-test output
+test-results/
+afternote/test-results/
+playwright-report/
