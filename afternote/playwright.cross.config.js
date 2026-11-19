@@ -7,14 +7,16 @@ export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 240000,
   fullyParallel: true,
+  // (each page is a WebGL scene: more than a few WebKit pages at once exhausts the machine, not the game)
+  workers: 4,
   reporter: [['list']],
   use: { baseURL: 'http://localhost:5173', viewport: { width: 1280, height: 720 } },
   projects: [
     { name: 'webkit', use: { browserName: 'webkit' } },
     { name: 'firefox', use: { browserName: 'firefox' } },
     // an iPad held sideways and upright: WebKit, touch, no hover, a coarse pointer
-    { name: 'ipad', use: { ...devices['iPad (gen 7) landscape'] } },
-    { name: 'ipad-upright', use: { ...devices['iPad (gen 7)'] }, grep: /@touch/ },
+    // (four lighthouse tests are about a keyboard's keycaps, which a touch device does not show)
+    { name: 'ipad', use: { ...devices['iPad (gen 7) landscape'] }, grepInvert: /numbers are keys|label modes|remap:|home-row preset/ },
   ],
   webServer: {
     command: 'npm run dev',

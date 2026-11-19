@@ -23,6 +23,53 @@ function play(r, plan, until = r.chart.endBeat + 2, step = 0.05) {
   return events;
 }
 
+describe('the moods', () => {
+  // how each of the twelve notes is spelled in the keys the moods use
+  const SPELL = { 0: 'C', 1: 'C♯', 2: 'D', 3: 'E♭', 4: 'E', 5: 'F', 6: 'F♯', 7: 'G', 8: 'A♭', 9: 'A', 10: 'B♭', 11: 'B' };
+
+  it('name their keys for the notes those keys really play', () => {
+    for (const m of Object.values(MOODS)) {
+      const expected = [0, 2, 4, 7, 9].map((semi) => SPELL[(((semi + m.key) % 12) + 12) % 12]);
+      expect(m.names, m.id).toEqual(expected);
+      const c = crossingChart({ edge: EDGES[0], from: EDGES[0].a, sound: 'bell', mood: m.id });
+      expect(c.key).toBe(m.key);
+      expect(c.names).toEqual(m.names);
+    }
+    // the lighthouse's own mood is the lighthouse's own key
+    expect(MOODS.firstlight.key).toBe(0);
+    expect(crossingChart({ edge: EDGES[0], from: EDGES[0].a, sound: 'bell' }).key).toBe(0);
+  });
+
+  it('are different music from one another: no two share a key, and no two share a groove and a resting chord', () => {
+    const list = Object.values(MOODS);
+    expect(new Set(list.map((m) => m.key)).size).toBe(list.length);
+    const feel = list.map((m) => JSON.stringify([m.groove, m.final.name, m.harmony.map((c) => c.name), m.scene.pulse > 0, !!m.scene.tock]));
+    expect(new Set(feel).size).toBe(list.length);
+    // some have drums, some have a broken chord, some have neither: three kinds of backing
+    expect(list.filter((m) => m.groove?.kick).length).toBeGreaterThanOrEqual(3);
+    expect(list.filter((m) => m.groove?.arp).length).toBeGreaterThanOrEqual(2);
+    expect(list.filter((m) => !m.groove).length).toBeGreaterThanOrEqual(1);
+    // and not all of them come to rest on the same chord
+    expect(new Set(list.map((m) => m.final.name)).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('are written so they can be played: four bars, grooves of eight half-beats, arpeggios within the chord', () => {
+    for (const m of Object.values(MOODS)) {
+      expect(m.harmony.length, m.id).toBe(4);
+      expect(m.final?.pad?.length, m.id).toBeGreaterThan(2);
+      expect(m.tempo).toBeGreaterThan(0.7);
+      expect(m.tempo).toBeLessThan(1.2);
+      expect(Math.abs(m.key)).toBeLessThanOrEqual(5);
+      for (const [part, line] of Object.entries(m.groove ?? {})) {
+        for (const bar of Array.isArray(line) ? line : [line]) {
+          expect(bar.length, `${m.id} ${part}`).toBe(8);
+          expect(bar, `${m.id} ${part}`).toMatch(part === 'arp' ? /^[0-5.]{8}$/ : /^[xo.]{8}$/);
+        }
+      }
+    }
+  });
+});
+
 describe('the sea chart', () => {
   it('joins every place, and every gift is a real sound and mood', () => {
     expect(PLACES[0].id).toBe(HOME);

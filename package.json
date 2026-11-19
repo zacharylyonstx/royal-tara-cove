@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:afternote": "vitest run afternote/tests/unit",
-    "test:afternote:e2e": "playwright test -c afternote/playwright.config.js"
+    "test:afternote:e2e": "playwright test -c afternote/playwright.config.js",
+    "test:afternote:cross": "playwright test -c afternote/playwright.cross.config.js --project=webkit --project=ipad"
   },
   "dependencies": {
     "@fontsource/cinzel": "^5.3.0",

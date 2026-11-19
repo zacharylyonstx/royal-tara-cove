@@ -645,7 +645,7 @@ export class AudioEngine {
     if (!this.ready || !this.running) return null;
     const when = Math.max(o.when ?? 0, this.ctx.currentTime);
     const dest = this._pan(this.bus[o.bus ?? 'player'], o.pan ?? 0);
-    const freq = freqOf(midiOf(o.pitch, o.octave));
+    const freq = freqOf(midiOf(o.pitch, o.octave) + (o.key ?? 0));
     return this._instrument(o.instrument).call(this, dest, freq, when, o.gain ?? 1, o.dur ?? 1.2);
   }
 
@@ -665,7 +665,7 @@ export class AudioEngine {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
     if (this.tapVoice) this.tapVoice.stop(t + 0.02);
-    this.tapVoice = this.note({ instrument: chart.instrument, octave: chart.octave, pitch, dur: durSec, bus: 'player' });
+    this.tapVoice = this.note({ instrument: chart.instrument, octave: chart.octave, key: chart.key, pitch, dur: durSec, bus: 'player' });
   }
 
   playerUp(pitch) {
@@ -688,7 +688,7 @@ export class AudioEngine {
   grace(chart, pitch) {
     if (!this.ready || !this.running) return;
     const t = this.now();
-    const freq = freqOf(midiOf(pitch, chart.octave));
+    const freq = freqOf(midiOf(pitch, chart.octave) + (chart.key ?? 0));
     const g = this.ctx.createGain();
     g.gain.value = MIX.GRACE;
     g.connect(this.bus.player);
@@ -700,7 +700,7 @@ export class AudioEngine {
   flourish(chart, pitch) {
     if (!this.ready || !this.running) return;
     const t = this.now();
-    const freq = freqOf(midiOf(pitch, chart.octave + 1));
+    const freq = freqOf(midiOf(pitch, chart.octave + 1) + (chart.key ?? 0));
     const g = this.ctx.createGain();
     g.gain.value = MIX.FLOURISH;
     const hp = this.ctx.createBiquadFilter();
@@ -791,6 +791,54 @@ export class AudioEngine {
       o.connect(g).connect(this.bus.backing);
       o.stop(when + 0.25);
     }
+  }
+
+  // --- a soft kit for the sea's moods: felt more than heard, never sharp ------------------
+
+  /** A round, low drum: a sine that falls from a thump to a hum. */
+  kick(when, gain) {
+    if (!this.ready) return;
+    const o = this._osc('sine', 126, when);
+    o.frequency.exponentialRampToValueAtTime(47, when + 0.11);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(gain, when + 0.004);
+    g.gain.setTargetAtTime(0, when + 0.03, 0.085);
+    o.connect(g).connect(this.bus.backing);
+    o.stop(when + 0.7);
+    this._click(this.bus.backing, when, gain * 0.22, 1300, 0.8, 0.008);
+  }
+
+  /** A brushed tap on the backbeat: a short breath of noise over a low knock. */
+  snare(when, gain) {
+    if (!this.ready) return;
+    this._click(this.bus.backing, when, gain, 1900, 0.7, 0.07);
+    this._click(this.bus.backing, when, gain * 0.45, 5200, 0.9, 0.05);
+    const o = this._osc('triangle', 196, when);
+    o.frequency.exponentialRampToValueAtTime(150, when + 0.06);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain * 0.5, when);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.11);
+    o.connect(g).connect(this.bus.backing);
+    o.stop(when + 0.16);
+  }
+
+  /** A closed hat: a grain of high noise. */
+  hat(when, gain) {
+    if (!this.ready) return;
+    this._click(this.bus.backing, when, gain, 9000, 0.8, 0.028);
+  }
+
+  /** One soft plucked tone, for a mood whose backing is a broken chord. */
+  pluck(midi, when, gain) {
+    if (!this.ready) return;
+    const g = this.ctx.createGain();
+    g.gain.value = gain;
+    g.connect(this.bus.backing);
+    const f = freqOf(midi);
+    this._partial(g, f, when, 1, 0.34);
+    this._partial(g, f * 2, when, 0.16, 0.12);
+    this._partial(g, f * 3, when, 0.05, 0.06);
   }
 
   shaker(when, gain) {

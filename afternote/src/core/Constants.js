@@ -125,6 +125,12 @@ export const MIX = {
   PAD: 0.18,
   BASS: 0.24,
   PULSE: 0.16,
+  // the sea's kit, each level measured against the rest of the backing
+  // (measured alone: the drum peaks about 5 dB under a played note, the tap 4 dB under the drum)
+  KICK: 0.26,
+  SNARE: 0.22,
+  HAT: 0.07,
+  ARP: 0.09,
   FLOURISH: 0.2, // a key that builds nothing still sings (it was 0.1: easy to miss)
   GRACE: 0.42, // a free-play key that builds no stone: its own note, short and soft
   WORLD: 0.4,

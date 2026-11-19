@@ -5,6 +5,16 @@ export const PITCH_NAMES = ['C', 'D', 'E', 'G', 'A'];
 export const SEMITONES = [0, 2, 4, 7, 9];
 export const PITCH_COUNT = 5;
 
+// A sea mood can be in another key: the five keys keep their order and their colours, and
+// take the names of the notes they play there. The lighthouse is always in C.
+let names = PITCH_NAMES;
+export function noteName(pitch) {
+  return names[pitch];
+}
+export function setNoteNames(list) {
+  names = Array.isArray(list) && list.length === PITCH_COUNT ? list : PITCH_NAMES;
+}
+
 export function midiOf(pitch, octave) {
   return 12 * (octave + 1) + SEMITONES[pitch];
 }

@@ -10,7 +10,7 @@
 
 import * as THREE from 'three-afternote';
 import { COLORS, STONE } from '../core/Constants.js';
-import { PITCH_NAMES } from '../music/Theory.js';
+import { noteName } from '../music/Theory.js';
 import { pieceXYAt } from '../rules/Trajectory.js';
 import {
   makeStylized, makeGlow, slabGeometry, ribbonGeometry, letterTexture, softDotTexture, marbleTexture, disposeObject, G,
@@ -77,7 +77,7 @@ CURTAIN_GEO.userData.shared = true;
 function letterMaterial(pitch) {
   return new THREE.ShaderMaterial({
     uniforms: {
-      uMap: { value: letterTexture(PITCH_NAMES[pitch]) },
+      uMap: { value: letterTexture(noteName(pitch)) },
       uInk: { value: new THREE.Color(0x4a3a2c) },
       uLight: { value: new THREE.Color(COLORS.PITCH[pitch]).lerp(new THREE.Color(COLORS.GOLD), 0.35) },
       uGlow: { value: 0 },

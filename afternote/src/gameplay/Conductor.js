@@ -128,6 +128,7 @@ export class Conductor {
     this.hud.showChart(false);
     this.hud.showArrival(false);
     this.hud.showListen(false, undefined, null);
+    this.voyage._name(null);
     this._setPhase('title');
     this.transport.stop();
     this.arranger.stop();
@@ -227,6 +228,7 @@ export class Conductor {
     this.voyage.cross = null;
     this.voyage.song = null;
     this.voyage.arrival = null;
+    this.voyage._name(null);
     this.hud.showChart(false);
     this.hud.showArrival(false);
     this.hud.showSkip(false);

@@ -320,7 +320,8 @@ export function letterTexture(letter, font = 'italic 600 150px "Cormorant Garamo
   const c = canvas(256, 256);
   const g = c.getContext('2d');
   g.clearRect(0, 0, 256, 256);
-  g.font = font;
+  // (a note with a sharp or a flat is two signs wide: drawn a little smaller so it stays on the stone)
+  g.font = letter.length > 1 ? font.replace('150px', '112px') : font;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillStyle = '#ffffff';

@@ -33,50 +33,79 @@ export const HOME_SOUNDS = ['bell', 'root', 'glass'];
 
 // ---------------------------------------------------------------------------------
 // Moods: the harmony and feel underneath a crossing, and the light it is played in.
-// Every chord is voiced so C D E G A all sit well on it (see charts/lighthouse.js).
-// `scene` is how full each part of the backing is; `sky` tints the dusk (null = as it is).
+// Every chord is voiced so the five keys all sit well on it (see charts/lighthouse.js).
+//
+// What makes one mood unlike another, so that bridges built in different places are different
+// music and not the same music turned up or down:
+//   key     the whole mood, chords and keys together, moved by this many semitones; `names`
+//           are the notes the five keys play there
+//   harmony four bars, looped; `final` is the chord the crossing comes to rest on (a mood that
+//           rests on a minor or an open chord feels minor or open, on the same five keys)
+//   groove  its drums and broken chords: each line is eight half-beats, or bars in turn
+//           ('x' a hit, 'o' a soft one); `arp` picks tones of the bar's chord, low to high
+//   scene   how full each sustained part of the backing is; `sky` tints the dusk (null = as it is)
 // ---------------------------------------------------------------------------------
 export const MOODS = {
   firstlight: {
     id: 'firstlight', name: 'First Light', hint: 'calm and hopeful', tempo: 1.0,
-    harmony: [CH.Cadd9, CH.Am7, CH.Fmaj9, CH.Gsus],
+    key: 0, names: ['C', 'D', 'E', 'G', 'A'],
+    harmony: [CH.Cadd9, CH.Am7, CH.Fmaj9, CH.Gsus], final: CH.C,
+    groove: null,
     scene: { pad: 1.0, bass: 0.9, pulse: 1.0, air: 0, shaker: 0, bassOn3: false },
     sky: null,
   },
   lullaby: {
+    // a music box turning: no beat at all, only a slow broken chord
     id: 'lullaby', name: 'Lullaby', hint: 'slow and sleepy', tempo: 0.84,
-    harmony: [CH.C, CH.Fmaj9, CH.CoverE, CH.Gsus],
-    scene: { pad: 0.95, bass: 0.6, pulse: 0.45, air: 0.6, shaker: 0, bassOn3: false },
+    key: 5, names: ['F', 'G', 'A', 'C', 'D'],
+    harmony: [CH.C, CH.Fmaj9, CH.CoverE, CH.Gsus], final: CH.C,
+    groove: { arp: ['0.2.3.4.', '1.2.4.3.'] },
+    scene: { pad: 0.9, bass: 0.55, pulse: 0, air: 0.5, shaker: 0, bassOn3: false },
     sky: { top: 0x0f1430, mid: 0x2a2f66, horizon: 0x7f86c8, fog: 0x4a4f86 },
   },
   tide: {
+    // a little dance: drum on one and three, a tap on two and four, hats bouncing between
     id: 'tide', name: 'Tide Dance', hint: 'quick and bouncy', tempo: 1.1,
-    harmony: [CH.Am7, CH.Fmaj9, CH.Cadd9, CH.Gsus],
-    scene: { pad: 0.7, bass: 1.0, pulse: 1.0, air: 0, shaker: 0.9, bassOn3: true },
+    key: 2, names: ['D', 'E', 'F♯', 'A', 'B'],
+    harmony: [CH.Am7, CH.Fmaj9, CH.Cadd9, CH.Gsus], final: CH.Cadd9,
+    groove: { kick: 'x...x...', snare: '..o...o.', hat: '.x.x.x.x' },
+    scene: { pad: 0.65, bass: 1.0, pulse: 0, air: 0, shaker: 0, bassOn3: true },
     sky: { top: 0x10283a, mid: 0x1f5a66, horizon: 0x7fe0c8, fog: 0x3f7480 },
   },
   golden: {
-    id: 'golden', name: 'Golden Hour', hint: 'warm and glowing', tempo: 0.96,
-    harmony: [CH.Fmaj9, CH.Cadd9, CH.Dm11, CH.Gsus],
-    scene: { pad: 1.0, bass: 0.8, pulse: 0.8, air: 0.6, shaker: 0.3, bassOn3: false },
+    // unhurried and warm: a lazy drum that leans into the beat, a soft backbeat
+    id: 'golden', name: 'Golden Hour', hint: 'warm and easy', tempo: 0.92,
+    key: -2, names: ['B♭', 'C', 'D', 'F', 'G'],
+    harmony: [CH.Fmaj9, CH.Cadd9, CH.Dm11, CH.Gsus], final: CH.Cadd9,
+    groove: { kick: ['x..x....', 'x....x..'], snare: '..x...x.', hat: 'oxoxoxox' },
+    scene: { pad: 1.0, bass: 0.85, pulse: 0, air: 0.4, shaker: 0, bassOn3: false },
     sky: { top: 0x2a2040, mid: 0x7a4a52, horizon: 0xffb86a, fog: 0x8a6660 },
   },
   starfall: {
+    // wide and still: no beat, a single high note falling now and then, and it never quite resolves
     id: 'starfall', name: 'Starfall', hint: 'quiet and far away', tempo: 0.9,
-    harmony: [CH.Dm11, CH.Am7, CH.Fmaj9, CH.Cadd9],
-    scene: { pad: 0.6, bass: 0.5, pulse: 0.5, air: 1.1, shaker: 0, bassOn3: false },
+    key: -3, names: ['A', 'B', 'C♯', 'E', 'F♯'],
+    harmony: [CH.Dm11, CH.Am7, CH.Fmaj9, CH.Dm11], final: CH.Dm11,
+    groove: { arp: ['....5...', '..4.....', '......5.', '3.......'] },
+    scene: { pad: 0.7, bass: 0.45, pulse: 0, air: 1.1, shaker: 0, bassOn3: false },
     sky: { top: 0x080a1c, mid: 0x1c1c48, horizon: 0x5a52a0, fog: 0x34305e },
   },
   clockwork: {
+    // a little machine: tick on every beat, tock between, a drum that keeps it marching
     id: 'clockwork', name: 'Clockwork', hint: 'ticking and busy', tempo: 1.06,
-    harmony: [CH.C, CH.CoverE, CH.Fmaj9, CH.Gsus],
-    scene: { pad: 0.6, bass: 0.9, pulse: 1.0, air: 0, shaker: 0.5, bassOn3: true, tock: true },
+    key: -5, names: ['G', 'A', 'B', 'D', 'E'],
+    harmony: [CH.C, CH.CoverE, CH.Fmaj9, CH.Gsus], final: CH.C,
+    groove: { kick: 'x...x...', hat: '..x...x.' },
+    scene: { pad: 0.6, bass: 0.9, pulse: 1.0, air: 0, shaker: 0, bassOn3: true, tock: true },
     sky: { top: 0x1c2238, mid: 0x4a4860, horizon: 0xe0a880, fog: 0x6c6470 },
   },
   deep: {
+    // minor, low and slow: it rests on a minor chord, over a heartbeat
     id: 'deep', name: 'Deep Water', hint: 'slow and mysterious', tempo: 0.8,
-    harmony: [CH.Am7, CH.Fmaj9, CH.Dm11, CH.Gsus],
-    scene: { pad: 0.85, bass: 0.8, pulse: 0.4, air: 0.9, shaker: 0, bassOn3: false, padDown: true },
+    key: -4, names: ['A♭', 'B♭', 'C', 'E♭', 'F'],
+    harmony: [CH.Am7, CH.Fmaj9, CH.Dm11, CH.Am7], final: CH.Am7,
+    groove: { kick: 'x.o.....' },
+    scene: { pad: 0.85, bass: 0.8, pulse: 0, air: 0.9, shaker: 0, bassOn3: false, padDown: true },
     sky: { top: 0x060e1c, mid: 0x0e2c44, horizon: 0x3aa0a8, fog: 0x1e4658 },
   },
 };
@@ -135,9 +164,10 @@ export function crossingRules(rules = RULES) {
  * The chart of one part of a bridge: an open beat on every half-beat, the first one waiting
  * for the player. `from`/`to` are place ids; the part is played in that direction.
  */
-export function crossingChart({ edge, from, sound, layer = 0 }) {
+export function crossingChart({ edge, from, sound, layer = 0, mood = null }) {
   const beats = edge.bars * 4;
   const s = SOUNDS[sound] ?? SOUNDS.bell;
+  const m = mood ? MOODS[mood] : null;
   const to = otherEnd(edge, from);
   const events = [];
   for (let b = 0; b < beats - 1e-9; b += CROSSING.GRID) events.push({ b, k: 'open', d: CROSSING.GRID, gate: b === 0 });
@@ -147,6 +177,9 @@ export function crossingChart({ edge, from, sound, layer = 0 }) {
     numeral: ['I', 'II', 'III'][layer] ?? '',
     instrument: s.id,
     octave: s.octave,
+    // the key the mood is in: every note of the part is moved by this, and the keys are named for it
+    key: m?.key ?? 0,
+    names: m?.names ?? null,
     startBeat: CROSSING.START_BEAT,
     endBeat: beats + CROSSING.TAIL_BEATS,
     startLane: 2,

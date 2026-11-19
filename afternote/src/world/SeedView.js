@@ -10,7 +10,7 @@
 
 import * as THREE from 'three-afternote';
 import { COLORS, SEEDS, STONE, RULES, LANES } from '../core/Constants.js';
-import { PITCH_NAMES } from '../music/Theory.js';
+import { noteName } from '../music/Theory.js';
 import { makeGlow, letterTexture, keycapTexture, ringTexture, softDotTexture, ribbonGeometry, G } from './Shared.js';
 
 let TEX = null;
@@ -93,9 +93,10 @@ class Seed {
 
   setPitch(p, double) {
     const t = textures();
-    if (this.pitch !== p) {
+    if (this.pitch !== p || this.named !== noteName(p)) {
       this.pitch = p;
-      this.letter.material.map = letterTexture(PITCH_NAMES[p]);
+      this.named = noteName(p);
+      this.letter.material.map = letterTexture(this.named);
       this.letter.material.needsUpdate = true;
       const col = new THREE.Color(COLORS.PITCH[p]).lerp(new THREE.Color(COLORS.GOLD), 0.25);
       this.plateMat.uniforms.uColor.value.copy(col);

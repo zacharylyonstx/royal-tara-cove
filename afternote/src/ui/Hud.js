@@ -469,6 +469,14 @@ export class Hud {
 
   showChart(v, view) { this.seaChart.show(v, view); }
 
+  /** The names on the five keys (a sea mood may be in another key; null = C D E G A). */
+  setKeyNames(list) {
+    this.keys.forEach((k, i) => {
+      k.letter.textContent = list?.[i] ?? PITCH_NAMES[i];
+      k.letter.classList.toggle('two', (list?.[i] ?? '').length > 1);
+    });
+  }
+
   /** One line said over any screen. */
   announce(text, ms = 4200) {
     clearTimeout(this.noticeTimer);

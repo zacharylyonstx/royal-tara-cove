@@ -149,6 +149,7 @@ html, body {
   transition: color 0.18s;
 }
 
+.key-letter.two { font-size: clamp(22px, min(3.5vw, 5.4vh), 48px); letter-spacing: -0.02em; }
 /* a key is always drawn as a physical keycap: light, squared, sans-serif. Notes never are. */
 .key-cap, .remap-key .cap {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;

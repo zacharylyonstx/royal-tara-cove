@@ -16,6 +16,7 @@ import { gameState } from '../core/GameState.js';
 import { CROSSING, PACE } from '../core/Constants.js';
 import { MovementRunner } from '../rules/MovementRunner.js';
 import { kiteStateAt } from '../rules/Trajectory.js';
+import { setNoteNames } from '../music/Theory.js';
 import {
   SEA_BPM, SOUNDS, MOODS, PLACE, EDGE, EDGES, FINAL_CHORD, otherEnd, crossingChart, crossingRules, scoreOf, performScore,
   emptySea, sanitizeSea, unlocked, encodeBridge, decodeBridge, receiveBridge, mergeSeas,
@@ -152,12 +153,23 @@ export class Voyage {
     }
   }
 
-  _chartFor(edgeId, from, layer, sound) {
-    return crossingChart({ edge: EDGE[edgeId], from, sound, layer });
+  _chartFor(edgeId, from, layer, sound, mood) {
+    return crossingChart({ edge: EDGE[edgeId], from, sound, layer, mood });
   }
 
   _perform(edgeId, bridge, layer, part) {
-    return performScore(MovementRunner, this._chartFor(edgeId, bridge.from, layer, part.sound), bridge.bpm, part.score);
+    return performScore(MovementRunner, this._chartFor(edgeId, bridge.from, layer, part.sound, bridge.mood), bridge.bpm, part.score);
+  }
+
+  /** What the backing plays for a mood: its chords, where it rests, its key and its groove. */
+  _piece(m, beats) {
+    return { harmony: m.harmony, beats, final: m.final ?? FINAL_CHORD, key: m.key ?? 0, groove: m.groove ?? null };
+  }
+
+  /** The five keys take the names of the notes they play in this mood (null: C D E G A). */
+  _name(names) {
+    setNoteNames(names);
+    this.hud.setKeyNames(names);
   }
 
   /** What the chart needs to draw itself and offer the right things. */
@@ -228,6 +240,7 @@ export class Voyage {
     this.world.setSky(null);
     this.world.kite.lookBack = 0;
     if (this.stale) this._mergeSaved();
+    this._name(null);
     this._standAt(this.sea.at);
     if (fade) {
       this.world.post.setFade(1);
@@ -313,9 +326,10 @@ export class Voyage {
     const c = this.c;
     const edge = EDGE[edgeId];
     const to = otherEnd(edge, from);
-    const chart = this._chartFor(edgeId, from, layer, sound);
+    const chart = this._chartFor(edgeId, from, layer, sound, mood);
     const route = this.seaWorld.routeFor(edgeId, from, layer);
     const h = fresh ? null : this.hold(ref);
+    this._name(chart.names);
     const bridge = h ? h.bridge : null;
     const earlier = h ? h.records.slice(0, layer) : [];
     const own = h ? h.own : true;
@@ -334,13 +348,14 @@ export class Voyage {
     c.replaying = false;
     gameState.replaying = null;
     c.echoes = earlier.map((record, k) => ({
-      mvt: k, record, chart: this._chartFor(edgeId, from, k, bridge.layers[k].sound), route: this.seaWorld.routeFor(edgeId, from, k),
+      mvt: k, record, chart: this._chartFor(edgeId, from, k, bridge.layers[k].sound, mood), route: this.seaWorld.routeFor(edgeId, from, k),
       path: views[k], cursor: 0, opacity: 0,
     }));
     const m = MOODS[mood];
     const thin = THIN[Math.min(layer, THIN.length - 1)];
-    c.arranger.setPiece({ harmony: m.harmony, beats: chart.beats, final: FINAL_CHORD });
-    c.arranger.setScene({ ...m.scene, pad: m.scene.pad * thin, pulse: m.scene.pulse * thin });
+    c.arranger.setPiece(this._piece(m, chart.beats));
+    // (the kit steps back with the rest as parts stack up)
+    c.arranger.setScene({ ...m.scene, pad: m.scene.pad * thin, pulse: m.scene.pulse * thin, kit: thin });
     c.arranger.setEchoes(c.echoes);
     c.arranger.muted = [false, false, false];
     c.arranger.wheel = false;
@@ -487,7 +502,7 @@ export class Voyage {
     while (this.cine.next < upTo) {
       const n = hits[this.cine.next];
       a.path.pulse(n.b, 1.3);
-      if (this.cine.next < 7) c.audio.note({ instrument: chart.instrument, octave: chart.octave, pitch: n.p, dur: 0.5, bus: 'echo', gain: 0.9 });
+      if (this.cine.next < 7) c.audio.note({ instrument: chart.instrument, octave: chart.octave, key: chart.key, pitch: n.p, dur: 0.5, bus: 'echo', gain: 0.9 });
       this.cine.next++;
     }
     // then Kite turns to the place itself
@@ -575,8 +590,9 @@ export class Voyage {
     if (!h) return false;
     const { bridge, edgeId, records } = h;
     const edge = EDGE[edgeId];
+    const charts = bridge.layers.map((l, k) => this._chartFor(edgeId, bridge.from, k, l.sound, bridge.mood));
+    this._name(charts[0].names);
     const views = this.seaWorld.activate(edgeId, bridge.from, records);
-    const charts = bridge.layers.map((l, k) => this._chartFor(edgeId, bridge.from, k, l.sound));
     this.song = { ref, own: h.own, edgeId, edge, from: bridge.from, to: otherEnd(edge, bridge.from), charts, records, route: this.seaWorld.routeFor(edgeId, bridge.from, 0) };
     this.cross = null;
     this.arrival = null;
@@ -586,8 +602,8 @@ export class Voyage {
       mvt: k, record, chart: charts[k], route: this.seaWorld.routeFor(edgeId, bridge.from, k), path: views[k], cursor: 0, opacity: k === 0 ? 0 : 1,
     }));
     const m = MOODS[bridge.mood];
-    c.arranger.setPiece({ harmony: m.harmony, beats: charts[0].beats, final: FINAL_CHORD });
-    c.arranger.setScene({ ...m.scene, pad: m.scene.pad * 0.8 });
+    c.arranger.setPiece(this._piece(m, charts[0].beats));
+    c.arranger.setScene({ ...m.scene, pad: m.scene.pad * 0.8, kit: 0.85 });
     c.arranger.setEchoes(c.echoes);
     c.arranger.muted = this.muted;
     c.arranger.wheel = false;
@@ -681,7 +697,7 @@ export class Voyage {
     const t = a.now() + 0.03;
     if (sound && SOUNDS[sound]) {
       const s = SOUNDS[sound];
-      [0, 2, 4].forEach((p, i) => a.note({ instrument: s.id, octave: s.octave, pitch: p, when: t + i * 0.17, dur: 0.6, bus: 'player', gain: 0.85 }));
+      [0, 2, 4, 3].forEach((p, i) => a.note({ instrument: s.id, octave: s.octave, pitch: p, when: t + i * 0.17, dur: 0.6, bus: 'player', gain: 0.85 }));
     } else if (mood && MOODS[mood]) {
       this.c.arranger.preview(MOODS[mood], t);
     }
