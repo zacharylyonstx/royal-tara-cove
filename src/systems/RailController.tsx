@@ -122,10 +122,11 @@ export function RailController() {
       s.at[i] = tr.at !== null;
     }
     setTrainRumble(rumbleS, ab >= 0 ? 0.85 : rumbleV * 0.7);
-    // Clickety-clack: a rail joint every 12 m, heard from inside.
+    // Clickety-clack over the rail joints, heard from inside (spaced out now the
+    // trains fly, so it stays a rhythm and not a rattle).
     if (ab >= 0) {
       s.clackDist += Math.abs(rail.trains[ab].dz);
-      if (s.clackDist > 12) { s.clackDist = 0; railClack(Math.min(1, 0.35 + 0.65 * Math.abs(rail.trains[ab].v) / LINE_SPEED)); }
+      if (s.clackDist > 30) { s.clackDist = 0; railClack(Math.min(1, 0.35 + 0.65 * Math.abs(rail.trains[ab].v) / LINE_SPEED)); }
     }
   }, -10);
 

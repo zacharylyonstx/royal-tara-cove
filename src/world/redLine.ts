@@ -163,15 +163,17 @@ export const ROAD_CROSSINGS: { z: number; w: number; colliders: boolean }[] = [
 ];
 
 // ---------------------------------------------------------------- timetable --
-export const DWELL_S = 24;   // doors-open stop
-const ACC_S = 11;            // seconds to reach line speed (and to brake)
+export const DWELL_S = 20;   // doors-open stop
+const ACC_S = 6;             // seconds to reach line speed (and to brake)
 const DOOR_OPEN_AT = 0.9, DOOR_OPEN_S = 1.3;
 /** Doors start closing this long before departure (the chime plays then). */
 export const DOOR_CLOSE_LEAD = 4.2;
 const DOOR_CLOSE_S = 1.4;
-/** Seconds each station-to-station run takes (north → south). The Bastrop
- *  run is an express: half as far again, at 20 m/s. */
-const RUN_S = [72, 82, 86];
+/** Seconds each station-to-station run takes (north → south). Not a real
+ *  train's pace any more — Zak: "a lot faster… it would be fun": about 45 m/s
+ *  (100 mph) between stops, 50 on the Bastrop run. End to end in ~2 minutes
+ *  (it was nearly 5). */
+const RUN_S = [24, 27, 36];
 
 /** One leg of the loop: stand at `stn`, then run to `to`. */
 export interface Leg {
