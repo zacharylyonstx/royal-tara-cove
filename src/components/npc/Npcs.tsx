@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { Group } from 'three';
-import { CharacterModel, charDims } from '../CharacterModel';
+import { AnimeNpcModel, animeDims } from './AnimeNpcModel';
 import { useGameStore } from '../../state/gameStore';
 import { useSkyStore } from '../../state/skyStore';
 import { useZoneStore } from '../../state/zoneStore';
@@ -11,10 +11,9 @@ import { useChatStore } from '../../state/chatStore';
 import { NPCS, planNpc, type NpcDef } from '../../world/npcs';
 import { realSecondsAt, sunElevation, NPC_HOME_BELOW_EL } from '../../world/npcTime';
 import { CHARACTER_ORDER } from '../../world/characters';
-import type { CharacterDef } from '../../types';
 
-// The townsfolk, rendered with the same procedural avatar the dress-up wardrobe
-// uses (so they walk with a real limb swing and share the game's look).
+// The townsfolk, drawn as cute anime-style characters (AnimeNpcModel), with a
+// real limb swing when they walk. The family keep their own likenesses.
 //
 // Each NPC chases a TARGET that is a pure function of the shared day clock
 // (world/npcs.ts planNpc), so every player sees them in the same place with
@@ -46,12 +45,7 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
   const rightArm = useRef<Group>(null);
   const torso = useRef<Group>(null);
   const rig = useMemo(() => ({ leftLeg, rightLeg, leftArm, rightArm, torso }), []);
-  const d = useMemo(() => charDims(def.look.height), [def.look.height]);
-  const charDef = useMemo<CharacterDef>(() => ({
-    id: def.look.base, name: def.name, emoji: '🙂', height: def.look.height,
-    bodyColor: def.look.appearance.top.color || '#888', pantsColor: def.look.appearance.bottom.color || '#444',
-    hairColor: def.look.appearance.hair.color || '#333', skinTone: def.look.skin, shoeColor: def.look.appearance.shoes.color || '#222',
-  }), [def]);
+  const d = useMemo(() => animeDims(def.look.height), [def.look.height]);
 
   const st = useRef({
     init: false, x: 0, z: 0, y: 0, yaw: 0, phase: Math.random() * 6, speed: 0,
@@ -194,14 +188,14 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
     }
     if (torso.current) torso.current.position.y = d.torsoY + Math.sin(t * 1.5 + index) * 0.012 + (talking ? Math.abs(Math.sin(t * 7)) * 0.012 : 0);
     // Sitting: drop the hips to chair height.
-    g.position.y = s.y - s.sit * (d.legsH - 0.44);
+    g.position.y = s.y - s.sit * Math.max(0, d.legsH - 0.44);
   });
 
   const now = performance.now();
   const showBubble = !!bubble && now - bubble.at < BUBBLE_MS && shown;
   return (
     <group ref={root}>
-      <CharacterModel def={charDef} appearance={def.look.appearance} rig={rig} />
+      <AnimeNpcModel id={def.id} look={def.look} rig={rig} />
       {shown && near && !showBubble && (
         <Html position={[0, def.look.height + 0.32, 0]} center distanceFactor={9} zIndexRange={[70, 0]} occlude={false}>
           <div style={{ background: 'rgba(20,28,38,0.74)', color: '#fff', padding: '2px 9px', borderRadius: 999, fontSize: 13, fontWeight: 800, fontFamily: FONT, whiteSpace: 'nowrap', pointerEvents: 'none', border: '2px solid #f6c945', textAlign: 'center' }}>
