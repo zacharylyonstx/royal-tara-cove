@@ -151,6 +151,7 @@ export const CROSSING = {
   TAIL_BEATS: 6, // ...and in along the far landing after the last one
   RING_BEATS: 1.6, // how long a tapped note is left to ring
   MAX_LAYERS: 3, // parts that can be stacked on one bridge
+  AFAR_MAX: 12, // bridges that came by link and are kept beside the player's own
   REACH: 4, // every key is always in reach
   // each part of a bridge runs beside the others and rejoins them at both landings: [sideways, up]
   LAYER_OFFSET: [[0, 0], [-7.2, 1.5], [7.2, 3.0]],

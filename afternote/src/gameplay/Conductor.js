@@ -144,6 +144,8 @@ export class Conductor {
     this.hud.showHud(false);
     this.hud.showEnd(false);
     this.hud.showTitle(true, { canContinue: done.some(Boolean), complete: done.every(Boolean) });
+    const came = this.voyage.pending ? this.voyage.take() : this.voyage.incoming;
+    this.hud.showIncoming(came ? { text: this.voyage.incomingText(came), hear: !!came.ref } : null);
     this.hud.setMovements(this.island.movements, done);
     this.audio.setAmbience(1, 3);
   }

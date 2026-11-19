@@ -79,6 +79,8 @@ export class Game {
     this._resize();
     this.last = performance.now();
     this.conductor.boot();
+    this._takeLink();
+    window.addEventListener('hashchange', () => this._takeLink());
     this.step(1 / 60); // settle the first frame (the test clock never moves on its own)
     this._exposeHooks();
     this.renderer.setAnimationLoop(() => this._frame());
@@ -95,6 +97,22 @@ export class Game {
       this.input.enableMidi();
     }
     this.audio.setVolume(gameState.settings.volume);
+  }
+
+  /**
+   * A bridge sent by link arrives in the address bar (#b=…). It is taken out of the address
+   * at once, so a reload does not bring it twice, and handed to the sea.
+   */
+  _takeLink() {
+    // (anything after the code is left out: a full stop typed after the link, or what a message app adds)
+    const m = /^#b=([0-9a-z-]{1,260})/.exec(location.hash);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    const c = this.conductor;
+    const came = c.voyage.offer(m[1]);
+    if (!came) return; // something is being played: it waits for the chart
+    if (c.phase === 'sea') c.voyage.open({ fade: false });
+    else if (c.phase === 'title') this.hud.showIncoming({ text: c.voyage.incomingText(came), hear: !!came.ref });
   }
 
   _confirm() {
@@ -309,6 +327,8 @@ export class Game {
         ui: {
           chart: game.hud.seaChart.visible,
           arrival: !game.hud.seaChart.arrival.classList.contains('hidden'),
+          incoming: game.hud.incoming.classList.contains('hidden') ? '' : game.hud.incoming.querySelector('.incoming-text').textContent,
+          sending: game.hud.seaChart.sending,
           title: !game.hud.title.classList.contains('hidden'),
           pause: !game.hud.pause.classList.contains('hidden'),
           end: !game.hud.end.classList.contains('hidden'),

@@ -18,7 +18,7 @@ import { MovementRunner } from '../rules/MovementRunner.js';
 import { kiteStateAt } from '../rules/Trajectory.js';
 import {
   SEA_BPM, SOUNDS, MOODS, PLACE, EDGE, EDGES, FINAL_CHORD, otherEnd, crossingChart, crossingRules, scoreOf, performScore,
-  emptySea, sanitizeSea, unlocked,
+  emptySea, sanitizeSea, unlocked, encodeBridge, decodeBridge, receiveBridge,
 } from '../music/sea.js';
 import { Save } from '../systems/Save.js';
 
@@ -34,6 +34,12 @@ export class Voyage {
     this.sea = emptySea();
     /** edge id -> one performed record per part */
     this.records = {};
+    /** the same, for each bridge that came from another sea */
+    this.afarRecords = [];
+    /** a link's code waiting to be taken in, what the last one turned out to be, and the bridge the chart should turn to */
+    this.pending = null;
+    this.incoming = null;
+    this.focus = null;
     /** the crossing being played, or the bridge being listened to */
     this.cross = null;
     this.song = null;
@@ -61,8 +67,27 @@ export class Voyage {
       this.records[id] = bridge.layers.map((l, k) => this._perform(id, bridge, k, l));
       this.seaWorld.setBridge(id, bridge, this.records[id]);
     }
+    this._performAfar();
     for (const id of Object.keys(PLACE)) this.seaWorld.setAwake(id, this.sea.awake.includes(id), true);
     gameState.sea = this.sea;
+  }
+
+  _performAfar() {
+    this.afarRecords = this.sea.afar.map((g) => g.layers.map((l, k) => this._perform(g.edge, g, k, l)));
+  }
+
+  /**
+   * A bridge by name: its edge when it is the player's own, 'afar:<n>' when it came from
+   * another sea. Everything that hears a bridge or lays a part on one goes through here.
+   */
+  hold(ref) {
+    if (typeof ref === 'string' && ref.startsWith('afar:')) {
+      const index = Number(ref.slice(5));
+      const bridge = this.sea.afar[index];
+      return bridge ? { ref, own: false, index, edgeId: bridge.edge, bridge, records: this.afarRecords[index] } : null;
+    }
+    const bridge = this.sea.bridges[ref];
+    return bridge ? { ref, own: true, index: -1, edgeId: ref, bridge, records: this.records[ref] } : null;
   }
 
   save() {
@@ -81,15 +106,24 @@ export class Voyage {
   /** What the chart needs to draw itself and offer the right things. */
   view() {
     const { sounds, moods } = unlocked(this.sea.awake);
+    const brief = (id, b) => ({ from: b.from, mood: b.mood, layers: b.layers.map((l) => ({ sound: l.sound, notes: l.score.length })), code: encodeBridge(id, b) });
+    const focus = this.focus;
+    this.focus = null;
     return {
       at: this.sea.at,
       awake: [...this.sea.awake],
       sounds,
       moods,
-      bridges: Object.fromEntries(Object.entries(this.sea.bridges).map(([id, b]) => [id, {
-        from: b.from, mood: b.mood, layers: b.layers.map((l) => ({ sound: l.sound, notes: l.score.length })),
-      }])),
+      bridges: Object.fromEntries(Object.entries(this.sea.bridges).map(([id, b]) => [id, brief(id, b)])),
+      afar: this.sea.afar.map((g) => ({
+        edge: g.edge,
+        ...brief(g.edge, g),
+        // it can stand on the player's own chart once they have reached both of its ends
+        canKeep: this.sea.awake.includes(EDGE[g.edge].a) && this.sea.awake.includes(EDGE[g.edge].b),
+        swaps: !!this.sea.bridges[g.edge],
+      })),
       edges: EDGES.map((e) => ({ ...e, start: this.startOf(e.id) })),
+      focus,
     };
   }
 
@@ -104,9 +138,9 @@ export class Voyage {
   }
 
   /** A sound for the next part of a bridge that it is not already using, if the player has one. */
-  suggestSound(edgeId) {
+  suggestSound(ref) {
     const { sounds } = unlocked(this.sea.awake);
-    const used = (this.sea.bridges[edgeId]?.layers ?? []).map((l) => l.sound);
+    const used = (this.hold(ref)?.bridge.layers ?? []).map((l) => l.sound);
     return sounds.find((s) => !used.includes(s)) ?? sounds[0];
   }
 
@@ -149,7 +183,13 @@ export class Voyage {
     this.hud.showEnd(false);
     this.hud.showListen(false);
     this.hud.showArrival(false);
+    // a bridge that came by link (just now, or while the title was showing) is what the chart turns to
+    const came = this.pending ? this.take() : this.incoming;
+    this.incoming = null;
+    this.hud.showIncoming(null);
+    if (came?.ref) this.focus = came.ref;
     this.hud.showChart(true, this.view());
+    if (came) this.hud.showCaption(this.incomingText(came), 5200);
     if (!this.sea.seen.opened) {
       this.sea.seen.opened = true;
       this.save();
@@ -188,35 +228,38 @@ export class Voyage {
     const m = MOODS[have.moods.includes(mood) ? mood : PLACE[from].gift && have.moods.includes(PLACE[from].gift.mood) ? PLACE[from].gift.mood : 'firstlight'];
     const pace = Object.values(PACE).find((p) => p.id === gameState.settings.pace) ?? PACE.FLOWING;
     const bpm = Math.round(SEA_BPM * m.tempo * pace.scale * 10) / 10;
-    return this._start({ edgeId, from, layer: 0, sound: have.sounds.includes(sound) ? sound : 'bell', mood: m.id, bpm, fresh: true });
+    return this._start({ ref: edgeId, edgeId, from, layer: 0, sound: have.sounds.includes(sound) ? sound : 'bell', mood: m.id, bpm, fresh: true });
   }
 
-  /** Play another part over the ones a bridge already has. */
-  addPart(edgeId, { sound } = {}) {
-    const bridge = this.sea.bridges[edgeId];
-    if (!bridge || bridge.layers.length >= CROSSING.MAX_LAYERS) return false;
+  /** Play another part over the ones a bridge already has (the player's own, or one from afar). */
+  addPart(ref, { sound } = {}) {
+    const h = this.hold(ref);
+    if (!h || h.bridge.layers.length >= CROSSING.MAX_LAYERS) return false;
     const have = unlocked(this.sea.awake);
     return this._start({
-      edgeId, from: bridge.from, layer: bridge.layers.length, sound: have.sounds.includes(sound) ? sound : this.suggestSound(edgeId),
-      mood: bridge.mood, bpm: bridge.bpm, fresh: false,
+      ref, edgeId: h.edgeId, from: h.bridge.from, layer: h.bridge.layers.length, sound: have.sounds.includes(sound) ? sound : this.suggestSound(ref),
+      mood: h.bridge.mood, bpm: h.bridge.bpm, fresh: false,
     });
   }
 
-  _start({ edgeId, from, layer, sound, mood, bpm, fresh }) {
+  _start({ ref, edgeId, from, layer, sound, mood, bpm, fresh }) {
     const c = this.c;
     const edge = EDGE[edgeId];
     const to = otherEnd(edge, from);
     const chart = this._chartFor(edgeId, from, layer, sound);
     const route = this.seaWorld.routeFor(edgeId, from, layer);
-    const bridge = fresh ? null : this.sea.bridges[edgeId];
-    const earlier = fresh ? [] : this.records[edgeId].slice(0, layer);
+    const h = fresh ? null : this.hold(ref);
+    const bridge = h ? h.bridge : null;
+    const earlier = h ? h.records.slice(0, layer) : [];
+    const own = h ? h.own : true;
 
     const views = this.seaWorld.activate(edgeId, from, earlier);
     const path = this.seaWorld.beginLayer(layer);
-    this.cross = { edgeId, edge, from, to, layer, sound, mood, bpm, fresh, chart, route, path };
+    this.cross = { ref, own, edgeId, edge, from, to, layer, sound, mood, bpm, fresh, chart, route, path };
     this.song = null;
     this.arrival = null;
-    this.sea.at = from;
+    // (a bridge from afar may begin somewhere this player has not reached: Kite's own place is left as it is)
+    if (own) this.sea.at = from;
 
     c.runner = new MovementRunner(chart, { bpm, rules: crossingRules() });
     c.transport.bpm = bpm;
@@ -289,18 +332,30 @@ export class Voyage {
       return;
     }
     const part = { sound: x.sound, score };
-    const bridge = x.fresh ? { from: x.from, mood: x.mood, bpm: x.bpm, layers: [] } : this.sea.bridges[x.edgeId];
+    const h = x.fresh ? null : this.hold(x.ref);
+    const bridge = h ? h.bridge : { from: x.from, mood: x.mood, bpm: x.bpm, layers: [] };
     bridge.layers[x.layer] = part;
-    this.sea.bridges[x.edgeId] = bridge;
     const record = this._perform(x.edgeId, bridge, x.layer, part);
-    this.records[x.edgeId] = x.fresh ? [record] : [...this.records[x.edgeId].slice(0, x.layer), record];
+    const newBridge = x.own && !this.sea.bridges[x.edgeId];
+    if (x.own) {
+      this.sea.bridges[x.edgeId] = bridge;
+      this.records[x.edgeId] = x.fresh ? [record] : [...this.records[x.edgeId].slice(0, x.layer), record];
+    } else {
+      this.afarRecords[h.index] = [...this.afarRecords[h.index].slice(0, x.layer), record];
+    }
+    // however Kite came, by a bridge of their own or by adding to someone else's, they played their way here
     const first = !this.sea.awake.includes(x.to);
     if (first) this.sea.awake.push(x.to);
     this.sea.at = x.to;
     this.save();
-    this.seaWorld.setBridge(x.edgeId, bridge, this.records[x.edgeId]);
+    if (x.own) this.seaWorld.setBridge(x.edgeId, bridge, this.records[x.edgeId]);
 
-    this.arrival = { ...x, first, notes: score.length, record, gift: first ? PLACE[x.to].gift : null };
+    this.arrival = {
+      ...x, first, notes: score.length, record, gift: first ? PLACE[x.to].gift : null,
+      // the two moments the whole sea has been working towards
+      wholeSea: first && this.sea.awake.length === Object.keys(PLACE).length,
+      everyBridge: newBridge && Object.keys(this.sea.bridges).length === EDGES.length,
+    };
     this.timer = 0;
     this.cine = {};
     c._setPhase('arrive');
@@ -322,7 +377,7 @@ export class Voyage {
     if (!x) return;
     this.c.audio.releaseAll();
     this.seaWorld.dropLayer(x.layer);
-    this._start({ edgeId: x.edgeId, from: x.from, layer: x.layer, sound: x.sound, mood: x.mood, bpm: x.bpm, fresh: x.fresh });
+    this._start({ ref: x.ref, edgeId: x.edgeId, from: x.from, layer: x.layer, sound: x.sound, mood: x.mood, bpm: x.bpm, fresh: x.fresh });
   }
 
   // -------------------------------------------------------------------------------
@@ -397,7 +452,8 @@ export class Voyage {
     this._standAt(a.to);
     this.timer = 0;
     c._setPhase('arrived');
-    const bridge = this.sea.bridges[a.edgeId];
+    const h = this.hold(a.ref);
+    const bridge = h.bridge;
     this.hud.showArrival(true, {
       place: PLACE[a.to].name,
       blurb: PLACE[a.to].blurb,
@@ -406,9 +462,12 @@ export class Voyage {
       layers: bridge.layers.length,
       canAdd: bridge.layers.length < CROSSING.MAX_LAYERS,
       gift: a.gift ? { sound: SOUNDS[a.gift.sound].name, mood: MOODS[a.gift.mood].name } : null,
-      edge: a.edgeId,
+      edge: a.ref,
+      afar: !h.own,
+      wholeSea: a.wholeSea,
+      everyBridge: a.everyBridge,
       sounds: unlocked(this.sea.awake).sounds,
-      suggest: this.suggestSound(a.edgeId),
+      suggest: this.suggestSound(a.ref),
     });
   }
 
@@ -428,15 +487,15 @@ export class Voyage {
   // -------------------------------------------------------------------------------
   // Hearing a bridge again
   // -------------------------------------------------------------------------------
-  listen(edgeId) {
+  listen(ref) {
     const c = this.c;
-    const bridge = this.sea.bridges[edgeId];
-    if (!bridge) return false;
+    const h = this.hold(ref);
+    if (!h) return false;
+    const { bridge, edgeId, records } = h;
     const edge = EDGE[edgeId];
-    const records = this.records[edgeId];
     const views = this.seaWorld.activate(edgeId, bridge.from, records);
     const charts = bridge.layers.map((l, k) => this._chartFor(edgeId, bridge.from, k, l.sound));
-    this.song = { edgeId, edge, from: bridge.from, to: otherEnd(edge, bridge.from), charts, records, route: this.seaWorld.routeFor(edgeId, bridge.from, 0) };
+    this.song = { ref, own: h.own, edgeId, edge, from: bridge.from, to: otherEnd(edge, bridge.from), charts, records, route: this.seaWorld.routeFor(edgeId, bridge.from, 0) };
     this.cross = null;
     this.arrival = null;
     this.muted = [false, false, false];
@@ -462,7 +521,7 @@ export class Voyage {
     this.world.rig.setShot(null, 3);
     this.world.rig.snap();
     this.world.kite.lookBack = 0;
-    this.sea.at = bridge.from;
+    if (h.own) this.sea.at = bridge.from;
     c._setPhase('bridgeSong');
     this.hud.showChart(false);
     this.hud.showArrival(false);
@@ -510,16 +569,111 @@ export class Voyage {
       e.opacity += (want - e.opacity) * Math.min(1, dt * 3);
     }
     if (beat >= chart.endBeat + 0.5) {
-      this.sea.at = s.to;
-      this.save();
+      // hearing a bridge of your own carries Kite across it; one from afar is only heard
+      if (s.own) {
+        this.sea.at = s.to;
+        this.save();
+      }
+      this.focus = s.ref;
       this.open();
     }
   }
 
   /** Back from listening or from the arrival card. */
   back() {
-    if (this.song) this.c.audio.releaseAll();
+    if (this.song) {
+      this.c.audio.releaseAll();
+      this.focus = this.song.ref;
+    }
     this.open();
+  }
+
+  // -------------------------------------------------------------------------------
+  // Bridges from another sea
+  // -------------------------------------------------------------------------------
+
+  /** Whether something is being played or heard that a newly arrived bridge must not disturb. */
+  get busy() {
+    return !!(this.cross || this.song || this.arrival);
+  }
+
+  /**
+   * A link has been opened. Its bridge is taken in at once if nothing is being played,
+   * otherwise the next time the chart is opened.
+   * @returns {{what:string, ref?:string}|null} what it turned out to be, or null if it is waiting
+   */
+  offer(code) {
+    this.pending = code;
+    return this.busy ? null : this.take();
+  }
+
+  take() {
+    const code = this.pending;
+    this.pending = null;
+    if (!code) return null;
+    const got = decodeBridge(code);
+    if (!got) {
+      this.incoming = { what: 'unreadable' };
+      return this.incoming;
+    }
+    const r = receiveBridge(this.sea, got.edge, got.bridge);
+    const h = this.hold(r.ref);
+    if (h.own && r.what === 'grown') {
+      this.records[h.edgeId] = h.bridge.layers.map((l, k) => this._perform(h.edgeId, h.bridge, k, l));
+      this.seaWorld.setBridge(h.edgeId, h.bridge, this.records[h.edgeId]);
+    }
+    this._performAfar();
+    this.save();
+    this.incoming = { ...r, own: h.own, parts: h.bridge.layers.length };
+    this.focus = r.ref;
+    eventBus.emit(Events.BRIDGE_RECEIVED, { what: r.what, own: h.own });
+    return this.incoming;
+  }
+
+  /** One line for whoever opened the link. */
+  incomingText(r) {
+    if (!r || r.what === 'unreadable') return 'That link did not hold a bridge.';
+    if (r.what === 'grown') return r.own ? 'Your bridge has come back with a new part.' : 'A bridge from afar has grown.';
+    if (r.what === 'same') return r.own ? 'This is your own bridge, just as you left it.' : 'You already have this bridge.';
+    return 'A bridge has arrived from another sea.';
+  }
+
+  /** Go and hear the bridge that has just arrived. */
+  hearIncoming() {
+    const r = this.incoming;
+    this.open();
+    if (r?.ref && this.hold(r.ref)) this.listen(r.ref);
+  }
+
+  /** Set a bridge from afar on the player's own chart; a bridge of theirs already there changes places with it. */
+  keep(ref) {
+    const h = this.hold(ref);
+    if (!h || h.own) return false;
+    const e = EDGE[h.edgeId];
+    if (!this.sea.awake.includes(e.a) || !this.sea.awake.includes(e.b)) return false;
+    const mine = this.sea.bridges[h.edgeId];
+    const { edge: _edge, ...bridge } = h.bridge;
+    this.sea.bridges[h.edgeId] = bridge;
+    if (mine) this.sea.afar[h.index] = { edge: h.edgeId, ...mine };
+    else this.sea.afar.splice(h.index, 1);
+    this.records[h.edgeId] = bridge.layers.map((l, k) => this._perform(h.edgeId, bridge, k, l));
+    this._performAfar();
+    this.seaWorld.setBridge(h.edgeId, bridge, this.records[h.edgeId]);
+    this.save();
+    this.focus = h.edgeId;
+    this.hud.showChart(true, this.view());
+    return true;
+  }
+
+  /** Let a bridge from afar go. */
+  release(ref) {
+    const h = this.hold(ref);
+    if (!h || h.own) return false;
+    this.sea.afar.splice(h.index, 1);
+    this._performAfar();
+    this.save();
+    this.hud.showChart(true, this.view());
+    return true;
   }
 
   /** Handle a UI action that belongs to the sea. @returns {boolean} whether it was one */
@@ -530,7 +684,13 @@ export class Voyage {
       case 'sea-build': return this.build(value.edge, value) || true;
       case 'sea-add': return this.addPart(value.edge, value) || true;
       case 'sea-listen': return this.listen(value.edge) || true;
-      case 'sea-chart': this.back(); return true;
+      case 'sea-chart':
+        if (value?.focus) this.focus = value.focus;
+        this.back();
+        return true;
+      case 'sea-incoming': this.hearIncoming(); return true;
+      case 'sea-keep': return this.keep(value.ref) || true;
+      case 'sea-release': return this.release(value.ref) || true;
       default: return false;
     }
   }
@@ -559,8 +719,10 @@ export class Voyage {
       at: this.sea.at,
       awake: [...this.sea.awake],
       bridges: Object.fromEntries(Object.entries(this.sea.bridges).map(([id, b]) => [id, { from: b.from, mood: b.mood, bpm: b.bpm, parts: b.layers.map((l) => ({ sound: l.sound, notes: l.score.length })) }])),
-      crossing: x ? { edge: x.edgeId, from: x.from, to: x.to, layer: x.layer, sound: x.sound, mood: x.mood, beats: x.chart.beats } : null,
-      listening: this.song ? this.song.edgeId : null,
+      afar: this.sea.afar.map((g) => ({ edge: g.edge, from: g.from, mood: g.mood, bpm: g.bpm, parts: g.layers.map((l) => ({ sound: l.sound, notes: l.score.length })) })),
+      crossing: x ? { edge: x.edgeId, from: x.from, to: x.to, layer: x.layer, sound: x.sound, mood: x.mood, beats: x.chart.beats, ...(x.own ? {} : { ref: x.ref }) } : null,
+      listening: this.song ? this.song.ref : null,
+      incoming: this.incoming ? this.incoming.what : null,
       ...unlocked(this.sea.awake),
     };
   }

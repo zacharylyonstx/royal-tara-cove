@@ -58,6 +58,7 @@ export const Events = {
   CROSSING_STARTED: 'sea:crossing-started',
   CROSSING_COMPLETE: 'sea:crossing-complete',
   PLACE_WOKEN: 'sea:place-woken',
+  BRIDGE_RECEIVED: 'sea:bridge-received',
   NOTE_HIT: 'play:hit',
   NOTE_MISS: 'play:miss',
   NOTE_FLOURISH: 'play:flourish',

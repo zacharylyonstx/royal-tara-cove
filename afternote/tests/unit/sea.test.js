@@ -4,7 +4,7 @@ import { supportAt, evalSegs } from '../../src/rules/Trajectory.js';
 import { CROSSING } from '../../src/core/Constants.js';
 import {
   EDGES, EDGE, PLACES, PLACE, SOUNDS, MOODS, HOME, crossingChart, crossingRules, scoreOf, performScore, tidyRests,
-  emptySea, sanitizeSea, unlocked, edgesOf, otherEnd,
+  emptySea, sanitizeSea, unlocked, edgesOf, otherEnd, sanitizeBridge, encodeBridge, decodeBridge, compareBridges, receiveBridge,
 } from '../../src/music/sea.js';
 
 const BPM = 76.8;
@@ -151,7 +151,7 @@ describe('a kept bridge', () => {
 
 describe('the saved sea', () => {
   it('starts at home with nothing built', () => {
-    expect(emptySea()).toEqual({ at: HOME, awake: [HOME], bridges: {}, seen: {} });
+    expect(emptySea()).toEqual({ at: HOME, awake: [HOME], bridges: {}, afar: [], seen: {} });
     expect(sanitizeSea(null)).toEqual(emptySea());
     expect(sanitizeSea('nonsense')).toEqual(emptySea());
   });
@@ -190,5 +190,198 @@ describe('the saved sea', () => {
   it('wakes both ends of any bridge it holds', () => {
     const sea = sanitizeSea({ awake: ['lighthouse'], bridges: { 'garden~deep': { from: 'garden', layers: [{ sound: 'bell', score: [[0, 1]] }] } } });
     expect(sea.awake.sort()).toEqual(['deep', 'garden', 'lighthouse']);
+  });
+});
+
+// ---------------------------------------------------------------------------------
+// Sending a bridge by link
+// ---------------------------------------------------------------------------------
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function randomBridge(e, rnd, parts = 1 + Math.floor(rnd() * 3)) {
+  const slots = e.bars * 8;
+  const sounds = Object.keys(SOUNDS), moods = Object.keys(MOODS);
+  const layers = [];
+  for (let k = 0; k < parts; k++) {
+    // (every real part begins on the first half-beat: that note is what sets Kite out)
+    const score = [[0, Math.floor(rnd() * 5)]];
+    for (let i = 1; i < slots; i++) if (rnd() < 0.4) score.push([i, Math.floor(rnd() * 5)]);
+    layers.push({ sound: sounds[Math.floor(rnd() * sounds.length)], score });
+  }
+  return { from: rnd() < 0.5 ? e.a : e.b, mood: moods[Math.floor(rnd() * moods.length)], bpm: Math.round((50 + rnd() * 80) * 10) / 10, layers };
+}
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+describe('a bridge written as a link', () => {
+  it('comes back exactly as it was sent, for every edge, either direction, any mood and sound', () => {
+    const rnd = rng(11);
+    for (const e of EDGES) {
+      for (let n = 0; n < 12; n++) {
+        const b = randomBridge(e, rnd);
+        const code = encodeBridge(e.id, b);
+        expect(code).toMatch(/^1[0-9a-z]{6}(-[0-9a-z]{1,65}){1,3}$/);
+        expect(code.length).toBeLessThanOrEqual(205);
+        expect(decodeBridge(code)).toEqual({ edge: e.id, bridge: b });
+      }
+    }
+  });
+
+  it('keeps meaning what it meant: a code written today still reads the same', () => {
+    // (if this fails, the wire lists in sea.js were reordered: links already sent would break)
+    const b = { from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [[0, 0], [1, 4], [4, 2], [63, 3]] }, { sound: 'firefly', score: [[0, 1], [2, 1]] }] };
+    const code = '10000lc-0b0i' + '0'.repeat(28) + '4-8cc';
+    expect(encodeBridge('lighthouse~chimes', b)).toBe(code);
+    expect(decodeBridge(code)).toEqual({ edge: 'lighthouse~chimes', bridge: b });
+    const far = { from: 'deep', mood: 'deep', bpm: 61.4, layers: [{ sound: 'pan', score: [[0, 0], [127, 4]] }] };
+    expect(encodeBridge('harbor~deep', far)).toBe('19160h2-76' + '0'.repeat(62) + '5');
+    expect(decodeBridge(encodeBridge('harbor~deep', far))).toEqual({ edge: 'harbor~deep', bridge: far });
+  });
+
+  it('is short enough to send: a full three-part bridge on the longest edge fits in a message', () => {
+    const e = EDGE['stacks~deep'];
+    const full = { from: 'stacks', mood: 'starfall', bpm: 86.4, layers: [0, 1, 2].map((k) => ({ sound: ['flute', 'bell', 'root'][k], score: Array.from({ length: e.bars * 8 }, (_, i) => [i, (i + k) % 5]) })) };
+    const code = encodeBridge(e.id, full);
+    expect(code.length).toBeLessThanOrEqual(205);
+    expect(decodeBridge(code).bridge).toEqual(full);
+  });
+
+  it('turns away anything that is not a bridge', () => {
+    const good = encodeBridge('lighthouse~chimes', { from: 'lighthouse', mood: 'lullaby', bpm: 64.5, layers: [{ sound: 'musicbox', score: [[0, 1], [3, 2]] }] });
+    expect(decodeBridge(good)).toBeTruthy();
+    for (const bad of [
+      null, undefined, 42, {}, '', 'hello', good.toUpperCase(), '2' + good.slice(1), good + '-', good + '-0', good.replace('-', '_'),
+      '1z0000c-0a', // no such edge
+      '1020zzz-0a'.replace('z', 'z'), // tempo out of range is repaired, not refused (see below)
+      '10090lc-0a', // no such mood
+      '10200lc-0a', // neither end
+      '10000lc-za', // no such sound
+      '10000lc-0', // a part with no stones
+      '10000lc-00a', // a part that does not begin on the first half-beat (no crossing can)
+      '10000lc-0' + 'a'.repeat(33), // more stones than the edge has half-beats
+      '10000lc-0a-0a-0a-0a', // four parts
+      '10000lc-0a<script>', '10000lc-0a b', '10000lc-0a%20', 'x'.repeat(400),
+    ]) {
+      if (bad === '1020zzz-0a') continue;
+      expect(decodeBridge(bad), String(bad)).toBeNull();
+    }
+    // a tempo nobody could play is set back to the sea's own
+    expect(decodeBridge('1000zzz-0a').bridge.bpm).toBe(96);
+    expect(decodeBridge('1000001-0a').bridge.bpm).toBe(96);
+  });
+
+  it('plays back note for note', () => {
+    const rnd = rng(5);
+    const e = EDGE['garden~deep'];
+    const b = randomBridge(e, rnd, 3);
+    const back = decodeBridge(encodeBridge(e.id, b)).bridge;
+    back.layers.forEach((l, k) => {
+      const rec = performScore(MovementRunner, crossingChart({ edge: e, from: back.from, sound: l.sound, layer: k }), back.bpm, l.score);
+      expect(scoreOf(rec)).toEqual(b.layers[k].score);
+    });
+  });
+
+  it('cannot be written from something that is not a whole bridge', () => {
+    expect(encodeBridge('nowhere~else', { from: 'lighthouse', mood: 'firstlight', bpm: 80, layers: [{ sound: 'bell', score: [[0, 0]] }] })).toBeNull();
+    expect(encodeBridge('lighthouse~chimes', { from: 'garden', mood: 'firstlight', bpm: 80, layers: [{ sound: 'bell', score: [[0, 0]] }] })).toBeNull();
+    expect(encodeBridge('lighthouse~chimes', { from: 'lighthouse', mood: 'firstlight', bpm: 80, layers: [] })).toBeNull();
+    expect(encodeBridge('lighthouse~chimes', { from: 'lighthouse', mood: 'firstlight', bpm: 80, layers: [{ sound: 'bell', score: [] }] })).toBeNull();
+    expect(encodeBridge('lighthouse~chimes', null)).toBeNull();
+  });
+});
+
+describe('a bridge arriving from another sea', () => {
+  const E = 'lighthouse~chimes';
+  const one = () => ({ from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [[0, 0], [2, 2], [5, 4]] }] });
+  const two = () => ({ ...one(), layers: [...one().layers, { sound: 'harp', score: [[0, 1], [8, 3]] }] });
+  const three = () => ({ ...two(), layers: [...two().layers, { sound: 'root', score: [[0, 0]] }] });
+
+  it('knows a bridge that has grown from one that is simply different', () => {
+    expect(compareBridges(E, one(), E, one())).toBe('same');
+    expect(compareBridges(E, one(), E, two())).toBe('grown');
+    expect(compareBridges(E, one(), E, three())).toBe('grown');
+    expect(compareBridges(E, three(), E, two())).toBe('older');
+    expect(compareBridges(E, one(), 'lighthouse~harp', one())).toBeNull();
+    expect(compareBridges(E, one(), E, { ...one(), mood: 'lullaby' })).toBeNull();
+    expect(compareBridges(E, one(), E, { ...one(), from: 'chimes' })).toBeNull();
+    expect(compareBridges(E, one(), E, { ...one(), bpm: 64 })).toBeNull();
+    expect(compareBridges(E, one(), E, { ...two(), layers: [{ sound: 'glass', score: [[0, 0], [2, 2], [5, 4]] }, two().layers[1]] })).toBeNull();
+    expect(compareBridges(E, one(), E, { ...one(), layers: [{ sound: 'bell', score: [[0, 0], [2, 2], [5, 3]] }] })).toBeNull();
+  });
+
+  it('is set beside the player\'s own bridges, and wakes nothing', () => {
+    const sea = emptySea();
+    expect(receiveBridge(sea, E, one())).toEqual({ what: 'new', ref: 'afar:0' });
+    expect(sea.afar).toEqual([{ edge: E, ...one() }]);
+    expect(sea.bridges).toEqual({});
+    expect(sea.awake).toEqual([HOME]);
+    // the same link opened twice is still one bridge
+    expect(receiveBridge(sea, E, one())).toEqual({ what: 'same', ref: 'afar:0' });
+    expect(sea.afar.length).toBe(1);
+  });
+
+  it('grows in place when it comes back with more parts', () => {
+    const sea = emptySea();
+    receiveBridge(sea, 'lighthouse~harp', { from: 'harp', mood: 'tide', bpm: 84.5, layers: [{ sound: 'harp', score: [[3, 3]] }] });
+    receiveBridge(sea, E, one());
+    expect(receiveBridge(sea, E, two())).toEqual({ what: 'grown', ref: 'afar:1' });
+    expect(sea.afar.length).toBe(2);
+    expect(sea.afar[1].layers.length).toBe(2);
+    // an older telling of it changes nothing
+    expect(receiveBridge(sea, E, one())).toEqual({ what: 'same', ref: 'afar:1' });
+    expect(sea.afar[1].layers.length).toBe(2);
+  });
+
+  it('a bridge the player made comes home grown; their other bridges are never touched', () => {
+    const sea = emptySea();
+    sea.awake.push('chimes');
+    sea.bridges[E] = one();
+    expect(receiveBridge(sea, E, three())).toEqual({ what: 'grown', ref: E });
+    expect(sea.bridges[E]).toEqual(three());
+    expect(sea.afar).toEqual([]);
+    // somebody else's bridge on the same edge does not replace it
+    const other = { from: 'chimes', mood: 'lullaby', bpm: 64.5, layers: [{ sound: 'musicbox', score: [[4, 4]] }] };
+    expect(receiveBridge(sea, E, other)).toEqual({ what: 'new', ref: 'afar:0' });
+    expect(sea.bridges[E]).toEqual(three());
+    expect(sea.afar).toEqual([{ edge: E, ...other }]);
+    // what was taken in is a copy: changing the sender's does not change the keeper's
+    const sent = two();
+    const sea2 = emptySea();
+    sea2.bridges[E] = one();
+    receiveBridge(sea2, E, sent);
+    sent.layers[1].score[0][1] = 0;
+    expect(sea2.bridges[E].layers[1].score[0][1]).toBe(1);
+  });
+
+  it('holds only so many; the oldest drifts on', () => {
+    const sea = emptySea();
+    for (let n = 0; n < CROSSING.AFAR_MAX + 3; n++) receiveBridge(sea, E, { ...one(), layers: [{ sound: 'bell', score: [[n, 0]] }] });
+    expect(sea.afar.length).toBe(CROSSING.AFAR_MAX);
+    expect(sea.afar[0].layers[0].score).toEqual([[3, 0]]);
+    expect(sea.afar.at(-1).layers[0].score).toEqual([[CROSSING.AFAR_MAX + 2, 0]]);
+  });
+
+  it('is kept by the save, checked like everything else in it', () => {
+    const sea = emptySea();
+    receiveBridge(sea, E, two());
+    receiveBridge(sea, 'harbor~deep', { from: 'deep', mood: 'deep', bpm: 61.4, layers: [{ sound: 'firefly', score: [[120, 2]] }] });
+    const back = sanitizeSea(clone(sea));
+    expect(back.afar).toEqual(sea.afar);
+    expect(back.awake).toEqual([HOME]); // bridges from afar wake nothing
+    const dirty = clone(sea);
+    dirty.afar.push(null, 7, { edge: 'no~where', ...one() }, { edge: E, from: 'garden', layers: [] }, { edge: E, ...one(), layers: [{ sound: 'bell', score: [[999, 0], ['x', 1], [2, 9]] }, { sound: '???', score: [[1, 1]] }] });
+    const cleaned = sanitizeSea(dirty);
+    expect(cleaned.afar.length).toBe(3);
+    expect(cleaned.afar[2]).toEqual({ edge: E, from: 'lighthouse', mood: 'firstlight', bpm: 76.8, layers: [{ sound: 'bell', score: [] }, { sound: 'bell', score: [[1, 1]] }] });
+    expect(sanitizeSea({ afar: Array.from({ length: 40 }, () => ({ edge: E, ...one() })) }).afar.length).toBe(CROSSING.AFAR_MAX);
+    expect(sanitizeBridge(E, one())).toEqual(one());
+    expect(sanitizeBridge(E, { from: 'deep', layers: [] })).toBeNull();
   });
 });

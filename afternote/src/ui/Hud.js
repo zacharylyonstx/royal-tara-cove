@@ -83,6 +83,10 @@ export class Hud {
       <div class="title-inner">
         <h1 class="logo">AFTERNOTE</h1>
         <p class="tagline">Play a note. Make somewhere to go.</p>
+        <div class="incoming hidden" role="status">
+          <span class="incoming-text"></span>
+          <button class="btn primary" data-action="sea-incoming">Hear it</button>
+        </div>
         <div class="title-actions">
           <button class="btn primary" data-action="begin">Begin</button>
           <button class="btn" data-action="continue" hidden>Return to your lighthouse</button>
@@ -98,6 +102,7 @@ export class Hud {
       </div>`;
     r.append(this.title);
     this.movementRow = this.title.querySelector('.movements-row');
+    this.incoming = this.title.querySelector('.incoming');
     this.movementHint = this.title.querySelector('.movements-hint');
     this.movementChips = [];
 
@@ -453,6 +458,14 @@ export class Hud {
   }
 
   showChart(v, view) { this.seaChart.show(v, view); }
+
+  /** A bridge has come by link: say so on the title. @param {{text:string, hear:boolean}|null} data */
+  showIncoming(data) {
+    this.incoming.classList.toggle('hidden', !data);
+    if (!data) return;
+    this.incoming.querySelector('.incoming-text').textContent = data.text;
+    this.incoming.querySelector('button').hidden = !data.hear;
+  }
   showArrival(v, data) { this.seaChart.showArrival(v, data); }
 
   showSettings(v, settings) {

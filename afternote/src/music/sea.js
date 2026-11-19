@@ -198,7 +198,7 @@ export function tidyRests(record) {
 
 /** A fresh, empty sea. */
 export function emptySea() {
-  return { at: HOME, awake: [HOME], bridges: {}, seen: {} };
+  return { at: HOME, awake: [HOME], bridges: {}, afar: [], seen: {} };
 }
 
 /** Sounds and moods the player has, given the places that are awake. */
@@ -218,42 +218,171 @@ export function unlocked(awake) {
  * Check and repair a sea read from storage (or from a link). Unknown places, bridges,
  * sounds and moods are dropped; a score keeps only stones that fit its bridge.
  */
+/** One bridge on one edge, checked piece by piece. Anything that is not a bridge comes back null. */
+export function sanitizeBridge(edgeId, b) {
+  const edge = EDGE[edgeId];
+  if (!edge || !b || (b.from !== edge.a && b.from !== edge.b) || !Array.isArray(b.layers)) return null;
+  const slots = (edge.bars * 4) / CROSSING.GRID;
+  const layers = [];
+  for (const l of b.layers) {
+    if (layers.length >= CROSSING.MAX_LAYERS) break;
+    if (!l || !Array.isArray(l.score)) continue;
+    const seenSlot = new Set();
+    const score = [];
+    for (const n of l.score) {
+      if (!Array.isArray(n)) continue;
+      const [i, p] = n;
+      if (!Number.isInteger(i) || !Number.isInteger(p) || i < 0 || i >= slots || p < 0 || p > 4 || seenSlot.has(i)) continue;
+      seenSlot.add(i);
+      score.push([i, p]);
+    }
+    score.sort((x, y) => x[0] - y[0]);
+    layers.push({ sound: SOUNDS[l.sound] ? l.sound : 'bell', score });
+  }
+  if (!layers.length) return null;
+  const bpm = Number(b.bpm);
+  return {
+    from: b.from,
+    mood: MOODS[b.mood] ? b.mood : 'firstlight',
+    bpm: bpm >= 40 && bpm <= 200 ? bpm : SEA_BPM,
+    layers,
+  };
+}
+
 export function sanitizeSea(raw) {
   const sea = emptySea();
   if (!raw || typeof raw !== 'object') return sea;
   if (Array.isArray(raw.awake)) for (const id of raw.awake) if (PLACE[id] && !sea.awake.includes(id)) sea.awake.push(id);
-  if (PLACE[raw.at] && sea.awake.includes(raw.at)) sea.at = raw.at;
   if (raw.seen && typeof raw.seen === 'object') sea.seen = { ...raw.seen };
   for (const [id, b] of Object.entries(raw.bridges ?? {})) {
-    const edge = EDGE[id];
-    if (!edge || !b || (b.from !== edge.a && b.from !== edge.b) || !Array.isArray(b.layers)) continue;
-    const slots = (edge.bars * 4) / CROSSING.GRID;
-    const layers = [];
-    for (const l of b.layers) {
-      if (layers.length >= CROSSING.MAX_LAYERS) break;
-      if (!l || !Array.isArray(l.score)) continue;
-      const seenSlot = new Set();
-      const score = [];
-      for (const n of l.score) {
-        if (!Array.isArray(n)) continue;
-        const [i, p] = n;
-        if (!Number.isInteger(i) || !Number.isInteger(p) || i < 0 || i >= slots || p < 0 || p > 4 || seenSlot.has(i)) continue;
-        seenSlot.add(i);
-        score.push([i, p]);
-      }
-      score.sort((x, y) => x[0] - y[0]);
-      layers.push({ sound: SOUNDS[l.sound] ? l.sound : 'bell', score });
-    }
-    if (!layers.length) continue;
-    const bpm = Number(b.bpm);
-    sea.bridges[id] = {
-      from: b.from,
-      mood: MOODS[b.mood] ? b.mood : 'firstlight',
-      bpm: bpm >= 40 && bpm <= 200 ? bpm : SEA_BPM,
-      layers,
-    };
+    const bridge = sanitizeBridge(id, b);
+    if (!bridge) continue;
+    sea.bridges[id] = bridge;
     // a bridge can only stand between places that are awake
-    for (const end of [edge.a, edge.b]) if (!sea.awake.includes(end)) sea.awake.push(end);
+    for (const end of [EDGE[id].a, EDGE[id].b]) if (!sea.awake.includes(end)) sea.awake.push(end);
+  }
+  if (PLACE[raw.at] && sea.awake.includes(raw.at)) sea.at = raw.at;
+  // bridges that came from another sea are kept beside the player's own; they wake nothing
+  if (Array.isArray(raw.afar)) {
+    for (const g of raw.afar) {
+      if (sea.afar.length >= CROSSING.AFAR_MAX) break;
+      const bridge = g && sanitizeBridge(g.edge, g);
+      if (bridge) sea.afar.push({ edge: g.edge, ...bridge });
+    }
   }
   return sea;
+}
+
+// ---------------------------------------------------------------------------------
+// Sending a bridge to someone: the whole bridge written as a short code that fits in a
+// link. No names, nothing about who made it: only the edge, the mood and the stones.
+//
+// The order of these three lists is the wire format. Only ever add to their ends, or links
+// that have already been sent will stop meaning what they meant.
+// ---------------------------------------------------------------------------------
+const WIRE_EDGES = [
+  'lighthouse~chimes', 'lighthouse~harp', 'lighthouse~garden', 'chimes~garden', 'harp~garden',
+  'chimes~stacks', 'harp~harbor', 'garden~deep', 'stacks~deep', 'harbor~deep',
+];
+const WIRE_MOODS = ['firstlight', 'lullaby', 'tide', 'golden', 'starfall', 'clockwork', 'deep'];
+const WIRE_SOUNDS = ['bell', 'root', 'glass', 'musicbox', 'harp', 'marimba', 'flute', 'pan', 'firefly'];
+const WIRE_VERSION = '1';
+const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+/**
+ * A bridge as text: version, edge, which end it starts from, mood, tempo, then each part as
+ * its sound and its stones (two half-beats to a letter). About 40 letters a part.
+ * @returns {string|null} null if this is not something that can be sent
+ */
+export function encodeBridge(edgeId, bridge) {
+  const b = sanitizeBridge(edgeId, bridge);
+  const e = WIRE_EDGES.indexOf(edgeId);
+  const m = b ? WIRE_MOODS.indexOf(b.mood) : -1;
+  if (!b || e < 0 || m < 0) return null;
+  const edge = EDGE[edgeId];
+  const slots = (edge.bars * 4) / CROSSING.GRID;
+  const tempo = Math.round(b.bpm * 10).toString(36).padStart(3, '0');
+  let code = WIRE_VERSION + B36[e] + (b.from === edge.a ? '0' : '1') + B36[m] + tempo;
+  for (const l of b.layers) {
+    const s = WIRE_SOUNDS.indexOf(l.sound);
+    if (s < 0 || !l.score.length) return null;
+    const cells = new Array(slots).fill(0);
+    for (const [i, p] of l.score) cells[i] = p + 1;
+    let stones = '';
+    for (let i = 0; i < slots; i += 2) stones += B36[cells[i] * 6 + (cells[i + 1] ?? 0)];
+    code += '-' + B36[s] + stones.replace(/0+$/, '');
+  }
+  return code;
+}
+
+/**
+ * Read a code back. It comes from outside, so every letter is checked and the result goes
+ * through the same door as a saved bridge.
+ * @returns {{edge:string, bridge:object}|null}
+ */
+export function decodeBridge(code) {
+  if (typeof code !== 'string' || code.length > 260 || !/^1[0-9a-z]{6}(-[0-9a-z]{1,65}){1,3}$/.test(code)) return null;
+  const [head, ...parts] = code.split('-');
+  const edgeId = WIRE_EDGES[B36.indexOf(head[1])];
+  const edge = EDGE[edgeId];
+  const mood = WIRE_MOODS[B36.indexOf(head[3])];
+  if (!edge || !mood || (head[2] !== '0' && head[2] !== '1')) return null;
+  const slots = (edge.bars * 4) / CROSSING.GRID;
+  const layers = [];
+  for (const part of parts) {
+    const sound = WIRE_SOUNDS[B36.indexOf(part[0])];
+    const stones = part.slice(1);
+    if (!sound || stones.length * 2 > slots) return null;
+    const score = [];
+    for (let k = 0; k < stones.length; k++) {
+      const v = B36.indexOf(stones[k]);
+      const first = Math.floor(v / 6), second = v % 6;
+      if (first) score.push([k * 2, first - 1]);
+      if (second) score.push([k * 2 + 1, second - 1]);
+    }
+    // every crossing begins with the note that sets Kite out, so every real part has its first half-beat
+    if (!score.length || score[0][0] !== 0) return null;
+    layers.push({ sound, score });
+  }
+  const bridge = sanitizeBridge(edgeId, { from: head[2] === '0' ? edge.a : edge.b, mood, bpm: parseInt(head.slice(4, 7), 36) / 10, layers });
+  return bridge && bridge.layers.length === parts.length ? { edge: edgeId, bridge } : null;
+}
+
+const samePart = (a, b) => a.sound === b.sound && a.score.length === b.score.length && a.score.every((n, i) => n[0] === b.score[i][0] && n[1] === b.score[i][1]);
+
+/**
+ * How two tellings of a bridge stand to each other: 'same', 'grown' (the second is the first
+ * with more parts laid over it), 'older' (the other way round), or null if they are simply
+ * different bridges.
+ */
+export function compareBridges(edgeA, a, edgeB, b) {
+  if (edgeA !== edgeB || a.from !== b.from || a.mood !== b.mood || Math.abs(a.bpm - b.bpm) > 0.051) return null;
+  const n = Math.min(a.layers.length, b.layers.length);
+  for (let k = 0; k < n; k++) if (!samePart(a.layers[k], b.layers[k])) return null;
+  return a.layers.length === b.layers.length ? 'same' : a.layers.length < b.layers.length ? 'grown' : 'older';
+}
+
+/**
+ * Take a bridge that arrived by link into a sea. A bridge the player already has comes back
+ * grown in the same place (their own on the chart, or one from afar); anything else is set
+ * beside their own as a bridge from afar. Nothing of the player's is ever replaced by
+ * something that is not the same bridge with more on it.
+ * @returns {{what:'new'|'grown'|'same', ref:string}} ref is the edge id for the player's own, 'afar:<n>' otherwise
+ */
+export function receiveBridge(sea, edgeId, bridge) {
+  const own = sea.bridges[edgeId];
+  const mine = own && compareBridges(edgeId, own, edgeId, bridge);
+  if (mine) {
+    if (mine === 'grown') own.layers = bridge.layers.map((l) => ({ sound: l.sound, score: l.score.map((n) => [...n]) }));
+    return { what: mine === 'grown' ? 'grown' : 'same', ref: edgeId };
+  }
+  for (let i = 0; i < sea.afar.length; i++) {
+    const rel = compareBridges(sea.afar[i].edge, sea.afar[i], edgeId, bridge);
+    if (!rel) continue;
+    if (rel === 'grown') sea.afar[i] = { edge: edgeId, ...bridge };
+    return { what: rel === 'grown' ? 'grown' : 'same', ref: `afar:${i}` };
+  }
+  if (sea.afar.length >= CROSSING.AFAR_MAX) sea.afar.shift(); // the oldest drifts on
+  sea.afar.push({ edge: edgeId, ...bridge });
+  return { what: 'new', ref: `afar:${sea.afar.length - 1}` };
 }

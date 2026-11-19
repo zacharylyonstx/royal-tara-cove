@@ -75,14 +75,46 @@ timers or pressure to return (the UK children's code for games).
   parts always line up. Saved under `afternote.sea.v1`, apart from the lighthouse save.
 - Starting a bridge over keeps the old one until the new one is finished. Leaving
   a crossing part-way keeps nothing of it.
+- Waking the seventh place and building the tenth bridge are each marked on the
+  arrival card. Nothing else is counted, timed or scored.
 - Test hooks: `render_game_to_text()` has a `sea` block; `__afternote.sea`
   has `open`, `build`, `add`, `listen`, `view`.
 
-**Checked:** 78 rule tests and 34 browser tests (23 for the lighthouse, 11 for the
+### Sending a bridge to someone (2026-11-18)
+
+Any bridge can be sent as a link (`Send it to someone` on the chart or the arrival
+card; `Copy link`, or the device's own share sheet where there is one). Whoever
+opens it hears the bridge, can lay a part of their own over it and send it back.
+
+- **The link is the bridge.** `…/afternote/#b=<code>`: the edge, which end it starts
+  from, the mood, the tempo, and each part's sound and stones (`encodeBridge` /
+  `decodeBridge` in `src/music/sea.js`; about 40 letters a part). No names, no
+  account, no server: nothing is stored anywhere but the two browsers. The code is
+  taken out of the address bar as soon as it is read.
+- **The wire format is append-only.** `WIRE_EDGES`, `WIRE_MOODS`, `WIRE_SOUNDS` in
+  `sea.js` give each thing its letter; add to their ends only. A rule test pins two
+  codes so a reordering is caught.
+- **It comes from outside, so it is checked.** Shape by a strict pattern, then every
+  index, then the same `sanitizeBridge` a saved bridge goes through. Nothing from a
+  link is ever shown as text; only names the game already has.
+- **Where it goes** (`receiveBridge`): a bridge the player already has comes back
+  *grown* in the same place (their own bridge on the chart gains the new part);
+  anything else waits among the bridges **from afar** (bottom-left of the chart, up
+  to 12) and wakes nothing. Nothing of the player's is ever replaced by a link.
+- **From afar**: hear it; add a part (this is a real crossing, so arriving wakes the
+  far place and it gives its sound and mood); send it on; set it on the chart once
+  both its ends have been reached (a bridge already there changes places with it,
+  so nothing is lost); or let it go (asked first).
+- A link opened in the middle of a crossing waits until the chart is next shown.
+
+**Checked:** 90 rule tests and 42 browser tests (23 for the lighthouse, 19 for the
 sea: first note waits, every key and every on-screen pad builds a stone, no
 misses, waking and gifts, three stacked parts, listening, leaving, starting over,
 save and reload, pause and restart, the way in from the lighthouse's end card,
-every control on screen at six window sizes).
+the last place and the last bridge, and for links: a second browser opens the
+link, hears it, adds a part and sends it back and it comes home grown; swapping,
+letting go, junk links refused, a link arriving mid-crossing; every control on
+screen at six window sizes).
 Loudness of the six new sounds and seven moods was measured from offline renders.
-**Not checked:** how it sounds to a person, a real phone or tablet, and children
-actually playing it.
+**Not checked:** how it sounds to a person, a real phone or tablet (including the
+share sheet and copying a link there), and children actually playing it.

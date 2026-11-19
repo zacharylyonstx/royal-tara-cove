@@ -609,7 +609,13 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .chart-map .edge.sel .halo { stroke: rgba(255, 214, 150, 0.24); }
 @keyframes chart-march { to { stroke-dashoffset: -30; } }
 
-.chart-map .place { cursor: pointer; outline: none; }
+.chart-map .place, .chart-map .afar { cursor: pointer; outline: none; }
+/* (an unseen ring, so a small finger on a small screen still finds it) */
+.chart-map .reach { fill: transparent; stroke: none; }
+.chart-map .afar .disc { fill: rgba(26, 27, 48, 0.95); stroke: rgba(176, 212, 255, 0.62); stroke-width: 2; transition: stroke 0.2s; }
+.chart-map .afar .arc { fill: none; stroke: #cfe4ff; stroke-width: 2.4; stroke-linecap: round; }
+.chart-map .afar:hover .disc, .chart-map .afar:focus-visible .disc, .chart-map .afar.sel .disc { stroke: #fff; stroke-width: 3; }
+.chart-map .afar-label { fill: rgba(226, 220, 242, 0.62); font-family: var(--caps); font-size: 16px; letter-spacing: 0.2em; text-transform: uppercase; }
 .chart-map .place .disc { fill: rgba(26, 27, 48, 0.95); stroke: rgba(220, 214, 240, 0.4); stroke-width: 2; transition: stroke 0.2s; }
 .chart-map .place .glow { fill: var(--tint); opacity: 0; }
 .chart-map .place .glyph { fill: rgba(220, 214, 240, 0.5); stroke: rgba(220, 214, 240, 0.5); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -643,6 +649,26 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .panel-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: 10px; scrollbar-width: thin; }
 .panel-foot { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
 .panel-foot .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.panel-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 4px; margin-top: -4px; }
+.panel-row .btn.small { margin-top: 0; }
+.link-box {
+  width: 100%; min-width: 0; padding: 10px 12px; border-radius: 12px; flex: none;
+  border: 1px solid var(--glass-line); background: rgba(8, 8, 20, 0.62); color: #fbf5ff;
+  font: 13px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis;
+  user-select: all; -webkit-user-select: all;
+}
+.link-box:focus { outline: none; border-color: var(--gold); }
+.arrival-actions .send-link { flex-basis: 100%; min-width: 0; padding: 6px 14px; font-size: 12px; }
+/* a bridge that came by link, announced on the title */
+.incoming {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: clamp(8px, 1.6vh, 16px) 0 clamp(8px, 1.4vh, 14px); padding: 10px 14px 10px 18px; width: fit-content; max-width: 100%;
+  border-radius: 18px; border: 1px solid rgba(176, 212, 255, 0.6); background: rgba(22, 30, 54, 0.7);
+  box-shadow: 0 0 34px rgba(140, 190, 255, 0.28);
+  animation: gift-in 0.9s ease-out 0.4s backwards;
+}
+.incoming-text { font-size: clamp(16px, 1.6vw, 20px); color: #eef4ff; }
+.incoming .btn { min-width: 0; padding: 9px 20px; }
 .panel-foot .pair .btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.14em; white-space: nowrap; }
 .chart-panel .btn.quiet { width: auto; align-self: center; }
 .chart-panel .btn.small { font-size: 11px; padding: 4px 10px; margin-top: -4px; }
@@ -669,6 +695,7 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .arrival-inner { text-align: center; max-width: min(720px, 94vw); max-height: 92vh; overflow-y: auto; }
 .arrival-card .end-note { margin: 4px 0 12px; font-style: normal; }
 .arrival-card .end-note b { color: var(--gold); }
+.arrival-card .end-note.whole { color: #ffe6b0; font-family: var(--caps); letter-spacing: 0.16em; text-transform: uppercase; font-size: clamp(13px, 1.4vw, 17px); text-shadow: 0 0 18px rgba(255, 190, 100, 0.6); }
 .gift-box {
   display: inline-grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 2px; align-items: baseline; text-align: left;
   margin: 0 auto 14px; padding: 12px 22px; border-radius: 16px;
