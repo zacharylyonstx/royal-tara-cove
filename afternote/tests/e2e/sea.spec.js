@@ -321,3 +321,33 @@ test('the chart and the arrival card keep every control on screen in every windo
     expect(await onScreen('.arrival-inner'), `arrival at ${w}x${h}`).toEqual([]);
   }
 });
+
+test('the end of the lighthouse leads out to sea, and the way back is still there', async ({ page }) => {
+  const errors = await boot(page);
+  await page.click('[data-action="begin"]');
+  await page.evaluate(() => window.__afternote.bot({ strategy: 'resonant' }));
+  let s = await until(page, 's.phase === "end"', 900);
+  await page.evaluate(() => window.__afternote.bot(null));
+  expect(s.ui.end).toBe(true);
+  await page.click('.end-card [data-action="sea"]');
+  s = await advance(page, 900);
+  expect(s.phase).toBe('sea');
+  expect(s.ui.chart).toBe(true);
+  expect(s.ui.end).toBe(false);
+  expect(s.sea.at).toBe('lighthouse');
+  // a crossing begun now is a sea crossing, not a lighthouse movement
+  await pickEdge(page, 'lighthouse~chimes');
+  await page.click('[data-chart="build"]');
+  s = await until(page, 's.phase === "play" && s.gateWaiting');
+  expect(s.sea.crossing.edge).toBe('lighthouse~chimes');
+  expect(s.next.offers).toEqual(['C', 'D', 'E', 'G', 'A']);
+  await page.keyboard.press('Escape');
+  await page.click('.overlay:not(.hidden) [data-action="leave"]');
+  await advance(page, 400);
+  await page.click('[data-action="sea-home"]');
+  s = await advance(page, 600);
+  expect(s.phase).toBe('title');
+  // the finished lighthouse is still finished
+  expect(s.records.every((r) => r && r.hits > 0)).toBe(true);
+  expect(errors).toEqual([]);
+});

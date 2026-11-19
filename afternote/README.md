@@ -78,10 +78,11 @@ timers or pressure to return (the UK children's code for games).
 - Test hooks: `render_game_to_text()` has a `sea` block; `__afternote.sea`
   has `open`, `build`, `add`, `listen`, `view`.
 
-**Checked:** 78 rule tests and 33 browser tests (23 for the lighthouse, 10 for the
+**Checked:** 78 rule tests and 34 browser tests (23 for the lighthouse, 11 for the
 sea: first note waits, every key and every on-screen pad builds a stone, no
 misses, waking and gifts, three stacked parts, listening, leaving, starting over,
-save and reload, pause and restart, every control on screen at six window sizes).
+save and reload, pause and restart, the way in from the lighthouse's end card,
+every control on screen at six window sizes).
 Loudness of the six new sounds and seven moods was measured from offline renders.
 **Not checked:** how it sounds to a person, a real phone or tablet, and children
 actually playing it.
