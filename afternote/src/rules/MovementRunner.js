@@ -21,6 +21,8 @@ export class MovementRunner {
    */
   constructor(chart, { bpm, echoes = [], rules = RULES } = {}) {
     this.chart = chart;
+    /** A free chart (a sea crossing): every beat is open, and a beat left unplayed is simply a rest. */
+    this.free = !!chart.free;
     this.bpm = bpm;
     this.rules = rules;
     this.echoes = echoes;
@@ -385,6 +387,21 @@ export class MovementRunner {
 
   _miss(slot, events) {
     const close = this.windows[slot.i].close;
+    if (this.free && slot.src === 'open') {
+      // Nothing was played here, and nothing was asked for: the light that carries Kite
+      // simply runs on in the lane they are already in. It is not a miss and not a rescue.
+      const xy = laneXY(this.lane);
+      const rest = {
+        kind: 'breath', style: 'current', rest: true, b0: close - 0.3, b1: this._coverEnd(slot), lane: this.lane,
+        x0: xy.x, y0: xy.y, x1: xy.x, y1: xy.y, g0: close, g1: close, slotB: slot.b,
+      };
+      this.pieces.push(rest);
+      this.cursor = slot.i + 1;
+      this.state[slot.i] = MISSED;
+      const entry = this._entry(slot, { outcome: 'rest' });
+      events.push({ type: 'rest', entry, slot, piece: rest });
+      return;
+    }
     if (slot.src === 'choice' && !this.choices[slot.choiceId]) {
       // No decision: take the route whose first note is nearest to where Kite already is.
       const keys = Object.keys(slot.routeP);

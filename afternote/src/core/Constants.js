@@ -142,7 +142,24 @@ export const TIMING = {
   COUNT_IN_BEATS: 4,
 };
 
+// ---------------------------------------------------------------------------------
+// The Sea of Bridges: free crossings between places.
+// ---------------------------------------------------------------------------------
+export const CROSSING = {
+  GRID: 0.5, // one stone per half-beat at most; this is also the grid a kept bridge is tidied to
+  START_BEAT: -4, // Kite walks out to the edge of the landing before the first note
+  TAIL_BEATS: 3, // ...and on to the far landing after the last one
+  RING_BEATS: 1.6, // how long a tapped note is left to ring
+  MAX_LAYERS: 3, // parts that can be stacked on one bridge
+  REACH: 4, // every key is always in reach
+  // each part of a bridge runs beside the others and rejoins them at both landings: [sideways, up]
+  LAYER_OFFSET: [[0, 0], [-7.2, 1.5], [7.2, 3.0]],
+  BRAID: 0.16, // share of the crossing over which the parts spread apart and come together
+  LAND_Y: 2.3, // height of a landing above the sea
+};
+
 export const SAVE_KEY = 'afternote.lighthouse.v1';
+export const SEA_KEY = 'afternote.sea.v1';
 export const SETTINGS_KEY = 'afternote.settings.v1';
 
 // Numbers are keys, letters are notes: the default keys can never be mistaken for a note name.

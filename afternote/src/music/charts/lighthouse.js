@@ -29,7 +29,7 @@ const breath = (b, d, extra = {}) => ({ b, k: 'breath', d, ...extra });
 // Harmony: voiced with no B and no upper-register F so C D E G A all sit well on
 // every bar. `bass` and `pad` are MIDI note numbers.
 // ---------------------------------------------------------------------------------
-const CH = {
+export const CH = {
   Cadd9: { name: 'Cadd9', bass: 36, pad: [48, 55, 62, 64], color: [67, 72, 76] },
   Am7: { name: 'Am7', bass: 33, pad: [45, 55, 60, 64], color: [69, 72, 76] },
   Fmaj9: { name: 'Fmaj9', bass: 29, pad: [41, 57, 60, 64], color: [67, 72, 76] },

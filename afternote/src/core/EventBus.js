@@ -54,6 +54,10 @@ export const Events = {
   RESUMED: 'flow:resumed',
   COUNT_IN: 'flow:count-in',
   // play (payloads are MovementRunner events plus { mvt })
+  SEA_OPENED: 'sea:opened',
+  CROSSING_STARTED: 'sea:crossing-started',
+  CROSSING_COMPLETE: 'sea:crossing-complete',
+  PLACE_WOKEN: 'sea:place-woken',
   NOTE_HIT: 'play:hit',
   NOTE_MISS: 'play:miss',
   NOTE_FLOURISH: 'play:flourish',

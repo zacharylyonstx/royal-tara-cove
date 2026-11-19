@@ -25,7 +25,7 @@ export function buildSlots(chart) {
         p: ev.p, accent: ev.accent ?? null, gate: !!ev.gate, id: ev.id ?? null,
       });
     } else if (ev.k === 'open') {
-      slots.push({ b: ev.b, d: ev.d, k: 'tap', src: 'open', p: null, accent: null, gate: false, id: null });
+      slots.push({ b: ev.b, d: ev.d, k: 'tap', src: 'open', p: null, accent: null, gate: !!ev.gate, id: null });
     } else if (ev.k === 'resonance') {
       slots.push({
         b: ev.b, d: ev.d, k: 'tap', src: 'resonance', p: null, accent: null, gate: false,
