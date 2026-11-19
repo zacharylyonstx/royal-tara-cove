@@ -168,6 +168,7 @@ export class SeaChart {
     const v = this.view;
     const sel = this.sel;
     let html = '';
+    let foot = ''; // what stays in reach beneath the part that scrolls
     if (!sel) {
       html = `<h3>Where to?</h3><p>Choose a dotted line to build a bridge, or a bridge to hear it again.</p>`;
     } else if (sel.kind === 'place') {
@@ -189,16 +190,16 @@ export class SeaChart {
         const mood = MOODS[bridge.mood];
         html = `<div class="panel-kicker">A bridge · ${esc(mood.name)}</div><h3>${esc(PLACE[bridge.from].name)} <span class="arrow">to</span> ${esc(PLACE[to].name)}</h3>
           <ul class="parts">${bridge.layers.map((l, k) => `<li><b style="color:${STRAND[k]}">${NUMERALS[k]}</b><span>${esc(SOUNDS[l.sound].name)}</span><i>${l.notes} ${l.notes === 1 ? 'stone' : 'stones'}</i></li>`).join('')}</ul>
-          <button class="btn primary" data-chart="listen">Hear it</button>`;
+          <button class="btn quiet small" data-chart="over">Start it over</button>`;
+        foot = `<button class="btn primary" data-chart="listen">Hear it</button>`;
         if (bridge.layers.length < CROSSING.MAX_LAYERS) {
           const used = bridge.layers.map((l) => l.sound);
           if (!this.pick.sound) this.pick.sound = v.sounds.find((s) => !used.includes(s)) ?? v.sounds[0];
-          html += `<div class="panel-label">Add a part, in…</div>${this._chips('sound', v.sounds, this.pick.sound)}
-            <button class="btn" data-chart="add">Add part ${NUMERALS[bridge.layers.length]}</button>`;
+          html += `<div class="panel-label">Add a part, in…</div>${this._chips('sound', v.sounds, this.pick.sound)}`;
+          foot = `<div class="pair">${foot}<button class="btn" data-chart="add">Add part ${NUMERALS[bridge.layers.length]}</button></div>`;
         } else {
           html += `<p class="fine">This bridge has all three of its parts.</p>`;
         }
-        html += `<button class="btn quiet" data-chart="over">Start it over</button>`;
       } else if (e.start) {
         const to = otherEnd(e, e.start);
         if (!this.pick.sound) this.pick.sound = PLACE[e.start].gift && v.sounds.includes(PLACE[e.start].gift.sound) ? PLACE[e.start].gift.sound : v.sounds[0];
@@ -207,15 +208,19 @@ export class SeaChart {
           <h3>${esc(PLACE[e.start].name)} <span class="arrow">to</span> ${esc(PLACE[to].name)}</h3>
           <p>${bridge ? 'The bridge that is here stays until you finish the new one.' : 'Every key builds a stone. Nothing can be missed.'}</p>
           <div class="panel-label">Sound</div>${this._chips('sound', v.sounds, this.pick.sound)}
-          <div class="panel-label">Mood</div>${this._chips('mood', v.moods, this.pick.mood)}
-          <button class="btn primary" data-chart="build">${bridge ? 'Build it again' : 'Build this bridge'}</button>
+          <div class="panel-label">Mood</div>${this._chips('mood', v.moods, this.pick.mood)}`;
+        foot = `<button class="btn primary" data-chart="build">${bridge ? 'Build it again' : 'Build this bridge'}</button>
           ${bridge ? '<button class="btn quiet" data-chart="keep">Keep the old one</button>' : ''}`;
       } else {
         html = `<div class="panel-kicker">Too far for now</div><h3>${esc(PLACE[e.a].name)} <span class="arrow">to</span> ${esc(PLACE[e.b].name)}</h3>
           <p>Reach ${esc(PLACE[e.a].name)} or ${esc(PLACE[e.b].name)} first, then this bridge can begin.</p>`;
       }
     }
-    this.panel.innerHTML = html;
+    // choosing a sound or a mood must not throw the list back to its top
+    const top = this.panel.querySelector('.panel-scroll')?.scrollTop ?? 0;
+    this.panel.innerHTML = `<div class="panel-scroll">${html}</div>${foot ? `<div class="panel-foot">${foot}</div>` : ''}`;
+    if (this._panelKey === (sel ? `${sel.kind}:${sel.id}:${this.over}` : '')) this.panel.querySelector('.panel-scroll').scrollTop = top;
+    this._panelKey = sel ? `${sel.kind}:${sel.id}:${this.over}` : '';
   }
 
   /** Clicks inside the chart or the arrival card. @returns {boolean} whether the click was handled here */

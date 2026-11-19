@@ -626,7 +626,7 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .chart-panel {
   flex: 0 0 clamp(250px, 30vw, 380px);
   display: flex; flex-direction: column; align-items: stretch; gap: 10px;
-  overflow-y: auto;
+  overflow: hidden;
   padding: clamp(14px, 2.4vh, 26px) clamp(14px, 1.8vw, 24px);
   border-radius: 20px;
   border: 1px solid var(--glass-line);
@@ -638,8 +638,15 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .chart-panel h3 .arrow { display: block; font-family: var(--serif); font-style: italic; font-size: 0.8em; letter-spacing: 0.04em; text-transform: none; color: rgba(236, 230, 250, 0.7); }
 .chart-panel p { margin: 0; font-size: clamp(15px, 1.35vw, 18px); line-height: 1.4; color: rgba(236, 230, 250, 0.88); }
 .chart-panel .gift b { color: var(--gold); font-weight: 600; }
-.chart-panel .btn { min-width: 0; width: 100%; padding: 12px 16px; }
+.chart-panel .btn { min-width: 0; width: 100%; padding: 12px 16px; flex: none; }
+/* the part that may scroll, and beneath it the one thing to do next, always in reach */
+.panel-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: stretch; gap: 10px; scrollbar-width: thin; }
+.panel-foot { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.panel-foot .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.panel-foot .pair .btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.14em; white-space: nowrap; }
 .chart-panel .btn.quiet { width: auto; align-self: center; }
+.chart-panel .btn.small { font-size: 11px; padding: 4px 10px; margin-top: -4px; }
+.chart-panel .fine { font-size: 15px; font-style: italic; color: rgba(236, 230, 250, 0.7); }
 .panel-kicker { font-family: var(--caps); font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--gold); }
 .panel-label { font-family: var(--caps); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(236, 230, 250, 0.62); margin-top: 4px; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
@@ -680,7 +687,11 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 @media (max-height: 520px) {
   .chart-kicker { display: none; }
   .chart-title { font-size: 18px; }
-  .chart-panel { gap: 6px; padding: 10px 12px; }
+  .chart-panel, .panel-scroll { gap: 6px; }
+  .chart-panel { padding: 10px 12px; }
+  .chart-panel h3 { font-size: 15px; }
+  .chart-panel h3 .arrow { display: inline; }
+  .panel-foot .pair .btn { font-size: 11px; letter-spacing: 0.08em; }
   .chart-panel p { font-size: 14px; }
   .chart-panel .btn { padding: 9px 12px; }
   .chip-row .chip { padding: 6px 10px; }
@@ -693,8 +704,12 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 /* tall, narrow windows: the chart on top, what to do beneath it */
 @media (max-aspect-ratio: 1/1) {
   .chart-body { flex-direction: column; }
-  .chart-panel { flex: 0 0 auto; max-height: 46%; }
+  .chart-map-wrap { flex: 0 1 auto; aspect-ratio: 10 / 7; max-height: 50%; }
+  .chart-panel { flex: 1 1 0; min-height: 0; width: 100%; max-width: 560px; align-self: center; }
   .chart-map .place .name { font-size: 22px; }
+}
+@media (max-width: 520px) {
+  .chart-map .place .name { font-size: 26px; letter-spacing: 0.08em; }
 }
 @media (prefers-reduced-motion: reduce) {
   .chart-map .edge.open .dots, .chart-map .place.awake .glow, .chart-map .place .kite { animation: none; }

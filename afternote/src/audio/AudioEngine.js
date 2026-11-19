@@ -357,7 +357,7 @@ export class AudioEngine {
   musicbox(dest, freq, when, gain, dur) {
     const ctx = this.ctx;
     const out = ctx.createGain();
-    out.gain.value = gain * 0.4;
+    out.gain.value = gain * 0.58;
     out.connect(dest);
     const body = ctx.createGain();
     body.gain.setValueAtTime(0, when);
@@ -383,7 +383,7 @@ export class AudioEngine {
   harp(dest, freq, when, gain, dur) {
     const ctx = this.ctx;
     const out = ctx.createGain();
-    out.gain.value = gain * 0.62;
+    out.gain.value = gain * 0.8;
     out.connect(dest);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0, when);
@@ -539,12 +539,12 @@ export class AudioEngine {
   firefly(dest, freq, when, gain, dur) {
     const ctx = this.ctx;
     const out = ctx.createGain();
-    out.gain.value = gain * 0.36;
+    out.gain.value = gain * 0.7;
     out.connect(dest);
     const amp = ctx.createGain();
     amp.gain.setValueAtTime(0, when);
     amp.gain.linearRampToValueAtTime(1, when + 0.006);
-    amp.gain.setTargetAtTime(dur === null ? 0.5 : 0, when + 0.01, dur === null ? 0.2 : 0.2 + Math.min(0.2, dur * 0.1));
+    amp.gain.setTargetAtTime(dur === null ? 0.5 : 0, when + 0.01, dur === null ? 0.2 : 0.3 + Math.min(0.25, dur * 0.12));
     amp.connect(out);
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';

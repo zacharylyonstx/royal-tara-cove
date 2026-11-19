@@ -102,6 +102,29 @@ test('a crossing waits for the first note, every key builds a stone, and nothing
   expect(errors).toEqual([]);
 });
 
+test('the on-screen pads build stones too (touch, mouse or pen): a keyboard is never needed', async ({ page }) => {
+  const errors = await boot(page);
+  await toChart(page);
+  await pickEdge(page, 'lighthouse~garden');
+  await page.click('[data-chart="build"]');
+  let s = await until(page, 's.phase === "play" && s.gateWaiting');
+  const pads = page.locator('.keys .key');
+  expect(await pads.count()).toBe(5);
+  await pads.nth(4).dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true });
+  await pads.nth(4).dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true });
+  s = await advance(page, 900);
+  expect(s.gateWaiting).toBe(false);
+  expect(s.entries.hits).toBe(1);
+  for (const k of [0, 2, 3]) {
+    await pads.nth(k).dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true });
+    await pads.nth(k).dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true });
+    s = await advance(page, 800);
+  }
+  expect(s.entries.hits).toBe(4);
+  expect(s.entries.misses).toBe(0);
+  expect(errors).toEqual([]);
+});
+
 test('reaching a place wakes it and gives its sound and mood; the bridge is kept', async ({ page }) => {
   const errors = await boot(page);
   await toChart(page);
