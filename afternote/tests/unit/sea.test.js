@@ -4,7 +4,7 @@ import { supportAt, evalSegs } from '../../src/rules/Trajectory.js';
 import { CROSSING } from '../../src/core/Constants.js';
 import {
   EDGES, EDGE, PLACES, PLACE, SOUNDS, MOODS, HOME, crossingChart, crossingRules, scoreOf, performScore, tidyRests,
-  emptySea, sanitizeSea, unlocked, edgesOf, otherEnd, sanitizeBridge, encodeBridge, decodeBridge, compareBridges, receiveBridge, mergeSeas,
+  emptySea, sanitizeSea, unlocked, edgesOf, otherEnd, sanitizeBridge, encodeBridge, decodeBridge, compareBridges, receiveBridge, mergeSeas, CLOAKS, cloaksOf,
 } from '../../src/music/sea.js';
 
 const BPM = 76.8;
@@ -198,7 +198,7 @@ describe('a kept bridge', () => {
 
 describe('the saved sea', () => {
   it('starts at home with nothing built', () => {
-    expect(emptySea()).toEqual({ at: HOME, awake: [HOME], bridges: {}, afar: [], seen: {} });
+    expect(emptySea()).toEqual({ at: HOME, awake: [HOME], bridges: {}, afar: [], seen: {}, cloak: 'dusk' });
     expect(sanitizeSea(null)).toEqual(emptySea());
     expect(sanitizeSea('nonsense')).toEqual(emptySea());
   });
@@ -506,5 +506,51 @@ describe('two tabs, one sea', () => {
     // what comes out shares nothing with what went in
     sea.bridges[E].layers[0].score[0][1] = 3;
     expect(mine.bridges[E].layers[0].score[0][1]).toBe(0);
+  });
+});
+
+describe('cloaks for Kite', () => {
+  const part = (n = 1) => ({ sound: 'bell', score: Array.from({ length: n }, (_, i) => [i, 0]) });
+  const built = (layers = 1) => Object.fromEntries(EDGES.map((e) => [e.id, { from: e.a, mood: 'firstlight', bpm: 76.8, layers: Array.from({ length: layers }, () => part(2)) }]));
+
+  it('every place gives one of its own, and each is a whole set of colours', () => {
+    const gifts = PLACES.filter((p) => p.gift).map((p) => p.gift.cloak);
+    expect(new Set(gifts).size).toBe(6);
+    for (const id of gifts) expect(CLOAKS[id], id).toBeTruthy();
+    for (const c of Object.values(CLOAKS)) {
+      for (const k of ['cloak', 'light', 'trim', 'ember', 'tail']) expect(Number.isInteger(c[k]), `${c.id}.${k}`).toBe(true);
+      expect(c.name.length).toBeGreaterThan(2);
+      if (c.id !== 'dusk') expect(c.how.length, c.id).toBeGreaterThan(5);
+    }
+    expect(Object.keys(CLOAKS).length).toBe(10);
+  });
+
+  it('are earned by what has been done, never bought or timed', () => {
+    const sea = emptySea();
+    expect(cloaksOf(sea)).toEqual(['dusk']);
+    sea.awake.push('chimes');
+    expect(cloaksOf(sea)).toEqual(['dusk', 'moon']);
+    sea.awake.push('deep', 'harp');
+    expect(cloaksOf(sea)).toEqual(['dusk', 'moon', 'seaglass', 'glow']);
+    sea.awake = PLACES.map((p) => p.id);
+    expect(cloaksOf(sea)).toContain('dawn');
+    expect(cloaksOf(sea)).not.toContain('starlight');
+    sea.bridges = built(1);
+    expect(cloaksOf(sea)).toContain('starlight');
+    expect(cloaksOf(sea)).not.toContain('aurora');
+    sea.bridges = built(3);
+    expect(cloaksOf(sea).length).toBe(10);
+    expect(cloaksOf(sea).at(-1)).toBe('aurora');
+  });
+
+  it('the one Kite wears is kept, and only if this sea has earned it', () => {
+    expect(sanitizeSea({ awake: ['chimes'], cloak: 'moon' }).cloak).toBe('moon');
+    expect(sanitizeSea({ awake: ['chimes'], cloak: 'copper' }).cloak).toBe('dusk');
+    expect(sanitizeSea({ cloak: 'constructor' }).cloak).toBe('dusk');
+    expect(sanitizeSea({ cloak: 7 }).cloak).toBe('dusk');
+    const mine = { ...emptySea(), awake: [HOME, 'chimes'], cloak: 'moon' };
+    const theirs = { ...emptySea(), awake: [HOME, 'harp'], cloak: 'seaglass' };
+    expect(mergeSeas(theirs, mine).cloak).toBe('moon');
+    expect(mergeSeas(mine, theirs).cloak).toBe('seaglass');
   });
 });

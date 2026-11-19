@@ -538,6 +538,8 @@ test('waking the last place, and building the last bridge, are both marked', asy
   s = await playThrough(page);
   expect(s.sea.awake.length).toBe(7);
   expect(await page.locator('.arrival-card .whole').allInnerTexts()).toEqual(['EVERY PLACE IN THE SEA IS AWAKE.']);
+  expect(await page.locator('.gift-box').innerText()).toMatch(/steel pan[\s\S]*clockwork[\s\S]*copper[\s\S]*dawn/i);
+  expect(s.sea.cloaks).toEqual(['dusk', 'moon', 'seaglass', 'blossom', 'wind', 'copper', 'glow', 'dawn']);
   await page.click('[data-arrive="chart"]');
   await advance(page, 400);
   await pickEdge(page, 'harbor~deep');
@@ -545,11 +547,11 @@ test('waking the last place, and building the last bridge, are both marked', asy
   s = await playThrough(page, { strategy: 'low', miss: 0.4, seed: 3 });
   expect(Object.keys(s.sea.bridges).length).toBe(10);
   expect(await page.locator('.arrival-card .whole').allInnerTexts()).toEqual(['EVERY BRIDGE IN THE SEA IS BUILT.']);
-  expect(await page.locator('.gift-box').count()).toBe(0); // nothing left to give: every place has been reached before
+  expect(await page.locator('.gift-box').innerText()).toMatch(/you have earned[\s\S]*starlight[\s\S]*a new cloak for kite/i); // no place left to wake, but something earned
   // with nothing left to build, the chart turns to a bridge that can still take another part
   await page.click('[data-arrive="chart"]');
   s = await advance(page, 400);
-  expect(await page.locator('.chart-tally').innerText()).toMatch(/10 of 10 bridges · 7 of 7 places awake · 9 of 9 sounds/i);
+  expect(await page.locator('.chart-tally').innerText()).toMatch(/10 of 10 bridges · 7 of 7 places awake · 9 of 10 cloaks/i); // the tenth wants three parts on every bridge
   expect(await page.locator('[data-chart="add"]').count()).toBe(1);
   expect(errors).toEqual([]);
 });
@@ -848,4 +850,99 @@ test('when there is no room for another friend\'s bridge it waits, and nothing i
   expect(s.sea.afar.at(-1)).toMatchObject({ edge: 'lighthouse~harp', parts: [{ sound: 'glass', notes: 2 }] });
   expect(s.ui.notice).toBe('Someone sent you a bridge.');
   expect(errors).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------------
+// Things to find, and the whole of what has been made
+// ---------------------------------------------------------------------------------
+
+test('a place gives a cloak for Kite; found cloaks can be worn, and the choice is kept', async ({ page }) => {
+  const errors = await boot(page);
+  let s = await toChart(page);
+  expect(s.sea.cloak).toBe('dusk');
+  expect(s.sea.cloaks).toEqual(['dusk']);
+  await page.click('[data-chart="cloaks"]');
+  expect(await page.locator('.cloak').count()).toBe(10);
+  expect(await page.locator('.cloak:not(.lost)').count()).toBe(1);
+  expect(await page.locator('.cloak.lost').first().innerText()).toMatch(/wake chime rocks/i); // what to do to find it
+  // one that has not been found cannot be worn
+  await page.locator('.cloak.lost').first().click({ force: true });
+  expect((await state(page)).sea.cloak).toBe('dusk');
+  // wake Chime Rocks
+  await pickEdge(page, 'lighthouse~chimes');
+  await page.click('[data-chart="build"]');
+  s = await playThrough(page);
+  expect(await page.locator('.gift-box').innerText()).toMatch(/music box[\s\S]*lullaby[\s\S]*moonsilver[\s\S]*a new cloak for kite/i);
+  expect(s.sea.cloaks).toEqual(['dusk', 'moon']);
+  await page.click('[data-arrive="chart"]');
+  await advance(page, 300);
+  await page.click('[data-chart="cloaks"]');
+  await page.click('.cloak[data-id="moon"]');
+  s = await advance(page, 300);
+  expect(s.sea.cloak).toBe('moon');
+  expect(await page.locator('.cloak.on').getAttribute('data-id')).toBe('moon');
+  const worn = () => page.evaluate(() => window.__afternote.game.world.kite.cloakMat.uniforms.uColor.value.getHexString());
+  expect(await worn()).toBe('6f7b9e');
+  // kept across a reload, and worn in the lighthouse too
+  await page.reload();
+  await page.waitForFunction(() => !!window.render_game_to_text);
+  s = await advance(page, 300);
+  expect(s.sea.cloak).toBe('moon');
+  expect(await worn()).toBe('6f7b9e');
+  expect(errors).toEqual([]);
+});
+
+test('the whole sea can be heard as one piece, bridge after bridge', async ({ page }) => {
+  const errors = await boot(page);
+  await page.evaluate(() => {
+    const part = (sound, n) => ({ sound, score: Array.from({ length: n }, (_, i) => [i * 2, (i * 3) % 5]) });
+    const bridges = {
+      'lighthouse~chimes': { from: 'lighthouse', mood: 'firstlight', bpm: 96, layers: [part('bell', 10), part('root', 6)] },
+      'chimes~garden': { from: 'chimes', mood: 'lullaby', bpm: 80.6, layers: [part('musicbox', 12)] },
+      'lighthouse~harp': { from: 'harp', mood: 'tide', bpm: 105.6, layers: [part('harp', 14), part('glass', 8), part('bell', 5)] },
+    };
+    localStorage.setItem('afternote.sea.v1', JSON.stringify({ v: 1, at: 0, sea: { at: 'garden', awake: ['lighthouse', 'chimes', 'garden', 'harp'], bridges, afar: [], seen: {} } }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.render_game_to_text);
+  let s = await toChart(page);
+  expect(await page.locator('[data-chart="all"]').isVisible()).toBe(true);
+  await page.click('[data-chart="all"]');
+  s = await advance(page, 1500);
+  expect(s.phase).toBe('bridgeSong');
+  // it sets out from the lighthouse, and follows on from where each bridge ends
+  expect(s.sea.listening).toBe('lighthouse~chimes');
+  expect(s.sea.tour).toBe('1/3');
+  expect(await page.locator('.listen-bar:not(.hidden) .listen-label').first().innerText()).toMatch(/the whole sea · 1 of 3 · the lighthouse to chime rocks/i);
+  s = await until(page, 's.sea.tour === "2/3"');
+  expect(s.sea.listening).toBe('chimes~garden');
+  expect(s.echoes).toEqual([0]);
+  s = await until(page, 's.sea.tour === "3/3"');
+  expect(s.sea.listening).toBe('lighthouse~harp');
+  expect(s.echoes).toEqual([0, 1, 2]);
+  s = await until(page, 's.ui.chart');
+  expect(s.sea.tour).toBeNull();
+  expect(s.sea.at).toBe('lighthouse'); // where the last bridge ended
+  // and it can be left at any moment
+  await page.click('[data-chart="all"]');
+  await advance(page, 1500);
+  await page.click('.listen-bar [data-action="back"]');
+  s = await advance(page, 400);
+  expect(s.ui.chart).toBe(true);
+  expect(s.sea.tour).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test('a bridge with all three parts wears a star on the map', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const part = (sound) => ({ sound, score: [[0, 0], [2, 2]] });
+    const bridges = { 'lighthouse~chimes': { from: 'lighthouse', mood: 'firstlight', bpm: 96, layers: [part('bell'), part('root'), part('glass')] }, 'lighthouse~harp': { from: 'lighthouse', mood: 'firstlight', bpm: 96, layers: [part('bell')] } };
+    localStorage.setItem('afternote.sea.v1', JSON.stringify({ v: 1, at: 0, sea: { at: 'lighthouse', awake: ['lighthouse', 'chimes', 'harp'], bridges, afar: [], seen: {} } }));
+  });
+  await page.reload();
+  await page.waitForFunction(() => !!window.render_game_to_text);
+  await toChart(page);
+  expect(await page.locator('.chart-map .edge .full').count()).toBe(1);
+  expect(await page.locator('.chart-map [data-edge="lighthouse~chimes"] .full').count()).toBe(1);
 });

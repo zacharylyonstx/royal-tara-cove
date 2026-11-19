@@ -607,7 +607,9 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .chart-map .edge.far .dots { stroke: rgba(220, 214, 240, 0.2); }
 .chart-map .edge.open .dots { animation: chart-march 2.2s linear infinite; stroke: rgba(255, 226, 170, 0.78); }
 .chart-map .edge .strand { stroke-width: 5; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(255, 210, 140, 0.7)); }
-.chart-map .edge:hover .halo, .chart-map .edge:focus-visible .halo { stroke: rgba(255, 214, 150, 0.12); }
+.chart-map .edge:hover .halo { stroke: rgba(255, 214, 150, 0.12); }
+.chart-map .edge:focus-visible .halo { stroke: rgba(255, 255, 255, 0.34); }
+.chart-map .afar:focus-visible .disc, .chart-map .place:focus-visible .disc { stroke: #fff; stroke-width: 3.5; }
 .chart-map .edge.sel .halo { stroke: rgba(255, 214, 150, 0.24); }
 @keyframes chart-march { to { stroke-dashoffset: -30; } }
 
@@ -698,7 +700,20 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
 .parts li b { font-family: var(--caps); font-weight: 400; letter-spacing: 0.1em; }
 .parts li span { font-family: var(--caps); font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #fbf5ff; }
 .parts li i { font-size: 15px; color: rgba(236, 230, 250, 0.7); }
-.chart-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chart-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
+.chart-foot-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 4px; margin-left: auto; }
+.chart-map .edge .full { fill: #fff2c8; stroke: rgba(9, 10, 24, 0.9); stroke-width: 1.5; filter: drop-shadow(0 0 5px rgba(255, 214, 140, 0.95)); pointer-events: none; }
+/* Kite's cloaks: the ones found, and the shapes of the ones still to find */
+.cloaks { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.cloak {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 104px; padding: 10px 4px 8px;
+  font-family: var(--caps); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.25; color: #fbf5ff;
+  background: rgba(255, 255, 255, 0.04); border: 1.5px solid rgba(235, 230, 250, 0.22); border-radius: 14px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.cloak .kite-sign { width: 46px; height: 54px; flex: none; }
+.cloak:hover:not(:disabled), .cloak:focus-visible { outline: none; border-color: var(--gold); }
+.cloak.on { border-color: #fff0cf; background: rgba(255, 200, 112, 0.16); box-shadow: 0 0 22px rgba(255, 190, 100, 0.35); }
+.cloak.lost { cursor: default; color: rgba(226, 220, 242, 0.55); text-transform: none; font-family: var(--serif); font-style: italic; font-size: 13px; letter-spacing: 0; }
 .chart-tally { font-family: var(--caps); font-size: clamp(10px, 0.95vw, 12px); letter-spacing: 0.2em; text-transform: uppercase; color: rgba(226, 220, 242, 0.62); }
 
 .arrival-card {

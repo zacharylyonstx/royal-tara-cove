@@ -19,11 +19,12 @@ import { kiteStateAt } from '../rules/Trajectory.js';
 import { setNoteNames } from '../music/Theory.js';
 import {
   SEA_BPM, SOUNDS, MOODS, PLACE, EDGE, EDGES, FINAL_CHORD, otherEnd, crossingChart, crossingRules, scoreOf, performScore,
-  emptySea, sanitizeSea, unlocked, encodeBridge, decodeBridge, receiveBridge, mergeSeas,
+  emptySea, sanitizeSea, unlocked, encodeBridge, decodeBridge, receiveBridge, mergeSeas, CLOAKS, cloaksOf,
 } from '../music/sea.js';
 import { Save } from '../systems/Save.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+const HOME_PLACE = 'lighthouse';
 const clamp01 = (u) => Math.max(0, Math.min(1, u));
 const ARRIVE_SEC = 8.5;
 /** The backing steps back a little as parts stack up, so each new voice can be heard. */
@@ -43,6 +44,8 @@ export class Voyage {
     this.focus = null;
     /** links that found no room among the bridges from afar, kept until one is let go */
     this.waiting = [];
+    /** hearing every bridge in turn: { order, at } */
+    this.tour = null;
     /** another tab has saved the sea since this one last read it */
     this.stale = false;
     this.warned = false;
@@ -95,6 +98,24 @@ export class Voyage {
     this._performAfar();
     for (const id of Object.keys(PLACE)) this.seaWorld.setAwake(id, sea.awake.includes(id), true);
     gameState.sea = sea;
+    this._wear();
+  }
+
+  /** Kite wears the cloak this sea has chosen, wherever Kite is (the lighthouse too). */
+  _wear() {
+    this.world.kite.setLook(CLOAKS[this.sea.cloak] ?? CLOAKS.dusk);
+  }
+
+  /** Choose a cloak that has been found. */
+  wear(id) {
+    if (!cloaksOf(this.sea).includes(id)) return false;
+    this.sea.cloak = id;
+    this._wear();
+    this.save();
+    this.c.audio.chime([76, 79, 84], 0.4);
+    this.focus = 'cloaks';
+    this.hud.showChart(true, this.view());
+    return true;
   }
 
   /** What another tab has saved, merged with what this one holds: nothing either has is lost. */
@@ -192,6 +213,8 @@ export class Voyage {
         swaps: !!this.sea.bridges[g.edge],
       })),
       edges: EDGES.map((e) => ({ ...e, start: this.startOf(e.id) })),
+      cloak: this.sea.cloak,
+      cloaks: Object.values(CLOAKS).map((c) => ({ ...c, found: cloaksOf(this.sea).includes(c.id) })),
       focus,
       // beats a minute before a mood's own tempo: lets the chart say how long a crossing will take
       bpm: SEA_BPM * (Object.values(PACE).find((p) => p.id === gameState.settings.pace) ?? PACE.FLOWING).scale,
@@ -235,6 +258,7 @@ export class Voyage {
     this.cross = null;
     this.song = null;
     this.arrival = null;
+    this.tour = null;
     this.seaWorld.deactivate();
     this.world.seeds.clear();
     this.world.setSky(null);
@@ -414,6 +438,7 @@ export class Voyage {
       return;
     }
     const part = { sound: x.sound, score };
+    const cloaksBefore = cloaksOf(this.sea);
     const h = x.fresh ? null : this.hold(x.ref);
     const bridge = h ? h.bridge : { from: x.from, mood: x.mood, bpm: x.bpm, layers: [] };
     bridge.layers[x.layer] = part;
@@ -437,6 +462,7 @@ export class Voyage {
       // the two moments the whole sea has been working towards
       wholeSea: first && this.sea.awake.length === Object.keys(PLACE).length,
       everyBridge: newBridge && Object.keys(this.sea.bridges).length === EDGES.length,
+      cloaks: cloaksOf(this.sea).filter((id) => !cloaksBefore.includes(id)),
     };
     this.timer = 0;
     this.cine = {};
@@ -563,6 +589,7 @@ export class Voyage {
       afar: !h.own,
       wholeSea: a.wholeSea,
       everyBridge: a.everyBridge,
+      cloaks: a.cloaks.map((id) => CLOAKS[id].name),
       sounds: unlocked(this.sea.awake).sounds,
       suggest: this.suggestSound(a.ref),
     });
@@ -584,6 +611,28 @@ export class Voyage {
   // -------------------------------------------------------------------------------
   // Hearing a bridge again
   // -------------------------------------------------------------------------------
+  /**
+   * Hear every bridge the player has built, one after another, as one long piece: the whole of
+   * what they have made. Kite walks each in turn, following on where the last one ended when it can.
+   */
+  hearAll() {
+    const left = Object.keys(this.sea.bridges);
+    if (!left.length) return false;
+    const order = [];
+    let here = HOME_PLACE;
+    while (left.length) {
+      // a bridge that sets out from where Kite stands, else one that ends here, else any
+      let i = left.findIndex((id) => this.sea.bridges[id].from === here);
+      if (i < 0) i = left.findIndex((id) => EDGE[id].a === here || EDGE[id].b === here);
+      if (i < 0) i = 0;
+      const [id] = left.splice(i, 1);
+      order.push(id);
+      here = otherEnd(EDGE[id], this.sea.bridges[id].from);
+    }
+    this.tour = { order, at: 0 };
+    return this.listen(order[0]);
+  }
+
   listen(ref) {
     const c = this.c;
     const h = this.hold(ref);
@@ -624,8 +673,9 @@ export class Voyage {
     this.hud.showChart(false);
     this.hud.showArrival(false);
     this.hud.showHud(false);
+    const where = `${PLACE[bridge.from].name} to ${PLACE[this.song.to].name}`;
     this.hud.showListen(true, this.muted, {
-      label: `${PLACE[bridge.from].name} to ${PLACE[this.song.to].name}`,
+      label: this.tour ? `The whole sea · ${this.tour.at + 1} of ${this.tour.order.length} · ${where}` : where,
       stems: bridge.layers.map((l) => SOUNDS[l.sound].name),
     });
     return true;
@@ -672,7 +722,12 @@ export class Voyage {
         this.sea.at = s.to;
         this.save();
       }
-      this.focus = s.ref;
+      // the whole sea: straight on to the next bridge
+      if (this.tour && ++this.tour.at < this.tour.order.length && this.hold(this.tour.order[this.tour.at])) {
+        this.listen(this.tour.order[this.tour.at]);
+        return;
+      }
+      this.focus = this.tour ? null : s.ref;
       this.open();
     }
   }
@@ -822,6 +877,8 @@ export class Voyage {
       case 'sea-incoming': this.hearIncoming(); return true;
       case 'sea-skip': this.skipArrive(); return true;
       case 'sea-preview': this.preview(value); return true;
+      case 'sea-cloak': return this.wear(value.id) || true;
+      case 'sea-all': return this.hearAll() || true;
       case 'sea-keep': return this.keep(value.ref) || true;
       case 'sea-release': return this.release(value.ref) || true;
       default: return false;
@@ -856,6 +913,9 @@ export class Voyage {
       afar: this.sea.afar.map((g) => ({ edge: g.edge, from: g.from, mood: g.mood, bpm: g.bpm, parts: g.layers.map((l) => ({ sound: l.sound, notes: l.score.length })) })),
       crossing: x ? { edge: x.edgeId, from: x.from, to: x.to, layer: x.layer, sound: x.sound, mood: x.mood, beats: x.chart.beats, ...(x.own ? {} : { ref: x.ref }) } : null,
       listening: this.song ? this.song.ref : null,
+      tour: this.tour ? `${this.tour.at + 1}/${this.tour.order.length}` : null,
+      cloak: this.sea.cloak,
+      cloaks: cloaksOf(this.sea),
       incoming: this.incoming ? this.incoming.what : null,
       ...unlocked(this.sea.awake),
     };

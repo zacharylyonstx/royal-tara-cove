@@ -259,6 +259,8 @@ export class KiteModel {
     const hoodMat = track(mk({ color: COLORS.CLOAK, light: COLORS.CLOAK_LIGHT }));
     const darkMat = track(mk({ color: 0x0d0f1c, light: 0x0d0f1c }));
     const trimMat = track(mk({ color: COLORS.CLOAK_TRIM, light: 0xfff0c0 }));
+    this.hoodMat = hoodMat;
+    this.trimMat = trimMat;
     const bootMat = track(mk({ color: 0x4a3526, light: 0x6b4d36 }));
     const legMat = track(mk({ color: 0x1c2040, light: 0x2c3260 }));
 
@@ -394,6 +396,25 @@ export class KiteModel {
   }
 
   /** A note was just played: the ember answers in that pitch's colour. */
+  /**
+   * Wear another cloak: the cloth, its lit side, its trim, the ember and the scarf.
+   * (An Echo is made of light and keeps its own colour.)
+   * @param {{cloak:number, light:number, trim:number, ember:number, tail:number}} look
+   */
+  setLook(look) {
+    if (this.ghost || !look) return;
+    for (const m of [this.cloakMat, this.hoodMat]) {
+      m.uniforms.uColor.value.set(look.cloak);
+      m.uniforms.uLight.value.set(look.light);
+    }
+    this.cloakMat.uniforms.uTrim.value.set(look.trim);
+    this.trimMat.uniforms.uColor.value.set(look.trim);
+    this.emberColor.set(look.ember);
+    this.emberCore.material.color.copy(this.emberColor).multiplyScalar(3.2);
+    this.emberGlow.material.color.copy(this.emberColor);
+    this.tail.mat.uniforms.uColor.value.set(look.tail);
+  }
+
   flash(color, strength = 1) {
     this.emberFlash = Math.max(this.emberFlash, strength);
     if (color !== undefined) this.flashColor = new THREE.Color(color);

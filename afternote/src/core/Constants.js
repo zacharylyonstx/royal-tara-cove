@@ -168,6 +168,13 @@ export const CROSSING = {
 
 export const SAVE_KEY = 'afternote.lighthouse.v1';
 export const SEA_KEY = 'afternote.sea.v1';
+
+/** Watching for a device that cannot keep up (see Game._watchPace). */
+export const PACE_WATCH = {
+  SECONDS: 4, // judged over this much unbroken play
+  SLOW_FPS: 26, // below this the picture is lightened (30 is a tablet saving power, and is fine)
+  STEPS: [0.8, 0.64, 0.5], // each step: this share of the usual sharpness
+};
 export const SETTINGS_KEY = 'afternote.settings.v1';
 
 // Numbers are keys, letters are notes: the default keys can never be mistaken for a note name.

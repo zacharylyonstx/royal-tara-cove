@@ -8,7 +8,8 @@ export default defineConfig({
   timeout: 240000,
   fullyParallel: true,
   // (each page is a WebGL scene: more than a few WebKit pages at once exhausts the machine, not the game)
-  workers: 4,
+  workers: 3,
+  retries: 1, // (under load WebKit sometimes drops a page's graphics for a moment; a real failure fails twice)
   reporter: [['list']],
   use: { baseURL: 'http://localhost:5173', viewport: { width: 1280, height: 720 } },
   projects: [

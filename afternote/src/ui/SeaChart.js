@@ -30,6 +30,20 @@ function about(seconds) {
   return halves === 2 ? 'about a minute' : `about ${Math.floor(halves / 2)}${halves % 2 ? '½' : ''} minutes`;
 }
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
+
+/** Kite, small, in a cloak's colours (or as a shape still to be found). */
+function kiteSign(c, found = true) {
+  const cloak = found ? hex(c.cloak) : '#2b2c40', light = found ? hex(c.light) : '#3a3b52', trim = found ? hex(c.trim) : '#55566c', ember = found ? hex(c.ember) : '#55566c';
+  return `<svg class="kite-sign" viewBox="0 0 48 56" aria-hidden="true">
+    <path d="M14 13 11 3l8 5zM34 13l3-10-8 5z" fill="${cloak}"/>
+    <path d="M24 7c-9 0-14 8-13 18L6 49q18 7 36 0l-5-24c1-10-4-18-13-18z" fill="${cloak}"/>
+    <path d="M24 9c-7 0-11 6-10 13q10 6 20 0c1-7-3-13-10-13z" fill="${light}"/>
+    <ellipse cx="24" cy="19" rx="6.6" ry="5.4" fill="#0d0f1c"/>
+    <circle cx="21.4" cy="19" r="1.15" fill="${found ? '#ffd9a0' : '#55566c'}"/><circle cx="26.6" cy="19" r="1.15" fill="${found ? '#ffd9a0' : '#55566c'}"/>
+    <path d="M6 49q18 7 36 0" fill="none" stroke="${trim}" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="35" cy="34" r="3.4" fill="${ember}"/>${found ? `<circle cx="35" cy="34" r="6.5" fill="${ember}" opacity="0.28"/>` : ''}
+  </svg>`;
+}
 const STRAND = ['#ffd08a', '#a9d8ff', '#d9b8ff'];
 const PLACE_TINT = {
   lighthouse: '#ffc870', chimes: '#ffe6b0', harp: '#8fe8d8', garden: '#c8f09a', stacks: '#cfd8ff', harbor: '#ffb06a', deep: '#7df0ff',
@@ -37,7 +51,7 @@ const PLACE_TINT = {
 const W = 1000, H = 700, PAD_X = 120, PAD_TOP = 86, PAD_BOTTOM = 96;
 // bridges that came from another sea wait in the empty corner of the chart, six to a row
 const AFAR_X = 54, AFAR_Y = 616, AFAR_STEP = 56, AFAR_ROW = 6;
-const selOf = (ref) => (ref.startsWith('afar:') ? { kind: 'afar', id: Number(ref.slice(5)) } : { kind: 'edge', id: ref });
+const selOf = (ref) => (ref === 'cloaks' ? { kind: 'cloaks' } : ref.startsWith('afar:') ? { kind: 'afar', id: Number(ref.slice(5)) } : { kind: 'edge', id: ref });
 
 function el(tag, cls, html) {
   const e = document.createElement(tag);
@@ -99,12 +113,17 @@ export class SeaChart {
       </div>
       <div class="chart-foot">
         <span class="chart-tally"></span>
-        <button class="btn quiet" data-action="sea-home">Back to the lighthouse</button>
+        <span class="chart-foot-btns">
+          <button class="btn quiet" data-chart="all" hidden>${ICON.play}<span>Hear the whole sea</span></button>
+          <button class="btn quiet" data-chart="cloaks"><span>Kite's cloak</span></button>
+          <button class="btn quiet" data-action="sea-home"><span>Back to the lighthouse</span></button>
+        </span>
       </div>`;
     root.append(this.node);
     this.svg = this.node.querySelector('.chart-map');
     this.panel = this.node.querySelector('.chart-panel');
     this.tally = this.node.querySelector('.chart-tally');
+    this.allBtn = this.node.querySelector('[data-chart="all"]');
 
     this.arrival = el('div', 'screen arrival-card hidden');
     root.append(this.arrival);
@@ -196,6 +215,10 @@ export class SeaChart {
       } else {
         lines = `<line class="dots" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
       }
+      // a bridge with all three of its parts wears a star: something finished, and something to aim for
+      if (bridge && bridge.layers.length >= CROSSING.MAX_LAYERS) {
+        lines += `<path class="full" transform="translate(${(x1 + x2) / 2} ${(y1 + y2) / 2})" d="M0-11 3.2-3.6 11-3.4 4.9 1.6 7 9.4 0 5-7 9.4-4.9 1.6-11-3.4-3.2-3.6z"/>`;
+      }
       const state = bridge ? 'built' : e.start ? 'open' : 'far';
       parts.push(`<g class="edge ${state}${selected ? ' sel' : ''}" data-edge="${e.id}" tabindex="0" role="button" aria-label="${esc(PLACE[e.a].name)} to ${esc(PLACE[e.b].name)}: ${bridge ? `a bridge of ${bridge.layers.length} ${bridge.layers.length === 1 ? 'part' : 'parts'}` : e.start ? 'no bridge yet' : 'too far for now'}">
         <line class="halo" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>${lines}
@@ -228,7 +251,8 @@ export class SeaChart {
     this.svg.innerHTML = parts.join('');
     this._panel();
     const built = Object.keys(v.bridges).length;
-    this.tally.textContent = `${built} of ${v.edges.length} bridges · ${v.awake.length} of ${PLACES.length} places awake · ${v.sounds.length} of ${Object.keys(SOUNDS).length} sounds`;
+    this.tally.textContent = `${built} of ${v.edges.length} bridges · ${v.awake.length} of ${PLACES.length} places awake · ${v.cloaks.filter((c) => c.found).length} of ${v.cloaks.length} cloaks`;
+    this.allBtn.hidden = built < 2;
   }
 
   _chips(kind, ids, current) {
@@ -257,6 +281,9 @@ export class SeaChart {
       const copy = `<button class="btn primary" data-chart="copy">${ICON.copy}<span>Copy link</span></button>`;
       foot = `${navigator.share ? `<div class="pair">${copy}<button class="btn" data-chart="share">${ICON.send}<span>Share</span></button></div>` : copy}
         <button class="btn quiet small" data-chart="send-done">Done</button>`;
+    } else if (sel?.kind === 'cloaks') {
+      html = `<div class="panel-kicker">${v.cloaks.filter((c) => c.found).length} of ${v.cloaks.length} found</div><h3>Kite's cloak</h3>
+        <div class="cloaks">${v.cloaks.map((c) => `<button class="cloak${c.id === v.cloak ? ' on' : ''}${c.found ? '' : ' lost'}" ${c.found ? `data-chart="wear" data-id="${c.id}" aria-pressed="${c.id === v.cloak}"` : 'disabled'} aria-label="${esc(c.name)}${c.found ? '' : `, not found yet: ${esc(c.how)}`}">${kiteSign(c, c.found)}<span>${esc(c.found ? c.name : c.how)}</span></button>`).join('')}</div>`;
     } else if (sel?.kind === 'afar') {
       const g = chosen;
       const to = otherEnd(EDGE[g.edge], g.from);
@@ -358,6 +385,13 @@ export class SeaChart {
           this.sel = null;
           this.action('sea-release', { ref });
         } else if (what === 'keep-afar') this.action('sea-keep', { ref });
+        else if (what === 'all') this.action('sea-all');
+        else if (what === 'cloaks') {
+          this.sel = { kind: 'cloaks' };
+          this.sending = false;
+          this.confirm = false;
+          this._draw();
+        } else if (what === 'wear') this.action('sea-cloak', { id: pick.dataset.id });
         else if (what === 'pick') {
           this.pick[pick.dataset.kind] = pick.dataset.id;
           this._panel();
@@ -466,8 +500,11 @@ export class SeaChart {
       <div class="end-kicker">${d.gift ? 'You woke' : 'You reached'}</div>
       <h2 class="end-title">${esc(d.place)}</h2>
       <p class="end-note">${made}</p>`;
-    if (d.gift) {
-      html += `<div class="gift-box"><span>It gave you</span><b>${esc(d.gift.sound)}</b><i>a new sound</i><b>${esc(d.gift.mood)}</b><i>a new mood</i></div>`;
+    const gifts = [];
+    if (d.gift) gifts.push([d.gift.sound, 'a new sound'], [d.gift.mood, 'a new mood']);
+    for (const name of d.cloaks ?? []) gifts.push([name, 'a new cloak for Kite']);
+    if (gifts.length) {
+      html += `<div class="gift-box"><span>${d.gift ? 'It gave you' : 'You have earned'}</span>${gifts.map(([what, kind]) => `<b>${esc(what)}</b><i>${kind}</i>`).join('')}</div>`;
     }
     if (d.wholeSea) html += `<p class="end-note whole">Every place in the sea is awake.</p>`;
     if (d.everyBridge) html += `<p class="end-note whole">Every bridge in the sea is built.</p>`;

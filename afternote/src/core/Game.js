@@ -4,7 +4,7 @@
 import * as THREE from 'three-afternote';
 import { eventBus, Events } from './EventBus.js';
 import { gameState } from './GameState.js';
-import { TIMING, DEFAULT_KEYS, PACE, SEA_KEY } from './Constants.js';
+import { TIMING, DEFAULT_KEYS, PACE, SEA_KEY, PACE_WATCH } from './Constants.js';
 import { RealClock, ManualClock } from './Clock.js';
 import { Transport } from '../music/Transport.js';
 import { LIGHTHOUSE } from '../music/charts/lighthouse.js';
@@ -76,6 +76,9 @@ export class Game {
     this._applySettings();
 
     window.addEventListener('resize', () => this._resize());
+    // (A tablet under pressure can take the picture away for a moment. three.js asks for it back
+    // and rebuilds what it needs by itself; tried by taking the context away and returning it:
+    // the scene comes back as it was. Nothing more is done here on purpose.)
     this._resize();
     this.last = performance.now();
     this.conductor.boot();
@@ -272,7 +275,7 @@ export class Game {
     const w = window.innerWidth;
     const h = window.innerHeight;
     const coarse = window.matchMedia?.('(pointer: coarse)').matches;
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 1.75);
+    this.pixelRatio = Math.max(0.6, Math.min(window.devicePixelRatio || 1, coarse ? 1.5 : 1.75) * (this.pixelScale ?? 1));
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h);
     this.world.resize(w, h, this.pixelRatio);
@@ -293,10 +296,35 @@ export class Game {
       return;
     }
     const now = performance.now();
-    const dt = Math.min(TIMING.MAX_DT, (now - this.last) / 1000);
+    const raw = (now - this.last) / 1000;
+    const dt = Math.min(TIMING.MAX_DT, raw);
     this.last = now;
     this.step(dt);
     this.world.render();
+    this._watchPace(raw);
+  }
+
+  /**
+   * If the device cannot keep up, draw fewer pixels: music wants a steady picture more than a
+   * sharp one. Looks at whole seconds of play, steps down a little at a time, and never back up
+   * (so it settles). A steady 30 frames a second is left alone: a tablet saving power draws at
+   * exactly that on purpose.
+   */
+  _watchPace(dt) {
+    if (document.hidden || this.conductor.paused || dt > 0.25) {
+      this._pace = null; // a hitch, a pause or a hidden tab says nothing about the device
+      return;
+    }
+    const p = (this._pace ??= { t: 0, n: 0 });
+    p.t += dt;
+    p.n++;
+    if (p.t < PACE_WATCH.SECONDS) return;
+    const fps = p.n / p.t;
+    this._pace = null;
+    if (fps >= PACE_WATCH.SLOW_FPS || (this.paceSteps ?? 0) >= PACE_WATCH.STEPS.length) return;
+    this.pixelScale = PACE_WATCH.STEPS[this.paceSteps ?? 0];
+    this.paceSteps = (this.paceSteps ?? 0) + 1;
+    this._resize();
   }
 
   // -------------------------------------------------------------------------------

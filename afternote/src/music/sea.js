@@ -120,14 +120,44 @@ export const FINAL_CHORD = CH.C;
 export const HOME = 'lighthouse';
 export const PLACES = [
   { id: 'lighthouse', name: 'The Lighthouse', x: 14, z: -268, kind: 'home', gift: null, blurb: 'Home. Every bridge begins somewhere.' },
-  { id: 'chimes', name: 'Chime Rocks', x: -78, z: -342, kind: 'chimes', gift: { sound: 'musicbox', mood: 'lullaby' }, blurb: 'Old chimes hang still, waiting for a song.' },
-  { id: 'harp', name: 'Harp Shoals', x: 106, z: -340, kind: 'harp', gift: { sound: 'harp', mood: 'tide' }, blurb: 'Two stones lean together like a great harp.' },
-  { id: 'garden', name: 'Drift Garden', x: 14, z: -428, kind: 'garden', gift: { sound: 'marimba', mood: 'golden' }, blurb: 'A stone tree, bare until it hears music.' },
-  { id: 'stacks', name: 'Whistling Stacks', x: -182, z: -456, kind: 'stacks', gift: { sound: 'flute', mood: 'starfall' }, blurb: 'Tall rocks the wind plays like pipes.' },
-  { id: 'harbor', name: 'Tin Harbor', x: 202, z: -450, kind: 'harbor', gift: { sound: 'pan', mood: 'clockwork' }, blurb: 'A little wheel that has forgotten how to turn.' },
-  { id: 'deep', name: 'Firefly Deep', x: 14, z: -552, kind: 'deep', gift: { sound: 'firefly', mood: 'deep' }, blurb: 'Lanterns under dark water, not yet lit.' },
+  { id: 'chimes', name: 'Chime Rocks', x: -78, z: -342, kind: 'chimes', gift: { sound: 'musicbox', mood: 'lullaby', cloak: 'moon' }, blurb: 'Old chimes hang still, waiting for a song.' },
+  { id: 'harp', name: 'Harp Shoals', x: 106, z: -340, kind: 'harp', gift: { sound: 'harp', mood: 'tide', cloak: 'seaglass' }, blurb: 'Two stones lean together like a great harp.' },
+  { id: 'garden', name: 'Drift Garden', x: 14, z: -428, kind: 'garden', gift: { sound: 'marimba', mood: 'golden', cloak: 'blossom' }, blurb: 'A stone tree, bare until it hears music.' },
+  { id: 'stacks', name: 'Whistling Stacks', x: -182, z: -456, kind: 'stacks', gift: { sound: 'flute', mood: 'starfall', cloak: 'wind' }, blurb: 'Tall rocks the wind plays like pipes.' },
+  { id: 'harbor', name: 'Tin Harbor', x: 202, z: -450, kind: 'harbor', gift: { sound: 'pan', mood: 'clockwork', cloak: 'copper' }, blurb: 'A little wheel that has forgotten how to turn.' },
+  { id: 'deep', name: 'Firefly Deep', x: 14, z: -552, kind: 'deep', gift: { sound: 'firefly', mood: 'deep', cloak: 'glow' }, blurb: 'Lanterns under dark water, not yet lit.' },
 ];
 export const PLACE = Object.fromEntries(PLACES.map((p) => [p.id, p]));
+
+// ---------------------------------------------------------------------------------
+// Cloaks for Kite: something of the player's own to choose, and something to find. Each place
+// gives one when it wakes, and the sea as a whole gives three more. Colours only: cloth, its lit
+// side, trim, ember, scarf. `how` is said under one that has not been found yet.
+// ---------------------------------------------------------------------------------
+export const CLOAKS = {
+  dusk: { id: 'dusk', name: 'Dusk', how: '', cloak: 0x2a2f5c, light: 0x454c8a, trim: 0xe8b860, ember: 0xffa54a, tail: 0xc8963c },
+  moon: { id: 'moon', name: 'Moonsilver', how: 'Wake Chime Rocks', cloak: 0x6f7b9e, light: 0xc4cee8, trim: 0xf6f8ff, ember: 0xdfe8ff, tail: 0xaab4d0 },
+  seaglass: { id: 'seaglass', name: 'Seaglass', how: 'Wake Harp Shoals', cloak: 0x1d6a66, light: 0x46ac9f, trim: 0xc8fff0, ember: 0x8fe8d8, tail: 0x3a9a90 },
+  blossom: { id: 'blossom', name: 'Blossom', how: 'Wake Drift Garden', cloak: 0x47733a, light: 0x86ba66, trim: 0xffc8d8, ember: 0xffc4d6, tail: 0xd88aa0 },
+  wind: { id: 'wind', name: 'Windsong', how: 'Wake Whistling Stacks', cloak: 0x4f6dbe, light: 0x94b2f2, trim: 0xffffff, ember: 0xcfe4ff, tail: 0x8aa8e8 },
+  copper: { id: 'copper', name: 'Copper', how: 'Wake Tin Harbor', cloak: 0x823622, light: 0xc4683a, trim: 0xffd28a, ember: 0xffb06a, tail: 0xe08a4a },
+  glow: { id: 'glow', name: 'Firefly', how: 'Wake Firefly Deep', cloak: 0x0e2a3a, light: 0x1c5a6e, trim: 0x7df0ff, ember: 0x7df0ff, tail: 0x3ad0e0 },
+  dawn: { id: 'dawn', name: 'Dawn', how: 'Wake every place', cloak: 0xe6dccc, light: 0xfffaf0, trim: 0xffc870, ember: 0xfff0c0, tail: 0xffb86a },
+  starlight: { id: 'starlight', name: 'Starlight', how: 'Build every bridge', cloak: 0x1c1236, light: 0x5a3a9a, trim: 0xd9b8ff, ember: 0xe6ccff, tail: 0x9a7ae0 },
+  aurora: { id: 'aurora', name: 'Aurora', how: 'Give every bridge three parts', cloak: 0x163a4a, light: 0x3fd0a0, trim: 0xff9ad8, ember: 0xa8ffd8, tail: 0x8a7af0 },
+};
+export const HOME_CLOAK = 'dusk';
+
+/** The cloaks a sea has earned, in the order they are shown. */
+export function cloaksOf(sea) {
+  const list = [HOME_CLOAK];
+  for (const p of PLACES) if (p.gift?.cloak && sea.awake.includes(p.id)) list.push(p.gift.cloak);
+  const bridges = Object.values(sea.bridges);
+  if (sea.awake.length >= PLACES.length) list.push('dawn');
+  if (bridges.length >= EDGES.length) list.push('starlight');
+  if (bridges.length >= EDGES.length && bridges.every((b) => b.layers.length >= CROSSING.MAX_LAYERS)) list.push('aurora');
+  return list;
+}
 
 /** The bridges that can be played. `bars` sets how long the crossing is. */
 export const EDGES = [
@@ -233,7 +263,7 @@ export function tidyRests(record) {
 
 /** A fresh, empty sea. */
 export function emptySea() {
-  return { at: HOME, awake: [HOME], bridges: {}, afar: [], seen: {} };
+  return { at: HOME, awake: [HOME], bridges: {}, afar: [], seen: {}, cloak: HOME_CLOAK };
 }
 
 /** Sounds and moods the player has, given the places that are awake. */
@@ -302,6 +332,8 @@ export function sanitizeSea(raw) {
     for (const end of [EDGE[id].a, EDGE[id].b]) if (!sea.awake.includes(end)) sea.awake.push(end);
   }
   if (isPlace(raw.at) && sea.awake.includes(raw.at)) sea.at = raw.at;
+  // the cloak Kite wears: only one this sea has earned
+  if (typeof raw.cloak === 'string' && Object.hasOwn(CLOAKS, raw.cloak) && cloaksOf(sea).includes(raw.cloak)) sea.cloak = raw.cloak;
   // bridges that came from another sea are kept beside the player's own; they wake nothing
   if (Array.isArray(raw.afar)) {
     for (const g of raw.afar) {
@@ -464,5 +496,6 @@ export function mergeSeas(theirs, mine) {
     } else if (compareBridges(sea.afar[i].edge, sea.afar[i], edge, bridge) === 'grown') sea.afar[i] = { edge, ...copyBridge(bridge) };
   }
   if (!sea.awake.includes(sea.at)) sea.at = HOME;
+  sea.cloak = cloaksOf(sea).includes(mine.cloak) ? mine.cloak : HOME_CLOAK;
   return sea;
 }

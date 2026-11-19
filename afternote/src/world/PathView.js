@@ -217,7 +217,10 @@ export class PathView {
     }
     const mat = makeGlow({ color: COLORS.GOLD, intensity: instant ? 0.34 : 1.6, flow: 3 });
     const mesh = new THREE.Mesh(ribbonGeometry(pts, 0.13), mat);
-    mesh.frustumCulled = false;
+    // (the ribbon is drawn where it stands, so it can be left out when it is out of view:
+    // behind Kite on a long bridge that is most of them)
+    mesh.geometry.computeBoundingSphere();
+    mesh.geometry.boundingSphere.radius += 0.6;
     this.group.add(mesh);
     const item = { kind: 'arc', group: mesh, mat, n, born: instant ? -100 : G.uTime.value, flash: 0, piece: null };
     this.items.push(item);
@@ -287,6 +290,9 @@ export class PathView {
     }));
     halo.position.copy(head.holder.position);
     halo.scale.setScalar(3);
+    // (it only shows for a moment at birth and when the stone is stepped on: the rest of the time
+    // it is not drawn at all, which on a full bridge is a quarter of everything there is to draw)
+    halo.visible = false;
     group.add(halo);
 
     // a curtain of light drains from beneath the stone as it forms
@@ -503,6 +509,7 @@ export class PathView {
         item.mat.uniforms.uGlow.value = birth * birth * 0.1 + item.flash * 0.08;
         item.letterMat.uniforms.uGlow.value = Math.min(1, birth * 1.2 + item.flash);
         item.halo.material.opacity = Math.max(birth * birth * 0.3, item.flash * 0.2);
+        item.halo.visible = item.halo.material.opacity > 0.004;
         item.halo.scale.setScalar(2.4 + (1 - birth) * 2.4 + item.flash);
         if (item.curtain && age > 6) {
           item.group.remove(item.curtain);
