@@ -9,9 +9,9 @@ export function CharacterIndicator() {
   const gameMode = useGameStore((s) => s.gameMode);
   const def = CHARACTERS[activeId];
 
-  // Munchies and Treehouse use a different character selection flow;
+  // Munchies uses a different character selection flow;
   // the indicator is irrelevant/misleading while those modes are active.
-  if (gameMode === 'munchies' || gameMode === 'treehouse') return null;
+  if (gameMode === 'munchies') return null;
 
   return (
     <div

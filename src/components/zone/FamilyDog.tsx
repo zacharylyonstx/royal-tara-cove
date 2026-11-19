@@ -17,10 +17,9 @@ import { friendLevel } from '../../world/petStorage';
 import { dogNetIn, dogNetOut } from '../../state/dogSync';
 import type { CharacterId } from '../../types';
 
-// Sparky — the friendly little dog from the treehouse letters — lives at
+// Sparky — the family's friendly little dog — lives at
 // 10600 in Free Play. He wanders the front yard, trots after whoever comes
-// close, and E-to-pet showers hearts. Mounted in FREEPLAY ONLY so he never
-// duplicates the "Where's Sparky?" treehouse mission version of himself.
+// close, and E-to-pet showers hearts. Mounted in FREEPLAY ONLY.
 //
 // Multiplayer: every client simulates him from the SYNCED family positions
 // (deterministic inputs → roughly converging behavior; he's a dog, a little

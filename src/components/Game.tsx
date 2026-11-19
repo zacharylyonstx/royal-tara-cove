@@ -61,14 +61,6 @@ import { ProjectileController } from '../systems/ProjectileController';
 import { MusicController } from '../systems/MusicController';
 import { ProjectorController } from '../systems/ProjectorController';
 import { TornadoController } from '../systems/TornadoController';
-import { TreehouseCamera } from '../systems/TreehouseCamera';
-import { TreehouseController } from '../systems/TreehouseController';
-import { Treehouse } from './treehouse/Treehouse';
-import { liveOakPosition } from '../world/treehouseMissions';
-import { Ladder } from './treehouse/Ladder';
-import { SouvenirShelf } from './treehouse/SouvenirShelf';
-import { MissionItem } from './treehouse/MissionItem';
-import { MissionMarker } from './treehouse/MissionMarker';
 import { MunchiesCamera } from '../systems/MunchiesCamera';
 import { MunchiesController } from '../systems/MunchiesController';
 import { SleepwalkerController } from '../systems/SleepwalkerController';
@@ -299,7 +291,6 @@ export function Game() {
       <ProjectorController />
       <TornadoModeSystems />
       <MunchiesModeSystems />
-      <TreehouseModeSystems />
       <NightModeSystems />
       <FreeplayModeSystems />
       <CameraRig />
@@ -367,30 +358,6 @@ function MunchiesModeSystems() {
       <SleepwalkersLive />
       <SiblingBond />
       {phase === 'munchies-victory' && <Confetti />}
-    </>
-  );
-}
-
-function TreehouseOak() {
-  const oak = liveOakPosition();
-  return <LiveOak position={[oak.x, 0, oak.z]} scale={1.45} seed={3} />;
-}
-
-function TreehouseModeSystems() {
-  const gameMode = useGameStore((s) => s.gameMode);
-  if (gameMode !== 'treehouse') return null;
-  return (
-    <>
-      <TreehouseCamera />
-      <TreehouseController />
-      {/* The oak the treehouse lives in (removed from the freeplay backyard to
-          make room for the playset, so treehouse mode plants its own). */}
-      <TreehouseOak />
-      <Treehouse />
-      <Ladder />
-      <SouvenirShelf />
-      <MissionItem />
-      <MissionMarker />
     </>
   );
 }

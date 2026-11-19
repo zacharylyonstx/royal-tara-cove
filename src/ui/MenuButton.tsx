@@ -48,13 +48,12 @@ export function backToGames() {
     useNightStore.getState().reset();
     gs.clearRagdoll();
     gs.resetFamilyPositions();
-  } else if (mode === 'treehouse' || mode === 'freeplay') {
+  } else if (mode === 'freeplay') {
     // Free Play: don't carry a mid-air Siren Head toss back to the menu (it
     // replayed on return).
     gs.clearRagdoll();
-    // Bring everyone back to the cul-de-sac so a kid who was up in the
-    // treehouse (y≈8) or across the boulevard doesn't carry that into the
-    // next game.
+    // Bring everyone back to the cul-de-sac so a kid who was upstairs or
+    // across the boulevard doesn't carry that into the next game.
     gs.resetFamilyPositions();
   }
   gs.setPhase('pre-intro');

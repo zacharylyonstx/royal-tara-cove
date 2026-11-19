@@ -35,7 +35,7 @@ export function LookHint() {
 
   if (isTouchDevice()) return null;
   if (locked || welcomeOpen || !me || spectator || chatOpen || wardrobeOpen || riding) return null;
-  if (gameMode === 'munchies' || gameMode === 'treehouse') return null;
+  if (gameMode === 'munchies') return null;
 
   return (
     <div

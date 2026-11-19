@@ -31,9 +31,7 @@ export function CharacterSelect() {
   const gameMode = useGameStore((s) => s.gameMode);
 
   // Munchies: the whole family can sneak (whoever isn't playing sleepwalks).
-  const visibleChars = gameMode === 'treehouse'
-    ? CHARACTER_ORDER.filter((id) => id === 'luke' || id === 'penny')
-    : CHARACTER_ORDER;
+  const visibleChars = CHARACTER_ORDER;
 
   // Picking shows the select; once myCharacterId or spectator chosen, hide.
   const visible = mode !== null && myCharacterId === null && !spectator;
@@ -118,8 +116,8 @@ export function CharacterSelect() {
 
   if (!visible) return null;
 
-  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : mode === 'treehouse' ? 'THE TREEHOUSE CLUB' : mode === 'freeplay' ? 'FREE PLAY' : mode === 'night' ? 'SIREN HEAD' : 'TORNADO WARNING';
-  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : mode === 'treehouse' ? '#3a7a3a' : mode === 'freeplay' ? '#c87a2a' : mode === 'night' ? '#b0344f' : '#3a5a8a';
+  const modeLabel = mode === 'aliens' ? 'ALIEN INVASION' : mode === 'munchies' ? 'MIDNIGHT MUNCHIES' : mode === 'freeplay' ? 'FREE PLAY' : mode === 'night' ? 'SIREN HEAD' : 'TORNADO WARNING';
+  const modeAccent = mode === 'aliens' ? '#5a8a3e' : mode === 'munchies' ? '#5a3a8a' : mode === 'freeplay' ? '#c87a2a' : mode === 'night' ? '#b0344f' : '#3a5a8a';
 
   return (
     <div
@@ -180,11 +178,6 @@ export function CharacterSelect() {
             </p>
             <MunchiesDifficultyToggle />
           </>
-        )}
-        {gameMode === 'treehouse' && (
-          <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>
-            Pick a club member. Penny and Luke can both play — solo or in two windows.
-          </p>
         )}
         {gameMode === 'night' && (
           <p style={{ fontSize: 14, color: '#5a5040', margin: '4px 0 12px' }}>

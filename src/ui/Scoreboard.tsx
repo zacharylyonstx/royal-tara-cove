@@ -7,7 +7,6 @@ export function Scoreboard() {
   const gameMode = useGameStore((s) => s.gameMode);
   const phase = useGameStore((s) => s.phase);
   const show =
-    gameMode === 'treehouse' ||
     gameMode === 'freeplay' ||
     (gameMode === 'aliens' &&
       (phase === 'free-play' || phase === 'pre-intro' || phase === 'victory'));

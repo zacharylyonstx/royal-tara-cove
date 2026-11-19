@@ -83,7 +83,7 @@ export function TouchControls() {
   const BASE = Math.round(BASE_AT_1X * scale);
   const THUMB = Math.round(THUMB_AT_1X * scale);
   const RADIUS = (BASE - THUMB) / 2; // max thumb travel from centre
-  const fpsMode = gameMode !== 'munchies' && gameMode !== 'treehouse';
+  const fpsMode = gameMode !== 'munchies';
 
   const updateFromPointer = (e: ReactPointerEvent<HTMLDivElement>) => {
     const base = baseRef.current;

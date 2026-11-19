@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { Vector3 } from 'three';
 import type { CharacterId, Floor, RectCollider } from '../types';
 
-export type GameMode = 'aliens' | 'tornado' | 'munchies' | 'treehouse' | 'freeplay' | 'night';
+export type GameMode = 'aliens' | 'tornado' | 'munchies' | 'freeplay' | 'night';
 export type TornadoPhase =
   | 'calm' | 'rain' | 'hail' | 'tornado-approach' | 'tornado-arrived';
 export type MunchiesPhase =
@@ -13,11 +13,6 @@ export type MunchiesPhase =
   | 'munchies-level-clear'
   | 'munchies-game-over'
   | 'munchies-victory';
-export type TreehousePhase =
-  | 'treehouse-welcome'      // first-time overlay
-  | 'treehouse-play'         // default — free exploration / mission active
-  | 'treehouse-letter-open'  // letter overlay showing
-  | 'treehouse-complete';    // post-completion toast for a few seconds
 export type NightPhase =
   | 'night-intro'   // opening "make-believe" card before the hunt
   | 'night-hunt'    // main loop — gather the lanterns, avoid Siren Head
@@ -26,7 +21,6 @@ export type GamePhase =
   | 'pre-intro' | 'intro' | 'combat' | 'victory' | 'defeat' | 'free-play'
   | TornadoPhase
   | MunchiesPhase
-  | TreehousePhase
   | NightPhase;
 
 interface RagdollState {
@@ -121,7 +115,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     phase:
       s.gameMode === 'tornado'   ? 'calm' :
       s.gameMode === 'munchies'  ? 'munchies-intro' :
-      s.gameMode === 'treehouse' ? 'treehouse-welcome' :
       s.gameMode === 'freeplay'  ? 'free-play' :
       s.gameMode === 'night'     ? 'night-intro' :
       'intro',

@@ -89,7 +89,7 @@ export function CameraRig() {
       // Don't grab the cursor while the welcome screen is open or when
       // spectating (no input to capture).
       const _camMode = useGameStore.getState().gameMode;
-      if (_camMode === 'munchies' || _camMode === 'treehouse') return;
+      if (_camMode === 'munchies') return;
       if (useGameStore.getState().welcomeOpen) return;
       if (useNetStore.getState().spectator) return;
       // Chat textbox owns focus while open.
@@ -118,14 +118,14 @@ export function CameraRig() {
     // so on touch this is the ONLY way to turn and aim. A finger dragging on
     // empty screen (anything NOT on the joystick/buttons, which capture their
     // own touches) rotates yaw/pitch. We track one look-finger by identifier so
-    // it coexists with the movement thumb. munchies/treehouse use their own
+    // it coexists with the movement thumb. munchies uses its own
     // follow cams, so we ignore look there.
     const lookTouchId = { current: null as number | null };
     let lastX = 0;
     let lastY = 0;
     const lookActiveMode = () => {
       const m = useGameStore.getState().gameMode;
-      if (m === 'munchies' || m === 'treehouse') return false;
+      if (m === 'munchies') return false;
       if (useGameStore.getState().welcomeOpen) return false;
       if (useNetStore.getState().spectator) return false;
       if (usePlayStore.getState().riding[useNetStore.getState().myCharacterId ?? useGameStore.getState().activeCharacterId]) return false;
@@ -182,7 +182,7 @@ export function CameraRig() {
 
   useFrame((_, dtRaw) => {
     const _camMode = useGameStore.getState().gameMode;
-    if (_camMode === 'munchies' || _camMode === 'treehouse') return;
+    if (_camMode === 'munchies') return;
     const dt = Math.min(dtRaw, 0.1) * slowMo;
 
     // --- Spectator mode ---

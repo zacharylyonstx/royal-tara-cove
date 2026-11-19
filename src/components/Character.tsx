@@ -34,14 +34,14 @@ const SPRING_STEP = 1 / 120;
  *  wipeout) transforms, so driving is unaffected. */
 export function Character({ def, positionRef, yawRef, isActive }: CharacterProps) {
   // The hide-your-own-body gate exists for the FIRST-PERSON rig. Munchies
-  // (top-down) and Treehouse (behind-the-back) are third-person, so there the
+  // (top-down) is third-person, so there the
   // kid must SEE themself — this was the "we disappeared!" bug.
   const gameMode = useGameStore((s) => s.gameMode);
   const tpFree = usePlayStore((s) => s.thirdPerson);
   // Inside a Red Line car the view is always first-person (a chase camera
   // can't fit in a 2.9 m wide carriage), so my own body hides there too.
   const onTrain = useRailStore((st) => st.aboard >= 0);
-  const thirdPerson = gameMode === 'munchies' || gameMode === 'treehouse' || ((gameMode === 'freeplay' || gameMode === 'aliens') && tpFree && !(isActive && onTrain));
+  const thirdPerson = gameMode === 'munchies' || ((gameMode === 'freeplay' || gameMode === 'aliens') && tpFree && !(isActive && onTrain));
   const shadowRef = useRef<Mesh>(null);
   // Body-language state (all visual — the real position/yaw are untouched).
   const body = useRef({

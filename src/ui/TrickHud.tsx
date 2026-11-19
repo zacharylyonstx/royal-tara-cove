@@ -20,7 +20,6 @@ export function TrickHud() {
   }, [lastTrick]);
 
   const show =
-    gameMode === 'treehouse' ||
     gameMode === 'freeplay' ||
     (gameMode === 'aliens' && (phase === 'free-play' || phase === 'pre-intro' || phase === 'victory'));
   if (!show) return null;

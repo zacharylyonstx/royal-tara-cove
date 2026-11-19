@@ -43,10 +43,6 @@ import { MunchiesLevelClear } from './ui/MunchiesLevelClear';
 import { MunchiesGameOver } from './ui/MunchiesGameOver';
 import { MunchiesVictoryScreen } from './ui/MunchiesVictoryScreen';
 import { MunchiesGoodnightOverlay } from './ui/MunchiesGoodnightOverlay';
-import { TreehouseWelcomeOverlay } from './ui/TreehouseWelcomeOverlay';
-import { TreehouseLetterOverlay } from './ui/TreehouseLetterOverlay';
-import { TreehouseHud } from './ui/TreehouseHud';
-import { TreehouseMissionCompleteToast } from './ui/TreehouseMissionCompleteToast';
 import { NightHud } from './ui/NightHud';
 import { TouchControls } from './ui/TouchControls';
 import { WardrobeOverlay } from './ui/WardrobeOverlay';
@@ -113,10 +109,6 @@ export default function App() {
       <MunchiesGameOver />
       <MunchiesGoodnightOverlay />
       <MunchiesVictoryScreen />
-      <TreehouseWelcomeOverlay />
-      <TreehouseLetterOverlay />
-      <TreehouseHud />
-      <TreehouseMissionCompleteToast />
       <NightHud />
       <WelcomeScreen />
       <CharacterSelect />

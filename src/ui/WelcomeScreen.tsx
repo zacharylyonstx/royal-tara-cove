@@ -17,6 +17,10 @@ export function WelcomeScreen() {
     await joinRoom(mode);
   };
 
+  // Afternote is its own little game on its own page: no room to join, no
+  // character to pick. (Its title screen has a link back here.)
+  const openAfternote = () => { window.location.href = '/afternote/'; };
+
   if (!open) return null;
 
   return (
@@ -98,18 +102,18 @@ export function WelcomeScreen() {
             onPlay={() => pick('munchies')}
           />
           <GameCard
-            emoji="🌳"
-            title="THE TREEHOUSE CLUB"
-            blurb="🚧 Still being built! Penny and Luke's secret clubhouse — read letters from neighbors and do little adventures (solo for now)."
-            accent="#5a8a3e"
-            onPlay={() => pick('treehouse')}
-          />
-          <GameCard
             emoji="🔦"
             title="SIREN HEAD"
             blurb="It's dark and foggy and tall Siren Head is roaming the street! Sneak out together, grab the 5 glowing lanterns, and light up the block before he finds you. Get bonked? A buddy helps you up!"
             accent="#b0344f"
             onPlay={() => pick('night')}
+          />
+          <GameCard
+            emoji="🎵"
+            title="AFTERNOTE"
+            blurb="A music adventure. Play a note and a stone appears to land on — play a melody and you've built a path. Bring the lighthouse to life with your own song! (One player; opens in its own screen.)"
+            accent="#6a4fc3"
+            onPlay={openAfternote}
           />
         </div>
 

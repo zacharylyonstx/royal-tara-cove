@@ -9,8 +9,8 @@ import { lofiOff, lofiOn, useMusicStore } from '../state/musicStore';
 const MAX_BLOBS_FOR_INTENSITY = 8;
 
 // Adaptive layered music for the Aliens + Free Play modes (Free Play normally
-// plays the lofi radio instead — src/lofi.ts). Munchies and Treehouse
-// run their own themes (lullaby / treehouse), so this stops when those start.
+// plays the lofi radio instead — src/lofi.ts). Munchies runs its
+// own theme (the lullaby), so this stops when that starts.
 export function MusicController() {
   const startedRef = useRef(false);
 
@@ -22,7 +22,7 @@ export function MusicController() {
     // The tornado carries its own dread (storm roar, sirens, hail); the
     // cheerful C-major pad plinking under it broke the spell.
     // Siren Head Night runs its own horror theme (started by SirenHeadController).
-    if (mode === 'munchies' || mode === 'treehouse' || mode === 'tornado' || mode === 'night') {
+    if (mode === 'munchies' || mode === 'tornado' || mode === 'night') {
       if (startedRef.current) { stopMusic(); startedRef.current = false; }
       lofiOff();
       return;

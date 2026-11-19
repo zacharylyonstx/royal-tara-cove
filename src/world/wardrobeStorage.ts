@@ -1,5 +1,5 @@
 // LocalStorage for wardrobe choices — one JSON blob, all three characters'
-// appearances. Mirrors treehouseStorage. Defensive load (bad/missing → defaults).
+// appearances.  Defensive load (bad/missing → defaults).
 import type { CharacterId } from '../types';
 import { type Appearance, defaultAppearance, SLOTS, getItem } from './wardrobe';
 

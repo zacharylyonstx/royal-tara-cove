@@ -3,7 +3,7 @@
 // write to it and PlayerController can read it in the useFrame hot path without
 // triggering any React re-renders. PlayerController folds these values into the
 // same key map + edge refs the keyboard drives, so touch works across every
-// movement path (walk / munchies / treehouse / bike) with no extra plumbing.
+// movement path (walk / munchies / bike) with no extra plumbing.
 export const touchInput = {
   /** True while the joystick is being dragged. */
   active: false,

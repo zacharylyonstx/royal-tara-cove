@@ -37,16 +37,6 @@ export function ControlsHud() {
             <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes &nbsp; <kbd>esc</kbd> close menus
           </div>
         </>
-      ) : gameMode === 'treehouse' ? (
-        // Treehouse uses a follow cam (no pointer lock) — no click/esc hints.
-        <>
-          <div>
-            <kbd>WASD</kbd> move &nbsp; <kbd>⇧</kbd> run &nbsp; <kbd>␣</kbd> jump
-          </div>
-          <div>
-            <kbd>E</kbd> climb / open / pick up &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>1-4</kbd> emotes
-          </div>
-        </>
       ) : gameMode === 'aliens' ? (
         <>
           <div>

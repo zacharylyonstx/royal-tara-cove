@@ -15,9 +15,7 @@ import { buildLots } from '../world/lots';
 import { STRAIGHT_START_Z, STRAIGHT_END_Z } from '../world/streetLayout';
 import { MUNCHIES_PLAYER_SPEED } from '../world/munchiesConfig';
 import { MUNCHIES_SPAWN, buildMunchiesColliders, clampToHouse } from '../world/munchiesMap';
-import { useTreehouseStore } from '../state/treehouseStore';
-import { liveOakPosition, treehouseSpawnPoint } from '../world/treehouseMissions';
-import { treehousePickup, hopSound, trampolineBoing } from '../audio';
+import { hopSound, trampolineBoing } from '../audio';
 import { touchInput, TOUCH_RUN_THRESHOLD, TOUCH_DIR_THRESHOLD } from './touchInput';
 import { useHideSeekStore } from '../state/hideSeekStore';
 import { HS_COUNT_SPOT, hsClamp, hsInBounds } from '../world/hideSeek';
@@ -242,10 +240,6 @@ export function PlayerController() {
         if (modeForReset === 'munchies') {
           // Munchies spawn is just inside 10600's front door, not the cul-de-sac.
           pos.set(MUNCHIES_SPAWN.x, 0, MUNCHIES_SPAWN.z);
-        } else if (modeForReset === 'treehouse') {
-          // Treehouse spawn is 10600's backyard near the live oak.
-          const sp = treehouseSpawnPoint();
-          pos.set(sp.x, 0, sp.z);
         } else {
           // Back to my spot in the cul-de-sac (this used to drop you 100 m up
           // the street, a leftover from an older map).
@@ -340,7 +334,7 @@ export function PlayerController() {
     }
 
     // Fold on-screen touch controls into the SAME signals the keyboard drives,
-    // so every movement path below (walk / munchies / treehouse / bike) works on
+    // so every movement path below (walk / munchies / bike) works on
     // touch with no extra plumbing. Writes only while engaged, then clears once
     // on release so it never clobbers keyboard play on hybrid devices. Must run
     // before jumpedThisFrame is captured so the jump edge lands this frame.
@@ -404,14 +398,14 @@ export function PlayerController() {
     /** The seeker stands still with their eyes shut while they count. */
     const hsFrozen = hsPlaying && hsS.phase === 'counting' && hsS.seeker === activeId;
 
-    // ---- Interactables, pass 1: house + zone spots (freeplay / treehouse) ----
+    // ---- Interactables, pass 1: house + zone spots (freeplay) ----
     // Dressers (open wardrobe) and zone spots (pet Sparky, pet a duck, ice
     // cream…) are collected as CANDIDATES. In Free Play the single best one is
     // picked further down TOGETHER with doors/vehicles/balls by distance AND
     // facing (interactSelect.ts) — so Sparky heeling at your feet can no longer
-    // steal "open door". Treehouse keeps its own interact chain, so it picks here.
+    // steal "open door".
     const earlyCands: InteractCandidate[] = [];
-    if (modeNow === 'freeplay' || modeNow === 'treehouse') {
+    if (modeNow === 'freeplay') {
       const p = positions[activeId];
       const ws = useWardrobeStore.getState();
       const zs = useZoneStore.getState();
@@ -422,17 +416,6 @@ export function PlayerController() {
         }
         for (const it of Object.values(zs.interactables)) {
           earlyCands.push({ kind: 'zone', id: it.id, x: it.x, z: it.z, radius: it.radius });
-        }
-      }
-      if (modeNow === 'treehouse') {
-        const { fx, fz } = facingFromYaw(yaws[activeId]);
-        const best = selectInteractable(p.x, p.z, fx, fz, earlyCands);
-        ws.setHoverDresser(best?.kind === 'dresser' ? (best.id as CharacterId) : null);
-        zs.setHover(best?.kind === 'zone' ? best.id : null);
-        if (best && interactPressedRef.current) {
-          interactPressedRef.current = false;
-          fireHouseOrZoneInteract(best, activeId);
-          return;
         }
       }
     } else {
@@ -468,75 +451,6 @@ export function PlayerController() {
       return;
     }
 
-    if (modeNow === 'treehouse') {
-      // The Treehouse Club is the free-roam neighborhood mode, so bikes +
-      // basketball are available here (always — no combat to conflict with).
-      // This mirrors the aliens free-roam play layer; TreehouseCamera already
-      // follows behind the player, which doubles as the bike chase cam.
-      const pos = positions[activeId];
-      const dt = Math.min(dtRaw, 0.1);
-      const k = keys.current;
-      const play = usePlayStore.getState();
-      const myRiding = play.riding[activeId];
-
-      // Contextual hover (bike / ball).
-      if (myRiding) {
-        play.setHover('getoff', myRiding.bikeId, null);
-      } else if (play.heldBall && play.heldBall.by === activeId) {
-        play.setHover('shoot', null, play.heldBall.ballId);
-      } else {
-        let bBike: string | null = null; let bBikeD = 2.0;
-        for (const b of Object.values(play.bikes)) {
-          const d = Math.hypot(b.x - pos.x, b.z - pos.z);
-          if (d < bBikeD) { bBikeD = d; bBike = b.id; }
-        }
-        let bBall: string | null = null; let bBallD = 1.5;
-        for (const [bid, bp] of Object.entries(ballPositions)) {
-          const d = Math.hypot(bp.x - pos.x, bp.z - pos.z);
-          if (d < bBallD) { bBallD = d; bBall = bid; }
-        }
-        if (bBall && (!bBike || bBallD <= bBikeD)) play.setHover('pickup', null, bBall);
-        else if (bBike) play.setHover('ride', bBike, null);
-        else play.setHover(null, null, null);
-      }
-
-      // Ride movement (replaces walking while mounted).
-      if (myRiding) {
-        rideBikeTick(myRiding, pos, yaws, activeId, k, dt, staticColliders, doors, jumpedThisFrame);
-      }
-
-      // E interaction: play takes priority; otherwise fall through to the
-      // treehouse ladder / mission-item interact (we leave the ref set).
-      if (interactPressedRef.current) {
-        if (play.heldBall && play.heldBall.by === activeId) { interactPressedRef.current = false; play.dropBall(); }
-        else if (play.hoverPlay === 'pickup' && play.hoverBallId) { interactPressedRef.current = false; play.pickUpBall(play.hoverBallId, activeId); }
-        else if (play.hoverPlay === 'ride' && play.hoverBikeId) { interactPressedRef.current = false; mountBike(activeId, play.hoverBikeId, play.bikes[play.hoverBikeId]?.color ?? '#3a6db0', yaws[activeId]); }
-        else if (play.hoverPlay === 'getoff') {
-          interactPressedRef.current = false;
-          if (myRiding && myRiding.vehicle !== 'car') {
-            play.parkBike(myRiding.bikeId, pos.x, pos.z, myRiding.heading);
-            void broadcastPark([{ id: myRiding.bikeId, x: pos.x, z: pos.z, yaw: myRiding.heading }]);
-          }
-          dismountBike(activeId, pos, staticColliders);
-        }
-      }
-
-      // Shoot a held ball (space / click).
-      if (shootRef.current) {
-        shootRef.current = false;
-        const p2 = usePlayStore.getState();
-        if (p2.heldBall && p2.heldBall.by === activeId) doShoot(p2, activeId, pos, aimYaw);
-      }
-
-      if (play.riding[activeId]) {
-        // Riding: keep a carried mission item following us; skip walking.
-        const mi = useTreehouseStore.getState().missionItem;
-        if (mi && mi.carriedBy === activeId) useTreehouseStore.getState().setMissionItemPos(pos.x, pos.z);
-      } else {
-        treehouseTick(pos, yaws, activeId, k, dtRaw, staticColliders, doors, interactPressedRef);
-      }
-      return;
-    }
 
     const slowFactor = useCombatStore.getState().slowMo;
     const dt = Math.min(dtRaw, 0.1) * slowFactor;
@@ -1413,7 +1327,7 @@ function munchiesTick(
   doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>,
 ) {
   const dt = Math.min(dtRaw, 0.1);
-  // The maze is on the ground: a kid arriving from the treehouse (y≈8) used to
+  // The maze is on the ground: a kid arriving from somewhere high up used to
   // keep "flying" over it. Stay planted.
   if (pos.y !== 0) pos.y = 0;
   // World-axis movement (the camera looks straight down, so W = up the screen).
@@ -1457,116 +1371,3 @@ function munchiesTick(
 
 /** Furniture + fort walls of the Munchies maze (static for the session). */
 const MUNCHIES_COLLIDERS = buildMunchiesColliders();
-
-const TREEHOUSE_SPEED = 5.0;
-const TREEHOUSE_RUN_SPEED = 8.5;
-const LADDER_INTERACT_RADIUS = 2.5;
-const ITEM_INTERACT_RADIUS = 2.0;
-const TREEHOUSE_FLOOR_Y = 8.0;
-const TREEHOUSE_PLATFORM_REACH = 2.4; // past this from the trunk you've stepped off the deck
-const COVE_BOUND_RADIUS = 75;
-
-function treehouseTick(
-  pos: Vector3,
-  yaws: Record<string, number>,
-  activeId: string,
-  keys: Record<string, boolean>,
-  dtRaw: number,
-  staticColliders: import('../types').RectCollider[],
-  doors: Record<string, { open: boolean; centerX: number; centerZ: number; aabbWhenClosed: import('../types').RectCollider }>,
-  interactPressedRef: { current: boolean },
-) {
-  const dt = Math.min(dtRaw, 0.1);
-
-  // --- Movement (world-axis WASD) ---
-  let dx = 0;
-  let dz = 0;
-  if (keys['w'] || keys['arrowup']) dz -= 1;
-  if (keys['s'] || keys['arrowdown']) dz += 1;
-  if (keys['a'] || keys['arrowleft']) dx -= 1;
-  if (keys['d'] || keys['arrowright']) dx += 1;
-  if (dx !== 0 || dz !== 0) {
-    const len = Math.hypot(dx, dz);
-    dx /= len;
-    dz /= len;
-    const isRunning = !!keys['shift'];
-    const speed = isRunning ? TREEHOUSE_RUN_SPEED : TREEHOUSE_SPEED;
-    const moveX = dx * speed * dt;
-    const moveZ = dz * speed * dt;
-    const desiredX = pos.x + moveX;
-    const desiredZ = pos.z + moveZ;
-    const allColliders = [...staticColliders];
-    for (const door of Object.values(doors)) {
-      if (door.open) continue;
-      allColliders.push(door.aabbWhenClosed);
-    }
-    const resolved = resolveMotion(pos.x, pos.z, desiredX, desiredZ, allColliders);
-    pos.x = resolved.x;
-    pos.z = resolved.z;
-    // Smoothly lerp yaw toward movement direction (no snap → no camera jumps).
-    const targetYaw = Math.atan2(-dx, -dz);
-    let diff = targetYaw - yaws[activeId];
-    while (diff > Math.PI) diff -= 2 * Math.PI;
-    while (diff < -Math.PI) diff += 2 * Math.PI;
-    yaws[activeId] = yaws[activeId] + diff * Math.min(1, 8 * dt);
-  }
-
-  // Walked off the treehouse platform edge → hop down (no more hovering at 8 m).
-  if (pos.y > 0.5) {
-    const oak = liveOakPosition();
-    if (Math.hypot(pos.x - oak.x, pos.z - oak.z) > TREEHOUSE_PLATFORM_REACH) pos.y = 0;
-  }
-
-  // --- Soft cove boundary ---
-  const distFromCenter = Math.hypot(pos.x, pos.z);
-  if (distFromCenter > COVE_BOUND_RADIUS) {
-    const k = COVE_BOUND_RADIUS / distFromCenter;
-    pos.x *= k;
-    pos.z *= k;
-  }
-
-  // --- Interact ---
-  if (interactPressedRef.current) {
-    interactPressedRef.current = false;
-    handleTreehouseInteract(pos, activeId);
-  }
-
-  // Carry mission item: when carried, item follows player.
-  const mi = useTreehouseStore.getState().missionItem;
-  if (mi && mi.carriedBy === activeId) {
-    useTreehouseStore.getState().setMissionItemPos(pos.x, pos.z);
-  }
-}
-
-function handleTreehouseInteract(pos: Vector3, activeId: string) {
-  const oak = liveOakPosition();
-
-  // 1) Ladder up: ground level near tree
-  if (pos.y < 0.5 && Math.hypot(pos.x - oak.x, pos.z - oak.z) < LADDER_INTERACT_RADIUS) {
-    pos.y = TREEHOUSE_FLOOR_Y + 0.05;
-    return;
-  }
-
-  // 2) Ladder down: inside treehouse
-  if (pos.y > TREEHOUSE_FLOOR_Y - 0.5 && Math.hypot(pos.x - oak.x, pos.z - oak.z) < LADDER_INTERACT_RADIUS + 0.5) {
-    pos.y = 0;
-    return;
-  }
-
-  // 3) Mission item pickup (on ground, not yet carried)
-  const ts = useTreehouseStore.getState();
-  const item = ts.missionItem;
-  if (item && item.carriedBy === null) {
-    if (Math.hypot(pos.x - item.x, pos.z - item.z) < ITEM_INTERACT_RADIUS) {
-      ts.pickUpMissionItem(activeId as 'luke' | 'penny');
-      treehousePickup();
-      return;
-    }
-  }
-
-  // 4) Mission item drop (currently carrying)
-  if (item && item.carriedBy === activeId) {
-    ts.dropMissionItem(pos.x, pos.z);
-    return;
-  }
-}
