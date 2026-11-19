@@ -396,11 +396,12 @@ export class Hud {
       });
     }
     this.movementChips.forEach((b, i) => {
-      const state = done[i] ? 'done' : i === next ? 'next' : 'locked';
+      // nothing is locked: 'next' is only where the story would go, 'open' is any other unplayed part
+      const state = done[i] ? 'done' : i === next ? 'next' : 'open';
       b.dataset.state = state;
-      b.disabled = state === 'locked';
-      b.querySelector('.mark').textContent = state === 'done' ? 'play again' : state === 'next' ? (i === 0 ? 'start here' : 'continue here') : 'plays with your earlier Echo';
-      b.setAttribute('aria-label', `${movements[i].numeral}. ${movements[i].title} — ${state === 'locked' ? 'locked until the movement before it is finished' : state === 'done' ? 'finished; play again' : 'play'}`);
+      b.disabled = false;
+      b.querySelector('.mark').textContent = state === 'done' ? 'play again' : state === 'next' ? (i === 0 ? 'start here' : 'continue here') : 'play any time';
+      b.setAttribute('aria-label', `${movements[i].numeral}. ${movements[i].title} — ${state === 'done' ? 'finished; play again' : 'play'}`);
     });
     this.movementHint.textContent = done.some(Boolean)
       ? 'Playing a finished movement again only replaces it if you finish the new one.'

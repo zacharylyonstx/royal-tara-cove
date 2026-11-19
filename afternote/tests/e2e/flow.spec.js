@@ -298,12 +298,12 @@ test('the home-row preset swaps the keys and the labels together', async ({ page
 // ---------------------------------------------------------------------------------
 const chips = (page) => page.$$eval('.movement-chip', (els) => els.map((e) => ({ state: e.dataset.state, disabled: e.disabled })));
 
-test('the title shows three movements; a new player can only start the first', async ({ page }) => {
+test('the title shows three movements, and none of them is locked', async ({ page }) => {
   await boot(page);
   expect(await chips(page)).toEqual([
     { state: 'next', disabled: false },
-    { state: 'locked', disabled: true },
-    { state: 'locked', disabled: true },
+    { state: 'open', disabled: false },
+    { state: 'open', disabled: false },
   ]);
   await page.click('.movement-chip[data-value="0"]');
   const s = await advance(page, 4000);
@@ -312,7 +312,29 @@ test('the title shows three movements; a new player can only start the first', a
   expect(s.gateWaiting).toBe(true);
 });
 
-test('finishing a movement unlocks the next one on the title, and it can be started from there', async ({ page }) => {
+test('a later movement can be played first: it has no Echo to answer, and the journey still holds together', async ({ page }) => {
+  const errors = await boot(page);
+  await page.click('.movement-chip[data-value="2"]');
+  let s = await advance(page, 2000);
+  expect(s.phase).toBe('play');
+  expect(s.movement).toBe(2);
+  expect(s.echoes).toEqual([]);
+  await page.evaluate(() => window.__afternote.bot({ strategy: 'high' }));
+  s = await until(page, 's.phase === "end"');
+  expect(s.records.map((r) => !!r)).toEqual([false, false, true]);
+  expect(s.lighthouseLit).toBe(true);
+  // home again: the other two are still there to play, in either order
+  await page.evaluate(() => window.__afternote.game.conductor.leave());
+  s = await advance(page, 300);
+  expect(s.ui.movements).toEqual(['next', 'open', 'done']);
+  await page.click('.movement-chip[data-value="1"]');
+  await page.evaluate(() => window.__afternote.bot({ strategy: 'low' }));
+  s = await until(page, 's.phase === "title" || s.phase === "end" || (s.phase === "play" && s.movement !== 1)');
+  expect(s.records.map((r) => !!r)).toEqual([false, true, true]);
+  expect(errors).toEqual([]);
+});
+
+test('finishing a movement marks it done on the title, and the next one can be started from there', async ({ page }) => {
   await boot(page);
   await page.click('[data-action="begin"]');
   await page.evaluate(() => window.__afternote.bot({ strategy: 'low' }));
@@ -324,7 +346,7 @@ test('finishing a movement unlocks the next one on the title, and it can be star
   expect(await chips(page)).toEqual([
     { state: 'done', disabled: false },
     { state: 'next', disabled: false },
-    { state: 'locked', disabled: true },
+    { state: 'open', disabled: false },
   ]);
   await page.click('.movement-chip[data-value="1"]');
   s = await advance(page, 2000);

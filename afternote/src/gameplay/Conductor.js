@@ -27,10 +27,10 @@ const TIPS = [
     { from: 30.3, to: 34.4, text: 'Now choose your own.', once: 'open' },
   ],
   [
-    { from: -5.5, to: 1.5, text: 'Your Echo plays above. Answer it.', once: 'echo' },
+    { from: -5.5, to: 1.5, text: 'Your Echo plays above. Answer it.', once: 'echo', needsEchoes: 1 },
     { from: 12.0, to: 15.2, text: 'A shared ring: play with your Echo.', once: 'crossing', needsRing: 'crossing1' },
   ],
-  [{ from: -5.5, to: 0.5, text: 'Both Echoes are with you.', once: 'both' }],
+  [{ from: -5.5, to: 0.5, text: 'Both Echoes are with you.', once: 'both', needsEchoes: 2 }],
 ];
 
 // Where the camera waits on the title (world units relative to Kite and the route's heading).
@@ -181,9 +181,9 @@ export class Conductor {
     }
   }
 
-  /** A movement is open once every movement before it has been recorded: it is played with their Echoes. */
+  /** Every movement is open from the start. One played before its elders simply has no Echo to answer yet. */
   isUnlocked(i) {
-    return gameState.records.slice(0, i).every(Boolean);
+    return i >= 0 && i < this.island.movements.length;
   }
 
   /**
@@ -641,6 +641,7 @@ export class Conductor {
       if (beat < tip.from || beat > tip.to || !tip.text) continue;
       if (this.replaying) continue;
       if (tip.once && gameState.seen[`tip:${tip.once}`] && this.tip !== tip) continue;
+      if (tip.needsEchoes && this.echoes.length < tip.needsEchoes) continue;
       if (tip.needsRing) {
         const slot = this.runner.slots.find((s) => s.id === tip.needsRing);
         if (!slot || this.runner.resonantPitch(slot) === null) continue;
@@ -716,7 +717,8 @@ export class Conductor {
       this.afterBirth = all ? 'end' : i < 2 && !gameState.records[i + 1] ? 'transit' : 'title';
       this._setPhase('echoBirth');
     } else if (i < 2) {
-      this.afterBirth = 'transit';
+      // on to the next part if it is still unplayed; a journey played out of order goes home instead
+      this.afterBirth = !gameState.records[i + 1] ? 'transit' : gameState.records.every(Boolean) ? 'end' : 'title';
       this._setPhase('echoBirth');
     } else {
       this._setPhase('ignite');
