@@ -36,3 +36,6 @@ yarn-error.log*
 test-results/
 afternote/test-results/
 playwright-report/
+
+# source avatars for NPC templates (large; rebuilt into public/assets/npc by scripts/npc-avatar-build.py)
+assets-src/

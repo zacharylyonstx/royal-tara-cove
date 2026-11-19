@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import type { Group } from 'three';
-import { AnimeNpcModel, animeDims } from './AnimeNpcModel';
+import { AnimeNpcModel } from './AnimeNpcModel';
+import { AvatarNpcModel, avatarDims } from './AvatarNpcModel';
 import { useGameStore } from '../../state/gameStore';
 import { useSkyStore } from '../../state/skyStore';
 import { useZoneStore } from '../../state/zoneStore';
@@ -12,8 +13,9 @@ import { NPCS, planNpc, type NpcDef } from '../../world/npcs';
 import { realSecondsAt, sunElevation, NPC_HOME_BELOW_EL } from '../../world/npcTime';
 import { CHARACTER_ORDER } from '../../world/characters';
 
-// The townsfolk, drawn as cute anime-style characters (AnimeNpcModel), with a
-// real limb swing when they walk. The family keep their own likenesses.
+// The townsfolk, drawn as modelled anime characters (AvatarNpcModel; the simple
+// AnimeNpcModel stands in for the moment a model takes to load). The family keep
+// their own likenesses.
 //
 // Each NPC chases a TARGET that is a pure function of the shared day clock
 // (world/npcs.ts planNpc), so every player sees them in the same place with
@@ -45,7 +47,7 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
   const rightArm = useRef<Group>(null);
   const torso = useRef<Group>(null);
   const rig = useMemo(() => ({ leftLeg, rightLeg, leftArm, rightArm, torso }), []);
-  const d = useMemo(() => animeDims(def.look.height), [def.look.height]);
+  const d = useMemo(() => avatarDims(def.look.height), [def.look.height]);
 
   const st = useRef({
     init: false, x: 0, z: 0, y: 0, yaw: 0, phase: Math.random() * 6, speed: 0,
@@ -195,7 +197,9 @@ function Npc({ def, index }: { def: NpcDef; index: number }) {
   const showBubble = !!bubble && now - bubble.at < BUBBLE_MS && shown;
   return (
     <group ref={root}>
-      <AnimeNpcModel id={def.id} look={def.look} rig={rig} />
+      <Suspense fallback={<AnimeNpcModel id={def.id} look={def.look} />}>
+        <AvatarNpcModel look={def.look} rig={rig} />
+      </Suspense>
       {shown && near && !showBubble && (
         <Html position={[0, def.look.height + 0.32, 0]} center distanceFactor={9} zIndexRange={[70, 0]} occlude={false}>
           <div style={{ background: 'rgba(20,28,38,0.74)', color: '#fff', padding: '2px 9px', borderRadius: 999, fontSize: 13, fontWeight: 800, fontFamily: FONT, whiteSpace: 'nowrap', pointerEvents: 'none', border: '2px solid #f6c945', textAlign: 'center' }}>
