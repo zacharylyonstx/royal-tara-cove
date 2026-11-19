@@ -203,7 +203,10 @@ export class Game {
         this.hud.showConfirm(true);
         break;
       default:
-        c.endAction(action, value);
+        if (action.startsWith('sea')) {
+          this._startAudio();
+          c.voyage.action(action, value);
+        } else c.endAction(action, value);
         break;
     }
   }
@@ -302,7 +305,10 @@ export class Game {
           notesInWorld: game.world.seeds.showNames,
         },
         lastEvents: c.lastEvents,
+        sea: c.voyage.snapshot(),
         ui: {
+          chart: game.hud.seaChart.visible,
+          arrival: !game.hud.seaChart.arrival.classList.contains('hidden'),
           title: !game.hud.title.classList.contains('hidden'),
           pause: !game.hud.pause.classList.contains('hidden'),
           end: !game.hud.end.classList.contains('hidden'),
@@ -337,6 +343,14 @@ export class Game {
       },
       press(name) {
         game.conductor.handlePress(PITCH_NAMES.indexOf(name));
+      },
+      /** The Sea of Bridges: open the chart, build / add to / hear a bridge, without going through the screens. */
+      sea: {
+        open: () => game.conductor.voyage.open(),
+        build: (edge, opts = {}) => game.conductor.voyage.build(edge, opts),
+        add: (edge, opts = {}) => game.conductor.voyage.addPart(edge, opts),
+        listen: (edge) => game.conductor.voyage.listen(edge),
+        view: () => game.conductor.voyage.view(),
       },
       release(name) {
         game.conductor.handleRelease(PITCH_NAMES.indexOf(name));

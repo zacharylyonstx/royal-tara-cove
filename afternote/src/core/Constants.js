@@ -147,8 +147,8 @@ export const TIMING = {
 // ---------------------------------------------------------------------------------
 export const CROSSING = {
   GRID: 0.5, // one stone per half-beat at most; this is also the grid a kept bridge is tidied to
-  START_BEAT: -4, // Kite walks out to the edge of the landing before the first note
-  TAIL_BEATS: 3, // ...and on to the far landing after the last one
+  START_BEAT: -5.5, // Kite walks out to the edge of the landing before the first note
+  TAIL_BEATS: 6, // ...and in along the far landing after the last one
   RING_BEATS: 1.6, // how long a tapped note is left to ring
   MAX_LAYERS: 3, // parts that can be stacked on one bridge
   REACH: 4, // every key is always in reach

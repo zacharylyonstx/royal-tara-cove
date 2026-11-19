@@ -6,6 +6,7 @@ import { eventBus, Events } from '../core/EventBus.js';
 import { PITCH_NAMES } from '../music/Theory.js';
 import { DEFAULT_KEYS, PACE } from '../core/Constants.js';
 import { keyLabel as capLabel, KEY_PRESETS, presetOf, labelMode } from '../systems/KeyMap.js';
+import { SeaChart } from './SeaChart.js';
 
 const NUMERALS = ['I', 'II', 'III'];
 
@@ -85,6 +86,7 @@ export class Hud {
         <div class="title-actions">
           <button class="btn primary" data-action="begin">Begin</button>
           <button class="btn" data-action="continue" hidden>Return to your lighthouse</button>
+          <button class="btn" data-action="sea">The Sea of Bridges</button>
           <button class="btn quiet" data-action="settings">Settings</button>
         </div>
         <div class="movements" aria-label="Movements">
@@ -145,7 +147,7 @@ export class Hud {
           <button class="btn primary" data-action="listen">Hear my song</button>
           <button class="btn" data-action="again">Try another path</button>
           <button class="btn" data-action="rest">Rest here</button>
-          <button class="btn" data-action="next">Next place</button>
+          <button class="btn" data-action="sea">The Sea of Bridges</button>
         </div>
       </div>`;
     r.append(this.end);
@@ -240,8 +242,16 @@ export class Hud {
       return b;
     });
 
+    // --- the sea chart and the arrival card (ui/SeaChart.js) ---------------------------
+    this.seaChart = new SeaChart(r, this.action);
+    r.addEventListener('keydown', (e) => {
+      if (this.seaChart.key(e)) e.preventDefault();
+    });
+    this.listenDefault = [...this.listen.querySelectorAll('[data-action="stem"]')].map((b) => b.textContent);
+
     // one delegated listener for every button
     r.addEventListener('click', (e) => {
+      if (this.seaChart.click(e)) return;
       const btn = e.target.closest('[data-action]');
       if (btn) {
         this.action(btn.dataset.action, btn.dataset.value);
@@ -424,10 +434,26 @@ export class Hud {
     if (v) this.end.querySelector('.end-note').textContent = summary;
   }
 
-  showListen(v, muted = [false, false, false]) {
+  /**
+   * The bar shown while a song plays back. `opts` relabels it for a bridge of the sea
+   * ({label, stems:[names]}); passing null puts the lighthouse's own labels back.
+   */
+  showListen(v, muted = [false, false, false], opts = undefined) {
     this._show(this.listen, v);
-    this.listen.querySelectorAll('[data-action="stem"]').forEach((b, i) => b.classList.toggle('on', !muted[i]));
+    const stems = [...this.listen.querySelectorAll('[data-action="stem"]')];
+    if (opts !== undefined) {
+      this.listen.querySelector('.listen-label').textContent = opts?.label ?? 'Your song';
+      stems.forEach((b, i) => {
+        const name = opts ? opts.stems[i] : this.listenDefault[i];
+        b.hidden = !name;
+        if (name) b.textContent = opts ? `${NUMERALS[i]} · ${name}` : name;
+      });
+    }
+    stems.forEach((b, i) => b.classList.toggle('on', !muted[i]));
   }
+
+  showChart(v, view) { this.seaChart.show(v, view); }
+  showArrival(v, data) { this.seaChart.showArrival(v, data); }
 
   showSettings(v, settings) {
     this._show(this.settings, v);

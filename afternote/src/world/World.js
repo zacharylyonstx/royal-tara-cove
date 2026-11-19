@@ -17,6 +17,7 @@ import { SeedView } from './SeedView.js';
 import { KiteModel } from './KiteView.js';
 import { CameraRig } from './CameraRig.js';
 import { PostFX } from './PostFX.js';
+import { SeaWorld } from './SeaWorld.js';
 
 const _p = new THREE.Vector3();
 const _q = new THREE.Vector3();
@@ -36,6 +37,7 @@ export class World {
     this.sea.uniforms.uIsland.value.copy(this.lighthouse.center);
     this.effects = new Effects(this.scene);
     this.scenery = new Scenery(this.scene, this.routes, { effects: this.effects, sea: this.sea });
+    this.seaWorld = new SeaWorld(this.scene, { effects: this.effects, sea: this.sea });
     this.seeds = new SeedView(this.scene);
     this.kite = new KiteModel(this.scene);
     this.paths = [null, null, null];
@@ -51,6 +53,13 @@ export class World {
     this.override = null; // { pos, yaw, pose } set by the Conductor during cinematics
     this.reducedMotion = false;
     this.lastBeat = null;
+    // the dusk as it is by default, and what a crossing's mood is turning it toward
+    this.skyBase = {
+      top: this.sky.uniforms.uSkyTop.value.clone(), mid: this.sky.uniforms.uSkyMid.value.clone(),
+      horizon: this.sky.uniforms.uSkyHorizon.value.clone(), fog: G.uFogColor.value.clone(),
+    };
+    this.skyGoal = null;
+    this._skyTmp = new THREE.Color();
 
     if (document.fonts?.ready) document.fonts.ready.then(() => refreshLetterTextures());
   }
@@ -78,6 +87,24 @@ export class World {
     this.seeds.keyLabels = keyLabels;
     PathView.showLetters = notes;
     for (const p of [...this.paths, ...this.oldPaths]) if (p) p.setLettersVisible(notes);
+    this.seaWorld.setLettersVisible(notes);
+  }
+
+  /** Turn the light toward a mood's colours ({top, mid, horizon, fog} as hex), or back to dusk with null. */
+  setSky(sky) {
+    this.skyGoal = sky ? {
+      top: new THREE.Color(sky.top), mid: new THREE.Color(sky.mid), horizon: new THREE.Color(sky.horizon), fog: new THREE.Color(sky.fog),
+    } : null;
+  }
+
+  _updateSky(dt) {
+    const goal = this.skyGoal ?? this.skyBase;
+    const k = Math.min(1, dt * 0.55);
+    const u = this.sky.uniforms;
+    u.uSkyTop.value.lerp(goal.top, k);
+    u.uSkyMid.value.lerp(goal.mid, k);
+    u.uSkyHorizon.value.lerp(goal.horizon, k);
+    G.uFogColor.value.lerp(goal.fog, k);
   }
 
   // -------------------------------------------------------------------------------
@@ -164,10 +191,15 @@ export class World {
   // Rule events -> sights
   // -------------------------------------------------------------------------------
 
-  /** @returns {THREE.Vector3|null} where a world sound should come from, if any */
-  onRunnerEvent(ev, mvt) {
-    const path = this.paths[mvt];
-    const route = this.routes[mvt];
+  /**
+   * @param {object} ev  an event from the runner
+   * @param {number} mvt  the lighthouse movement being played
+   * @param {{path:object, route:object}|null} target  set when a sea crossing is being played instead
+   * @returns {THREE.Vector3|null} where a world sound should come from, if any
+   */
+  onRunnerEvent(ev, mvt, target = null) {
+    const path = target ? target.path : this.paths[mvt];
+    const route = target ? target.route : this.routes[mvt];
     const fx = this.effects;
     switch (ev.type) {
       case 'hit': {
@@ -180,7 +212,7 @@ export class World {
         if (piece.kind === 'stone') {
           fx.burst(_p, col, ev.entry.q === 'perfect' ? 30 : 16, ev.entry.q === 'perfect' ? 2.8 : 2.0, { up: 1.6 });
           fx.drips(_p, col, 10, 1.3);
-          this._sproutAt(mvt, piece, false);
+          if (!target) this._sproutAt(mvt, piece, false);
         } else {
           fx.burst(_p, col, 18, 2.2, { up: 1.4 });
         }
@@ -194,7 +226,7 @@ export class World {
           const xy = pieceXYAt(piece, 0);
           route.pointAt(piece.b1 - 0.2, xy.x, xy.y, _p);
           fx.burst(_p, COLORS.PITCH[piece.p], 26, 2.4, { up: 1.8 });
-          this._sproutAt(mvt, piece, false);
+          if (!target) this._sproutAt(mvt, piece, false);
           this.sea.ripple(_p.x, _p.z, 1.0);
         }
         break;
@@ -207,6 +239,7 @@ export class World {
         if (ev.piece && !path.items.some((it) => it.piece === ev.piece)) path.addPiece(ev.piece);
         break;
       case 'breath':
+      case 'rest':
         path.addPiece(ev.piece);
         break;
       case 'resonance':
@@ -318,7 +351,8 @@ export class World {
     G.uTime.value += dt;
     G.uAwake.value += (this.awakeTarget - G.uAwake.value) * Math.min(1, dt * 0.5);
 
-    const route = this.routes[ctx.mvt] ?? this.routes[0];
+    this._updateSky(dt);
+    const route = ctx.route ?? this.routes[ctx.mvt] ?? this.routes[0];
     let kx = 0, ky = 0;
 
     // Kite
@@ -356,14 +390,15 @@ export class World {
     // Echo ghosts
     const active = new Set();
     for (const e of ctx.echoes ?? []) {
-      const chart = LIGHTHOUSE.movements[e.mvt];
-      const ghost = this.ghost(e.mvt);
+      // an Echo of a sea crossing brings its own chart, route and ghost
+      const chart = e.route ? e.chart : LIGHTHOUSE.movements[e.mvt];
+      const ghost = e.route ? this.seaWorld.ghost(e.mvt) : this.ghost(e.mvt);
       const eb = e.beat ?? ctx.beat; // an Echo can be shown waiting at its own beginning
       const inRange = eb >= chart.startBeat - 0.5 && eb <= chart.endBeat + 2;
       if (!inRange || e.opacity <= 0.01) continue;
-      active.add(e.mvt);
+      active.add(ghost);
       const st = kiteStateAt(e.record.pieces, e.record.segs, e.record.startLane, eb);
-      const r = this.routes[e.mvt];
+      const r = e.route ?? this.routes[e.mvt];
       r.pointAt(eb, st.x, st.y, _p);
       if (!ghost.visible) {
         ghost.setVisible(true);
@@ -373,12 +408,13 @@ export class World {
       const moving = r.speedAt(eb) > 0.25 && e.beat === undefined;
       ghost.update(_p, r.yawAt(eb), { pose: st.air ? 'leap' : moving ? st.pose : 'idle', air: st.air, u: st.u }, dt, this.camera.position);
     }
-    this.ghosts.forEach((g, i) => {
-      if (g && g.visible && !active.has(i)) g.setVisible(false);
-    });
+    for (const g of [...this.ghosts, ...this.seaWorld.ghosts]) {
+      if (g && g.visible && !active.has(g)) g.setVisible(false);
+    }
 
     // paths, seeds, scenery
     this.paths.forEach((p, i) => p && p.update(i === ctx.mvt ? ctx.beat : ctx.beat, dt));
+    this.seaWorld.update(dt, ctx.beat);
     this.seeds.update(ctx.playing || ctx.gate ? ctx.runner : null, route, ctx.beat, dt, { gate: ctx.gate });
     this.scenery.update(dt, this.lighthouse);
     this.lighthouse.update(dt);

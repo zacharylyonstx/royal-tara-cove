@@ -421,9 +421,10 @@ export class PathView {
       const p = pieceXYAt(piece, b);
       pts.push(this.route.pointAt(b, p.x, p.y - 0.02, new THREE.Vector3()));
       const u = i / n;
-      widths.push(1.25 * Math.min(1, u * 6) * Math.min(1, (1 - u) * 6 + 0.25));
+      if (piece.rest) widths.push(0.72 * Math.min(1, (b - piece.b0) / 0.3 + 0.15) * Math.min(1, (piece.b1 - b) / 0.3 + 0.15));
+      else widths.push(1.25 * Math.min(1, u * 6) * Math.min(1, (1 - u) * 6 + 0.25));
     }
-    const mat = makeGlow({ color: COLORS.BREATH, intensity: 0.55, flow: 5 });
+    const mat = makeGlow({ color: COLORS.BREATH, intensity: piece.rest ? 0.42 : 0.55, flow: 5 });
     const mesh = new THREE.Mesh(ribbonGeometry(pts, 1.25, widths), mat);
     mesh.frustumCulled = false;
     this.group.add(mesh);

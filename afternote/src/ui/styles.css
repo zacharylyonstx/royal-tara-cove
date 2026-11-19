@@ -577,3 +577,125 @@ input[type='range'] { width: 220px; accent-color: #ffb866; }
   pointer-events: auto;
 }
 .home-link:hover, .home-link:focus-visible { color: #fff; border-color: rgba(255, 255, 255, 0.6); }
+
+/* ---------------------------------------------------------------------------------
+   The Sea of Bridges: the chart, and the card shown on arriving somewhere
+   --------------------------------------------------------------------------------- */
+.chart-screen {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: clamp(4px, 1.2vh, 12px);
+  padding: var(--safe-top) clamp(14px, 3vw, 40px) var(--safe-bottom);
+  background: radial-gradient(120% 90% at 42% 45%, rgba(12, 14, 32, 0.84) 0%, rgba(8, 9, 20, 0.94) 100%);
+  backdrop-filter: blur(4px);
+  animation: fade-in 0.7s ease-out;
+}
+.chart-head { text-align: center; flex: none; }
+.chart-kicker { font-family: var(--caps); font-size: clamp(10px, 1vw, 13px); letter-spacing: 0.34em; text-transform: uppercase; color: var(--gold); }
+.chart-title { margin: 2px 0 0; font-family: var(--caps); font-weight: 400; font-size: clamp(20px, 3vw, 38px); letter-spacing: 0.24em; text-transform: uppercase; color: #fbf5ff; }
+.chart-body { flex: 1 1 auto; min-height: 0; display: flex; gap: clamp(10px, 2vw, 26px); align-items: stretch; }
+.chart-map-wrap { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; }
+.chart-map { width: 100%; height: 100%; display: block; overflow: visible; }
+
+.chart-map .edge { cursor: pointer; outline: none; }
+.chart-map .edge .hit { stroke: transparent; stroke-width: 44; stroke-linecap: round; pointer-events: stroke; }
+.chart-map .edge .halo { stroke: rgba(255, 214, 150, 0); stroke-width: 26; stroke-linecap: round; transition: stroke 0.2s; }
+.chart-map .edge .dots { stroke: rgba(220, 214, 240, 0.5); stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 2 13; }
+.chart-map .edge.far .dots { stroke: rgba(220, 214, 240, 0.2); }
+.chart-map .edge.open .dots { animation: chart-march 2.2s linear infinite; stroke: rgba(255, 226, 170, 0.78); }
+.chart-map .edge .strand { stroke-width: 5; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(255, 210, 140, 0.7)); }
+.chart-map .edge:hover .halo, .chart-map .edge:focus-visible .halo { stroke: rgba(255, 214, 150, 0.12); }
+.chart-map .edge.sel .halo { stroke: rgba(255, 214, 150, 0.24); }
+@keyframes chart-march { to { stroke-dashoffset: -30; } }
+
+.chart-map .place { cursor: pointer; outline: none; }
+.chart-map .place .disc { fill: rgba(26, 27, 48, 0.95); stroke: rgba(220, 214, 240, 0.4); stroke-width: 2; transition: stroke 0.2s; }
+.chart-map .place .glow { fill: var(--tint); opacity: 0; }
+.chart-map .place .glyph { fill: rgba(220, 214, 240, 0.5); stroke: rgba(220, 214, 240, 0.5); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chart-map .place .name { fill: rgba(226, 220, 242, 0.6); font-family: var(--caps); font-size: 17px; letter-spacing: 0.14em; text-transform: uppercase; text-anchor: middle; paint-order: stroke; stroke: rgba(9, 10, 24, 0.94); stroke-width: 7px; stroke-linejoin: round; }
+.chart-map .place.awake .disc { stroke: var(--tint); }
+.chart-map .place.awake .glow { opacity: 0.22; animation: chart-breathe 3.4s ease-in-out infinite; }
+.chart-map .place.awake .glyph { fill: var(--tint); stroke: var(--tint); }
+.chart-map .place.awake .name { fill: #fbf5ff; }
+.chart-map .place .kite { fill: var(--gold-deep); stroke: #fff0cf; stroke-width: 1.5; filter: drop-shadow(0 0 6px rgba(255, 170, 80, 0.9)); animation: chart-bob 1.8s ease-in-out infinite; }
+.chart-map .place:hover .disc, .chart-map .place:focus-visible .disc, .chart-map .place.sel .disc { stroke: #fff; stroke-width: 3; }
+@keyframes chart-breathe { 50% { opacity: 0.38; } }
+@keyframes chart-bob { 50% { transform: translateY(-4px); } }
+
+.chart-panel {
+  flex: 0 0 clamp(250px, 30vw, 380px);
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+  overflow-y: auto;
+  padding: clamp(14px, 2.4vh, 26px) clamp(14px, 1.8vw, 24px);
+  border-radius: 20px;
+  border: 1px solid var(--glass-line);
+  background: rgba(22, 22, 40, 0.74);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+.chart-panel h3 { margin: 0; font-family: var(--caps); font-weight: 400; font-size: clamp(16px, 1.7vw, 22px); letter-spacing: 0.16em; text-transform: uppercase; color: #fbf5ff; line-height: 1.35; }
+.chart-panel h3 .arrow { display: block; font-family: var(--serif); font-style: italic; font-size: 0.8em; letter-spacing: 0.04em; text-transform: none; color: rgba(236, 230, 250, 0.7); }
+.chart-panel p { margin: 0; font-size: clamp(15px, 1.35vw, 18px); line-height: 1.4; color: rgba(236, 230, 250, 0.88); }
+.chart-panel .gift b { color: var(--gold); font-weight: 600; }
+.chart-panel .btn { min-width: 0; width: 100%; padding: 12px 16px; }
+.chart-panel .btn.quiet { width: auto; align-self: center; }
+.panel-kicker { font-family: var(--caps); font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--gold); }
+.panel-label { font-family: var(--caps); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(236, 230, 250, 0.62); margin-top: 4px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+.chip-row .chip { padding: 8px 12px; font-size: 11px; letter-spacing: 0.12em; }
+.parts { list-style: none; margin: 2px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.parts li { display: grid; grid-template-columns: 34px 1fr auto; align-items: baseline; gap: 8px; padding: 7px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); text-align: left; }
+.parts li b { font-family: var(--caps); font-weight: 400; letter-spacing: 0.1em; }
+.parts li span { font-family: var(--caps); font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #fbf5ff; }
+.parts li i { font-size: 15px; color: rgba(236, 230, 250, 0.7); }
+.chart-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.chart-tally { font-family: var(--caps); font-size: clamp(10px, 0.95vw, 12px); letter-spacing: 0.2em; text-transform: uppercase; color: rgba(226, 220, 242, 0.62); }
+
+.arrival-card {
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: clamp(18px, 5vh, 60px);
+  background: linear-gradient(0deg, rgba(8, 8, 20, 0.93) 0%, rgba(8, 8, 20, 0.78) 34%, rgba(8, 8, 20, 0.3) 62%, rgba(8, 8, 20, 0) 82%);
+  animation: fade-in 1.2s ease-out;
+}
+.arrival-inner { text-align: center; max-width: min(720px, 94vw); max-height: 92vh; overflow-y: auto; }
+.arrival-card .end-note { margin: 4px 0 12px; font-style: normal; }
+.arrival-card .end-note b { color: var(--gold); }
+.gift-box {
+  display: inline-grid; grid-template-columns: auto auto; column-gap: 12px; row-gap: 2px; align-items: baseline; text-align: left;
+  margin: 0 auto 14px; padding: 12px 22px; border-radius: 16px;
+  border: 1px solid rgba(255, 214, 150, 0.5); background: rgba(70, 52, 30, 0.42);
+  animation: gift-in 0.9s ease-out 0.3s backwards;
+}
+.gift-box span { grid-column: 1 / -1; font-family: var(--caps); font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: rgba(255, 226, 170, 0.8); text-align: center; margin-bottom: 4px; }
+.gift-box b { font-family: var(--caps); font-weight: 400; font-size: clamp(16px, 1.8vw, 22px); letter-spacing: 0.14em; text-transform: uppercase; color: #ffe6b0; text-align: right; }
+.gift-box i { font-size: 16px; color: rgba(236, 230, 250, 0.78); }
+@keyframes gift-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+.arrival-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; }
+.arrival-actions .panel-label, .arrival-actions .chip-row { flex-basis: 100%; }
+.arrival-actions .btn { min-width: 200px; }
+
+/* short, wide windows (a phone on its side): everything a little tighter */
+@media (max-height: 520px) {
+  .chart-kicker { display: none; }
+  .chart-title { font-size: 18px; }
+  .chart-panel { gap: 6px; padding: 10px 12px; }
+  .chart-panel p { font-size: 14px; }
+  .chart-panel .btn { padding: 9px 12px; }
+  .chip-row .chip { padding: 6px 10px; }
+  .chart-map .place .name { font-size: 21px; }
+  .arrival-card .end-title { font-size: 24px; }
+  .arrival-card .end-note { margin-bottom: 6px; }
+  .gift-box { padding: 7px 16px; margin-bottom: 8px; }
+  .arrival-actions .btn { min-width: 150px; padding: 9px 16px; }
+}
+/* tall, narrow windows: the chart on top, what to do beneath it */
+@media (max-aspect-ratio: 1/1) {
+  .chart-body { flex-direction: column; }
+  .chart-panel { flex: 0 0 auto; max-height: 46%; }
+  .chart-map .place .name { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-map .edge.open .dots, .chart-map .place.awake .glow, .chart-map .place .kite { animation: none; }
+}

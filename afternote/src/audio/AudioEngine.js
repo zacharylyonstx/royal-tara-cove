@@ -348,8 +348,244 @@ export class AudioEngine {
     return { stop: (t) => release(t, 0.22) };
   }
 
+  // -------------------------------------------------------------------------------
+  // Sounds found across the sea (each one is the gift of a place). Same contract as the
+  // three above: (dest, freq, when, gain, dur) -> { stop(when) }, dur null = hold until stop.
+  // -------------------------------------------------------------------------------
+
+  /** Music box: a tiny steel tine. Pure, high, and gone quickly. */
+  musicbox(dest, freq, when, gain, dur) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.4;
+    out.connect(dest);
+    const body = ctx.createGain();
+    body.gain.setValueAtTime(0, when);
+    body.gain.linearRampToValueAtTime(1, when + 0.002);
+    body.gain.setTargetAtTime(0, when + 0.004, dur === null ? 0.9 : 0.5 + Math.min(0.3, dur * 0.12));
+    body.connect(out);
+    const o1 = this._osc('sine', freq, when);
+    o1.connect(body);
+    o1.stop(when + 5);
+    this._partial(out, freq * 2, when, 0.2, 0.22);
+    this._partial(out, freq * 3.03, when, 0.06, 0.09);
+    this._partial(out, freq * 5.4, when, 0.05, 0.035);
+    this._click(out, when, 0.12, 6400, 2.0, 0.006);
+    return {
+      stop: (t) => {
+        body.gain.cancelScheduledValues(t);
+        body.gain.setTargetAtTime(0, t, 0.18);
+      },
+    };
+  }
+
+  /** Harp: a plucked string that brightens at the pluck and mellows as it rings. */
+  harp(dest, freq, when, gain, dur) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.62;
+    out.connect(dest);
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(0, when);
+    amp.gain.linearRampToValueAtTime(1, when + 0.004);
+    amp.gain.setTargetAtTime(0, when + 0.006, dur === null ? 1.3 : 0.7 + Math.min(0.5, dur * 0.2));
+    amp.connect(out);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 0.6;
+    lp.frequency.setValueAtTime(Math.min(5200, freq * 9), when);
+    lp.frequency.setTargetAtTime(Math.max(500, freq * 1.6), when + 0.01, 0.22);
+    lp.connect(amp);
+    const saw = this._osc('sawtooth', freq, when);
+    const sawG = ctx.createGain();
+    sawG.gain.value = 0.34;
+    saw.connect(sawG).connect(lp);
+    const sine = this._osc('sine', freq, when);
+    const sineG = ctx.createGain();
+    sineG.gain.value = 0.55;
+    sine.connect(sineG).connect(amp);
+    saw.stop(when + 7);
+    sine.stop(when + 7);
+    this._click(out, when, 0.06, 2400, 0.9, 0.012);
+    return {
+      stop: (t) => {
+        amp.gain.cancelScheduledValues(t);
+        amp.gain.setTargetAtTime(0, t, 0.16);
+      },
+    };
+  }
+
+  /** Marimba: a soft mallet on a wooden bar, with the bar's bright fourth harmonic. */
+  marimba(dest, freq, when, gain, dur) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.72;
+    out.connect(dest);
+    const body = ctx.createGain();
+    body.gain.setValueAtTime(0, when);
+    body.gain.linearRampToValueAtTime(1, when + 0.003);
+    body.gain.setTargetAtTime(0, when + 0.005, dur === null ? 0.6 : 0.3 + Math.min(0.25, dur * 0.1));
+    body.connect(out);
+    const o1 = this._osc('sine', freq, when);
+    o1.connect(body);
+    o1.stop(when + 4);
+    this._partial(out, freq * 4, when, 0.22, 0.07);
+    this._partial(out, freq * 9.2, when, 0.05, 0.02);
+    const th = this._osc('sine', 240, when);
+    th.frequency.exponentialRampToValueAtTime(110, when + 0.04);
+    const thG = ctx.createGain();
+    thG.gain.setValueAtTime(0.2, when);
+    thG.gain.exponentialRampToValueAtTime(0.0001, when + 0.07);
+    th.connect(thG).connect(out);
+    th.stop(when + 0.1);
+    this._click(out, when, 0.09, 1500, 0.9, 0.014);
+    return {
+      stop: (t) => {
+        body.gain.cancelScheduledValues(t);
+        body.gain.setTargetAtTime(0, t, 0.1);
+      },
+    };
+  }
+
+  /** Wind flute: breath over a pure tone, with a slow waver once it has settled. */
+  flute(dest, freq, when, gain, dur) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.6;
+    out.connect(dest);
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(0, when);
+    amp.gain.linearRampToValueAtTime(1, when + 0.05);
+    amp.gain.setTargetAtTime(0.8, when + 0.06, 0.3);
+    amp.connect(out);
+    const lfo = this._osc('sine', 4.8, when);
+    const lfoG = ctx.createGain();
+    lfoG.gain.setValueAtTime(0, when);
+    lfoG.gain.linearRampToValueAtTime(6, when + 0.5);
+    lfo.connect(lfoG);
+    const o1 = this._osc('sine', freq, when);
+    lfoG.connect(o1.detune);
+    const g1 = ctx.createGain();
+    g1.gain.value = 0.8;
+    o1.connect(g1).connect(amp);
+    const o2 = this._osc('sine', freq * 2, when);
+    lfoG.connect(o2.detune);
+    const g2 = ctx.createGain();
+    g2.gain.value = 0.14;
+    o2.connect(g2).connect(amp);
+    const o3 = this._osc('triangle', freq * 3, when);
+    const g3 = ctx.createGain();
+    g3.gain.value = 0.04;
+    o3.connect(g3).connect(amp);
+    // the breath: band-passed noise riding on the note
+    const breath = ctx.createBufferSource();
+    breath.buffer = this._noise;
+    breath.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = Math.min(7000, freq * 2.2);
+    bp.Q.value = 1.1;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.22, when);
+    bg.gain.setTargetAtTime(0.07, when + 0.04, 0.12);
+    breath.connect(bp).connect(bg).connect(amp);
+    breath.start(when, Math.random() * 2);
+    const nodes = [o1, o2, o3, lfo, breath];
+    const release = (t, tau) => {
+      amp.gain.cancelScheduledValues(t);
+      amp.gain.setTargetAtTime(0, t, tau);
+      for (const n of nodes) n.stop(t + tau * 8);
+    };
+    if (dur !== null) release(when + Math.max(0.3, dur * 0.9), 0.14);
+    return { stop: (t) => release(t, 0.12) };
+  }
+
+  /** Steel pan: a struck dish whose octave and twelfth ring as loudly as the note itself. */
+  pan(dest, freq, when, gain, dur) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.5;
+    out.connect(dest);
+    const body = ctx.createGain();
+    body.gain.setValueAtTime(0, when);
+    body.gain.linearRampToValueAtTime(1, when + 0.004);
+    body.gain.setTargetAtTime(0, when + 0.006, dur === null ? 0.9 : 0.5 + Math.min(0.4, dur * 0.18));
+    body.connect(out);
+    const o1 = this._osc('sine', freq * 1.008, when);
+    o1.frequency.setTargetAtTime(freq, when, 0.05); // the little "boing" as the dish settles
+    o1.connect(body);
+    const o2 = this._osc('sine', freq * 2.004, when);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.5, when);
+    g2.gain.setTargetAtTime(0.14, when + 0.01, 0.2);
+    o2.connect(g2).connect(body);
+    const o3 = this._osc('sine', freq * 3.0, when);
+    const g3 = ctx.createGain();
+    g3.gain.setValueAtTime(0.26, when);
+    g3.gain.setTargetAtTime(0.04, when + 0.01, 0.12);
+    o3.connect(g3).connect(body);
+    for (const o of [o1, o2, o3]) o.stop(when + 6);
+    this._partial(out, freq * 4.1, when, 0.06, 0.05);
+    this._click(out, when, 0.1, 2600, 1.2, 0.012);
+    return {
+      stop: (t) => {
+        body.gain.cancelScheduledValues(t);
+        body.gain.setTargetAtTime(0, t, 0.14);
+      },
+    };
+  }
+
+  /** Firefly: a soft blink of a note, round at the edges, with a tiny rise as it lights. */
+  firefly(dest, freq, when, gain, dur) {
+    const ctx = this.ctx;
+    const out = ctx.createGain();
+    out.gain.value = gain * 0.36;
+    out.connect(dest);
+    const amp = ctx.createGain();
+    amp.gain.setValueAtTime(0, when);
+    amp.gain.linearRampToValueAtTime(1, when + 0.006);
+    amp.gain.setTargetAtTime(dur === null ? 0.5 : 0, when + 0.01, dur === null ? 0.2 : 0.2 + Math.min(0.2, dur * 0.1));
+    amp.connect(out);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 0.5;
+    lp.frequency.setValueAtTime(Math.min(4200, freq * 5), when);
+    lp.frequency.setTargetAtTime(Math.max(700, freq * 1.8), when + 0.01, 0.12);
+    lp.connect(amp);
+    const sq = this._osc('square', freq * 0.985, when);
+    sq.frequency.setTargetAtTime(freq, when, 0.02);
+    const sqG = ctx.createGain();
+    sqG.gain.value = 0.5;
+    sq.connect(sqG).connect(lp);
+    const sine = this._osc('sine', freq, when);
+    const sineG = ctx.createGain();
+    sineG.gain.value = 0.5;
+    sine.connect(sineG).connect(amp);
+    sq.stop(when + (dur === null ? 30 : 3));
+    sine.stop(when + (dur === null ? 30 : 3));
+    this._partial(out, freq * 2, when, 0.16, 0.05);
+    return {
+      stop: (t) => {
+        amp.gain.cancelScheduledValues(t);
+        amp.gain.setTargetAtTime(0, t, 0.08);
+        sq.stop(t + 1);
+        sine.stop(t + 1);
+      },
+    };
+  }
+
   _instrument(name) {
-    return name === 'root' ? this.root : name === 'glass' ? this.glass : this.bell;
+    switch (name) {
+      case 'root': return this.root;
+      case 'glass': return this.glass;
+      case 'musicbox': return this.musicbox;
+      case 'harp': return this.harp;
+      case 'marimba': return this.marimba;
+      case 'flute': return this.flute;
+      case 'pan': return this.pan;
+      case 'firefly': return this.firefly;
+      default: return this.bell;
+    }
   }
 
   // -------------------------------------------------------------------------------
@@ -374,6 +610,17 @@ export class AudioEngine {
     this.playerUp(pitch);
     const v = this.note({ instrument: chart.instrument, octave: chart.octave, pitch, dur: sustain ? null : durSec, bus: 'player' });
     if (sustain && v) this.held.set(pitch, v);
+  }
+
+  /**
+   * A tapped note in free play. Only one of these sounds at a time: the note before it is let
+   * go as the new one starts, so sustained sounds never pile into a blur.
+   */
+  playerTap(chart, pitch, durSec) {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    if (this.tapVoice) this.tapVoice.stop(t + 0.02);
+    this.tapVoice = this.note({ instrument: chart.instrument, octave: chart.octave, pitch, dur: durSec, bus: 'player' });
   }
 
   playerUp(pitch) {

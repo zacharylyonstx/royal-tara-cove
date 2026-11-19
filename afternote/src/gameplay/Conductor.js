@@ -8,11 +8,12 @@
 import * as THREE from 'three-afternote';
 import { eventBus, Events } from '../core/EventBus.js';
 import { gameState } from '../core/GameState.js';
-import { COLORS, PACE, TIMING, LANES, HELP } from '../core/Constants.js';
+import { COLORS, PACE, TIMING, LANES, HELP, CROSSING } from '../core/Constants.js';
 import { MovementRunner } from '../rules/MovementRunner.js';
 import { midiOf } from '../music/Theory.js';
 import { buildTransit } from '../world/Routes.js';
 import { Save, replaceRecord } from '../systems/Save.js';
+import { Voyage } from './Voyage.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const SCENE_NAMES = ['causeway', 'roots', 'lens'];
@@ -74,10 +75,13 @@ export class Conductor {
     this._v2 = new THREE.Vector3();
     this._shot = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
     this._frame = { pos: new THREE.Vector3(), tan: new THREE.Vector3(), right: new THREE.Vector3() };
+    /** The Sea of Bridges: crossings are played through this Conductor, with a free chart in the runner. */
+    this.voyage = new Voyage(this);
   }
 
+  /** What is being played: a part of a sea crossing, or a movement of the lighthouse. */
   get chart() {
-    return this.island.movements[this.mvt];
+    return this.voyage.cross ? this.voyage.cross.chart : this.island.movements[this.mvt];
   }
 
   dur(sec) {
@@ -95,6 +99,7 @@ export class Conductor {
       gameState.seen = saved.seen;
       this.world.restore(saved.records, this.island.movements);
     }
+    this.voyage.load();
     this._applyAwake(true);
     this.world.post.setFade(1);
     this.fadeIn = 1;
@@ -113,6 +118,16 @@ export class Conductor {
   }
 
   toTitle() {
+    // whatever was happening on the sea is over
+    this.voyage.cross = null;
+    this.voyage.song = null;
+    this.voyage.arrival = null;
+    this.world.seaWorld.deactivate();
+    this.world.setSky(null);
+    this.arranger.setPiece(null);
+    this.hud.showChart(false);
+    this.hud.showArrival(false);
+    this.hud.showListen(false, undefined, null);
     this._setPhase('title');
     this.transport.stop();
     this.arranger.stop();
@@ -205,6 +220,11 @@ export class Conductor {
   }
 
   startMovement(i, { replay = false } = {}) {
+    this.voyage.cross = null;
+    this.voyage.song = null;
+    this.world.seaWorld.deactivate();
+    this.world.setSky(null);
+    this.arranger.setPiece(null);
     const chart = this.island.movements[i];
     const pace = Object.values(PACE).find((p) => p.id === gameState.settings.pace) ?? PACE.FLOWING;
     const bpm = this.island.bpm * pace.scale;
@@ -299,7 +319,8 @@ export class Conductor {
       const e2 = res.entry;
       const sustain = e2.k === 'hold';
       // sound first: nothing may come between the finger and the note
-      this.audio.playerDown(this.chart, pitch, sustain, Math.min(e2.d, 2) * this.transport.secPerBeat);
+      if (this.chart.free) this.audio.playerTap(this.chart, pitch, CROSSING.RING_BEATS * this.transport.secPerBeat);
+      else this.audio.playerDown(this.chart, pitch, sustain, Math.min(e2.d, 2) * this.transport.secPerBeat);
       if (this.gateWaiting) {
         this.gateWaiting = false;
         gameState.gateWaiting = false;
@@ -335,7 +356,8 @@ export class Conductor {
     for (const ev of events) {
       this.lastEvents.push(ev.type);
       if (this.lastEvents.length > 12) this.lastEvents.shift();
-      const where = this.world.onRunnerEvent(ev, this.mvt);
+      const sea = this.voyage.cross;
+      const where = this.world.onRunnerEvent(ev, this.mvt, sea ? { path: sea.path, route: sea.route } : null);
       switch (ev.type) {
         case 'hit':
           gameState.stats.hits++;
@@ -381,6 +403,7 @@ export class Conductor {
           eventBus.emit(Events.ACCENT, { mvt: this.mvt, tag: ev.tag });
           break;
         case 'complete':
+          if (sea) break; // a crossing's landmark is the place it reaches (see Voyage.complete)
           this.world.completeLandmark(this.mvt);
           if (this.mvt === 1) this.arranger.wheel = true;
           break;
@@ -421,7 +444,7 @@ export class Conductor {
   // Pause
   // -------------------------------------------------------------------------------
   canPause() {
-    return ['play', 'reveal', 'listen', 'rest'].includes(this.phase) && !this.paused;
+    return ['play', 'reveal', 'listen', 'rest', 'bridgeSong'].includes(this.phase) && !this.paused;
   }
 
   pause(kind = 'pause') {
@@ -489,6 +512,10 @@ export class Conductor {
     this.hud.showPause(false);
     this.hud.showStruggle(false);
     this.audio.releaseAll();
+    if (this.voyage.cross) {
+      this.voyage.restart();
+      return;
+    }
     // throw away the unfinished path; if this was a replay the old one is still kept aside
     const i = this.mvt;
     if (this.world.paths[i]) {
@@ -506,6 +533,12 @@ export class Conductor {
     this.hud.showPause(false);
     this.hud.showStruggle(false);
     this.audio.releaseAll();
+    if (this.voyage.cross || this.voyage.song) {
+      // out on the sea, leaving means back to the chart; a part that was not finished is not kept
+      if (this.voyage.cross) this.voyage.abandon();
+      this.voyage.open();
+      return;
+    }
     this.audio.duck(0, 0.3);
     if (this.phase === 'play') this._abandonCurrent();
     this.hud.showListen(false);
@@ -546,7 +579,7 @@ export class Conductor {
     gameState.phase = this.phase;
     gameState.movement = this.mvt;
 
-    const ctx = { beat, mvt: this.mvt, runner: this.runner, gate: this.gateWaiting, playing: false, echoes: this.echoes, follow: true };
+    const ctx = { beat, mvt: this.mvt, runner: this.runner, gate: this.gateWaiting, playing: false, echoes: this.echoes, follow: true, route: this.voyage.cross?.route ?? null };
     if (!this.paused) {
       switch (this.phase) {
         case 'play': this._updatePlay(beat, dt, ctx); break;
@@ -558,6 +591,10 @@ export class Conductor {
         case 'rest': this._updateSong(beat, dt, ctx); break;
         case 'end': this._updateEnd(dt, ctx); break;
         case 'title': this._updateTitle(dt, ctx); break;
+        case 'sea': this.voyage.updateSea(dt, ctx); break;
+        case 'arrive': this.voyage.updateArrive(dt, ctx); break;
+        case 'arrived': this.voyage.updateArrived(dt, ctx); break;
+        case 'bridgeSong': this.voyage.updateSong(beat, dt, ctx); break;
         default: break;
       }
     } else if (this.phase === 'play') {
@@ -595,7 +632,7 @@ export class Conductor {
       if (!this.gateWaiting) {
         this.gateWaiting = true;
         gameState.gateWaiting = true;
-        this.hud.setPrompt('Play the glowing note.');
+        this.hud.setPrompt(this.voyage.cross ? this.voyage.gatePrompt() : 'Play the glowing note.');
         eventBus.emit(Events.GATE_WAITING, {});
       }
     }
@@ -604,19 +641,24 @@ export class Conductor {
     if (this.countIn) return;
 
     if (this.bot) this.bot.update(beat);
+    const sea = this.voyage.cross;
     this._dispatch(runner.advance(beat));
     this._echoSteps(beat);
-    this._tips(beat);
+    if (!sea) this._tips(beat);
     this._hudOffers(beat);
-    this._struggle(beat);
+    if (!sea) this._struggle(beat);
 
     // Echoes step back while the player has something to decide, and forward when they rest
+    // (on a crossing every beat is the player's, so the earlier parts simply keep them company)
     const next = runner.nextSlot();
-    const busy = next && next.b - beat < 1.6;
-    for (const e of this.echoes) e.opacity += ((busy ? 0.5 : 1) - e.opacity) * Math.min(1, dt * 2.5);
+    const busy = !sea && next && next.b - beat < 1.6;
+    for (const e of this.echoes) e.opacity += ((sea ? 0.85 : busy ? 0.5 : 1) - e.opacity) * Math.min(1, dt * 2.5);
 
-    const endAt = this.mvt === 2 ? this.chart.endBeat - 2.2 : this.chart.endBeat - 0.4;
-    if (runner.done && beat >= endAt) this._completeMovement();
+    const endAt = sea ? this.chart.endBeat - 0.4 : this.mvt === 2 ? this.chart.endBeat - 2.2 : this.chart.endBeat - 0.4;
+    if (runner.done && beat >= endAt) {
+      if (sea) this.voyage.complete();
+      else this._completeMovement();
+    }
   }
 
   _hudOffers(beat) {
@@ -682,6 +724,14 @@ export class Conductor {
         e.cursor++;
         if (n.outcome !== 'hit' || at < beat - 1.5) continue;
         if (this.muted[e.mvt] && this.phase === 'listen') continue;
+        if (e.route) {
+          // a part of a sea bridge carries its own path and ghost
+          if (this.phase === 'bridgeSong' && this.voyage.muted[e.mvt]) continue;
+          e.path?.pulse(n.b, 1);
+          this.world.seaWorld.ghosts[e.mvt]?.flash(undefined, 0.8);
+          eventBus.emit(Events.ECHO_NOTE, { mvt: e.mvt, entry: n });
+          continue;
+        }
         this.world.paths[e.mvt]?.pulse(n.b, 1);
         this.world.ghosts[e.mvt]?.flash(undefined, 0.8);
         eventBus.emit(Events.ECHO_NOTE, { mvt: e.mvt, entry: n });
@@ -1010,6 +1060,15 @@ export class Conductor {
 
   /** UI actions from the end card and its sub-screens. */
   endAction(action, value) {
+    // while a bridge of the sea is being heard, the listening bar belongs to it
+    if (this.voyage.song && action === 'stem') {
+      this.voyage.toggleStem(Number(value));
+      return;
+    }
+    if (this.voyage.song && action === 'back') {
+      this.voyage.back();
+      return;
+    }
     switch (action) {
       case 'listen':
         this.hud.showEnd(false);

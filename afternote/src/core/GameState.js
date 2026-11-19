@@ -14,6 +14,8 @@ class GameState {
       keys: null, // null = defaults
       quality: 'auto',
     };
+    /** The Sea of Bridges (kept apart from a lighthouse journey: beginning again does not clear it). */
+    this.sea = null;
     this.reset();
   }
 

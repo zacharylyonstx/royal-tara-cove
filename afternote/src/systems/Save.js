@@ -1,7 +1,7 @@
 // The restored island lives in localStorage: three recorded performances, what was found,
 // and the player's settings. Nothing leaves the device.
 
-import { SAVE_KEY, SETTINGS_KEY } from '../core/Constants.js';
+import { SAVE_KEY, SETTINGS_KEY, SEA_KEY } from '../core/Constants.js';
 
 const VERSION = 1;
 
@@ -41,6 +41,16 @@ export const Save = {
     } catch {
       /* nothing to clear */
     }
+  },
+
+  /** The Sea of Bridges: where Kite is, which places are awake, and every bridge's score. Checked by sanitizeSea(). */
+  loadSea() {
+    const data = read(SEA_KEY);
+    return data && data.v === VERSION ? data.sea ?? null : null;
+  },
+
+  storeSea(sea) {
+    return write(SEA_KEY, { v: VERSION, at: Date.now(), sea });
   },
 
   loadSettings() {

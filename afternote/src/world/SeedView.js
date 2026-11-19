@@ -177,8 +177,9 @@ export class SeedView {
    */
   update(runner, route, beat, dt, flags = {}) {
     const seen = new Set();
+    if (runner && !runner.done && runner.free) this._updateFree(runner, route, beat, dt, flags, seen);
     if (runner && !runner.done) {
-      const list = runner.upcoming(beat, SEEDS.HORIZON_BEATS);
+      const list = runner.free ? [] : runner.upcoming(beat, SEEDS.HORIZON_BEATS);
       let order = 0;
       for (const up of list) {
         const { slot, offers, ring, isNext, window: win } = up;
@@ -289,6 +290,60 @@ export class SeedView {
         this.live.delete(key);
         this._release(seed);
       }
+    }
+  }
+
+  /**
+   * A sea crossing: nothing is asked for, so there is no ring to close. Five faint landings
+   * glide just ahead of Kite, exactly where a stone would grow if that key were played now.
+   */
+  _updateFree(runner, route, beat, dt, flags, seen) {
+    const slot = runner.nextSlot();
+    if (!slot) return;
+    const at = beat + runner.leapFor(slot) - RULES.LAND_LEAD_BEATS + 0.34;
+    const frac = ((beat % 1) + 1) % 1;
+    const onBeat = Math.max(0, 1 - frac * 2.4); // a soft swell on every beat: something to play along with
+    for (let p = 0; p < 5; p++) {
+      const key = `free:${p}`;
+      seen.add(key);
+      let seed = this.live.get(key);
+      if (!seed) {
+        seed = this._acquire();
+        seed.key = key;
+        seed.alpha = 0;
+        this.live.set(key, seed);
+        seed.group.visible = true;
+      }
+      seed.setPitch(p, false);
+      route.pointAt(at, LANES.X[p], LANES.Y[p] + 0.02, seed.group.position);
+      seed.group.rotation.y = route.yawAt(at);
+      seed.plate.scale.set(STONE.WIDTH * 1.04, 1, 1.5);
+      seed.target = flags.gate ? 1 : 0.58;
+      seed.alpha += (seed.target - seed.alpha) * Math.min(1, dt * 5);
+      const wait = flags.gate ? 0.5 + 0.5 * Math.sin(G.uTime.value * 2.6 + p * 0.5) : 0;
+      const ringScale = (1.0 + wait * 0.9) * 1.7;
+      seed.ring.scale.set(ringScale, 1, ringScale);
+      seed.ringMat.uniforms.uOpacity.value = flags.gate ? seed.alpha * 0.6 : 0;
+      seed.ringMat.uniforms.uIntensity.value = 1.4 * this.contrast;
+      seed.plateMat.uniforms.uOpacity.value = seed.alpha;
+      seed.plateMat.uniforms.uIntensity.value = (0.9 + 0.55 * onBeat + (flags.gate ? 0.3 : 0)) * this.contrast;
+      seed.glow.material.opacity = seed.alpha * (0.07 + 0.08 * onBeat);
+      seed.glow.scale.setScalar(2.4);
+      seed.glow.position.y = 0.25;
+      seed.capAlpha += ((this.showCaps ? 1 : 0) - seed.capAlpha) * Math.min(1, dt * 9);
+      const capShown = seed.capAlpha > 0.02;
+      seed.cap.visible = capShown;
+      if (capShown) {
+        seed.setCap(this.keyLabels[p]);
+        seed.cap.position.y = this.showNames ? 1.02 : 1.14;
+        seed.cap.scale.setScalar((this.showNames ? 0.78 : 0.94) * (0.7 + 0.3 * seed.capAlpha));
+        seed.cap.material.opacity = Math.min(1, seed.alpha * 1.4) * seed.capAlpha;
+      }
+      seed.letter.visible = this.showNames;
+      seed.letter.position.y = 0.9 + seed.capAlpha * (this.showCaps ? 0.92 : 0);
+      seed.letter.scale.setScalar(0.9);
+      seed.letter.material.opacity = Math.min(1, seed.alpha * 1.3);
+      if (seed.hold) seed.clearHold();
     }
   }
 
